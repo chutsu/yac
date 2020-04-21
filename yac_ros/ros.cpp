@@ -1,4 +1,4 @@
-#include "yac_ros/ros.hpp"
+#include "ros.hpp"
 
 namespace yac {
 

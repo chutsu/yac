@@ -1,5 +1,5 @@
-#include "yac/yac.hpp"
-#include "yac_ros/ros.hpp"
+#include "yac.hpp"
+#include "ros.hpp"
 
 using namespace yac;
 

@@ -1,6 +1,6 @@
-default: deps yac
-
-.PHONY: deps yac
+default: deps build
+.PHONY: deps build debug
+CATKIN_WS="~/catkin_ws"
 
 deps:
 	@echo "Installing deps..."
@@ -9,7 +9,8 @@ deps:
 	@sudo apt-get install -qqq -y libyaml-cpp-dev
 	@echo "Done!"
 
-yac:
-	@cd yac && mkdir -p build && cd build \
-		&& cmake .. -DCMAKE_BUILD_TYPE=Release \
-		&& make -j2
+build:
+	cd $CATKIN_WS && catkin build yac yac_ros -DCMAKE_BUILD_TYPE=Release -j2
+
+debug:
+	cd $CATKIN_WS && catkin build yac yac_ros -DCMAKE_BUILD_TYPE=Debug -j2

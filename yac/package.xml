@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<package>
+  <name>yac</name>
+  <version>0.0.1</version>
+  <description>YAC - Yet Another Calibrator</description>
+
+  <!-- Contact info -->
+  <maintainer email="chutsu@gmail.com">Chris Choi</maintainer>
+
+  <!-- Build tool dependencies -->
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <!-- License -->
+  <license>MIT</license>
+</package>

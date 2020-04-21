@@ -1,5 +1,5 @@
-#include "yac/yac.hpp"
-#include "yac_ros/ros.hpp"
+#include "yac.hpp"
+#include "ros.hpp"
 
 void process_rosbag(const std::string &rosbag_path,
                     const std::string &cam0_topic,

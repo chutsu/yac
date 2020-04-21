@@ -1,6 +1,7 @@
 #include <signal.h>
-#include "yac/yac.hpp"
-#include "yac_ros/ros.hpp"
+#include "yac.hpp"
+#include "ros.hpp"
+#include "calib_vicon_marker.hpp"
 
 using namespace yac;
 std::string test_out_path = "/tmp/vicon_test";
@@ -826,12 +827,6 @@ int main(int argc, char *argv[]) {
   //                cam0_topic,
   //                body0_topic,
   //                target0_topic);
-  //
-  // // long long ts_offset = -1e2;
-  // // for (int i = 0; i < 10000; i++) {
-  // //   ts_offset += 1e5;
-  // //   loop_test_dataset(test_out_path, calib_target, ds, false, ts_offset);
-  // // }
   // loop_test_dataset(test_out_path, calib_target, ds, true, 0.0);
   // clear_test_output();
 

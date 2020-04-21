@@ -1,6 +1,7 @@
-# Yet Another Calibrator (yac)
+# YAC - Yet Another Calibrator
 
-`yac` is *Y*et *A*nother *C*alibrator for calibrating RGB cameras. Specifically:
+*Y*et *A*nother *C*alibrator (YAC) is a calibraiton tool for calibrating RGB
+cameras. Specifically:
 
 - Monocular camera intrinsics
 - Stereo camera intrinsics and extrinsics

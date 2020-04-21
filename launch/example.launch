@@ -1,0 +1,7 @@
+<launch>
+  <node pkg="proto_ros"
+    type="example_node"
+    name="example_node"
+    required="true"
+    output="screen" />
+</launch>

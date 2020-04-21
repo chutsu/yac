@@ -1,5 +1,5 @@
 <launch>
-  <node pkg="proto_ros"
+  <node pkg="yac_ros"
     type="example_node"
     name="example_node"
     required="true"

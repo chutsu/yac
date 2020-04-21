@@ -1,4 +1,4 @@
-#include <yac/yac.hpp>
+#include <yac.hpp>
 
 using namespace yac;
 

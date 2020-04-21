@@ -3,9 +3,9 @@
 
 #include <ceres/ceres.h>
 
-#include "yac/core.hpp"
-#include "yac/calib_data.hpp"
-#include "yac/calib_camera.hpp"
+#include "core.hpp"
+#include "calib_data.hpp"
+#include "calib_camera.hpp"
 
 namespace yac {
 

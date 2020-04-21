@@ -7,7 +7,7 @@
 #include <AprilTags/TagDetector.h>
 #include <AprilTags/Tag36h11.h>
 
-#include "yac/core.hpp"
+#include "core.hpp"
 
 namespace yac {
 

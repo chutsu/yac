@@ -1,5 +1,5 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8.3)
-PROJECT(proto_ros)
+PROJECT(yac_ros)
 
 # DEPENDENCIES
 CMAKE_POLICY(SET CMP0054 NEW)
@@ -23,15 +23,15 @@ INCLUDE_DIRECTORIES(${catkin_INCLUDE_DIRS})
 INCLUDE_DIRECTORIES(${GAZEBO_INCLUDE_DIRS})
 INCLUDE(cmake/ImportProto.cmake)
 FIND_PACKAGE(Proto REQUIRED)
-INCLUDE_DIRECTORIES(${PROTO_INCLUDE_DIRS})
+INCLUDE_DIRECTORIES(${YAC_INCLUDE_DIRS})
 
 # LINK
 SET(
   DEPS
-  proto_ros
-  proto
+  yac_ros
+  yac
   ${catkin_LIBRARIES}
-  ${PROTO_LIBRARIES}
+  ${YAC_LIBRARIES}
 )
 
 # ROS MESSAGE
@@ -58,12 +58,12 @@ CATKIN_PACKAGE(
   INCLUDE_DIRS
     include
   LIBRARIES
-    proto_ros
+    yac_ros
 )
 
-# PROTO ROS LIB
+# YAC ROS LIB
 ADD_LIBRARY(
-  proto_ros
+  yac_ros
   src/ros/ros.cpp
 )
 INSTALL(
@@ -72,20 +72,20 @@ INSTALL(
 )
 
 # GAZEBO
-ADD_LIBRARY(proto_camera_plugin SHARED src/ros/gazebo/camera_plugin.cpp)
-TARGET_LINK_LIBRARIES(proto_camera_plugin ${DEPS})
+ADD_LIBRARY(yac_camera_plugin SHARED src/ros/gazebo/camera_plugin.cpp)
+TARGET_LINK_LIBRARIES(yac_camera_plugin ${DEPS})
 
-ADD_LIBRARY(proto_gimbal_plugin SHARED src/ros/gazebo/gimbal_plugin.cpp)
-TARGET_LINK_LIBRARIES(proto_gimbal_plugin ${DEPS})
+ADD_LIBRARY(yac_gimbal_plugin SHARED src/ros/gazebo/gimbal_plugin.cpp)
+TARGET_LINK_LIBRARIES(yac_gimbal_plugin ${DEPS})
 
-ADD_LIBRARY(proto_landing_target_plugin SHARED src/ros/gazebo/landing_target_plugin.cpp)
-TARGET_LINK_LIBRARIES(proto_landing_target_plugin ${DEPS})
+ADD_LIBRARY(yac_landing_target_plugin SHARED src/ros/gazebo/landing_target_plugin.cpp)
+TARGET_LINK_LIBRARIES(yac_landing_target_plugin ${DEPS})
 
-ADD_LIBRARY(proto_mav_plugin SHARED src/ros/gazebo/mav_plugin.cpp)
-TARGET_LINK_LIBRARIES(proto_mav_plugin ${DEPS})
+ADD_LIBRARY(yac_mav_plugin SHARED src/ros/gazebo/mav_plugin.cpp)
+TARGET_LINK_LIBRARIES(yac_mav_plugin ${DEPS})
 
-ADD_LIBRARY(proto_pose_plugin SHARED src/ros/gazebo/pose_plugin.cpp)
-TARGET_LINK_LIBRARIES(proto_pose_plugin ${DEPS})
+ADD_LIBRARY(yac_pose_plugin SHARED src/ros/gazebo/pose_plugin.cpp)
+TARGET_LINK_LIBRARIES(yac_pose_plugin ${DEPS})
 
 # ROS NODES
 # ADD_EXECUTABLE(atl_node src/ros/nodes/atl_node.cpp)

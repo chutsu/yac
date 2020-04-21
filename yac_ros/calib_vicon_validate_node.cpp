@@ -1,8 +1,8 @@
-#include "proto/proto.hpp"
-#include "proto/calib/calib_vicon_marker.hpp"
-#include "proto/ros/ros.hpp"
+#include "yac/yac.hpp"
+#include "yac/calib_vicon_marker.hpp"
+#include "yac_ros/ros.hpp"
 
-using namespace proto;
+using namespace yac;
 
 struct node_t : ros_node_t {
   calib_target_t calib_target_;

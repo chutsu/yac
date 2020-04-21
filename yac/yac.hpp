@@ -1,5 +1,0 @@
-#include "yac/aprilgrid.hpp"
-#include "yac/calib_camera.hpp"
-#include "yac/calib_data.hpp"
-// #include "yac/calib_vicon_marker.hpp"
-#include "yac/core.hpp"

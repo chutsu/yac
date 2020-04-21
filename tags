@@ -1,0 +1,735 @@
+!_TAG_FILE_FORMAT	2	/extended format; --format=1 will not append ;" to lines/
+!_TAG_FILE_SORTED	1	/0=unsorted, 1=sorted, 2=foldcase/
+!_TAG_PROGRAM_AUTHOR	Darren Hiebert	/dhiebert@users.sourceforge.net/
+!_TAG_PROGRAM_NAME	Exuberant Ctags	//
+!_TAG_PROGRAM_URL	http://ctags.sourceforge.net	/official site/
+!_TAG_PROGRAM_VERSION	5.9~svn20110310	//
+CHECK	yac/core.hpp	183;"	d
+DEBUG	yac/core.hpp	172;"	d
+DEBUG	yac/core.hpp	174;"	d
+EARTH_RADIUS_M	yac/core.hpp	1386;"	d
+EIGEN_MAKE_ALIGNED_OPERATOR_NEW	yac/aprilgrid.hpp	/^  EIGEN_MAKE_ALIGNED_OPERATOR_NEW;$/;"	m	struct:yac::aprilgrid_t
+ENABLE_MACROS	yac/core.hpp	73;"	d
+Exp	yac/core.cpp	/^mat3_t Exp(const vec3_t &phi) {$/;"	f	namespace:yac::lie
+FATAL	yac/core.hpp	163;"	d
+I	yac/core.cpp	/^matx_t I(const int rows, const int cols) {$/;"	f	namespace:yac
+I	yac/core.cpp	/^matx_t I(const int size) { return matx_t::Identity(size, size); }$/;"	f	namespace:yac
+J_dist	yac/core.hpp	/^  matx_t J_dist(const vec2_t &p) const {$/;"	f	struct:yac::equi4_t
+J_dist	yac/core.hpp	/^  matx_t J_dist(const vec2_t &p) const {$/;"	f	struct:yac::nodist_t
+J_dist	yac/core.hpp	/^  matx_t J_dist(const vec2_t &p) const {$/;"	f	struct:yac::pinhole_t
+J_dist	yac/core.hpp	/^  matx_t J_dist(const vec2_t &p) const {$/;"	f	struct:yac::radtan4_t
+J_dist	yac/core.hpp	/^  matx_t J_dist(const vec2_t &p) {$/;"	f	struct:yac::equi4_t
+J_dist	yac/core.hpp	/^  matx_t J_dist(const vec2_t &p) {$/;"	f	struct:yac::nodist_t
+J_dist	yac/core.hpp	/^  matx_t J_dist(const vec2_t &p) {$/;"	f	struct:yac::pinhole_t
+J_dist	yac/core.hpp	/^  matx_t J_dist(const vec2_t &p) {$/;"	f	struct:yac::radtan4_t
+J_point	yac/core.hpp	/^  mat2_t J_point() const {$/;"	f	struct:yac::pinhole_t
+J_point	yac/core.hpp	/^  mat2_t J_point() {$/;"	f	struct:yac::pinhole_t
+J_point	yac/core.hpp	/^  mat2_t J_point(const vec2_t &p) const {$/;"	f	struct:yac::equi4_t
+J_point	yac/core.hpp	/^  mat2_t J_point(const vec2_t &p) const {$/;"	f	struct:yac::nodist_t
+J_point	yac/core.hpp	/^  mat2_t J_point(const vec2_t &p) const {$/;"	f	struct:yac::radtan4_t
+J_point	yac/core.hpp	/^  mat2_t J_point(const vec2_t &p) {$/;"	f	struct:yac::equi4_t
+J_point	yac/core.hpp	/^  mat2_t J_point(const vec2_t &p) {$/;"	f	struct:yac::nodist_t
+J_point	yac/core.hpp	/^  mat2_t J_point(const vec2_t &p) {$/;"	f	struct:yac::radtan4_t
+J_proj	yac/core.hpp	/^  matx_t J_proj(const vec2_t &p) const {$/;"	f	struct:yac::pinhole_t
+J_proj	yac/core.hpp	/^  matx_t J_proj(const vec2_t &p) {$/;"	f	struct:yac::pinhole_t
+Jr	yac/core.cpp	/^mat3_t Jr(const vec3_t &psi) {$/;"	f	namespace:yac::lie
+K	yac/core.hpp	/^  mat3_t K() const {$/;"	f	struct:yac::pinhole_t
+K	yac/core.hpp	/^  mat3_t K() {$/;"	f	struct:yac::pinhole_t
+LOG_ERROR	yac/core.hpp	152;"	d
+LOG_INFO	yac/core.hpp	159;"	d
+LOG_WARN	yac/core.hpp	160;"	d
+NODE_RATE	yac_ros/example_node.cpp	/^static const double NODE_RATE = 1.0;$/;"	v	file:
+PRECISION	yac/core.hpp	83;"	d
+ROS_OPTIONAL_PARAM	yac_ros/ros.hpp	112;"	d
+ROS_PARAM	yac_ros/ros.hpp	106;"	d
+RUN_ROS_NODE	yac_ros/ros.hpp	118;"	d
+RUN_ROS_NODE_RATE	yac_ros/ros.hpp	136;"	d
+SAY_TOPIC	yac_ros/example_node.cpp	/^static const std::string SAY_TOPIC = "\/example\/say";$/;"	v	file:
+SPLINE1D	yac/core.hpp	1908;"	d
+SPLINE2D	yac/core.hpp	1911;"	d
+SPLINE3D	yac/core.hpp	1914;"	d
+Spline1D	yac/core.hpp	/^typedef Eigen::Spline<real_t, 1> Spline1D;$/;"	t	namespace:yac
+Spline2D	yac/core.hpp	/^typedef Eigen::Spline<real_t, 2> Spline2D;$/;"	t	namespace:yac
+Spline3D	yac/core.hpp	/^typedef Eigen::Spline<real_t, 3> Spline3D;$/;"	t	namespace:yac
+T	yac/calib_data.hpp	/^  mat4_t T() {$/;"	f	struct:yac::calib_pose_t
+T_C0C1	yac/apps/validate_stereo.cpp	/^  mat4_t T_C0C1 = I(4);$/;"	m	struct:calib_config_t	file:
+T_CF	yac/aprilgrid.hpp	/^  mat4_t T_CF = I(4);$/;"	m	struct:yac::aprilgrid_t
+T_MC	yac_ros/calib_vicon_node.cpp	/^  mat4_t T_MC;$/;"	m	struct:dataset_t	file:
+T_MC_	yac_ros/calib_vicon_validate_node.cpp	/^  mat4_t T_MC_;$/;"	m	struct:node_t	file:
+T_WF	yac_ros/calib_vicon_node.cpp	/^  mat4_t T_WF;$/;"	m	struct:dataset_t	file:
+T_WF_	yac_ros/calib_vicon_validate_node.cpp	/^  mat4_t T_WF_;$/;"	m	struct:node_t	file:
+T_WM	yac_ros/calib_vicon_node.cpp	/^  mat4s_t T_WM;$/;"	m	struct:dataset_t	file:
+T_WM_	yac_ros/calib_vicon_validate_node.cpp	/^  mat4_t T_WM_;$/;"	m	struct:node_t	file:
+UNUSED	yac/core.hpp	177;"	d
+YAC_APRILGRID_HPP	yac/aprilgrid.hpp	2;"	d
+YAC_CALIB_CAMERA_HPP	yac/calib_camera.hpp	2;"	d
+YAC_CALIB_DATA_HPP	yac/calib_data.hpp	2;"	d
+YAC_CALIB_VICON_MARKER_HPP	yac/calib_vicon_marker.hpp	2;"	d
+YAC_CORE_HPP	yac/core.hpp	2;"	d
+YAC_ROS_ROS_HPP	yac_ros/ros.hpp	2;"	d
+__FILENAME__	yac/core.hpp	149;"	d
+accel_init_output_file	yac_ros/ros.cpp	/^std::ofstream accel_init_output_file(const std::string &output_path) {$/;"	f	namespace:yac
+accel_message_handler	yac_ros/ros.cpp	/^void accel_message_handler(const rosbag::MessageInstance &msg,$/;"	f	namespace:yac
+addClient	yac_ros/ros.hpp	/^  int addClient(const std::string &service_topic) {$/;"	f	struct:yac::ros_node_t
+add_image_publisher	yac_ros/ros.cpp	/^int ros_node_t::add_image_publisher(const std::string &topic) {$/;"	f	class:yac::ros_node_t
+add_image_subscriber	yac_ros/ros.hpp	/^  int add_image_subscriber(const std::string &topic,$/;"	f	struct:yac::ros_node_t
+add_loop_callback	yac_ros/ros.cpp	/^int ros_node_t::add_loop_callback(std::function<int()> cb) {$/;"	f	class:yac::ros_node_t
+add_publisher	yac_ros/ros.hpp	/^  int add_publisher(const std::string &topic,$/;"	f	struct:yac::ros_node_t
+add_service	yac_ros/ros.hpp	/^  int add_service(const std::string &service_topic,$/;"	f	struct:yac::ros_node_t
+add_shutdown_subscriber	yac_ros/ros.cpp	/^int ros_node_t::add_shutdown_subscriber(const std::string &topic) {$/;"	f	class:yac::ros_node_t
+add_subscriber	yac_ros/ros.hpp	/^  int add_subscriber(const std::string &topic,$/;"	f	struct:yac::ros_node_t
+align_back	yac/core.cpp	/^static void align_back(const std::deque<timestamp_t> &reference,$/;"	f	namespace:yac
+align_front	yac/core.cpp	/^static void align_front(const std::deque<timestamp_t> &reference,$/;"	f	namespace:yac
+all_true	yac/core.cpp	/^bool all_true(const std::vector<bool> x) {$/;"	f	namespace:yac
+angle_axis_t	yac/core.hpp	/^typedef Eigen::AngleAxis<real_t> angle_axis_t;$/;"	t	namespace:yac
+aprilgrid_add	yac/aprilgrid.cpp	/^void aprilgrid_add(aprilgrid_t &grid,$/;"	f	namespace:yac
+aprilgrid_calc_relative_pose	yac/aprilgrid.cpp	/^int aprilgrid_calc_relative_pose(aprilgrid_t &grid,$/;"	f	namespace:yac
+aprilgrid_clear	yac/aprilgrid.cpp	/^void aprilgrid_clear(aprilgrid_t &grid) {$/;"	f	namespace:yac
+aprilgrid_configure	yac/aprilgrid.cpp	/^int aprilgrid_configure(aprilgrid_t &grid, const std::string &target_file) {$/;"	f	namespace:yac
+aprilgrid_detect	yac/aprilgrid.cpp	/^int aprilgrid_detect(aprilgrid_t &grid,$/;"	f	namespace:yac
+aprilgrid_detector_detect	yac/aprilgrid.cpp	/^aprilgrid_t aprilgrid_detector_detect(const aprilgrid_detector_t &detector,$/;"	f	namespace:yac
+aprilgrid_detector_t	yac/aprilgrid.cpp	/^aprilgrid_detector_t::aprilgrid_detector_t() {}$/;"	f	class:yac::aprilgrid_detector_t
+aprilgrid_detector_t	yac/aprilgrid.hpp	/^struct aprilgrid_detector_t {$/;"	s	namespace:yac
+aprilgrid_filter_tags	yac/aprilgrid.cpp	/^void aprilgrid_filter_tags(const cv::Mat &image,$/;"	f	namespace:yac
+aprilgrid_get	yac/aprilgrid.cpp	/^int aprilgrid_get(const aprilgrid_t &grid, const int id, vec2s_t &keypoints) {$/;"	f	namespace:yac
+aprilgrid_get	yac/aprilgrid.cpp	/^int aprilgrid_get(const aprilgrid_t &grid,$/;"	f	namespace:yac
+aprilgrid_grid_index	yac/aprilgrid.cpp	/^int aprilgrid_grid_index(const aprilgrid_t &grid,$/;"	f	namespace:yac
+aprilgrid_imshow	yac/aprilgrid.cpp	/^void aprilgrid_imshow(const aprilgrid_t &grid,$/;"	f	namespace:yac
+aprilgrid_intersection	yac/aprilgrid.cpp	/^void aprilgrid_intersection(aprilgrid_t &grid0, aprilgrid_t &grid1) {$/;"	f	namespace:yac
+aprilgrid_intersection	yac/aprilgrid.cpp	/^void aprilgrid_intersection(std::vector<aprilgrid_t *> &grids) {$/;"	f	namespace:yac
+aprilgrid_load	yac/aprilgrid.cpp	/^int aprilgrid_load(aprilgrid_t &grid, const std::string &data_path) {$/;"	f	namespace:yac
+aprilgrid_object_point	yac/aprilgrid.cpp	/^int aprilgrid_object_point(const aprilgrid_t &grid,$/;"	f	namespace:yac
+aprilgrid_object_points	yac/aprilgrid.cpp	/^int aprilgrid_object_points(const aprilgrid_t &grid, vec3s_t &object_points) {$/;"	f	namespace:yac
+aprilgrid_object_points	yac/aprilgrid.cpp	/^int aprilgrid_object_points(const aprilgrid_t &grid,$/;"	f	namespace:yac
+aprilgrid_random_sample	yac/aprilgrid.cpp	/^void aprilgrid_random_sample(const aprilgrid_t &grid, const size_t n,$/;"	f	namespace:yac
+aprilgrid_remove	yac/aprilgrid.cpp	/^void aprilgrid_remove(aprilgrid_t &grid, const int id) {$/;"	f	namespace:yac
+aprilgrid_save	yac/aprilgrid.cpp	/^int aprilgrid_save(const aprilgrid_t &grid, const std::string &save_path) {$/;"	f	namespace:yac
+aprilgrid_set_properties	yac/aprilgrid.cpp	/^void aprilgrid_set_properties(aprilgrid_t &grid,$/;"	f	namespace:yac
+aprilgrid_t	yac/aprilgrid.cpp	/^aprilgrid_t::aprilgrid_t() {}$/;"	f	class:yac::aprilgrid_t
+aprilgrid_t	yac/aprilgrid.cpp	/^aprilgrid_t::aprilgrid_t(const timestamp_t &timestamp,$/;"	f	class:yac::aprilgrid_t
+aprilgrid_t	yac/aprilgrid.hpp	/^struct aprilgrid_t {$/;"	s	namespace:yac
+aprilgrids_t	yac/aprilgrid.hpp	/^typedef std::vector<aprilgrid_t> aprilgrids_t;$/;"	t	namespace:yac
+apriltag_t	yac/aprilgrid.hpp	/^typedef AprilTags::TagDetection apriltag_t;$/;"	t	namespace:yac
+argc_	yac_ros/ros.hpp	/^  int argc_ = 0;$/;"	m	struct:yac::ros_node_t
+argv_	yac_ros/ros.hpp	/^  char **argv_ = nullptr;$/;"	m	struct:yac::ros_node_t
+arr2str	yac/core.cpp	/^std::string arr2str(const real_t *arr, const size_t len, bool brackets) {$/;"	f	namespace:yac
+array2str	yac/core.cpp	/^std::string array2str(const real_t *array, const size_t size) {$/;"	f	namespace:yac
+array2vec	yac/core.cpp	/^void array2vec(const real_t *x, const size_t size, vecx_t y) {$/;"	f	namespace:yac
+arrayx_t	yac/core.hpp	/^typedef Eigen::Array<real_t, Eigen::Dynamic, 1> arrayx_t;$/;"	t	namespace:yac
+b_a	yac/core.hpp	/^  vec3_t b_a = zeros(3, 1);$/;"	m	struct:yac::sim_imu_t
+b_g	yac/core.hpp	/^  vec3_t b_g = zeros(3, 1);$/;"	m	struct:yac::sim_imu_t
+bag	yac_ros/calib_vicon_capture_node.cpp	/^rosbag::Bag bag;$/;"	v
+basename	yac_ros/calib_vicon_node.cpp	/^std::string basename(const std::string &path) {$/;"	f
+binomial	yac/core.cpp	/^real_t binomial(const real_t n, const real_t k) {$/;"	f	namespace:yac
+body0_topic	yac_ros/calib_vicon_capture_node.cpp	/^std::string body0_topic;$/;"	v
+body_callback	yac_ros/calib_vicon_validate_node.cpp	/^  body_callback(const geometry_msgs::PoseWithCovarianceStampedConstPtr &msg) {$/;"	f	struct:node_t
+body_counter	yac_ros/calib_vicon_capture_node.cpp	/^int body_counter = 0;$/;"	v
+body_odom_cb	yac_ros/calib_vicon_capture_node.cpp	/^static void body_odom_cb(const nav_msgs::OdometryConstPtr &msg) {$/;"	f	file:
+body_pose_cb	yac_ros/calib_vicon_capture_node.cpp	/^static void body_pose_cb(const geometry_msgs::PoseStampedConstPtr &msg) {$/;"	f	file:
+body_pose_covar_cb	yac_ros/calib_vicon_capture_node.cpp	/^static void body_pose_covar_cb($/;"	f	file:
+calib_camera_solve	yac/calib_camera.cpp	/^int calib_camera_solve(const std::string &config_file) {$/;"	f	namespace:yac
+calib_camera_solve	yac/calib_camera.hpp	/^int calib_camera_solve(const aprilgrids_t &aprilgrids,$/;"	f	namespace:yac
+calib_camera_stats	yac/calib_camera.hpp	/^int calib_camera_stats(const aprilgrids_t &aprilgrids,$/;"	f	namespace:yac
+calib_config_	yac_ros/calib_mono_validate_node.cpp	/^  calib_config_t calib_config_;$/;"	m	struct:yac::calib_validate_mono_node_t	file:
+calib_config_	yac_ros/calib_stereo_validate_node.cpp	/^  calib_config_t calib_config_;$/;"	m	struct:yac::calib_validate_mono_node_t	file:
+calib_config_t	yac/apps/validate_stereo.cpp	/^struct calib_config_t {$/;"	s	file:
+calib_config_t	yac_ros/calib_mono_validate_node.cpp	/^struct calib_config_t {$/;"	s	namespace:yac	file:
+calib_config_t	yac_ros/calib_stereo_validate_node.cpp	/^struct calib_config_t {$/;"	s	namespace:yac	file:
+calib_generate_poses	yac/calib_camera.cpp	/^mat4s_t calib_generate_poses(const calib_target_t &target) {$/;"	f	namespace:yac
+calib_pose_t	yac/calib_data.hpp	/^  calib_pose_t(const mat3_t &rot, const vec3_t &trans) {$/;"	f	struct:yac::calib_pose_t
+calib_pose_t	yac/calib_data.hpp	/^  calib_pose_t(const mat4_t &T) {$/;"	f	struct:yac::calib_pose_t
+calib_pose_t	yac/calib_data.hpp	/^  calib_pose_t(const quat_t &rot, const vec3_t &trans) {$/;"	f	struct:yac::calib_pose_t
+calib_pose_t	yac/calib_data.hpp	/^struct calib_pose_t {$/;"	s	namespace:yac
+calib_stereo_solve	yac/calib_camera.cpp	/^int calib_stereo_solve(const std::string &config_file) {$/;"	f	namespace:yac
+calib_stereo_solve	yac/calib_camera.hpp	/^int calib_stereo_solve(const std::vector<aprilgrid_t> &cam0_aprilgrids,$/;"	f	namespace:yac
+calib_target_	yac_ros/calib_mono_validate_node.cpp	/^  calib_target_t calib_target_;$/;"	m	struct:yac::calib_validate_mono_node_t	file:
+calib_target_	yac_ros/calib_stereo_validate_node.cpp	/^  calib_target_t calib_target_;$/;"	m	struct:yac::calib_validate_mono_node_t	file:
+calib_target_	yac_ros/calib_vicon_validate_node.cpp	/^  calib_target_t calib_target_;$/;"	m	struct:node_t	file:
+calib_target_load	yac/calib_data.cpp	/^int calib_target_load(calib_target_t &ct,$/;"	f	namespace:yac
+calib_target_t	yac/calib_data.hpp	/^  calib_target_t() {}$/;"	f	struct:yac::calib_target_t
+calib_target_t	yac/calib_data.hpp	/^struct calib_target_t {$/;"	s	namespace:yac
+calib_validate_mono_node_t	yac_ros/calib_mono_validate_node.cpp	/^  calib_validate_mono_node_t() : ros_node_t() {}$/;"	f	struct:yac::calib_validate_mono_node_t
+calib_validate_mono_node_t	yac_ros/calib_mono_validate_node.cpp	/^struct calib_validate_mono_node_t : ros_node_t {$/;"	s	namespace:yac	file:
+calib_validate_mono_node_t	yac_ros/calib_stereo_validate_node.cpp	/^  calib_validate_mono_node_t() : ros_node_t() {}$/;"	f	struct:yac::calib_validate_mono_node_t
+calib_validate_mono_node_t	yac_ros/calib_stereo_validate_node.cpp	/^struct calib_validate_mono_node_t : ros_node_t {$/;"	s	namespace:yac	file:
+calib_vicon_marker_solve	yac/calib_vicon_marker.hpp	/^int calib_vicon_marker_solve(const aprilgrids_t &aprilgrids,$/;"	f	namespace:yac
+cam0_D_	yac_ros/calib_vicon_validate_node.cpp	/^  vec4_t cam0_D_;$/;"	m	struct:node_t	file:
+cam0_K_	yac_ros/calib_vicon_validate_node.cpp	/^  vec4_t cam0_K_;$/;"	m	struct:node_t	file:
+cam0_camera_model	yac/apps/validate_stereo.cpp	/^  std::string cam0_camera_model;$/;"	m	struct:calib_config_t	file:
+cam0_distortion	yac/apps/validate_stereo.cpp	/^  vec4_t cam0_distortion;$/;"	m	struct:calib_config_t	file:
+cam0_distortion_model	yac/apps/validate_stereo.cpp	/^  std::string cam0_distortion_model;$/;"	m	struct:calib_config_t	file:
+cam0_image_path	yac/apps/validate_stereo.cpp	/^  std::string cam0_image_path;$/;"	m	struct:calib_config_t	file:
+cam0_intrinsics	yac/apps/validate_stereo.cpp	/^  vec4_t cam0_intrinsics;$/;"	m	struct:calib_config_t	file:
+cam0_topic	yac_ros/calib_vicon_capture_node.cpp	/^std::string cam0_topic;$/;"	v
+cam1_camera_model	yac/apps/validate_stereo.cpp	/^  std::string cam1_camera_model;$/;"	m	struct:calib_config_t	file:
+cam1_distortion	yac/apps/validate_stereo.cpp	/^  vec4_t cam1_distortion;$/;"	m	struct:calib_config_t	file:
+cam1_distortion_model	yac/apps/validate_stereo.cpp	/^  std::string cam1_distortion_model;$/;"	m	struct:calib_config_t	file:
+cam1_image_path	yac/apps/validate_stereo.cpp	/^  std::string cam1_image_path;$/;"	m	struct:calib_config_t	file:
+cam1_intrinsics	yac/apps/validate_stereo.cpp	/^  vec4_t cam1_intrinsics;$/;"	m	struct:calib_config_t	file:
+cam_D	yac_ros/calib_mono_validate_node.cpp	/^  vecx_t cam_D;$/;"	m	struct:yac::calib_config_t	file:
+cam_D	yac_ros/calib_stereo_validate_node.cpp	/^  vecx_t cam_D;$/;"	m	struct:yac::calib_config_t	file:
+cam_K	yac_ros/calib_mono_validate_node.cpp	/^  mat3_t cam_K;$/;"	m	struct:yac::calib_config_t	file:
+cam_K	yac_ros/calib_stereo_validate_node.cpp	/^  mat3_t cam_K;$/;"	m	struct:yac::calib_config_t	file:
+cam_counter	yac_ros/calib_vicon_capture_node.cpp	/^int cam_counter = 0;$/;"	v
+cam_model	yac_ros/calib_vicon_node.cpp	/^  pinhole_t<radtan4_t> cam_model;$/;"	m	struct:dataset_t	file:
+camera_geometry	yac_ros/calib_mono_validate_node.cpp	/^  pinhole_radtan4_t camera_geometry;$/;"	m	struct:yac::calib_config_t	file:
+camera_geometry	yac_ros/calib_stereo_validate_node.cpp	/^  pinhole_radtan4_t camera_geometry;$/;"	m	struct:yac::calib_config_t	file:
+camera_init_output_file	yac_ros/ros.cpp	/^std::ofstream camera_init_output_file(const std::string &output_path) {$/;"	f	namespace:yac
+camera_model	yac_ros/calib_mono_validate_node.cpp	/^  std::string camera_model;$/;"	m	struct:yac::calib_config_t	file:
+camera_model	yac_ros/calib_stereo_validate_node.cpp	/^  std::string camera_model;$/;"	m	struct:yac::calib_config_t	file:
+capture_	yac_ros/calib_mono_validate_node.cpp	/^  cv::VideoCapture capture_;$/;"	m	struct:yac::calib_validate_mono_node_t	file:
+capture_	yac_ros/calib_stereo_validate_node.cpp	/^  cv::VideoCapture capture_;$/;"	m	struct:yac::calib_validate_mono_node_t	file:
+capture_event	yac_ros/calib_vicon_capture_node.cpp	/^bool capture_event = false;$/;"	v
+check_jacobian	yac/core.cpp	/^int check_jacobian(const std::string &jac_name,$/;"	f	namespace:yac
+check_ros_topics	yac_ros/ros.cpp	/^bool check_ros_topics(const std::string &rosbag_path,$/;"	f	namespace:yac
+circle	yac/core.cpp	/^vec2_t circle(const real_t r, const real_t theta) {$/;"	f	namespace:yac
+clear_test_output	yac_ros/calib_vicon_node.cpp	/^void clear_test_output() {$/;"	f
+closest_point	yac/core.cpp	/^real_t closest_point(const vec2_t &a,$/;"	f	namespace:yac
+closest_poses	yac/core.cpp	/^void closest_poses(const timestamps_t &timestamps,$/;"	f	namespace:yac
+col_major_t	yac/core.hpp	93;"	d
+col_vector_t	yac/core.hpp	/^typedef Eigen::Matrix<real_t, Eigen::Dynamic, 1> col_vector_t;$/;"	t	namespace:yac
+cond	yac/core.cpp	/^real_t cond(const matx_t &A) {$/;"	f	namespace:yac
+config_t	yac/core.cpp	/^config_t::config_t() {}$/;"	f	class:yac::config_t
+config_t	yac/core.cpp	/^config_t::config_t(const std::string &file_path_) : file_path{file_path_} {$/;"	f	class:yac::config_t
+config_t	yac/core.hpp	/^struct config_t {$/;"	s	namespace:yac
+configure	yac_ros/calib_mono_validate_node.cpp	/^  int configure() {$/;"	f	struct:yac::calib_validate_mono_node_t
+configure	yac_ros/calib_stereo_validate_node.cpp	/^  int configure() {$/;"	f	struct:yac::calib_validate_mono_node_t
+configure	yac_ros/calib_vicon_validate_node.cpp	/^  int configure() {$/;"	f	struct:node_t
+configure	yac_ros/example_node.cpp	/^  int configure(const int hz) {$/;"	f	struct:yac::example_node_t
+configure	yac_ros/ros.cpp	/^int ros_node_t::configure() {$/;"	f	class:yac::ros_node_t
+configure	yac_ros/ros.cpp	/^int ros_node_t::configure(const int hz) {$/;"	f	class:yac::ros_node_t
+configured	yac/aprilgrid.hpp	/^  bool configured = false;$/;"	m	struct:yac::aprilgrid_t
+configured_	yac_ros/ros.hpp	/^  bool configured_ = false;$/;"	m	struct:yac::ros_node_t
+conn_thread	yac/core.hpp	/^  void *(*conn_thread)(void *) = nullptr;$/;"	m	struct:yac::tcp_server_t
+conns	yac/core.hpp	/^  std::vector<int> conns;$/;"	m	struct:yac::tcp_server_t
+convert	yac/core.cpp	/^cv::Mat convert(const matx_t &x) {$/;"	f	namespace:yac
+convert	yac/core.cpp	/^matx_t convert(const cv::Mat &x) {$/;"	f	namespace:yac
+convert	yac/core.cpp	/^void convert(const cv::Mat &x, matx_t &y) {$/;"	f	namespace:yac
+convert	yac/core.cpp	/^void convert(const matx_t &x, cv::Mat &y) {$/;"	f	namespace:yac
+create_dir	yac/core.cpp	/^int create_dir(const std::string &path) {$/;"	f	namespace:yac
+cross_track_error	yac/core.cpp	/^real_t cross_track_error(const vec2_t &p1,$/;"	f	namespace:yac
+csv2mat	yac/core.cpp	/^int csv2mat(const std::string &file_path, const bool header, matx_t &data) {$/;"	f	namespace:yac
+csv_cols	yac/core.cpp	/^int csv_cols(const char *fp) {$/;"	f	namespace:yac
+csv_cols	yac/core.cpp	/^int csv_cols(const std::string &file_path) {$/;"	f	namespace:yac
+csv_data	yac/core.cpp	/^real_t **csv_data(const char *fp, int *nb_rows, int *nb_cols) {$/;"	f	namespace:yac
+csv_fields	yac/core.cpp	/^char **csv_fields(const char *fp, int *nb_fields) {$/;"	f	namespace:yac
+csv_rows	yac/core.cpp	/^int csv_rows(const char *fp) {$/;"	f	namespace:yac
+csv_rows	yac/core.cpp	/^int csv_rows(const std::string &file_path) {$/;"	f	namespace:yac
+ctraj_get_acceleration	yac/core.cpp	/^vec3_t ctraj_get_acceleration(const ctraj_t &ctraj, const timestamp_t ts) {$/;"	f	namespace:yac
+ctraj_get_angular_velocity	yac/core.cpp	/^vec3_t ctraj_get_angular_velocity(const ctraj_t &ctraj, const timestamp_t ts) {$/;"	f	namespace:yac
+ctraj_get_pose	yac/core.cpp	/^mat4_t ctraj_get_pose(const ctraj_t &ctraj, const timestamp_t ts) {$/;"	f	namespace:yac
+ctraj_get_velocity	yac/core.cpp	/^vec3_t ctraj_get_velocity(const ctraj_t &ctraj, const timestamp_t ts) {$/;"	f	namespace:yac
+ctraj_init	yac/core.cpp	/^void ctraj_init(ctraj_t &ctraj) {$/;"	f	namespace:yac
+ctraj_save	yac/core.cpp	/^int ctraj_save(const ctraj_t &ctraj, const std::string &save_path) {$/;"	f	namespace:yac
+ctraj_t	yac/core.cpp	/^ctraj_t::ctraj_t(const timestamps_t &timestamps,$/;"	f	class:yac::ctraj_t
+ctraj_t	yac/core.hpp	/^struct ctraj_t {$/;"	s	namespace:yac
+ctrajs_t	yac/core.hpp	/^typedef std::vector<ctraj_t> ctrajs_t;$/;"	t	namespace:yac
+cx	yac/core.hpp	/^  real_t cx() const { return this->params(2); }$/;"	f	struct:yac::pinhole_t
+cx	yac/core.hpp	/^  real_t cx() { return static_cast<const pinhole_t &>(*this).cx(); }$/;"	f	struct:yac::pinhole_t
+cy	yac/core.hpp	/^  real_t cy() const { return this->params(3); }$/;"	f	struct:yac::pinhole_t
+cy	yac/core.hpp	/^  real_t cy() { return static_cast<const pinhole_t &>(*this).cy(); }$/;"	f	struct:yac::pinhole_t
+dataset_t	yac_ros/calib_vicon_node.cpp	/^struct dataset_t {$/;"	s	file:
+debug_mode_	yac_ros/ros.hpp	/^  bool debug_mode_ = false;$/;"	m	struct:yac::ros_node_t
+deg2rad	yac/core.cpp	/^real_t deg2rad(const real_t d) { return d * (M_PI \/ 180.0); }$/;"	f	namespace:yac
+deg2rad	yac/core.cpp	/^vec3_t deg2rad(const vec3_t d) { return d * (M_PI \/ 180.0); }$/;"	f	namespace:yac
+det	yac/aprilgrid.hpp	/^  AprilTags::AprilGridDetector det;$/;"	m	struct:yac::aprilgrid_detector_t
+detect_aprilgrids	yac_ros/calib_vicon_node.cpp	/^void detect_aprilgrids(const calib_target_t &calib_target,$/;"	f
+detect_calib_data	yac/calib_data.cpp	/^int detect_calib_data(const calib_target_t &target,$/;"	f	namespace:yac
+detected	yac/aprilgrid.hpp	/^  bool detected = false;$/;"	m	struct:yac::aprilgrid_t
+detector_	yac_ros/calib_mono_validate_node.cpp	/^  const aprilgrid_detector_t detector_;$/;"	m	struct:yac::calib_validate_mono_node_t	file:
+detector_	yac_ros/calib_stereo_validate_node.cpp	/^  const aprilgrid_detector_t detector_;$/;"	m	struct:yac::calib_validate_mono_node_t	file:
+detector_	yac_ros/calib_vicon_validate_node.cpp	/^  aprilgrid_detector_t detector_;$/;"	m	struct:node_t	file:
+dir_create	yac/core.cpp	/^int dir_create(const std::string &path) {$/;"	f	namespace:yac
+dir_exists	yac/core.cpp	/^bool dir_exists(const std::string &path) {$/;"	f	namespace:yac
+dir_name	yac/core.cpp	/^std::string dir_name(const std::string &path) {$/;"	f	namespace:yac
+dist_params	yac/core.hpp	/^  vecx_t dist_params() const {$/;"	f	struct:yac::pinhole_t
+dist_params	yac/core.hpp	/^  vecx_t dist_params() {$/;"	f	struct:yac::pinhole_t
+dist_params_size	yac/core.hpp	/^  static const size_t dist_params_size = DM::params_size;$/;"	m	struct:yac::pinhole_t
+distort	yac/core.hpp	/^  vec2_t distort(const vec2_t &p) const {$/;"	f	struct:yac::equi4_t
+distort	yac/core.hpp	/^  vec2_t distort(const vec2_t &p) const {$/;"	f	struct:yac::nodist_t
+distort	yac/core.hpp	/^  vec2_t distort(const vec2_t &p) const {$/;"	f	struct:yac::radtan4_t
+distort	yac/core.hpp	/^  vec2_t distort(const vec2_t &p) {$/;"	f	struct:yac::equi4_t
+distort	yac/core.hpp	/^  vec2_t distort(const vec2_t &p) {$/;"	f	struct:yac::nodist_t
+distort	yac/core.hpp	/^  vec2_t distort(const vec2_t &p) {$/;"	f	struct:yac::radtan4_t
+distortion	yac/core.hpp	/^  DM distortion;$/;"	m	struct:yac::projection_t
+distortion	yac_ros/calib_mono_validate_node.cpp	/^  vec4_t distortion;$/;"	m	struct:yac::calib_config_t	file:
+distortion	yac_ros/calib_stereo_validate_node.cpp	/^  vec4_t distortion;$/;"	m	struct:yac::calib_config_t	file:
+distortion_model	yac_ros/calib_mono_validate_node.cpp	/^  std::string distortion_model;$/;"	m	struct:yac::calib_config_t	file:
+distortion_model	yac_ros/calib_stereo_validate_node.cpp	/^  std::string distortion_model;$/;"	m	struct:yac::calib_config_t	file:
+distortion_t	yac/core.hpp	/^  distortion_t() {}$/;"	f	struct:yac::distortion_t
+distortion_t	yac/core.hpp	/^  distortion_t(const real_t *params_, const size_t params_size_) {$/;"	f	struct:yac::distortion_t
+distortion_t	yac/core.hpp	/^  distortion_t(const vecx_t &params_)$/;"	f	struct:yac::distortion_t
+distortion_t	yac/core.hpp	/^struct distortion_t {$/;"	s	namespace:yac
+draw_calib_validation	yac/calib_data.cpp	/^cv::Mat draw_calib_validation(const cv::Mat &image,$/;"	f	namespace:yac
+draw_grid_features	yac/core.cpp	/^cv::Mat draw_grid_features(const cv::Mat &image,$/;"	f	namespace:yac
+draw_matches	yac/core.cpp	/^cv::Mat draw_matches(const cv::Mat &img0,$/;"	f	namespace:yac
+draw_tracks	yac/core.cpp	/^cv::Mat draw_tracks(const cv::Mat &img_cur,$/;"	f	namespace:yac
+dstack	yac/core.cpp	/^matx_t dstack(const matx_t &A, const matx_t &B) {$/;"	f	namespace:yac
+enforce_psd	yac/core.cpp	/^matx_t enforce_psd(const matx_t &A) {$/;"	f	namespace:yac
+equi4_t	yac/core.hpp	/^  equi4_t() {}$/;"	f	struct:yac::equi4_t
+equi4_t	yac/core.hpp	/^  equi4_t(const real_t *dist_params)$/;"	f	struct:yac::equi4_t
+equi4_t	yac/core.hpp	/^  equi4_t(const real_t k1,$/;"	f	struct:yac::equi4_t
+equi4_t	yac/core.hpp	/^  equi4_t(const vecx_t &dist_params)$/;"	f	struct:yac::equi4_t
+equi4_t	yac/core.hpp	/^struct equi4_t : distortion_t {$/;"	s	namespace:yac
+equi_undistort_image	yac/core.cpp	/^cv::Mat equi_undistort_image(const mat3_t &K,$/;"	f	namespace:yac
+estimated	yac/aprilgrid.hpp	/^  bool estimated = false;$/;"	m	struct:yac::aprilgrid_t
+euler123	yac/core.cpp	/^mat3_t euler123(const vec3_t &euler) {$/;"	f	namespace:yac
+euler2quat	yac/core.cpp	/^quat_t euler2quat(const vec3_t &euler) {$/;"	f	namespace:yac
+euler321	yac/core.cpp	/^mat3_t euler321(const vec3_t &euler) {$/;"	f	namespace:yac
+evaluate_vicon_marker_cost	yac/calib_vicon_marker.hpp	/^double evaluate_vicon_marker_cost(const std::vector<aprilgrid_t> &aprilgrids,$/;"	f	namespace:yac
+example_node_t	yac_ros/example_node.cpp	/^  example_node_t() : ros_node_t() {}$/;"	f	struct:yac::example_node_t
+example_node_t	yac_ros/example_node.cpp	/^struct example_node_t : ros_node_t {$/;"	s	namespace:yac	file:
+extend	yac/core.hpp	/^void extend(std::vector<T1, T2> &x, std::vector<T1, T2> &add) {$/;"	f	namespace:yac
+extend	yac/core.hpp	/^void extend(std::vector<T> &x, std::vector<T> &add) {$/;"	f	namespace:yac
+extract_common_calib_data	yac/calib_data.cpp	/^void extract_common_calib_data(aprilgrids_t &grids0, aprilgrids_t &grids1) {$/;"	f	namespace:yac
+feature_mask	yac/core.cpp	/^matx_t feature_mask(const int image_width,$/;"	f	namespace:yac
+feature_mask_opencv	yac/core.cpp	/^cv::Mat feature_mask_opencv(const int image_width,$/;"	f	namespace:yac
+file_copy	yac/core.cpp	/^int file_copy(const std::string &src, const std::string &dest) {$/;"	f	namespace:yac
+file_exists	yac/core.cpp	/^bool file_exists(const std::string &path) {$/;"	f	namespace:yac
+file_open	yac/core.cpp	/^FILE *file_open(const std::string &path,$/;"	f	namespace:yac
+file_path	yac/core.hpp	/^  std::string file_path;$/;"	m	struct:yac::config_t
+file_rows	yac/core.cpp	/^int file_rows(const std::string &file_path) {$/;"	f	namespace:yac
+fltcmp	yac/core.cpp	/^int fltcmp(const real_t f1, const real_t f2) {$/;"	f	namespace:yac
+fx	yac/core.hpp	/^  real_t fx() const { return this->params(0); }$/;"	f	struct:yac::pinhole_t
+fx	yac/core.hpp	/^  real_t fx() { return static_cast<const pinhole_t &>(*this).fx(); }$/;"	f	struct:yac::pinhole_t
+fy	yac/core.hpp	/^  real_t fy() const { return this->params(1); }$/;"	f	struct:yac::pinhole_t
+fy	yac/core.hpp	/^  real_t fy() { return static_cast<const pinhole_t &>(*this).fy(); }$/;"	f	struct:yac::pinhole_t
+g	yac/core.hpp	/^  real_t g = 9.81;          \/\/ Gravity vector [ms-2]$/;"	m	struct:yac::sim_imu_t
+gauss_normal	yac/core.cpp	/^real_t gauss_normal() {$/;"	f	namespace:yac
+get_camera_image_paths	yac/apps/validate_stereo.cpp	/^static int get_camera_image_paths(const std::string &image_dir,$/;"	f	file:
+get_camera_image_paths	yac/calib_data.cpp	/^static int get_camera_image_paths(const std::string &image_dir,$/;"	f	namespace:yac
+gray2rgb	yac/core.cpp	/^cv::Mat gray2rgb(const cv::Mat &image) {$/;"	f	namespace:yac
+grid_fast	yac/core.cpp	/^std::vector<cv::KeyPoint> grid_fast(const cv::Mat &image,$/;"	f	namespace:yac
+grid_good	yac/core.cpp	/^std::vector<cv::Point2f> grid_good(const cv::Mat &image,$/;"	f	namespace:yac
+grids	yac_ros/calib_vicon_node.cpp	/^  aprilgrids_t grids;$/;"	m	struct:dataset_t	file:
+gyro_init_output_file	yac_ros/ros.cpp	/^std::ofstream gyro_init_output_file(const std::string &output_path) {$/;"	f	namespace:yac
+gyro_message_handler	yac_ros/ros.cpp	/^void gyro_message_handler(const rosbag::MessageInstance &msg,$/;"	f	namespace:yac
+hstack	yac/core.cpp	/^matx_t hstack(const matx_t &A, const matx_t &B) {$/;"	f	namespace:yac
+ids	yac/aprilgrid.hpp	/^  std::vector<int> ids;$/;"	m	struct:yac::aprilgrid_t
+illum_invar_transform	yac/core.cpp	/^void illum_invar_transform(cv::Mat &image,$/;"	f	namespace:yac
+image_callback	yac_ros/calib_mono_validate_node.cpp	/^  void image_callback(const sensor_msgs::ImageConstPtr &msg) {$/;"	f	struct:yac::calib_validate_mono_node_t
+image_callback	yac_ros/calib_stereo_validate_node.cpp	/^  void image_callback(const sensor_msgs::ImageConstPtr &msg) {$/;"	f	struct:yac::calib_validate_mono_node_t
+image_callback	yac_ros/calib_vicon_validate_node.cpp	/^  void image_callback(const sensor_msgs::ImageConstPtr &msg) {$/;"	f	struct:node_t
+image_cb	yac_ros/calib_vicon_capture_node.cpp	/^static void image_cb(const sensor_msgs::ImageConstPtr &msg) {$/;"	f	file:
+image_message_handler	yac_ros/ros.cpp	/^void image_message_handler(const rosbag::MessageInstance &msg,$/;"	f	namespace:yac
+image_topic_	yac_ros/calib_mono_validate_node.cpp	/^  std::string image_topic_;$/;"	m	struct:yac::calib_validate_mono_node_t	file:
+image_topic_	yac_ros/calib_stereo_validate_node.cpp	/^  std::string image_topic_;$/;"	m	struct:yac::calib_validate_mono_node_t	file:
+img_h	yac/core.hpp	/^  int img_h = 0;$/;"	m	struct:yac::projection_t
+img_pubs_	yac_ros/ros.hpp	/^  std::map<std::string, image_transport::Publisher> img_pubs_;$/;"	m	struct:yac::ros_node_t
+img_subs_	yac_ros/ros.hpp	/^  std::map<std::string, image_transport::Subscriber> img_subs_;$/;"	m	struct:yac::ros_node_t
+img_w	yac/core.hpp	/^  int img_w = 0;$/;"	m	struct:yac::projection_t
+imshow	yac/apps/validate_stereo.cpp	/^  bool imshow = true;$/;"	m	struct:calib_config_t	file:
+imshow	yac_ros/calib_vicon_capture_node.cpp	/^bool imshow;$/;"	v
+imu_init_attitude	yac/core.cpp	/^void imu_init_attitude(const vec3s_t w_m,$/;"	f	namespace:yac
+imu_init_output_file	yac_ros/ros.cpp	/^std::ofstream imu_init_output_file(const std::string &output_path) {$/;"	f	namespace:yac
+imu_message_handler	yac_ros/ros.cpp	/^void imu_message_handler(const rosbag::MessageInstance &msg,$/;"	f	namespace:yac
+int16	yac/core.cpp	/^int16_t int16(const uint8_t *data, const size_t offset) {$/;"	f	namespace:yac
+int8	yac/core.cpp	/^int8_t int8(const uint8_t *data, const size_t offset) {$/;"	f	namespace:yac
+interp_pose	yac/core.cpp	/^mat4_t interp_pose(const mat4_t &p0, const mat4_t &p1, const real_t alpha) {$/;"	f	namespace:yac
+interp_poses	yac/core.cpp	/^void interp_poses(const timestamps_t &timestamps,$/;"	f	namespace:yac
+intersection	yac/core.hpp	/^std::set<T> intersection(const std::list<std::vector<T>> &vecs) {$/;"	f	namespace:yac
+intrinsics	yac_ros/calib_mono_validate_node.cpp	/^  vec4_t intrinsics;$/;"	m	struct:yac::calib_config_t	file:
+intrinsics	yac_ros/calib_stereo_validate_node.cpp	/^  vec4_t intrinsics;$/;"	m	struct:yac::calib_config_t	file:
+is_equal	yac/core.cpp	/^bool is_equal(const cv::Mat &m1, const cv::Mat &m2) {$/;"	f	namespace:yac
+k1	yac/core.hpp	/^  real_t k1() const { return params(0); }$/;"	f	struct:yac::radtan4_t
+k1	yac/core.hpp	/^  real_t k1() const { return this->params(0); }$/;"	f	struct:yac::equi4_t
+k1	yac/core.hpp	/^  real_t k1() { return static_cast<const equi4_t &>(*this).k1(); }$/;"	f	struct:yac::equi4_t
+k1	yac/core.hpp	/^  real_t k1() { return static_cast<const radtan4_t &>(*this).k1(); }$/;"	f	struct:yac::radtan4_t
+k2	yac/core.hpp	/^  real_t k2() const { return params(1); }$/;"	f	struct:yac::radtan4_t
+k2	yac/core.hpp	/^  real_t k2() const { return this->params(1); }$/;"	f	struct:yac::equi4_t
+k2	yac/core.hpp	/^  real_t k2() { return static_cast<const equi4_t &>(*this).k2(); }$/;"	f	struct:yac::equi4_t
+k2	yac/core.hpp	/^  real_t k2() { return static_cast<const radtan4_t &>(*this).k2(); }$/;"	f	struct:yac::radtan4_t
+k3	yac/core.hpp	/^  real_t k3() const { return this->params(2); }$/;"	f	struct:yac::equi4_t
+k3	yac/core.hpp	/^  real_t k3() { return static_cast<const equi4_t &>(*this).k3(); }$/;"	f	struct:yac::equi4_t
+k4	yac/core.hpp	/^  real_t k4() const { return this->params(3); }$/;"	f	struct:yac::equi4_t
+k4	yac/core.hpp	/^  real_t k4() { return static_cast<const equi4_t &>(*this).k4(); }$/;"	f	struct:yac::equi4_t
+keyboard_event	yac_ros/calib_vicon_capture_node.cpp	/^static std::string keyboard_event() {$/;"	f	file:
+keypoint_compare_by_response	yac/core.cpp	/^bool keypoint_compare_by_response(const cv::KeyPoint &kp1,$/;"	f	namespace:yac
+keypoints	yac/aprilgrid.hpp	/^  vec2s_t keypoints;$/;"	m	struct:yac::aprilgrid_t
+latlon_diff	yac/core.cpp	/^void latlon_diff(real_t lat_ref,$/;"	f	namespace:yac
+latlon_dist	yac/core.cpp	/^real_t latlon_dist(real_t lat_ref, real_t lon_ref, real_t lat, real_t lon) {$/;"	f	namespace:yac
+latlon_offset	yac/core.cpp	/^void latlon_offset(real_t lat_ref,$/;"	f	namespace:yac
+lerp	yac/core.hpp	/^T lerp(const T &a, const T &b, const real_t t) {$/;"	f	namespace:yac
+lerp_body_poses	yac_ros/calib_vicon_node.cpp	/^void lerp_body_poses(const aprilgrids_t &grids,$/;"	f
+lerp_data	yac/core.cpp	/^void lerp_data(const std::deque<timestamp_t> &lerp_ts,$/;"	f	namespace:yac
+lerp_data	yac/core.cpp	/^void lerp_data(std::deque<timestamp_t> &ts0,$/;"	f	namespace:yac
+lerp_pose	yac_ros/calib_vicon_node.cpp	/^mat4_t lerp_pose(const timestamp_t &t0,$/;"	f
+lerp_timestamps	yac/core.cpp	/^std::deque<timestamp_t> lerp_timestamps(const std::deque<timestamp_t> &t0,$/;"	f	namespace:yac
+lie	yac/core.cpp	/^namespace lie {$/;"	n	namespace:yac	file:
+lie	yac/core.hpp	/^namespace lie {$/;"	n	namespace:yac
+linspace	yac/core.hpp	/^std::vector<T> linspace(const T start, const T end, const int num) {$/;"	f	namespace:yac
+list_dir	yac/core.cpp	/^int list_dir(const std::string &path, std::vector<std::string> &results) {$/;"	f	namespace:yac
+load_aprilgrids	yac_ros/calib_vicon_node.cpp	/^static aprilgrids_t load_aprilgrids(const std::string &dir_path) {$/;"	f	file:
+load_body_poses	yac_ros/calib_vicon_node.cpp	/^static void load_body_poses(const std::string &fpath,$/;"	f	file:
+load_camera_calib_data	yac/calib_data.cpp	/^int load_camera_calib_data(const std::string &data_dir,$/;"	f	namespace:yac
+load_darrays	yac/core.cpp	/^real_t **load_darrays(const char *csv_path, int *nb_arrays) {$/;"	f	namespace:yac
+load_fiducial_pose	yac_ros/calib_vicon_node.cpp	/^static mat4_t load_fiducial_pose(const std::string &fpath) {$/;"	f	file:
+load_iarrays	yac/core.cpp	/^int **load_iarrays(const char *csv_path, int *nb_arrays) {$/;"	f	namespace:yac
+load_imu_data	yac_ros/ros.cpp	/^void load_imu_data(const std::string &csv_file,$/;"	f	namespace:yac
+load_matrix	yac/core.cpp	/^void load_matrix(const matx_t &A, std::vector<real_t> &x) {$/;"	f	namespace:yac
+load_matrix	yac/core.cpp	/^void load_matrix(const std::vector<real_t> &x,$/;"	f	namespace:yac
+load_multicam_calib_data	yac/calib_data.cpp	/^int load_multicam_calib_data(const int nb_cams,$/;"	f	namespace:yac
+load_stereo_calib_data	yac/calib_data.cpp	/^int load_stereo_calib_data(const std::string &cam0_data_dir,$/;"	f	namespace:yac
+lookat	yac/core.cpp	/^mat4_t lookat(const vec3_t &cam_pos,$/;"	f	namespace:yac
+lookup	yac/core.hpp	/^V *lookup(std::map<K, V> &map, K key) {$/;"	f	namespace:yac
+lookup	yac/core.hpp	/^V *lookup(std::unordered_map<K, V> &map, K key) {$/;"	f	namespace:yac
+lookup	yac/core.hpp	/^const V *lookup(const std::map<K, V> &map, K key) {$/;"	f	namespace:yac
+lookup	yac/core.hpp	/^const V *lookup(const std::unordered_map<K, V> &map, K key) {$/;"	f	namespace:yac
+loop	yac_ros/ros.cpp	/^int ros_node_t::loop() {$/;"	f	class:yac::ros_node_t
+loop_callback	yac_ros/example_node.cpp	/^  int loop_callback() {$/;"	f	struct:yac::example_node_t
+loop_cb	yac/core.hpp	/^  int (*loop_cb)(tcp_client_t &) = nullptr;$/;"	m	struct:yac::tcp_client_t
+loop_cb_	yac_ros/ros.hpp	/^  std::function<int()> loop_cb_;$/;"	m	struct:yac::ros_node_t
+loop_test_dataset	yac_ros/calib_vicon_node.cpp	/^double loop_test_dataset(const std::string test_path,$/;"	f
+main	yac/apps/calib_camera.cpp	/^int main(int argc, char *argv[]) {$/;"	f
+main	yac/apps/calib_stereo.cpp	/^int main(int argc, char *argv[]) {$/;"	f
+main	yac/apps/validate_stereo.cpp	/^int main(int argc, char *argv[]) {$/;"	f
+main	yac_ros/calib_camera_node.cpp	/^int main(int argc, char *argv[]) {$/;"	f
+main	yac_ros/calib_stereo_node.cpp	/^int main(int argc, char *argv[]) {$/;"	f
+main	yac_ros/calib_vicon_capture_node.cpp	/^int main(int argc, char *argv[]) {$/;"	f
+main	yac_ros/calib_vicon_node.cpp	/^int main(int argc, char *argv[]) {$/;"	f
+malloc_string	yac/core.cpp	/^char *malloc_string(const char *s) {$/;"	f	namespace:yac
+mat2_t	yac/core.hpp	/^typedef Eigen::Matrix<real_t, 2, 2> mat2_t;$/;"	t	namespace:yac
+mat2array	yac/core.cpp	/^real_t *mat2array(const matx_t &m) {$/;"	f	namespace:yac
+mat2array	yac/core.cpp	/^void mat2array(const matx_t &A, real_t *out) {$/;"	f	namespace:yac
+mat2csv	yac/core.cpp	/^int mat2csv(const std::string &file_path, const matx_t &data) {$/;"	f	namespace:yac
+mat2s_t	yac/core.hpp	/^typedef std::vector<mat2_t, Eigen::aligned_allocator<mat2_t>> mat2s_t;$/;"	t	namespace:yac
+mat2str	yac/core.cpp	/^std::string mat2str(const matx_t &m, const std::string &indent) {$/;"	f	namespace:yac
+mat2vec	yac/core.cpp	/^std::vector<vecx_t> mat2vec(const matx_t &m, bool row_wise) {$/;"	f	namespace:yac
+mat2vec2	yac/core.cpp	/^vec2s_t mat2vec2(const matx_t &m, bool row_wise) {$/;"	f	namespace:yac
+mat2vec3	yac/core.cpp	/^vec3s_t mat2vec3(const matx_t &m, bool row_wise) {$/;"	f	namespace:yac
+mat34_t	yac/core.hpp	/^typedef Eigen::Matrix<real_t, 3, 4> mat34_t;$/;"	t	namespace:yac
+mat3_t	yac/core.hpp	/^typedef Eigen::Matrix<real_t, 3, 3> mat3_t;$/;"	t	namespace:yac
+mat3s_t	yac/core.hpp	/^typedef std::vector<mat3_t, Eigen::aligned_allocator<mat3_t>> mat3s_t;$/;"	t	namespace:yac
+mat4_t	yac/core.hpp	/^typedef Eigen::Matrix<real_t, 4, 4> mat4_t;$/;"	t	namespace:yac
+mat4s_t	yac/core.hpp	/^typedef std::vector<mat4_t, Eigen::aligned_allocator<mat4_t>> mat4s_t;$/;"	t	namespace:yac
+matx_t	yac/core.hpp	/^typedef Eigen::Matrix<real_t, Eigen::Dynamic, Eigen::Dynamic> matx_t;$/;"	t	namespace:yac
+matxs_t	yac/core.hpp	/^typedef std::vector<matx_t, Eigen::aligned_allocator<matx_t>> matxs_t;$/;"	t	namespace:yac
+mean	yac/core.cpp	/^vec3_t mean(const vec3s_t &x) {$/;"	f	namespace:yac
+median	yac/core.cpp	/^real_t median(const std::vector<real_t> &v) {$/;"	f	namespace:yac
+msg_build	yac_ros/ros.cpp	/^geometry_msgs::PoseStamped msg_build(const size_t seq,$/;"	f	namespace:yac
+msg_build	yac_ros/ros.cpp	/^geometry_msgs::Quaternion msg_build(const yac::quat_t &q) {$/;"	f	namespace:yac
+msg_build	yac_ros/ros.cpp	/^geometry_msgs::TwistStamped msg_build(const size_t seq,$/;"	f	namespace:yac
+msg_build	yac_ros/ros.cpp	/^geometry_msgs::Vector3 msg_build(const yac::vec3_t &vec) {$/;"	f	namespace:yac
+msg_build	yac_ros/ros.cpp	/^geometry_msgs::Vector3 msg_build(yac::vec3_t &vec) {$/;"	f	namespace:yac
+msg_build	yac_ros/ros.cpp	/^std_msgs::Bool msg_build(const bool b) {$/;"	f	namespace:yac
+msg_build	yac_ros/ros.cpp	/^std_msgs::Float64 msg_build(double d) {$/;"	f	namespace:yac
+msg_build	yac_ros/ros.cpp	/^std_msgs::String msg_build(const std::string &s) {$/;"	f	namespace:yac
+msg_convert	yac_ros/ros.cpp	/^bool msg_convert(const std_msgs::Bool &msg) { return msg.data; }$/;"	f	namespace:yac
+msg_convert	yac_ros/ros.cpp	/^cv::Mat msg_convert(const sensor_msgs::ImageConstPtr &msg) {$/;"	f	namespace:yac
+msg_convert	yac_ros/ros.cpp	/^float msg_convert(const std_msgs::Float64 &msg) { return msg.data; }$/;"	f	namespace:yac
+msg_convert	yac_ros/ros.cpp	/^std::string msg_convert(const std_msgs::String &msg) { return msg.data; }$/;"	f	namespace:yac
+msg_convert	yac_ros/ros.cpp	/^uint8_t msg_convert(const std_msgs::UInt8 &msg) { return msg.data; }$/;"	f	namespace:yac
+msg_convert	yac_ros/ros.cpp	/^void msg_convert(const std_msgs::Header &msg,$/;"	f	namespace:yac
+msg_convert	yac_ros/ros.cpp	/^yac::quat_t msg_convert(const geometry_msgs::Quaternion &msg) {$/;"	f	namespace:yac
+msg_convert	yac_ros/ros.cpp	/^yac::vec3_t msg_convert(const geometry_msgs::Point &msg) {$/;"	f	namespace:yac
+msg_convert	yac_ros/ros.cpp	/^yac::vec3_t msg_convert(const geometry_msgs::Vector3 &msg) {$/;"	f	namespace:yac
+mtoc	yac/core.cpp	/^float mtoc(struct timespec *tic) { return toc(tic) * 1000.0; }$/;"	f	namespace:yac
+mvn	yac/core.cpp	/^vec3_t mvn(std::default_random_engine &engine,$/;"	f	namespace:yac
+nb_detections	yac/aprilgrid.hpp	/^  int nb_detections = 0;$/;"	m	struct:yac::aprilgrid_t
+node_name_	yac_ros/ros.hpp	/^  std::string node_name_;$/;"	m	struct:yac::ros_node_t
+node_t	yac_ros/calib_vicon_validate_node.cpp	/^  node_t() : ros_node_t() {}$/;"	f	struct:node_t
+node_t	yac_ros/calib_vicon_validate_node.cpp	/^RUN_ROS_NODE(node_t);$/;"	v
+node_t	yac_ros/calib_vicon_validate_node.cpp	/^struct node_t : ros_node_t {$/;"	s	file:
+nodist_t	yac/core.hpp	/^  nodist_t() {}$/;"	f	struct:yac::nodist_t
+nodist_t	yac/core.hpp	/^  nodist_t(const real_t *) {}$/;"	f	struct:yac::nodist_t
+nodist_t	yac/core.hpp	/^  nodist_t(const vecx_t &) {}$/;"	f	struct:yac::nodist_t
+nodist_t	yac/core.hpp	/^struct nodist_t : distortion_t {$/;"	s	namespace:yac
+normalize	yac/core.cpp	/^vec3_t normalize(const vec3_t &v) { return v \/ v.norm(); }$/;"	f	namespace:yac
+ns2sec	yac/core.cpp	/^real_t ns2sec(const uint64_t ns) { return ns * 1.0e-9; }$/;"	f	namespace:yac
+nullspace	yac/core.cpp	/^matx_t nullspace(const matx_t &A) {$/;"	f	namespace:yac
+ok	yac/core.hpp	/^  bool ok = false;$/;"	m	struct:yac::config_t
+ones	yac/core.cpp	/^matx_t ones(const int rows, const int cols) {$/;"	f	namespace:yac
+ones	yac/core.cpp	/^matx_t ones(const int size) { return ones(size, size); }$/;"	f	namespace:yac
+operator ()	yac/calib_camera.hpp	/^  bool operator()(const T *const cam0_intrinsics,$/;"	f	struct:yac::stereo_residual_t
+operator ()	yac/calib_camera.hpp	/^  bool operator()(const T *const intrinsics_,$/;"	f	struct:yac::pinhole_radtan4_residual_t
+operator ()	yac/calib_vicon_marker.hpp	/^  bool operator()(const T *const intrinsics_,$/;"	f	struct:yac::vicon_marker_residual_t
+operator <<	yac/aprilgrid.cpp	/^std::ostream &operator<<(std::ostream &os, const aprilgrid_t &grid) {$/;"	f	namespace:yac
+operator <<	yac/calib_data.cpp	/^std::ostream &operator<<(std::ostream &os, const calib_target_t &target) {$/;"	f	namespace:yac
+operator <<	yac/core.cpp	/^std::ostream &operator<<(std::ostream &os, const equi4_t &equi4) {$/;"	f	namespace:yac
+operator <<	yac/core.cpp	/^std::ostream &operator<<(std::ostream &os, const radtan4_t &radtan4) {$/;"	f	namespace:yac
+operator <<	yac/core.hpp	/^std::ostream &operator<<(std::ostream &os, const pinhole_t<DM> &pinhole) {$/;"	f	namespace:yac
+orientations	yac/core.hpp	/^  const quats_t orientations;$/;"	m	struct:yac::ctraj_t
+p1	yac/core.hpp	/^  real_t p1() const { return params(2); }$/;"	f	struct:yac::radtan4_t
+p1	yac/core.hpp	/^  real_t p1() { return static_cast<const radtan4_t &>(*this).p1(); }$/;"	f	struct:yac::radtan4_t
+p2	yac/core.hpp	/^  real_t p2() const { return params(3); }$/;"	f	struct:yac::radtan4_t
+p2	yac/core.hpp	/^  real_t p2() { return static_cast<const radtan4_t &>(*this).p2(); }$/;"	f	struct:yac::radtan4_t
+p_F_	yac/calib_camera.hpp	/^  double p_F_[3] = {0.0, 0.0, 0.0}; \/\/\/< Object point$/;"	m	struct:yac::pinhole_radtan4_residual_t
+p_F_	yac/calib_camera.hpp	/^  real_t p_F_[3] = {0.0, 0.0, 0.0}; \/\/\/< Object point$/;"	m	struct:yac::stereo_residual_t
+p_F_	yac/calib_vicon_marker.hpp	/^  double p_F_[3] = {0.0, 0.0, 0.0}; \/\/\/< Object point$/;"	m	struct:yac::vicon_marker_residual_t
+params	yac/core.hpp	/^  vecx_t params;$/;"	m	struct:yac::distortion_t
+params	yac/core.hpp	/^  vecx_t params;$/;"	m	struct:yac::projection_t
+params_size	yac/core.hpp	/^  static const size_t params_size = 0;$/;"	m	struct:yac::nodist_t
+params_size	yac/core.hpp	/^  static const size_t params_size = 4;$/;"	m	struct:yac::equi4_t
+params_size	yac/core.hpp	/^  static const size_t params_size = 4;$/;"	m	struct:yac::radtan4_t
+parse	yac/core.cpp	/^int parse(const config_t &config,$/;"	f	namespace:yac
+parse	yac/core.hpp	/^int parse(const config_t &config,$/;"	f	namespace:yac
+parse_calib_file	yac_ros/calib_mono_validate_node.cpp	/^calib_config_t parse_calib_file(const std::string &calib_file) {$/;"	f	namespace:yac
+parse_calib_file	yac_ros/calib_stereo_validate_node.cpp	/^calib_config_t parse_calib_file(const std::string &calib_file) {$/;"	f	namespace:yac
+parse_config	yac/apps/validate_stereo.cpp	/^calib_config_t parse_config(const std::string &config_file) {$/;"	f
+parse_darray_line	yac/core.cpp	/^static real_t *parse_darray_line(char *line) {$/;"	f	namespace:yac
+parse_fext	yac/core.cpp	/^std::string parse_fext(const std::string &path) {$/;"	f	namespace:yac
+parse_fname	yac/core.cpp	/^std::string parse_fname(const std::string &path) {$/;"	f	namespace:yac
+parse_iarray_line	yac/core.cpp	/^static int *parse_iarray_line(char *line) {$/;"	f	namespace:yac
+path_split	yac/core.cpp	/^std::vector<std::string> path_split(const std::string path) {$/;"	f	namespace:yac
+paths_combine	yac/core.cpp	/^std::string paths_combine(const std::string path1, const std::string path2) {$/;"	f	namespace:yac
+pinhole_K	yac/core.cpp	/^mat3_t pinhole_K(const int img_w,$/;"	f	namespace:yac
+pinhole_K	yac/core.cpp	/^mat3_t pinhole_K(const real_t fx,$/;"	f	namespace:yac
+pinhole_K	yac/core.cpp	/^mat3_t pinhole_K(const vec4_t &params) {$/;"	f	namespace:yac
+pinhole_equi4_t	yac/core.hpp	/^typedef pinhole_t<equi4_t> pinhole_equi4_t;$/;"	t	namespace:yac
+pinhole_focal	yac/core.cpp	/^real_t pinhole_focal(const int image_size, const real_t fov) {$/;"	f	namespace:yac
+pinhole_radtan4_project	yac/core.hpp	/^int pinhole_radtan4_project(const Eigen::Matrix<T, 8, 1> &params,$/;"	f	namespace:yac
+pinhole_radtan4_residual_t	yac/calib_camera.hpp	/^  pinhole_radtan4_residual_t(const vec2_t &z, const vec3_t &p_F)$/;"	f	struct:yac::pinhole_radtan4_residual_t
+pinhole_radtan4_residual_t	yac/calib_camera.hpp	/^struct pinhole_radtan4_residual_t {$/;"	s	namespace:yac
+pinhole_radtan4_t	yac/core.hpp	/^typedef pinhole_t<radtan4_t> pinhole_radtan4_t;$/;"	t	namespace:yac
+pinhole_t	yac/core.hpp	/^  pinhole_t() {}$/;"	f	struct:yac::pinhole_t
+pinhole_t	yac/core.hpp	/^  pinhole_t(const int img_w,$/;"	f	struct:yac::pinhole_t
+pinhole_t	yac/core.hpp	/^struct pinhole_t : projection_t<DM> {$/;"	s	namespace:yac
+point_left_right	yac/core.cpp	/^int point_left_right(const vec2_t &a, const vec2_t &b, const vec2_t &c) {$/;"	f	namespace:yac
+points_CF	yac/aprilgrid.hpp	/^  vec3s_t points_CF;$/;"	m	struct:yac::aprilgrid_t
+pop_front	yac/core.hpp	/^void pop_front(std::vector<T1, T2> &vec) {$/;"	f	namespace:yac
+pop_front	yac/core.hpp	/^void pop_front(std::vector<T> &vec) {$/;"	f	namespace:yac
+port	yac/core.hpp	/^  int port = 8080;$/;"	m	struct:yac::tcp_server_t
+pos_spline	yac/core.hpp	/^  Spline3D pos_spline;$/;"	m	struct:yac::ctraj_t
+pose_init_output_file	yac_ros/ros.cpp	/^std::ofstream pose_init_output_file(const std::string &output_path) {$/;"	f	namespace:yac
+pose_message_handler	yac_ros/ros.cpp	/^void pose_message_handler(const rosbag::MessageInstance &msg,$/;"	f	namespace:yac
+positions	yac/core.hpp	/^  const vec3s_t positions;$/;"	m	struct:yac::ctraj_t
+preprocess_camera_data	yac/calib_data.cpp	/^int preprocess_camera_data(const calib_target_t &target,$/;"	f	namespace:yac
+preprocess_stereo_data	yac/calib_data.cpp	/^int preprocess_stereo_data(const calib_target_t &target,$/;"	f	namespace:yac
+print_array	yac/core.cpp	/^void print_array(const std::string &name,$/;"	f	namespace:yac
+print_matrix	yac/core.cpp	/^void print_matrix(const std::string &name, const matx_t &m) {$/;"	f	namespace:yac
+print_progress	yac/core.cpp	/^void print_progress(const real_t percentage) {$/;"	f	namespace:yac
+print_quaternion	yac/core.cpp	/^void print_quaternion(const std::string &name, const quat_t &q) {$/;"	f	namespace:yac
+print_shape	yac/core.cpp	/^void print_shape(const std::string &name, const matx_t &A) {$/;"	f	namespace:yac
+print_shape	yac/core.cpp	/^void print_shape(const std::string &name, const vecx_t &v) {$/;"	f	namespace:yac
+print_usage	yac/apps/calib_camera.cpp	/^void print_usage() {$/;"	f
+print_usage	yac/apps/calib_stereo.cpp	/^void print_usage() {$/;"	f
+print_usage	yac/apps/validate_stereo.cpp	/^void print_usage() {$/;"	f
+print_vector	yac/core.cpp	/^void print_vector(const std::string &name, const vecx_t &v) {$/;"	f	namespace:yac
+process_aprilgrid	yac/calib_camera.hpp	/^static int process_aprilgrid(const aprilgrid_t &aprilgrid,$/;"	f	namespace:yac
+process_aprilgrid	yac/calib_camera.hpp	/^static int process_aprilgrid(const aprilgrid_t &cam0_aprilgrid,$/;"	f	namespace:yac
+process_aprilgrid	yac/calib_vicon_marker.hpp	/^static int process_aprilgrid(const aprilgrid_t &aprilgrid,$/;"	f	namespace:yac
+process_dataset	yac_ros/calib_vicon_node.cpp	/^dataset_t process_dataset(const std::string &data_path,$/;"	f
+process_rosbag	yac_ros/calib_camera_node.cpp	/^void process_rosbag(const std::string &rosbag_path,$/;"	f
+process_rosbag	yac_ros/calib_stereo_node.cpp	/^void process_rosbag(const std::string &rosbag_path,$/;"	f
+process_rosbag	yac_ros/calib_vicon_node.cpp	/^void process_rosbag(const std::string &rosbag_path,$/;"	f
+proj_params	yac/core.hpp	/^  vecx_t proj_params() const {$/;"	f	struct:yac::pinhole_t
+proj_params	yac/core.hpp	/^  vecx_t proj_params() {$/;"	f	struct:yac::pinhole_t
+proj_params_size	yac/core.hpp	/^  static const size_t proj_params_size = 4;$/;"	m	struct:yac::pinhole_t
+project	yac/core.hpp	/^  int project(const vec3_t &p_C, vec2_t &z_hat) const {$/;"	f	struct:yac::pinhole_t
+project	yac/core.hpp	/^  int project(const vec3_t &p_C, vec2_t &z_hat) {$/;"	f	struct:yac::pinhole_t
+project	yac/core.hpp	/^  int project(const vec3_t &p_C, vec2_t &z_hat, mat_t<2, 3> &J_h) const {$/;"	f	struct:yac::pinhole_t
+project	yac/core.hpp	/^  int project(const vec3_t &p_C, vec2_t &z_hat, mat_t<2, 3> &J_h) {$/;"	f	struct:yac::pinhole_t
+projection_t	yac/core.hpp	/^  projection_t() {}$/;"	f	struct:yac::projection_t
+projection_t	yac/core.hpp	/^  projection_t(const int img_w_,$/;"	f	struct:yac::projection_t
+projection_t	yac/core.hpp	/^struct projection_t {$/;"	s	namespace:yac
+q	yac/calib_data.hpp	/^  double q[4] = {0.0, 0.0, 0.0, 1.0}; \/\/ x, y, z, w$/;"	m	struct:yac::calib_pose_t
+quat2array	yac/core.cpp	/^real_t *quat2array(const quat_t &q) {$/;"	f	namespace:yac
+quat2euler	yac/core.cpp	/^vec3_t quat2euler(const quat_t &q) {$/;"	f	namespace:yac
+quat2rot	yac/core.cpp	/^mat3_t quat2rot(const quat_t &q) {$/;"	f	namespace:yac
+quat_delta	yac/core.cpp	/^quat_t quat_delta(const vec3_t &dalpha) {$/;"	f	namespace:yac
+quat_lmul	yac/core.cpp	/^mat4_t quat_lmul(const quat_t &q) {$/;"	f	namespace:yac
+quat_lmul_xyz	yac/core.cpp	/^mat3_t quat_lmul_xyz(const quat_t &q) {$/;"	f	namespace:yac
+quat_mat_xyz	yac/core.cpp	/^mat3_t quat_mat_xyz(const mat4_t &Q) {$/;"	f	namespace:yac
+quat_rmul	yac/core.cpp	/^mat4_t quat_rmul(const quat_t &q) {$/;"	f	namespace:yac
+quat_rmul_xyz	yac/core.cpp	/^mat3_t quat_rmul_xyz(const quat_t &q) {$/;"	f	namespace:yac
+quat_t	yac/core.hpp	/^typedef Eigen::Quaternion<real_t> quat_t;$/;"	t	namespace:yac
+quats_t	yac/core.hpp	/^typedef std::vector<quat_t, Eigen::aligned_allocator<quat_t>> quats_t;$/;"	t	namespace:yac
+r	yac/calib_data.hpp	/^  double r[3] = {0.0, 0.0, 0.0};      \/\/ x, y, z$/;"	m	struct:yac::calib_pose_t
+rad2deg	yac/core.cpp	/^real_t rad2deg(const real_t r) { return r * (180.0 \/ M_PI); }$/;"	f	namespace:yac
+rad2deg	yac/core.cpp	/^vec3_t rad2deg(const vec3_t &r) { return r * (180.0 \/ M_PI); }$/;"	f	namespace:yac
+radtan4_t	yac/core.hpp	/^  radtan4_t() {}$/;"	f	struct:yac::radtan4_t
+radtan4_t	yac/core.hpp	/^  radtan4_t(const real_t *dist_params)$/;"	f	struct:yac::radtan4_t
+radtan4_t	yac/core.hpp	/^  radtan4_t(const real_t k1,$/;"	f	struct:yac::radtan4_t
+radtan4_t	yac/core.hpp	/^  radtan4_t(const vecx_t &params_)$/;"	f	struct:yac::radtan4_t
+radtan4_t	yac/core.hpp	/^struct radtan4_t : distortion_t {$/;"	s	namespace:yac
+radtan_undistort_image	yac/core.cpp	/^cv::Mat radtan_undistort_image(const mat3_t &K,$/;"	f	namespace:yac
+randf	yac/core.cpp	/^real_t randf(const real_t ub, const real_t lb) {$/;"	f	namespace:yac
+randi	yac/core.cpp	/^int randi(int ub, int lb) { return rand() % lb + ub; }$/;"	f	namespace:yac
+rate	yac/core.hpp	/^  real_t rate = 0.0;        \/\/ IMU rate [Hz]$/;"	m	struct:yac::sim_imu_t
+real_t	yac/core.hpp	86;"	d
+remove_dir	yac/core.cpp	/^int remove_dir(const std::string &path) {$/;"	f	namespace:yac
+remove_ext	yac/core.cpp	/^std::string remove_ext(const std::string &path) {$/;"	f	namespace:yac
+reprojection_error	yac/core.cpp	/^real_t reprojection_error(const std::vector<cv::Point2f> &measured,$/;"	f	namespace:yac
+reprojection_error	yac/core.cpp	/^real_t reprojection_error(const vec2s_t &measured, const vec2s_t &projected) {$/;"	f	namespace:yac
+rgb2gray	yac/core.cpp	/^cv::Mat rgb2gray(const cv::Mat &image) {$/;"	f	namespace:yac
+roi	yac/core.cpp	/^cv::Mat roi(const cv::Mat &image,$/;"	f	namespace:yac
+root	yac/core.hpp	/^  YAML::Node root;$/;"	m	struct:yac::config_t
+ros_clients_	yac_ros/ros.hpp	/^  std::map<std::string, ros::ServiceClient> ros_clients_;$/;"	m	struct:yac::ros_node_t
+ros_last_updated_	yac_ros/ros.hpp	/^  ros::Time ros_last_updated_;$/;"	m	struct:yac::ros_node_t
+ros_nh_	yac_ros/ros.hpp	/^  ros::NodeHandle ros_nh_;$/;"	m	struct:yac::ros_node_t
+ros_node_name	yac_ros/ros.hpp	/^std::string ros_node_name(int argc, char *argv[]) {$/;"	f	namespace:yac
+ros_node_t	yac_ros/ros.cpp	/^ros_node_t::ros_node_t() {}$/;"	f	class:yac::ros_node_t
+ros_node_t	yac_ros/ros.hpp	/^struct ros_node_t {$/;"	s	namespace:yac
+ros_pubs_	yac_ros/ros.hpp	/^  std::map<std::string, ros::Publisher> ros_pubs_;$/;"	m	struct:yac::ros_node_t
+ros_rate_	yac_ros/ros.hpp	/^  ros::Rate *ros_rate_ = nullptr;$/;"	m	struct:yac::ros_node_t
+ros_seq_	yac_ros/ros.hpp	/^  size_t ros_seq_ = 0;$/;"	m	struct:yac::ros_node_t
+ros_services_	yac_ros/ros.hpp	/^  std::map<std::string, ros::ServiceServer> ros_services_;$/;"	m	struct:yac::ros_node_t
+ros_subs_	yac_ros/ros.hpp	/^  std::map<std::string, ros::Subscriber> ros_subs_;$/;"	m	struct:yac::ros_node_t
+rotx	yac/core.cpp	/^mat3_t rotx(const real_t theta) {$/;"	f	namespace:yac
+roty	yac/core.cpp	/^mat3_t roty(const real_t theta) {$/;"	f	namespace:yac
+rotz	yac/core.cpp	/^mat3_t rotz(const real_t theta) {$/;"	f	namespace:yac
+row_major_t	yac/core.hpp	94;"	d
+row_vector_t	yac/core.hpp	/^typedef Eigen::Matrix<real_t, 1, Eigen::Dynamic> row_vector_t;$/;"	t	namespace:yac
+rvec2rot	yac/core.cpp	/^mat3_t rvec2rot(const vec3_t &rvec, const real_t eps) {$/;"	f	namespace:yac
+rvec_spline	yac/core.hpp	/^  Spline3D rvec_spline;$/;"	m	struct:yac::ctraj_t
+save_results	yac/calib_camera.hpp	/^static int save_results(const std::string &save_path,$/;"	f	namespace:yac
+save_results	yac_ros/calib_vicon_node.cpp	/^void save_results(const std::string &output_path, const dataset_t &ds) {$/;"	f
+say_callback	yac_ros/example_node.cpp	/^  void say_callback(const std_msgs::String &msg) {$/;"	f	struct:yac::example_node_t
+server_ip	yac/core.hpp	/^  std::string server_ip;$/;"	m	struct:yac::tcp_client_t
+server_port	yac/core.hpp	/^  int server_port = 8080;$/;"	m	struct:yac::tcp_client_t
+set_diff	yac/core.hpp	/^T set_diff(const T &a, const T &b) {$/;"	f	namespace:yac
+set_symmetric_diff	yac/core.hpp	/^T set_symmetric_diff(const T &a, const T &b) {$/;"	f	namespace:yac
+set_union	yac/core.hpp	/^T set_union(const T &s1, const T &s2) {$/;"	f	namespace:yac
+setup_camera	yac/apps/validate_stereo.cpp	/^static pinhole_radtan4_t setup_camera(const vec4_t &intrinsics,$/;"	f	file:
+shannon_entropy	yac/core.cpp	/^real_t shannon_entropy(const matx_t &covar) {$/;"	f	namespace:yac
+show_results	yac_ros/calib_vicon_node.cpp	/^void show_results(const dataset_t &ds) {$/;"	f
+shutdown_callback	yac_ros/ros.cpp	/^void ros_node_t::shutdown_callback(const std_msgs::Bool &msg) {$/;"	f	class:yac::ros_node_t
+sigma_a_c	yac/core.hpp	/^  real_t sigma_a_c = 0.0;   \/\/ Accel noise density [m\/s^s\/sqrt(Hz)]$/;"	m	struct:yac::sim_imu_t
+sigma_aw_c	yac/core.hpp	/^  real_t sigma_aw_c = 0.0;  \/\/ Accel drift noise density [m\/s^2\/sqrt(Hz)]$/;"	m	struct:yac::sim_imu_t
+sigma_g_c	yac/core.hpp	/^  real_t sigma_g_c = 0.0;   \/\/ Gyro noise density [rad\/s\/sqrt(Hz)]$/;"	m	struct:yac::sim_imu_t
+sigma_gw_c	yac/core.hpp	/^  real_t sigma_gw_c = 0.0;  \/\/ Gyro drift noise density [rad\/s^s\/sqrt(Hz)]$/;"	m	struct:yac::sim_imu_t
+sign	yac/core.cpp	/^int sign(const real_t x) {$/;"	f	namespace:yac
+signal_handler	yac_ros/calib_vicon_capture_node.cpp	/^static void signal_handler(int sig) {$/;"	f	file:
+signal_handler	yac_ros/calib_vicon_node.cpp	/^void signal_handler(int sig) {$/;"	f
+sim_imu_measurement	yac/core.cpp	/^void sim_imu_measurement(sim_imu_t &imu,$/;"	f	namespace:yac
+sim_imu_reset	yac/core.cpp	/^void sim_imu_reset(sim_imu_t &imu) {$/;"	f	namespace:yac
+sim_imu_t	yac/core.hpp	/^struct sim_imu_t {$/;"	s	namespace:yac
+sim_mode_	yac_ros/ros.hpp	/^  bool sim_mode_ = false;$/;"	m	struct:yac::ros_node_t
+sinc	yac/core.cpp	/^real_t sinc(const real_t x) {$/;"	f	namespace:yac
+sint32	yac/core.cpp	/^int32_t sint32(const uint8_t *data, const size_t offset) {$/;"	f	namespace:yac
+skew	yac/core.cpp	/^mat3_t skew(const vec3_t &w) {$/;"	f	namespace:yac
+skewsq	yac/core.cpp	/^mat3_t skewsq(const vec3_t &w) {$/;"	f	namespace:yac
+skip_line	yac/core.cpp	/^void skip_line(FILE *fp) {$/;"	f	namespace:yac
+slerp	yac/core.cpp	/^quat_t slerp(const quat_t &q_start, const quat_t &q_end, const real_t alpha) {$/;"	f	namespace:yac
+slice	yac/core.hpp	/^std::vector<T1, T2> slice(std::vector<T1, T2> const &v, int m, int n) {$/;"	f	namespace:yac
+slice	yac/core.hpp	/^std::vector<T> slice(std::vector<T> const &v, int m, int n) {$/;"	f	namespace:yac
+sockfd	yac/core.hpp	/^  int sockfd = -1;$/;"	m	struct:yac::tcp_client_t
+sockfd	yac/core.hpp	/^  int sockfd = -1;$/;"	m	struct:yac::tcp_server_t
+sort_apriltag_by_id	yac/aprilgrid.cpp	/^bool sort_apriltag_by_id(const AprilTags::TagDetection &a,$/;"	f	namespace:yac
+sort_keypoints	yac/core.cpp	/^sort_keypoints(const std::vector<cv::KeyPoint> keypoints, const size_t limit) {$/;"	f	namespace:yac
+sphere	yac/core.cpp	/^vec3_t sphere(const real_t rho, const real_t theta, const real_t phi) {$/;"	f	namespace:yac
+started	yac/core.hpp	/^  bool started = false;$/;"	m	struct:yac::sim_imu_t
+stereo_residual_t	yac/calib_camera.hpp	/^  stereo_residual_t(const vec2_t &z_C0, const vec2_t &z_C1, const vec3_t &p_F)$/;"	f	struct:yac::stereo_residual_t
+stereo_residual_t	yac/calib_camera.hpp	/^struct stereo_residual_t {$/;"	s	namespace:yac
+strip	yac/core.cpp	/^std::string strip(const std::string &s, const std::string &target) {$/;"	f	namespace:yac
+strip_end	yac/core.cpp	/^std::string strip_end(const std::string &s, const std::string &target) {$/;"	f	namespace:yac
+sychronize_stereo_images	yac/apps/validate_stereo.cpp	/^sychronize_stereo_images(std::vector<std::string> &cam0_image_paths,$/;"	f	file:
+tag_cols	yac/aprilgrid.hpp	/^  int tag_cols = 0;$/;"	m	struct:yac::aprilgrid_t
+tag_cols	yac/calib_data.hpp	/^  int tag_cols = 0;$/;"	m	struct:yac::calib_target_t
+tag_rows	yac/aprilgrid.hpp	/^  int tag_rows = 0;$/;"	m	struct:yac::aprilgrid_t
+tag_rows	yac/calib_data.hpp	/^  int tag_rows = 0;$/;"	m	struct:yac::calib_target_t
+tag_size	yac/aprilgrid.hpp	/^  real_t tag_size = 0.0;$/;"	m	struct:yac::aprilgrid_t
+tag_size	yac/calib_data.hpp	/^  real_t tag_size = 0.0;$/;"	m	struct:yac::calib_target_t
+tag_spacing	yac/aprilgrid.hpp	/^  real_t tag_spacing = 0.0;$/;"	m	struct:yac::aprilgrid_t
+tag_spacing	yac/calib_data.hpp	/^  real_t tag_spacing = 0.0;$/;"	m	struct:yac::calib_target_t
+target0_topic	yac_ros/calib_vicon_capture_node.cpp	/^std::string target0_topic;$/;"	v
+target_counter	yac_ros/calib_vicon_capture_node.cpp	/^int target_counter = 0;$/;"	v
+target_odom_cb	yac_ros/calib_vicon_capture_node.cpp	/^static void target_odom_cb(const nav_msgs::OdometryConstPtr &msg) {$/;"	f	file:
+target_pose_cb	yac_ros/calib_vicon_capture_node.cpp	/^static void target_pose_cb(const geometry_msgs::PoseStampedConstPtr &msg) {$/;"	f	file:
+target_pose_covar_cb	yac_ros/calib_vicon_capture_node.cpp	/^static void target_pose_covar_cb($/;"	f	file:
+target_type	yac/calib_data.hpp	/^  std::string target_type;$/;"	m	struct:yac::calib_target_t
+tau_a	yac/core.hpp	/^  real_t tau_a = 0.0;       \/\/ Reversion time constant for accel [s]$/;"	m	struct:yac::sim_imu_t
+tau_g	yac/core.hpp	/^  real_t tau_g = 0.0;       \/\/ Reversion time constant for gyro [s]$/;"	m	struct:yac::sim_imu_t
+tcp_client_t	yac/core.hpp	/^struct tcp_client_t {$/;"	s	namespace:yac
+tcp_server_t	yac/core.hpp	/^struct tcp_server_t {$/;"	s	namespace:yac
+tf	yac/core.cpp	/^mat4_t tf(const mat3_t &C, const vec3_t &r) {$/;"	f	namespace:yac
+tf	yac/core.cpp	/^mat4_t tf(const quat_t &q, const vec3_t &r) {$/;"	f	namespace:yac
+tf	yac/core.cpp	/^mat4_t tf(const real_t *params) {$/;"	f	namespace:yac
+tf	yac/core.hpp	/^Eigen::Matrix<T, 4, 4> tf(const Eigen::Matrix<T, 3, 3> &C,$/;"	f	namespace:yac
+tf_perturb_rot	yac/core.cpp	/^mat4_t tf_perturb_rot(const mat4_t &T, real_t step_size, const int i) {$/;"	f	namespace:yac
+tf_perturb_trans	yac/core.cpp	/^mat4_t tf_perturb_trans(const mat4_t &T, const real_t step_size, const int i) {$/;"	f	namespace:yac
+tf_point	yac/core.cpp	/^vec3_t tf_point(const mat4_t &T, const vec3_t &p) {$/;"	f	namespace:yac
+tf_quat	yac/core.hpp	/^inline quat_t tf_quat(const mat4_t &tf) { return quat_t{tf.block<3, 3>(0, 0)}; }$/;"	f	namespace:yac
+tf_rot	yac/core.hpp	/^inline mat3_t tf_rot(const mat4_t &tf) { return tf.block<3, 3>(0, 0); }$/;"	f	namespace:yac
+tf_trans	yac/core.hpp	/^inline vec3_t tf_trans(const mat4_t &tf) { return tf.block<3, 1>(0, 3); }$/;"	f	namespace:yac
+tic	yac/core.cpp	/^struct timespec tic() {$/;"	f	namespace:yac
+time_now	yac/core.cpp	/^real_t time_now() {$/;"	f	namespace:yac
+timestamp	yac/aprilgrid.hpp	/^  timestamp_t timestamp = 0;$/;"	m	struct:yac::aprilgrid_t
+timestamp_print	yac/core.cpp	/^void timestamp_print(const timestamp_t &ts, const std::string &prefix) {$/;"	f	namespace:yac
+timestamp_t	yac/core.hpp	/^typedef uint64_t timestamp_t;$/;"	t	namespace:yac
+timestamps	yac/core.hpp	/^  const timestamps_t timestamps;$/;"	m	struct:yac::ctraj_t
+timestamps_t	yac/core.hpp	/^typedef std::vector<timestamp_t> timestamps_t;$/;"	t	namespace:yac
+toc	yac/core.cpp	/^float toc(struct timespec *tic) {$/;"	f	namespace:yac
+ts2csv	yac/core.cpp	/^int ts2csv(const std::string &file_path, const std::deque<timestamp_t> &data) {$/;"	f	namespace:yac
+ts2sec	yac/core.cpp	/^real_t ts2sec(const timestamp_t &ts) { return ts * 1.0e-9; }$/;"	f	namespace:yac
+ts_normalize	yac/core.cpp	/^inline static real_t ts_normalize(const ctraj_t &ctraj, const timestamp_t ts) {$/;"	f	namespace:yac
+ts_prev	yac/core.hpp	/^  timestamp_t ts_prev = 0;$/;"	m	struct:yac::sim_imu_t
+ts_s_end	yac/core.hpp	/^  const real_t ts_s_end;$/;"	m	struct:yac::ctraj_t
+ts_s_gap	yac/core.hpp	/^  const real_t ts_s_gap;$/;"	m	struct:yac::ctraj_t
+ts_s_start	yac/core.hpp	/^  const real_t ts_s_start;$/;"	m	struct:yac::ctraj_t
+uint16	yac/core.cpp	/^uint16_t uint16(const uint8_t *data, const size_t offset) {$/;"	f	namespace:yac
+uint32	yac/core.cpp	/^uint32_t uint32(const uint8_t *data, const size_t offset) {$/;"	f	namespace:yac
+uint8	yac/core.cpp	/^uint8_t uint8(const uint8_t *data, const size_t offset) {$/;"	f	namespace:yac
+undistort	yac/core.hpp	/^  vec2_t undistort(const vec2_t &p) const {$/;"	f	struct:yac::equi4_t
+undistort	yac/core.hpp	/^  vec2_t undistort(const vec2_t &p) const {$/;"	f	struct:yac::nodist_t
+undistort	yac/core.hpp	/^  vec2_t undistort(const vec2_t &p) {$/;"	f	struct:yac::equi4_t
+undistort	yac/core.hpp	/^  vec2_t undistort(const vec2_t &p) {$/;"	f	struct:yac::nodist_t
+undistort	yac/core.hpp	/^  vec2_t undistort(const vec2_t &p0) const {$/;"	f	struct:yac::radtan4_t
+undistort	yac/core.hpp	/^  vec2_t undistort(const vec2_t &p0) {$/;"	f	struct:yac::radtan4_t
+vec2_t	yac/core.hpp	/^typedef Eigen::Matrix<real_t, 2, 1> vec2_t;$/;"	t	namespace:yac
+vec2array	yac/core.cpp	/^real_t *vec2array(const vecx_t &v) {$/;"	f	namespace:yac
+vec2array	yac/core.cpp	/^void vec2array(const vecx_t &v, real_t *out) {$/;"	f	namespace:yac
+vec2csv	yac/core.cpp	/^int vec2csv(const std::string &file_path, const std::deque<vec3_t> &data) {$/;"	f	namespace:yac
+vec2s_t	yac/core.hpp	/^typedef std::vector<vec2_t, Eigen::aligned_allocator<vec2_t>> vec2s_t;$/;"	t	namespace:yac
+vec2str	yac/core.cpp	/^std::string vec2str(const vecx_t &v, bool brackets) {$/;"	f	namespace:yac
+vec3_t	yac/core.hpp	/^typedef Eigen::Matrix<real_t, 3, 1> vec3_t;$/;"	t	namespace:yac
+vec3s_t	yac/core.hpp	/^typedef std::vector<vec3_t, Eigen::aligned_allocator<vec3_t>> vec3s_t;$/;"	t	namespace:yac
+vec4_t	yac/core.hpp	/^typedef Eigen::Matrix<real_t, 4, 1> vec4_t;$/;"	t	namespace:yac
+vec4s_t	yac/core.hpp	/^typedef std::vector<vec4_t, Eigen::aligned_allocator<vec4_t>> vec4s_t;$/;"	t	namespace:yac
+vec5_t	yac/core.hpp	/^typedef Eigen::Matrix<real_t, 5, 1> vec5_t;$/;"	t	namespace:yac
+vec5s_t	yac/core.hpp	/^typedef std::vector<vec5_t, Eigen::aligned_allocator<vec5_t>> vec5s_t;$/;"	t	namespace:yac
+vec6_t	yac/core.hpp	/^typedef Eigen::Matrix<real_t, 6, 1> vec6_t;$/;"	t	namespace:yac
+vec6s_t	yac/core.hpp	/^typedef std::vector<vec6_t, Eigen::aligned_allocator<vec6_t>> vec6s_t;$/;"	t	namespace:yac
+vecs2mat	yac/core.cpp	/^matx_t vecs2mat(const vec3s_t &vs) {$/;"	f	namespace:yac
+vecs2rot	yac/core.cpp	/^mat3_t vecs2rot(const vec3_t &a_B, const vec3_t &g) {$/;"	f	namespace:yac
+vecx_t	yac/core.hpp	/^typedef Eigen::Matrix<real_t, Eigen::Dynamic, 1> vecx_t;$/;"	t	namespace:yac
+vecxs_t	yac/core.hpp	/^typedef std::vector<vecx_t> vecxs_t;$/;"	t	namespace:yac
+vicon_marker_residual_t	yac/calib_vicon_marker.hpp	/^  vicon_marker_residual_t(const vec2_t &z, const vec3_t &p_F)$/;"	f	struct:yac::vicon_marker_residual_t
+vicon_marker_residual_t	yac/calib_vicon_marker.hpp	/^struct vicon_marker_residual_t {$/;"	s	namespace:yac
+vstack	yac/core.cpp	/^matx_t vstack(const matx_t &A, const matx_t &B) {$/;"	f	namespace:yac
+wrap180	yac/core.cpp	/^real_t wrap180(const real_t euler_angle) {$/;"	f	namespace:yac
+wrap2Pi	yac/core.cpp	/^real_t wrap2Pi(const real_t r) { return deg2rad(wrap360(rad2deg(r))); }$/;"	f	namespace:yac
+wrap360	yac/core.cpp	/^real_t wrap360(const real_t euler_angle) {$/;"	f	namespace:yac
+wrapPi	yac/core.cpp	/^real_t wrapPi(const real_t r) { return deg2rad(wrap180(rad2deg(r))); }$/;"	f	namespace:yac
+yac	yac/aprilgrid.cpp	/^namespace yac {$/;"	n	file:
+yac	yac/aprilgrid.hpp	/^namespace yac {$/;"	n
+yac	yac/calib_camera.cpp	/^namespace yac {$/;"	n	file:
+yac	yac/calib_camera.hpp	/^namespace yac {$/;"	n
+yac	yac/calib_data.cpp	/^namespace yac {$/;"	n	file:
+yac	yac/calib_data.hpp	/^namespace yac {$/;"	n
+yac	yac/calib_vicon_marker.hpp	/^namespace yac {$/;"	n
+yac	yac/core.cpp	/^namespace yac {$/;"	n	file:
+yac	yac/core.hpp	/^namespace yac {$/;"	n
+yac	yac_ros/calib_mono_validate_node.cpp	/^namespace yac {$/;"	n	file:
+yac	yac_ros/calib_stereo_validate_node.cpp	/^namespace yac {$/;"	n	file:
+yac	yac_ros/example_node.cpp	/^namespace yac {$/;"	n	file:
+yac	yac_ros/ros.cpp	/^namespace yac {$/;"	n	file:
+yac	yac_ros/ros.hpp	/^namespace yac {$/;"	n
+yaml_check_matrix	yac/core.hpp	/^void yaml_check_matrix(const YAML::Node &node,$/;"	f	namespace:yac
+yaml_check_matrix_fields	yac/core.cpp	/^void yaml_check_matrix_fields(const YAML::Node &node,$/;"	f	namespace:yac
+yaml_check_vector	yac/core.hpp	/^size_t yaml_check_vector(const YAML::Node &node,$/;"	f	namespace:yac
+yaml_get_node	yac/core.cpp	/^int yaml_get_node(const config_t &config,$/;"	f	namespace:yac
+yaml_has_key	yac/core.cpp	/^int yaml_has_key(const config_t &config, const std::string &key) {$/;"	f	namespace:yac
+yaml_has_key	yac/core.cpp	/^int yaml_has_key(const std::string &file_path, const std::string &key) {$/;"	f	namespace:yac
+yaml_load_file	yac/core.cpp	/^int yaml_load_file(const std::string file_path, YAML::Node &root) {$/;"	f	namespace:yac
+z_	yac/calib_camera.hpp	/^  double z_[2] = {0.0, 0.0};        \/\/\/< Measurement$/;"	m	struct:yac::pinhole_radtan4_residual_t
+z_	yac/calib_vicon_marker.hpp	/^  double z_[2] = {0.0, 0.0};        \/\/\/< Measurement from cam0$/;"	m	struct:yac::vicon_marker_residual_t
+z_C0_	yac/calib_camera.hpp	/^  real_t z_C0_[2] = {0.0, 0.0};     \/\/\/< Measurement from cam0$/;"	m	struct:yac::stereo_residual_t
+z_C1_	yac/calib_camera.hpp	/^  real_t z_C1_[2] = {0.0, 0.0};     \/\/\/< Measurement from cam1$/;"	m	struct:yac::stereo_residual_t
+zeros	yac/core.cpp	/^matx_t zeros(const int rows, const int cols) {$/;"	f	namespace:yac
+zeros	yac/core.cpp	/^matx_t zeros(const int size) { return matx_t::Zero(size, size); }$/;"	f	namespace:yac
+~aprilgrid_detector_t	yac/aprilgrid.cpp	/^aprilgrid_detector_t::~aprilgrid_detector_t() {}$/;"	f	class:yac::aprilgrid_detector_t
+~aprilgrid_t	yac/aprilgrid.cpp	/^aprilgrid_t::~aprilgrid_t() {}$/;"	f	class:yac::aprilgrid_t
+~calib_pose_t	yac/calib_data.hpp	/^  ~calib_pose_t() {}$/;"	f	struct:yac::calib_pose_t
+~calib_target_t	yac/calib_data.hpp	/^  ~calib_target_t() {}$/;"	f	struct:yac::calib_target_t
+~config_t	yac/core.cpp	/^config_t::~config_t() {}$/;"	f	class:yac::config_t
+~distortion_t	yac/core.hpp	/^  virtual ~distortion_t() {}$/;"	f	struct:yac::distortion_t
+~equi4_t	yac/core.hpp	/^  ~equi4_t() {}$/;"	f	struct:yac::equi4_t
+~nodist_t	yac/core.hpp	/^  ~nodist_t() {}$/;"	f	struct:yac::nodist_t
+~pinhole_radtan4_residual_t	yac/calib_camera.hpp	/^  ~pinhole_radtan4_residual_t() {}$/;"	f	struct:yac::pinhole_radtan4_residual_t
+~pinhole_t	yac/core.hpp	/^  ~pinhole_t() {}$/;"	f	struct:yac::pinhole_t
+~projection_t	yac/core.hpp	/^  ~projection_t() {}$/;"	f	struct:yac::projection_t
+~radtan4_t	yac/core.hpp	/^  virtual ~radtan4_t() {}$/;"	f	struct:yac::radtan4_t
+~ros_node_t	yac_ros/ros.cpp	/^ros_node_t::~ros_node_t() {$/;"	f	class:yac::ros_node_t
+~stereo_residual_t	yac/calib_camera.hpp	/^  ~stereo_residual_t() {}$/;"	f	struct:yac::stereo_residual_t
+~vicon_marker_residual_t	yac/calib_vicon_marker.hpp	/^  ~vicon_marker_residual_t() {}$/;"	f	struct:yac::vicon_marker_residual_t

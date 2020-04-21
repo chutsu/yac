@@ -1,7 +1,7 @@
-#include "proto/proto.hpp"
-#include "proto/ros/ros.hpp"
+#include "yac/yac.hpp"
+#include "yac_ros/ros.hpp"
 
-using namespace proto;
+using namespace yac;
 
 void process_rosbag(const std::string &rosbag_path,
                     const std::string &cam0_topic,

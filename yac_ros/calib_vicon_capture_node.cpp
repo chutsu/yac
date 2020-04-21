@@ -2,10 +2,10 @@
 #include <thread>
 #include <termios.h>
 
-#include "proto/proto.hpp"
-#include "proto/ros/ros.hpp"
+#include "yac/yac.hpp"
+#include "yac_ros/ros.hpp"
 
-using namespace proto;
+using namespace yac;
 
 // GLOBAL VARS
 bool keep_running = true;

@@ -1,7 +1,7 @@
-#include <proto/proto.hpp>
-#include "proto/ros/ros.hpp"
+#include <yac/yac.hpp>
+#include "yac_ros/ros.hpp"
 
-namespace proto {
+namespace yac {
 
 struct calib_config_t {
   vec2_t resolution{0.0, 0.0};
@@ -100,6 +100,6 @@ struct calib_validate_mono_node_t : ros_node_t {
   }
 };
 
-} // namespace proto
+} // namespace yac
 
-RUN_ROS_NODE(proto::calib_validate_mono_node_t);
+RUN_ROS_NODE(yac::calib_validate_mono_node_t);

@@ -5,8 +5,8 @@
 
 #include <opencv2/calib3d/calib3d.hpp>
 
-#include "yac/core.hpp"
-#include "yac/aprilgrid.hpp"
+#include "core.hpp"
+#include "aprilgrid.hpp"
 
 namespace yac {
 

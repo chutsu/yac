@@ -1,4 +1,4 @@
-#include "yac/aprilgrid.hpp"
+#include "aprilgrid.hpp"
 
 namespace yac {
 

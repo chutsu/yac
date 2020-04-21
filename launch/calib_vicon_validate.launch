@@ -1,5 +1,5 @@
 <launch>
-  <node pkg="proto_ros" type="calib_vicon_validate_node" name="calib_vicon_validate_node" required="true" output="screen">
+  <node pkg="yac_ros" type="calib_vicon_validate_node" name="calib_vicon_validate_node" required="true" output="screen">
     <!-- <param name="rosbag_path" value="/data/vicon_capture.bag" /> -->
     <!-- <param name="calib_file" value="/tmp/vicon_calib.yaml" /> -->
     <param name="calib_file" value="/data/intel_d435i/calib_vicon_data/calib_results.yaml" />

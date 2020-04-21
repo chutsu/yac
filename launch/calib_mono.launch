@@ -1,5 +1,5 @@
 <launch>
-  <node pkg="proto_ros"
+  <node pkg="yac_ros"
 			type="camera_node"
 			name="camera_node"
 			required="true"
@@ -7,13 +7,13 @@
 		<param name="topic" value="/camera/image" />
   </node>
 
-  <node pkg="proto_ros"
+  <node pkg="yac_ros"
 			type="calib_camera_node"
 			name="calib_camera_node"
 			required="true"
 			output="screen">
 		<param name="calib_file" value="8UC3" />
-    <param name="target_file" value="${find proto_ros}/config/apriltag.yaml" />
+    <param name="target_file" value="${find yac_ros}/config/apriltag.yaml" />
 		<param name="image_topic" value="/camera/image" />
   </node>
 </launch>

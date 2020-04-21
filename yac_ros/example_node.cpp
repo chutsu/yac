@@ -1,4 +1,4 @@
-#include "proto/ros/ros.hpp"
+#include "yac/ros/ros.hpp"
 
 // NODE SETTINGS
 static const double NODE_RATE = 1.0;
@@ -6,7 +6,7 @@ static const double NODE_RATE = 1.0;
 // PUBLISH TOPIC
 static const std::string SAY_TOPIC = "/example/say";
 
-namespace proto {
+namespace yac {
 
 struct example_node_t : ros_node_t {
   example_node_t() : ros_node_t() {}
@@ -31,5 +31,5 @@ struct example_node_t : ros_node_t {
   }
 };
 
-} // namespace proto
-RUN_ROS_NODE_RATE(proto::example_node_t, NODE_RATE);
+} // namespace yac
+RUN_ROS_NODE_RATE(yac::example_node_t, NODE_RATE);

@@ -1,13 +1,13 @@
-#include "proto/proto.hpp"
-#include "proto/ros/ros.hpp"
+#include "yac/yac.hpp"
+#include "yac_ros/ros.hpp"
 
 void process_rosbag(const std::string &rosbag_path,
                     const std::string &cam0_topic,
                     const std::string &cam1_topic,
                     const std::string &out_path) {
   // Check output dir
-  if (proto::dir_exists(out_path) == false) {
-    if (proto::dir_create(out_path) != 0) {
+  if (yac::dir_exists(out_path) == false) {
+    if (yac::dir_create(out_path) != 0) {
       FATAL("Failed to create dir [%s]", out_path.c_str());
     }
   }
@@ -15,8 +15,8 @@ void process_rosbag(const std::string &rosbag_path,
   // Prepare data files
   const auto cam0_output_path = out_path + "/cam0";
   const auto cam1_output_path = out_path + "/cam1";
-  auto cam0_csv = proto::camera_init_output_file(cam0_output_path);
-  auto cam1_csv = proto::camera_init_output_file(cam1_output_path);
+  auto cam0_csv = yac::camera_init_output_file(cam0_output_path);
+  auto cam1_csv = yac::camera_init_output_file(cam1_output_path);
 
   // Open ROS bag
   rosbag::Bag bag;
@@ -28,28 +28,28 @@ void process_rosbag(const std::string &rosbag_path,
   size_t msg_idx = 0;
   for (const auto &msg : bag_view) {
     // Print progress
-    proto::print_progress((double) msg_idx / bag_view.size());
+    yac::print_progress((double) msg_idx / bag_view.size());
     msg_idx++;
 
     // Process cam0 data
     if (msg.getTopic() == cam0_topic) {
-      proto::image_message_handler(msg, cam0_output_path + "/data/", cam0_csv);
+      yac::image_message_handler(msg, cam0_output_path + "/data/", cam0_csv);
     }
 
     // Process cam1 data
     if (msg.getTopic() == cam1_topic) {
-      proto::image_message_handler(msg, cam1_output_path + "/data/", cam1_csv);
+      yac::image_message_handler(msg, cam1_output_path + "/data/", cam1_csv);
     }
   }
 
   // Clean up rosbag
-  proto::print_progress(1.0);
+  yac::print_progress(1.0);
   bag.close();
 }
 
 int main(int argc, char *argv[]) {
   // Setup ROS Node
-  const std::string node_name = proto::ros_node_name(argc, argv);
+  const std::string node_name = yac::ros_node_name(argc, argv);
   if (ros::isInitialized() == false) {
     ros::init(argc, argv, node_name, ros::init_options::NoSigintHandler);
   }
@@ -67,14 +67,14 @@ int main(int argc, char *argv[]) {
 
   // Parse config file
   std::string data_path;
-  proto::config_t config{config_file};
-  proto::parse(config, "settings.data_path", data_path);
+  yac::config_t config{config_file};
+  yac::parse(config, "settings.data_path", data_path);
 
   // Process rosbag
   process_rosbag(rosbag_path, cam0_topic, cam1_topic, data_path);
 
   // Calibrate camera intrinsics
-  if (proto::calib_stereo_solve(config_file) != 0) {
+  if (yac::calib_stereo_solve(config_file) != 0) {
     FATAL("Failed to calibrate camera!");
   }
 

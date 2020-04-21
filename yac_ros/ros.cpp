@@ -1,6 +1,6 @@
-#include "proto/ros/ros.hpp"
+#include "yac_ros/ros.hpp"
 
-namespace proto {
+namespace yac {
 
 /****************************************************************************
  *                                MSG
@@ -24,7 +24,7 @@ std_msgs::Float64 msg_build(double d) {
   return msg;
 }
 
-geometry_msgs::Vector3 msg_build(proto::vec3_t &vec) {
+geometry_msgs::Vector3 msg_build(yac::vec3_t &vec) {
   geometry_msgs::Vector3 msg;
   msg.x = vec(0);
   msg.y = vec(1);
@@ -32,7 +32,7 @@ geometry_msgs::Vector3 msg_build(proto::vec3_t &vec) {
   return msg;
 }
 
-geometry_msgs::Vector3 msg_build(const proto::vec3_t &vec) {
+geometry_msgs::Vector3 msg_build(const yac::vec3_t &vec) {
   geometry_msgs::Vector3 msg;
   msg.x = vec(0);
   msg.y = vec(1);
@@ -40,7 +40,7 @@ geometry_msgs::Vector3 msg_build(const proto::vec3_t &vec) {
   return msg;
 }
 
-geometry_msgs::Quaternion msg_build(const proto::quat_t &q) {
+geometry_msgs::Quaternion msg_build(const yac::quat_t &q) {
   geometry_msgs::Quaternion msg;
   msg.w = q.w();
   msg.x = q.x();
@@ -52,19 +52,19 @@ geometry_msgs::Quaternion msg_build(const proto::quat_t &q) {
 geometry_msgs::PoseStamped msg_build(const size_t seq,
                                      const ros::Time &time,
                                      const std::string &frame_id,
-                                     const proto::mat4_t &pose) {
+                                     const yac::mat4_t &pose) {
   geometry_msgs::PoseStamped msg;
 
   msg.header.seq = seq;
   msg.header.stamp = time;
   msg.header.frame_id = frame_id;
 
-  proto::vec3_t position = proto::tf_trans(pose);
+  yac::vec3_t position = yac::tf_trans(pose);
   msg.pose.position.x = position(0);
   msg.pose.position.y = position(1);
   msg.pose.position.z = position(2);
 
-  proto::quat_t orientation = proto::tf_quat(pose);
+  yac::quat_t orientation = yac::tf_quat(pose);
   msg.pose.orientation.w = orientation.w();
   msg.pose.orientation.x = orientation.x();
   msg.pose.orientation.y = orientation.y();
@@ -76,8 +76,8 @@ geometry_msgs::PoseStamped msg_build(const size_t seq,
 geometry_msgs::TwistStamped msg_build(const size_t seq,
                                       const ros::Time &time,
                                       const std::string &frame_id,
-                                      const proto::vec3_t &linear_velocity,
-                                      const proto::vec3_t &angular_velocity) {
+                                      const yac::vec3_t &linear_velocity,
+                                      const yac::vec3_t &angular_velocity) {
   geometry_msgs::TwistStamped msg;
 
   msg.header.seq = seq;
@@ -97,7 +97,7 @@ geometry_msgs::TwistStamped msg_build(const size_t seq,
 
 void msg_convert(const std_msgs::Header &msg,
                  size_t seq,
-                 proto::timestamp_t &ts,
+                 yac::timestamp_t &ts,
                  std::string &frame_id) {
   seq = msg.seq;
   ts = msg.stamp.toNSec();
@@ -112,16 +112,16 @@ float msg_convert(const std_msgs::Float64 &msg) { return msg.data; }
 
 std::string msg_convert(const std_msgs::String &msg) { return msg.data; }
 
-proto::vec3_t msg_convert(const geometry_msgs::Vector3 &msg) {
-  return proto::vec3_t{msg.x, msg.y, msg.z};
+yac::vec3_t msg_convert(const geometry_msgs::Vector3 &msg) {
+  return yac::vec3_t{msg.x, msg.y, msg.z};
 }
 
-proto::vec3_t msg_convert(const geometry_msgs::Point &msg) {
-  return proto::vec3_t{msg.x, msg.y, msg.z};
+yac::vec3_t msg_convert(const geometry_msgs::Point &msg) {
+  return yac::vec3_t{msg.x, msg.y, msg.z};
 }
 
-proto::quat_t msg_convert(const geometry_msgs::Quaternion &msg) {
-  return proto::quat_t{msg.w, msg.x, msg.y, msg.z};
+yac::quat_t msg_convert(const geometry_msgs::Quaternion &msg) {
+  return yac::quat_t{msg.w, msg.x, msg.y, msg.z};
 }
 
 cv::Mat msg_convert(const sensor_msgs::ImageConstPtr &msg) {
@@ -551,4 +551,4 @@ int ros_node_t::loop() {
   return 0;
 }
 
-} // namespace proto
+} // namespace yac

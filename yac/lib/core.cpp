@@ -1,4 +1,4 @@
-#include "yac/core.hpp"
+#include "core.hpp"
 
 namespace yac {
 

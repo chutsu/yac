@@ -1,5 +1,5 @@
-#ifndef PROTO_ROS_ROS_HPP
-#define PROTO_ROS_ROS_HPP
+#ifndef YAC_ROS_ROS_HPP
+#define YAC_ROS_ROS_HPP
 
 #include <functional>
 
@@ -26,9 +26,9 @@
 #include <sensor_msgs/Imu.h>
 #include <sensor_msgs/CameraInfo.h>
 
-#include <proto/proto.hpp>
+#include <yac/yac.hpp>
 
-namespace proto {
+namespace yac {
 
 /*****************************************************************************
  *                                  MSG
@@ -39,30 +39,30 @@ std_msgs::Bool msg_build(const bool b);
 std_msgs::String msg_build(const std::string &s);
 std_msgs::Float64 msg_build(const double d);
 
-geometry_msgs::Vector3 msg_build(const proto::vec3_t &vec);
-geometry_msgs::Quaternion msg_build(const proto::quat_t &q);
+geometry_msgs::Vector3 msg_build(const yac::vec3_t &vec);
+geometry_msgs::Quaternion msg_build(const yac::quat_t &q);
 geometry_msgs::PoseStamped msg_build(const size_t seq,
                                      const ros::Time &time,
                                      const std::string &frame_id,
-                                     const proto::mat4_t &pose);
+                                     const yac::mat4_t &pose);
 geometry_msgs::TwistStamped msg_build(const size_t seq,
                                       const ros::Time &time,
                                       const std::string &frame_id,
-                                      const proto::vec3_t &linear_velocity,
-                                      const proto::vec3_t &angular_velocity);
+                                      const yac::vec3_t &linear_velocity,
+                                      const yac::vec3_t &angular_velocity);
 
 void msg_convert(const std_msgs::Header &msg,
                  size_t seq,
-                 proto::timestamp_t &ts,
+                 yac::timestamp_t &ts,
                  std::string &frame_id);
 uint8_t msg_convert(const std_msgs::UInt8 &msg);
 bool msg_convert(const std_msgs::Bool &msg);
 float msg_convert(const std_msgs::Float64 &msg);
 std::string msg_convert(const std_msgs::String &msg);
 
-proto::vec3_t msg_convert(const geometry_msgs::Vector3 &msg);
-proto::vec3_t msg_convert(const geometry_msgs::Point &msg);
-proto::quat_t msg_convert(const geometry_msgs::Quaternion &msg);
+yac::vec3_t msg_convert(const geometry_msgs::Vector3 &msg);
+yac::vec3_t msg_convert(const geometry_msgs::Point &msg);
+yac::quat_t msg_convert(const geometry_msgs::Quaternion &msg);
 cv::Mat msg_convert(const sensor_msgs::ImageConstPtr &msg);
 
 /*****************************************************************************
@@ -119,7 +119,7 @@ void gyro_message_handler(const rosbag::MessageInstance &msg,
   int main(int argc, char **argv) {                                            \
     std::string node_name;                                                     \
     if (ros::isInitialized() == false) {                                       \
-      node_name = proto::ros_node_name(argc, argv);                            \
+      node_name = yac::ros_node_name(argc, argv);                            \
       ros::init(argc, argv, node_name, ros::init_options::NoSigintHandler);    \
     }                                                                          \
                                                                                \
@@ -137,7 +137,7 @@ void gyro_message_handler(const rosbag::MessageInstance &msg,
   int main(int argc, char **argv) {                                            \
     std::string node_name;                                                     \
     if (ros::isInitialized() == false) {                                       \
-      node_name = proto::ros_node_name(argc, argv);                            \
+      node_name = yac::ros_node_name(argc, argv);                            \
       ros::init(argc, argv, node_name, ros::init_options::NoSigintHandler);    \
     }                                                                          \
                                                                                \
@@ -286,5 +286,5 @@ struct ros_node_t {
   int loop();
 };
 
-} // namespace proto
-#endif // PROTO_ROS_ROS_HPP
+} // namespace yac
+#endif // YAC_ROS_ROS_HPP

@@ -1,8 +1,8 @@
 #include <signal.h>
-#include "proto/proto.hpp"
-#include "proto/ros/ros.hpp"
+#include "yac/yac.hpp"
+#include "yac_ros/ros.hpp"
 
-using namespace proto;
+using namespace yac;
 std::string test_out_path = "/tmp/vicon_test";
 
 void clear_test_output() {

@@ -1,4 +1,4 @@
-#include "yac/calib_data.hpp"
+#include "calib_data.hpp"
 
 namespace yac {
 

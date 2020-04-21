@@ -1,16 +1,19 @@
 # YAC - Yet Another Calibrator
 
-*Y*et *A*nother *C*alibrator (YAC) is a calibraiton tool for calibrating RGB
+Yet Another Calibrator (YAC) is a calibration tool for calibrating RGB
 cameras. Specifically:
 
 - Monocular camera intrinsics
 - Stereo camera intrinsics and extrinsics
 - Mocap marker to camera extrinsics
 
+
 ## Build
 
-    cd <yac repo>
-    make
+    cd <your catkin workspace>
+    git clone https://github.com/chutsu/yac
+    catkin build -DCMAKE_BUILD_TYPE=Release yac yac_ros
+    # Note: If you don't build in release mode the optimization will be slow.
 
 
 ## LICENCE

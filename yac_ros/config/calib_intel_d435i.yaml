@@ -1,3 +1,8 @@
+ros:
+  bag_path: "/data/intel_d435i/imucam-1.bag"
+  cam0_topic: "/stereo/camera0/image"
+  cam1_topic: "/stereo/camera1/image"
+
 settings:
   data_path: "/data/intel_d435i/calib_data"
   results_fpath: "/data/intel_d435i/calib_data/calib_results.yaml"

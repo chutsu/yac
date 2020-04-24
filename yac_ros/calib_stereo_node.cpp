@@ -26,24 +26,32 @@ void process_rosbag(const std::string &rosbag_path,
   LOG_INFO("Processing ROS bag [%s]", rosbag_path.c_str());
   rosbag::View bag_view(bag);
   size_t msg_idx = 0;
+  bool cam_event = false;
   for (const auto &msg : bag_view) {
-    // Print progress
-    yac::print_progress((double) msg_idx / bag_view.size());
-    msg_idx++;
-
     // Process cam0 data
     if (msg.getTopic() == cam0_topic) {
       yac::image_message_handler(msg, cam0_output_path + "/data/", cam0_csv);
+      cam_event = true;
     }
 
     // Process cam1 data
     if (msg.getTopic() == cam1_topic) {
       yac::image_message_handler(msg, cam1_output_path + "/data/", cam1_csv);
+      cam_event = true;
+    }
+
+    // Print progress
+    if (cam_event) {
+      if (msg_idx % 10 == 0) {
+        printf(".");
+      }
+      msg_idx++;
+      cam_event = false;
     }
   }
+  printf("\n");
 
   // Clean up rosbag
-  yac::print_progress(1.0);
   bag.close();
 }
 
@@ -57,21 +65,21 @@ int main(int argc, char *argv[]) {
   // Get ROS params
   const ros::NodeHandle ros_nh;
   std::string config_file;
-  std::string rosbag_path;
-  std::string cam0_topic;
-  std::string cam1_topic;
   ROS_PARAM(ros_nh, node_name + "/config_file", config_file);
-  ROS_PARAM(ros_nh, node_name + "/rosbag", rosbag_path);
-  ROS_PARAM(ros_nh, node_name + "/cam0_topic", cam0_topic);
-  ROS_PARAM(ros_nh, node_name + "/cam1_topic", cam1_topic);
 
   // Parse config file
+  std::string bag_path;
+  std::string cam0_topic;
+  std::string cam1_topic;
   std::string data_path;
   yac::config_t config{config_file};
+  yac::parse(config, "ros.bag_path", bag_path);
+  yac::parse(config, "ros.cam0_topic", cam0_topic);
+  yac::parse(config, "ros.cam1_topic", cam1_topic);
   yac::parse(config, "settings.data_path", data_path);
 
   // Process rosbag
-  process_rosbag(rosbag_path, cam0_topic, cam1_topic, data_path);
+  process_rosbag(bag_path, cam0_topic, cam1_topic, data_path);
 
   // Calibrate camera intrinsics
   if (yac::calib_stereo_solve(config_file) != 0) {

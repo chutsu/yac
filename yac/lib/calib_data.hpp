@@ -84,15 +84,6 @@ int calib_target_load(calib_target_t &ct,
                       const std::string &prefix = "");
 
 /**
- * Detect AprilGrid specified by `target` and given a directory of images in
- * `image_dir`.
- * @returns 0 for Success, -1 for failure.
- */
-int detect_calib_data(const calib_target_t &target,
-                      const std::string &image_dir,
-                      const bool imshow = true);
-
-/**
  * Preprocess camera image data and output AprilGrid detection data as
  * csv. The AprilGrid tag corners are estimated using the camera intrinsics
  * matrix `cam_K` and distortion vector `cam_D`. Once the data is preprocessed

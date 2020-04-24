@@ -38,46 +38,6 @@ static int get_camera_image_paths(const std::string &image_dir,
   return 0;
 }
 
-int detect_calib_data(const calib_target_t &target,
-                      const std::string &image_dir,
-                      const bool imshow) {
-  // Get camera image paths
-  std::vector<std::string> image_paths;
-  if (get_camera_image_paths(image_dir, image_paths) != 0) {
-    return -1;
-  }
-
-  // Detect AprilGrid
-  LOG_INFO("Processing images:");
-  aprilgrid_detector_t detector;
-
-  for (size_t i = 0; i < image_paths.size(); i++) {
-    print_progress((real_t) i / image_paths.size());
-    // -- Detect
-    const auto image_path = paths_combine(image_dir, image_paths[i]);
-    const cv::Mat image = cv::imread(image_path);
-    aprilgrid_t grid{0,
-                     target.tag_rows,
-                     target.tag_cols,
-                     target.tag_size,
-                     target.tag_spacing};
-    aprilgrid_detect(grid, detector, image);
-
-    // -- Visualize detection
-    if (imshow) {
-      aprilgrid_imshow(grid, "AprilGrid Detection", image);
-    }
-  }
-
-  // Print newline after print progress has finished
-  print_progress(1.0);
-
-  // Destroy all opencv windows
-  cv::destroyAllWindows();
-
-  return 0;
-}
-
 int preprocess_camera_data(const calib_target_t &target,
                            const std::string &image_dir,
                            const mat3_t &cam_K,
@@ -98,10 +58,6 @@ int preprocess_camera_data(const calib_target_t &target,
   aprilgrid_detector_t detector;
 
   for (size_t i = 0; i < image_paths.size(); i++) {
-    if (show_progress) {
-      print_progress((real_t) i / image_paths.size());
-    }
-
     // -- Create output file path
     auto output_file = parse_fname(image_paths[i]);
     const timestamp_t ts = std::stoull(output_file);
@@ -139,11 +95,16 @@ int preprocess_camera_data(const calib_target_t &target,
     if (imshow) {
       aprilgrid_imshow(grid, "AprilGrid Detection", image);
     }
+
+    // -- Print progress
+    if (show_progress && i % 10 == 0) {
+      printf(".");
+    }
   }
 
   // Print newline after print progress has finished
   if (show_progress) {
-    print_progress(1.0);
+    printf("\n");
   }
 
   // Destroy all opencv windows

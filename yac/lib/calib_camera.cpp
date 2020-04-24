@@ -128,7 +128,6 @@ int calib_camera_solve(const std::string &config_file) {
   // Show results
   std::cout << "Optimization results:" << std::endl;
   std::cout << cam << std::endl;
-  // std::cout << radtan << std::endl;
   calib_camera_stats<pinhole_radtan4_residual_t>(grids,
                                                  cam.params.data(),
                                                  cam.distortion.params.data(),

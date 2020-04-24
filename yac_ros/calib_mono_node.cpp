@@ -26,18 +26,20 @@ void process_rosbag(const std::string &rosbag_path,
   rosbag::View bag_view(bag);
   size_t msg_idx = 0;
   for (const auto &msg : bag_view) {
-    // Print progress
-    print_progress((double) msg_idx / bag_view.size());
-    msg_idx++;
-
-    // Process camera data
     if (msg.getTopic() == cam0_topic) {
+      // Handle image message
       image_message_handler(msg, cam0_output_path + "/data/", cam0_csv);
+
+      // Print progress
+      if (msg_idx % 10 == 0) {
+        printf(".");
+      }
+      msg_idx++;
     }
   }
+  printf("\n");
 
   // Clean up rosbag
-  print_progress(1.0);
   bag.close();
 }
 
@@ -51,19 +53,19 @@ int main(int argc, char *argv[]) {
   // Get ROS params
   const ros::NodeHandle ros_nh;
   std::string config_file;
-  std::string rosbag_path;
-  std::string cam0_topic;
   ROS_PARAM(ros_nh, node_name + "/config_file", config_file);
-  ROS_PARAM(ros_nh, node_name + "/rosbag", rosbag_path);
-  ROS_PARAM(ros_nh, node_name + "/cam0_topic", cam0_topic);
 
   // Parse config file
+  std::string bag_path;
+  std::string cam0_topic;
   std::string data_path;
   config_t config{config_file};
+  parse(config, "ros.bag_path", bag_path);
+  parse(config, "ros.cam0_topic", cam0_topic);
   parse(config, "settings.data_path", data_path);
 
   // Process rosbag
-  process_rosbag(rosbag_path, cam0_topic, data_path);
+  process_rosbag(bag_path, cam0_topic, data_path);
 
   // Calibrate camera intrinsics
   if (calib_camera_solve(config_file) != 0) {

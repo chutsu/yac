@@ -60,15 +60,15 @@ INSTALL(
 )
 
 # ROS NODES
-ADD_EXECUTABLE(calib_camera_node calib_camera_node.cpp)
-TARGET_LINK_LIBRARIES(calib_camera_node ${DEPS})
+ADD_EXECUTABLE(calib_mono_node calib_mono_node.cpp)
+TARGET_LINK_LIBRARIES(calib_mono_node ${DEPS})
+
+# ADD_EXECUTABLE(calib_mono_validate_node calib_mono_validate_node.cpp)
+# TARGET_LINK_LIBRARIES(calib_mono_validate_node ${DEPS})
 
 ADD_EXECUTABLE(calib_stereo_node calib_stereo_node.cpp)
 TARGET_LINK_LIBRARIES(calib_stereo_node ${DEPS})
 
-# ADD_EXECUTABLE(calib_mono_validate_node calib_mono_validate_node.cpp)
-# TARGET_LINK_LIBRARIES(calib_mono_validate_node ${DEPS})
-#
 # ADD_EXECUTABLE(calib_stereo_validate_node calib_stereo_validate_node.cpp)
 # TARGET_LINK_LIBRARIES(calib_stereo_validate_node ${DEPS})
 

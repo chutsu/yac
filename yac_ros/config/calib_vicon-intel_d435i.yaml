@@ -1,3 +1,11 @@
+ros:
+  train_bag: "/data/srl/srl-191205-train.bag"
+  test_bag: "/data/srl/srl-191205-test.bag"
+
+  cam0_topic: "/cam0/image"
+  body0_topic: "/body0/pose"
+  target0_topic: "/target0/pose"
+
 settings:
   data_path: "/data/intel_d435i/calib_vicon_data"
   results_fpath: "/data/intel_d435i/calib_vicon_data/calib_results.yaml"
@@ -12,9 +20,9 @@ calib_target:
                             # Example: tagSize=2m, spacing=0.5m --> tagSpacing=0.25[-]
 
 cam0:
-  camera_model: "pinhole"
-  distortion_model: "radtan"
+  resolution: [640.0, 480.0]
+  proj_model: "pinhole"
+  dist_model: "radtan4"
   lens_hfov: 69.4
   lens_vfov: 42.5
-  resolution: [640.0, 480.0]
   rate: 30.0

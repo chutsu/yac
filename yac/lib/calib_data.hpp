@@ -62,6 +62,69 @@ struct calib_pose_t {
 };
 
 /**
+ * Calibration parameters
+ */
+struct calib_params_t {
+  int img_w;
+  int img_h;
+  std::string proj_model;
+  std::string dist_model;
+  vecx_t proj_params;
+  vecx_t dist_params;
+
+  calib_params_t() {}
+
+  calib_params_t(const std::string &proj_model_,
+                 const std::string &dist_model_,
+                 const int img_w_,
+                 const int img_h_,
+                 const vecx_t &proj_params_,
+                 const vecx_t &dist_params_)
+    : img_w{img_w_}, img_h{img_h_},
+      dist_model{dist_model_}, proj_model{proj_model_},
+      proj_params{proj_params_}, dist_params{dist_params_} {}
+
+  calib_params_t(const std::string &proj_model_,
+                 const std::string &dist_model_,
+                 const int img_w_, const int img_h_,
+                 const int lens_hfov_, const int lens_vfov_) {
+    img_w = img_w_;
+    img_h = img_h_;
+    proj_model = proj_model_;
+    dist_model = dist_model_;
+
+    const double fx = pinhole_focal(img_w_, lens_hfov_);
+    const double fy = pinhole_focal(img_h_, lens_vfov_);
+    const double cx = img_w_ / 2.0;
+    const double cy = img_h_ / 2.0;
+    proj_params.resize(4);
+    dist_params.resize(4);
+    proj_params << fx, fy, cx, cy;
+    dist_params << 0.01, 0.0001, 0.0001, 0.0001;
+  }
+
+  std::string toString(const int cam_index=-1) const {
+    const std::string indent = (cam_index != -1) ? "  " : "";
+    const std::string str_img_w = std::to_string(img_w);
+    const std::string str_img_h = std::to_string(img_h);
+
+    std::string s;
+    s += (cam_index != -1) ? "cam" + std::to_string(cam_index) + ":\n" : "";
+    s += indent + "resolution: [" + str_img_w + ", " + str_img_h + "]\n";
+    s += indent + "proj_model: " + proj_model + "\n";
+    s += indent + "dist_model: " + dist_model + "\n";
+    s += indent + "proj_params: " + vec2str(proj_params) + "\n";
+    s += indent + "dist_params: " + vec2str(dist_params) + "\n";
+    return s;
+  }
+
+  std::string toString(const int cam_index=-1) {
+    return static_cast<const calib_params_t &>(*this).toString(cam_index);
+  }
+};
+
+
+/**
  * Calibration target.
  */
 struct calib_target_t {

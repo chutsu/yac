@@ -1,7 +1,6 @@
 #include <signal.h>
 #include "yac.hpp"
 #include "ros.hpp"
-#include "calib_vicon_marker.hpp"
 
 using namespace yac;
 std::string test_out_path = "/tmp/vicon_test";
@@ -285,7 +284,7 @@ void lerp_body_poses(const aprilgrids_t &grids,
 
 struct dataset_t {
   aprilgrids_t grids;
-  pinhole_t<radtan4_t> cam_model;
+  calib_params_t cam;
   mat4s_t T_WM;
   mat4_t T_MC;
   mat4_t T_WF;
@@ -302,12 +301,16 @@ dataset_t process_dataset(const std::string &data_path,
   // Load camera calibration parameters
   LOG_INFO("-- Loading camera calibration parameters");
   vec2_t resolution;
-  vec4_t intrinsics;
-  vec4_t distortion;
+  std::string proj_model;
+  std::string dist_model;
+  vec4_t proj_params;
+  vec4_t dist_params;
   config_t calib{calib_file};
   parse(calib, "cam0.resolution", resolution);
-  parse(calib, "cam0.intrinsics", intrinsics);
-  parse(calib, "cam0.distortion", distortion);
+  parse(calib, "cam0.proj_model", proj_model);
+  parse(calib, "cam0.dist_model", dist_model);
+  parse(calib, "cam0.proj_params", proj_params);
+  parse(calib, "cam0.dist_params", dist_params);
 
   // // Redetect AprilGrid
   // LOG_INFO("-- Re-estimating the AprilGrids data");
@@ -329,11 +332,11 @@ dataset_t process_dataset(const std::string &data_path,
   //   const auto cam_data_path = data_path + "/cam0/data";
   //   int img_w = resolution(0);
   //   int img_h = resolution(1);
-  //   pinhole_t<radtan4_t> camera{img_w, img_h, intrinsics, distortion};
+  //   pinhole_t<radtan4_t> camera{img_w, img_h, proj_params, dist_params};
   //   int retval = preprocess_camera_data(calib_target,
   //                                       cam_data_path,
-  //                                       pinhole_K(intrinsics),
-  //                                       distortion,
+  //                                       pinhole_K(proj_params),
+  //                                       dist_params,
   //                                       grid_data_path,
   //                                       true);
   //   if (retval != 0) {
@@ -347,10 +350,12 @@ dataset_t process_dataset(const std::string &data_path,
   // -- April Grid
   std::cout << "---- Loading AprilGrids" << std::endl;
   aprilgrids_t aprilgrids = load_aprilgrids(grid0_path);
-  // -- Camera intrinsics and distortion
+  // -- Camera proj_params and dist_params
   int img_w = resolution(0);
   int img_h = resolution(1);
-  ds.cam_model = pinhole_t<radtan4_t>{img_w, img_h, intrinsics, distortion};
+  ds.cam = calib_params_t{proj_model, dist_model,
+                          img_w, img_h,
+                          proj_params, dist_params};
   // -- Vicon marker pose
   std::cout << "---- Loading body poses" << std::endl;
   timestamps_t body_timestamps;
@@ -368,21 +373,15 @@ dataset_t process_dataset(const std::string &data_path,
   // -- Fiducial target pose
   std::cout << "---- Loading fiducial pose" << std::endl;
   ds.T_WF = load_fiducial_pose(target0_csv_path);
-  // ds.T_WF = ds.T_WM[0] * ds.T_MC * ds.grids[0].T_CF;
-  // print_matrix("T_WM", ds.T_WM[0]);
-  // print_matrix("T_MC", ds.T_MC);
-  // print_matrix("T_CF", ds.grids[0].T_CF);
-  // print_matrix("T_WF", ds.T_WF);
 
   // Show dataset stats
   std::cout << std::endl;
-  std::cout << "Vicon Calibration dataset: " << std::endl;
+  std::cout << "Mocap Calibration dataset: " << std::endl;
   std::cout << "---------------------------------------------" << std::endl;
   std::cout << "nb grids: " << ds.grids.size() << std::endl;
   std::cout << "nb poses: " << ds.T_WM.size() << std::endl;
   std::cout << std::endl;
-  std::cout << "Pinhole:\n" << ds.cam_model << std::endl;
-  std::cout << "Radtan:\n" << ds.cam_model.distortion << std::endl;
+  std::cout << ds.cam.toString(0) << std::endl;
   print_matrix("T_MC", ds.T_MC);
   print_matrix("T_WF", ds.T_WF);
 
@@ -463,124 +462,125 @@ double loop_test_dataset(const std::string test_path,
                   body_poses_sync,
                   ts_offset);
 
-  // Optimized parameters
-  vec_t<8> cam_params;
-  cam_params << ds.cam_model.fx(),
-                ds.cam_model.fy(),
-                ds.cam_model.cx(),
-                ds.cam_model.cy(),
-                ds.cam_model.distortion.k1(),
-                ds.cam_model.distortion.k2(),
-                ds.cam_model.distortion.p1(),
-                ds.cam_model.distortion.p2();
-  const mat4_t T_MC = ds.T_MC;
-  const mat4_t T_WF = ds.T_WF;
+  // // Optimized parameters
+  // vec_t<8> cam_params;
+  // cam_params << ds.cam_model.fx(),
+  //               ds.cam_model.fy(),
+  //               ds.cam_model.cx(),
+  //               ds.cam_model.cy(),
+  //               ds.cam_model.distortion.k1(),
+  //               ds.cam_model.distortion.k2(),
+  //               ds.cam_model.distortion.p1(),
+  //               ds.cam_model.distortion.p2();
+  // const mat4_t T_MC = ds.T_MC;
+  // const mat4_t T_WF = ds.T_WF;
+  //
+  // // Loop over test dataset
+  // size_t pose_idx = 0;
+  // vec2s_t residuals;
+  //
+  // for (const auto &image_file : image_paths) {
+  //   // LOG_INFO("Image [%s]", image_file.c_str());
+  //
+  //   // Load image
+  //   auto image = cv::imread(paths_combine(cam0_path, image_file));
+  //   const auto img_w = image.cols;
+  //   const auto img_h = image.rows;
+  //
+  //   // Predict where aprilgrid points should be
+  //   const mat4_t T_WM_ = body_poses_sync[pose_idx];
+  //   const mat4_t T_WC = T_WM_ * T_MC;
+  //   const mat4_t T_CW = T_WC.inverse();
+  //
+  //   // Setup grid
+  //   const auto grid = grids_sync[pose_idx];
+  //
+  //   for (const auto tag_id : grid.ids) {
+  //     // Get keypoints
+  //     vec2s_t keypoints;
+  //     if (aprilgrid_get(grid, tag_id, keypoints) != 0) {
+  //       FATAL("Failed to get AprilGrid keypoints!");
+  //     }
+  //
+  //     // Get object points
+  //     vec3s_t object_points;
+  //     if (aprilgrid_object_points(grid, tag_id, object_points) != 0) {
+  //       FATAL("Failed to calculate AprilGrid object points!");
+  //     }
+  //
+  //     // Calculate reprojection error
+  //     for (size_t i = 0; i < 4; i++) {
+  //       const vec3_t p_F = object_points[i];
+  //       const vec3_t p_C = (T_CW * T_WF * p_F.homogeneous()).head(3);
+  //
+  //       vec2_t z_hat;
+  //       if (pinhole_radtan4_project(cam_params, p_C, z_hat) != 0) {
+  //         continue;
+  //       }
+  //       residuals.emplace_back(keypoints[i] - z_hat);
+  //     }
+  //   }
+  //
+  //   // Project object point in fiducial frame to image plane
+  //   vec3s_t object_points;
+  //   vec2s_t image_points;
+  //   aprilgrid_object_points(grid, object_points);
+  //   for (const auto &p_F : object_points) {
+  //     const vec3_t p_C = (T_CW * T_WF * p_F.homogeneous()).head(3);
+  //
+  //     // {
+  //     //   double fx = K(0, 0);
+  //     //   double fy = K(1, 1);
+  //     //   double cx = K(0, 2);
+  //     //   double cy = K(1, 2);
+  //     //   double x = fx * (p_C(0) / p_C(2)) + cx;
+  //     //   double y = fy * (p_C(1) / p_C(2)) + cy;
+  //     //   const bool x_ok = (x > 0 && x < img_w);
+  //     //   const bool y_ok = (y > 0 && y < img_h);
+  //     //   if (!x_ok && !y_ok) {
+  //     //     continue;
+  //     //   }
+  //     // }
+  //
+  //     vec2_t img_pt;
+  //     if (pinhole_radtan4_project(cam_params, p_C, img_pt) != 0) {
+  //       continue;
+  //     }
+  //
+  //     const bool x_ok = (img_pt(0) > 0 && img_pt(0) < img_w);
+  //     const bool y_ok = (img_pt(1) > 0 && img_pt(1) < img_h);
+  //     if (x_ok && y_ok) {
+  //       image_points.push_back(img_pt);
+  //     }
+  //   }
+  //
+  //   // Draw on image
+  //   if (imshow) {
+  //     for (const auto &img_pt : image_points) {
+  //       cv::Point2f p(img_pt(0), img_pt(1));
+  //       cv::circle(image, p, 3, cv::Scalar(0, 0, 255), -1);
+  //     }
+  //     cv::imshow("Image", image);
+  //     cv::waitKey(0);
+  //   }
+  //
+  //   pose_idx++;
+  // }
+  //
+  // // Calculate RMSE reprojection error
+  // double err_sum = 0.0;
+  // for (auto &residual : residuals) {
+  //   const double err = residual.norm();
+  //   const double err_sq = err * err;
+  //   err_sum += err_sq;
+  // }
+  // const double err_mean = err_sum / (double) residuals.size();
+  // const double rmse = sqrt(err_mean);
+  // std::cout << "TS OFFSET: " << ts_offset * 1e-9 << "s\t";
+  // std::cout << "RMSE Reprojection Error [px]: " << rmse << std::endl;
 
-  // Loop over test dataset
-  size_t pose_idx = 0;
-  vec2s_t residuals;
-
-  for (const auto &image_file : image_paths) {
-    // LOG_INFO("Image [%s]", image_file.c_str());
-
-    // Load image
-    auto image = cv::imread(paths_combine(cam0_path, image_file));
-    const auto img_w = image.cols;
-    const auto img_h = image.rows;
-
-    // Predict where aprilgrid points should be
-    const mat4_t T_WM_ = body_poses_sync[pose_idx];
-    const mat4_t T_WC = T_WM_ * T_MC;
-    const mat4_t T_CW = T_WC.inverse();
-
-    // Setup grid
-    const auto grid = grids_sync[pose_idx];
-
-    for (const auto tag_id : grid.ids) {
-      // Get keypoints
-      vec2s_t keypoints;
-      if (aprilgrid_get(grid, tag_id, keypoints) != 0) {
-        FATAL("Failed to get AprilGrid keypoints!");
-      }
-
-      // Get object points
-      vec3s_t object_points;
-      if (aprilgrid_object_points(grid, tag_id, object_points) != 0) {
-        FATAL("Failed to calculate AprilGrid object points!");
-      }
-
-      // Calculate reprojection error
-      for (size_t i = 0; i < 4; i++) {
-        const vec3_t p_F = object_points[i];
-        const vec3_t p_C = (T_CW * T_WF * p_F.homogeneous()).head(3);
-
-        vec2_t z_hat;
-        if (pinhole_radtan4_project(cam_params, p_C, z_hat) != 0) {
-          continue;
-        }
-        residuals.emplace_back(keypoints[i] - z_hat);
-      }
-    }
-
-    // Project object point in fiducial frame to image plane
-    vec3s_t object_points;
-    vec2s_t image_points;
-    aprilgrid_object_points(grid, object_points);
-    for (const auto &p_F : object_points) {
-      const vec3_t p_C = (T_CW * T_WF * p_F.homogeneous()).head(3);
-
-      // {
-      //   double fx = K(0, 0);
-      //   double fy = K(1, 1);
-      //   double cx = K(0, 2);
-      //   double cy = K(1, 2);
-      //   double x = fx * (p_C(0) / p_C(2)) + cx;
-      //   double y = fy * (p_C(1) / p_C(2)) + cy;
-      //   const bool x_ok = (x > 0 && x < img_w);
-      //   const bool y_ok = (y > 0 && y < img_h);
-      //   if (!x_ok && !y_ok) {
-      //     continue;
-      //   }
-      // }
-
-      vec2_t img_pt;
-      if (pinhole_radtan4_project(cam_params, p_C, img_pt) != 0) {
-        continue;
-      }
-
-      const bool x_ok = (img_pt(0) > 0 && img_pt(0) < img_w);
-      const bool y_ok = (img_pt(1) > 0 && img_pt(1) < img_h);
-      if (x_ok && y_ok) {
-        image_points.push_back(img_pt);
-      }
-    }
-
-    // Draw on image
-    if (imshow) {
-      for (const auto &img_pt : image_points) {
-        cv::Point2f p(img_pt(0), img_pt(1));
-        cv::circle(image, p, 3, cv::Scalar(0, 0, 255), -1);
-      }
-      cv::imshow("Image", image);
-      cv::waitKey(0);
-    }
-
-    pose_idx++;
-  }
-
-  // Calculate RMSE reprojection error
-  double err_sum = 0.0;
-  for (auto &residual : residuals) {
-    const double err = residual.norm();
-    const double err_sq = err * err;
-    err_sum += err_sq;
-  }
-  const double err_mean = err_sum / (double) residuals.size();
-  const double rmse = sqrt(err_mean);
-  std::cout << "TS OFFSET: " << ts_offset * 1e-9 << "s\t";
-  std::cout << "RMSE Reprojection Error [px]: " << rmse << std::endl;
-
-  return rmse;
+  // return rmse;
+  return 0.0;
 }
 
 void show_results(const dataset_t &ds) {
@@ -597,18 +597,11 @@ void show_results(const dataset_t &ds) {
       T_CF.emplace_back(T_CM * T_MW * ds.T_WF);
     }
   }
-  calib_camera_stats<calib_mono_residual_t>(
-    ds.grids,
-    ds.cam_model.params.data(),
-    ds.cam_model.distortion.params.data(),
-    T_CF,
-    ""
-  );
+  calib_mono_stats(ds.grids, ds.cam, T_CF);
   std::cout << std::endl;
 
   // Optimized Parameters
-  std::cout << "Pinhole:\n" << ds.cam_model << std::endl;
-  std::cout << "Radtan:\n" << ds.cam_model.distortion << std::endl;
+  std::cout << ds.cam.toString(0) << std::endl;
   print_matrix("T_WF", ds.T_WF);
   print_matrix("T_WM", ds.T_WM[0]);
   print_matrix("T_MC", ds.T_MC);
@@ -624,9 +617,10 @@ void show_results(const dataset_t &ds) {
 }
 
 void save_results(const std::string &output_path, const dataset_t &ds) {
-  LOG_INFO("Saving results to [%s]!", output_path.c_str());
+  printf("\x1B[92mSaving optimization results to [%s]\033[0m\n",
+         output_path.c_str());
   const aprilgrid_t grid = ds.grids[0];
-  const pinhole_t<radtan4_t> cam_model = ds.cam_model;
+  const auto cam = ds.cam;
   const mat4_t T_WF = ds.T_WF;
   const mat4_t T_MC = ds.T_MC;
 
@@ -644,21 +638,21 @@ void save_results(const std::string &output_path, const dataset_t &ds) {
 
     // Camera parameters
     fprintf(fp, "cam0:\n");
-    fprintf(fp, "  camera_model: \"pinhole\"\n");
-    fprintf(fp, "  distortion_model: \"radtan\"\n");
-    fprintf(fp, "  intrinsics: ");
+    fprintf(fp, "  proj_model: \"%s\"\n", cam.proj_model.c_str());
+    fprintf(fp, "  dist_model: \"%s\"\n", cam.dist_model.c_str());
+    fprintf(fp, "  proj_params: ");
     fprintf(fp, "[");
-    fprintf(fp, "%lf, ", cam_model.fx());
-    fprintf(fp, "%lf, ", cam_model.fy());
-    fprintf(fp, "%lf, ", cam_model.cx());
-    fprintf(fp, "%lf", cam_model.cy());
+    fprintf(fp, "%lf, ", cam.proj_params(0));
+    fprintf(fp, "%lf, ", cam.proj_params(1));
+    fprintf(fp, "%lf, ", cam.proj_params(2));
+    fprintf(fp, "%lf", cam.proj_params(3));
     fprintf(fp, "]\n");
-    fprintf(fp, "  distortion: ");
+    fprintf(fp, "  dist_params: ");
     fprintf(fp, "[");
-    fprintf(fp, "%lf, ", cam_model.distortion.k1());
-    fprintf(fp, "%lf, ", cam_model.distortion.k2());
-    fprintf(fp, "%lf, ", cam_model.distortion.p1());
-    fprintf(fp, "%lf", cam_model.distortion.p2());
+    fprintf(fp, "%lf, ", cam.dist_params(0));
+    fprintf(fp, "%lf, ", cam.dist_params(1));
+    fprintf(fp, "%lf, ", cam.dist_params(2));
+    fprintf(fp, "%lf", cam.dist_params(3));
     fprintf(fp, "]\n");
     fprintf(fp, "\n");
 
@@ -775,18 +769,8 @@ int main(int argc, char *argv[]) {
 
   // Get ROS params
   const ros::NodeHandle ros_nh;
-  std::string train_bag_path;
-  std::string test_bag_path;
   std::string config_file;
-  std::string cam0_topic;
-  std::string body0_topic;
-  std::string target0_topic;
-  ROS_PARAM(ros_nh, node_name + "/train_bag", train_bag_path);
-  ROS_PARAM(ros_nh, node_name + "/test_bag", test_bag_path);
   ROS_PARAM(ros_nh, node_name + "/config_file", config_file);
-  ROS_PARAM(ros_nh, node_name + "/cam0_topic", cam0_topic);
-  ROS_PARAM(ros_nh, node_name + "/body0_topic", body0_topic);
-  ROS_PARAM(ros_nh, node_name + "/target0_topic", target0_topic);
 
   // Parse calibration target params
   calib_target_t calib_target;
@@ -797,9 +781,20 @@ int main(int argc, char *argv[]) {
   // Parse config file
   std::string data_path;
   std::string calib_results_path;
+  std::string train_bag_path;
+  std::string test_bag_path;
+  std::string cam0_topic;
+  std::string body0_topic;
+  std::string target0_topic;
+
   config_t config{config_file};
   parse(config, "settings.data_path", data_path);
   parse(config, "settings.results_fpath", calib_results_path);
+  parse(config, "ros.train_bag", train_bag_path);
+  parse(config, "ros.test_bag", test_bag_path);
+  parse(config, "ros.cam0_topic", cam0_topic);
+  parse(config, "ros.body0_topic", body0_topic);
+  parse(config, "ros.target0_topic", target0_topic);
 
   // Calibrate camera intrinsics
   process_rosbag(train_bag_path,
@@ -807,14 +802,14 @@ int main(int argc, char *argv[]) {
                  cam0_topic,
                  body0_topic,
                  target0_topic);
-  if (calib_camera_solve(config_file) != 0) {
+  if (calib_mono_solve(config_file) != 0) {
     FATAL("Failed to calibrate camera!");
   }
 
   // Calibrate vicon object to camera transform
   dataset_t ds = process_dataset(data_path, calib_results_path, calib_target);
   calib_vicon_marker_solve(ds.grids,
-                           ds.cam_model,
+                           ds.cam,
                            ds.T_WM,
                            ds.T_MC,
                            ds.T_WF);

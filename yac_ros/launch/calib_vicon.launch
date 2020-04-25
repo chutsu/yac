@@ -1,11 +1,5 @@
 <launch>
   <node pkg="yac_ros" type="calib_vicon_node" name="calib_vicon_node" required="true" output="screen">
-    <param name="train_bag" value="/data/srl/srl-191205-train.bag" />
-    <param name="test_bag" value="/data/srl/srl-191205-test.bag" />
-
     <param name="config_file" value="$(find yac_ros)/config/calib_vicon-intel_d435i.yaml" />
-    <param name="cam0_topic" value="/cam0/image" />
-    <param name="body0_topic" value="/body0/pose" />
-    <param name="target0_topic" value="/target0/pose" />
   </node>
 </launch>

@@ -73,7 +73,7 @@ int main(int argc, char *argv[]) {
   std::string cam1_topic;
   std::string data_path;
   yac::config_t config{config_file};
-  yac::parse(config, "ros.bag_path", bag_path);
+  yac::parse(config, "ros.bag", bag_path);
   yac::parse(config, "ros.cam0_topic", cam0_topic);
   yac::parse(config, "ros.cam1_topic", cam1_topic);
   yac::parse(config, "settings.data_path", data_path);

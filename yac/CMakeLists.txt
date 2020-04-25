@@ -25,6 +25,7 @@ ADD_LIBRARY(
   lib/calib_data.cpp
   lib/calib_mono.cpp
   lib/calib_stereo.cpp
+  lib/calib_vicon_marker.cpp
 )
 
 # TESTS

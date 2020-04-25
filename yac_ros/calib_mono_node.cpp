@@ -60,7 +60,7 @@ int main(int argc, char *argv[]) {
   std::string cam0_topic;
   std::string data_path;
   config_t config{config_file};
-  parse(config, "ros.bag_path", bag_path);
+  parse(config, "ros.bag", bag_path);
   parse(config, "ros.cam0_topic", cam0_topic);
   parse(config, "settings.data_path", data_path);
 

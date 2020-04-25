@@ -6,6 +6,7 @@ set -e
 # mkdir -p build && cd build && cmake .. -DCMAKE_BUILD_TYPE=Release && make -j4
 
 cd ~/catkin_ws
+# catkin build -DCMAKE_BUILD_TYPE=Release yac
 catkin build -DCMAKE_BUILD_TYPE=Release yac yac_ros
 
 source ~/catkin_ws/devel/setup.bash

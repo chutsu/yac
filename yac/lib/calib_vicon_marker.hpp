@@ -5,7 +5,7 @@
 
 #include "core.hpp"
 #include "calib_data.hpp"
-#include "calib_camera.hpp"
+#include "calib_mono.hpp"
 
 namespace yac {
 

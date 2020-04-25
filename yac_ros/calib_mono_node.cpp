@@ -68,7 +68,7 @@ int main(int argc, char *argv[]) {
   process_rosbag(bag_path, cam0_topic, data_path);
 
   // Calibrate camera intrinsics
-  if (calib_camera_solve(config_file) != 0) {
+  if (calib_mono_solve(config_file) != 0) {
     FATAL("Failed to calibrate camera!");
   }
 

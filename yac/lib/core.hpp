@@ -3030,6 +3030,55 @@ int pinhole_radtan4_project(const Eigen::Matrix<T, 8, 1> &params,
   }
 }
 
+template <typename T>
+int pinhole_equi4_project(const Eigen::Matrix<T, 8, 1> &params,
+                          const Eigen::Matrix<T, 3, 1> &point,
+                          Eigen::Matrix<T, 2, 1> &image_point) {
+  // Check for singularity
+  const T z_norm = sqrt(point(2) * point(2)); // std::abs doesn't work for all T
+  if ((T) z_norm < (T) 1.0e-12) {
+    return -1;
+  }
+
+  // Extract intrinsics params
+  const T fx = params(0);
+  const T fy = params(1);
+  const T cx = params(2);
+  const T cy = params(3);
+  const T k1 = params(4);
+  const T k2 = params(5);
+  const T k3 = params(6);
+  const T k4 = params(7);
+
+  // Project
+  const T x = point(0) / point(2);
+  const T y = point(1) / point(2);
+
+	// Apply equi distortion
+	const T r = sqrt(x * x + y * y);
+	if ((T) r < (T) 1e-8) {
+		return -1;
+	}
+	const T th = atan(r);
+	const T th2 = th * th;
+	const T th4 = th2 * th2;
+	const T th6 = th4 * th2;
+	const T th8 = th4 * th4;
+	const T thd = th * (T(1.0) + k1 * th2 + k2 * th4 + k3 * th6 + k4 * th8);
+	const T x_dash = (thd / r) * x;
+	const T y_dash = (thd / r) * y;
+
+  // Scale and center
+  image_point(0) = fx * x_dash + cx;
+  image_point(1) = fy * y_dash + cy;
+
+  if (point(2) > T(0.0)) {
+    return 0; // Point is infront of camera
+  } else {
+    return 1; // Point is behind camera
+  }
+}
+
 } //  namespace yac
 
 #endif // YAC_CORE_HPP

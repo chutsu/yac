@@ -58,6 +58,11 @@ int preprocess_camera_data(const calib_target_t &target,
   aprilgrid_detector_t detector;
 
   for (size_t i = 0; i < image_paths.size(); i++) {
+    // -- Print progress
+    if (show_progress && i % 10 == 0) {
+      printf(".");
+    }
+
     // -- Create output file path
     auto output_file = parse_fname(image_paths[i]);
     const timestamp_t ts = std::stoull(output_file);
@@ -94,11 +99,6 @@ int preprocess_camera_data(const calib_target_t &target,
     // -- Image show
     if (imshow) {
       aprilgrid_imshow(grid, "AprilGrid Detection", image);
-    }
-
-    // -- Print progress
-    if (show_progress && i % 10 == 0) {
-      printf(".");
     }
   }
 

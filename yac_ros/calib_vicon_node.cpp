@@ -597,7 +597,7 @@ void show_results(const dataset_t &ds) {
       T_CF.emplace_back(T_CM * T_MW * ds.T_WF);
     }
   }
-  calib_camera_stats<pinhole_radtan4_residual_t>(
+  calib_camera_stats<calib_mono_residual_t>(
     ds.grids,
     ds.cam_model.params.data(),
     ds.cam_model.distortion.params.data(),

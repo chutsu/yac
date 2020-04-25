@@ -17,16 +17,16 @@ calib_target:
                             # Example: tagSize=2m, spacing=0.5m --> tagSpacing=0.25[-]
 
 cam0:
-  camera_model: "pinhole"
-  distortion_model: "radtan"
+  proj_type: "pinhole"
+  dist_type: "radtan4"
   lens_hfov: 69.4
   lens_vfov: 42.5
   resolution: [640.0, 480.0]
   rate: 30.0
 
 cam1:
-  camera_model: "pinhole"
-  distortion_model: "radtan"
+  proj_type: "pinhole"
+  dist_type: "radtan4"
   lens_hfov: 69.4
   lens_vfov: 42.5
   resolution: [640.0, 480.0]

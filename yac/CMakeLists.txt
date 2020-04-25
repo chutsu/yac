@@ -23,17 +23,9 @@ ADD_LIBRARY(
   lib/core.cpp
   lib/aprilgrid.cpp
   lib/calib_data.cpp
-  lib/calib_camera.cpp
+  lib/calib_mono.cpp
   lib/calib_stereo.cpp
 )
-
-# APPS
-SET(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/apps)
-ADD_EXECUTABLE(calib_camera apps/calib_camera.cpp)
-TARGET_LINK_LIBRARIES(calib_camera yac ${DEPS})
-
-ADD_EXECUTABLE(calib_stereo apps/calib_stereo.cpp)
-TARGET_LINK_LIBRARIES(calib_stereo yac ${DEPS})
 
 # TESTS
 SET(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/tests)
@@ -41,8 +33,8 @@ FILE(COPY tests/test_data DESTINATION ${PROJECT_BINARY_DIR}/tests)
 ADD_EXECUTABLE(test_aprilgrid tests/test_aprilgrid.cpp)
 TARGET_LINK_LIBRARIES(test_aprilgrid yac ${DEPS})
 
-ADD_EXECUTABLE(test_calib_camera tests/test_calib_camera.cpp)
-TARGET_LINK_LIBRARIES(test_calib_camera yac ${DEPS})
+ADD_EXECUTABLE(test_calib_mono tests/test_calib_mono.cpp)
+TARGET_LINK_LIBRARIES(test_calib_mono yac ${DEPS})
 
 ADD_EXECUTABLE(test_calib_data tests/test_calib_data.cpp)
 TARGET_LINK_LIBRARIES(test_calib_data yac ${DEPS})

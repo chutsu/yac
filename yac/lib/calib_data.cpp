@@ -61,6 +61,7 @@ int preprocess_camera_data(const calib_target_t &target,
     // -- Print progress
     if (show_progress && i % 10 == 0) {
       printf(".");
+      fflush(stdout);
     }
 
     // -- Create output file path
@@ -313,9 +314,11 @@ int load_stereo_calib_data(const std::string &cam0_data_dir,
     aprilgrid_intersection(grid0, grid1);
     assert(grid0.ids.size() == grid1.ids.size());
 
-    // Add to results
-    cam0_aprilgrids.emplace_back(grid0);
-    cam1_aprilgrids.emplace_back(grid1);
+    // Add to results if detected anything
+    if (grid0.ids.size() > 0) {
+      cam0_aprilgrids.emplace_back(grid0);
+      cam1_aprilgrids.emplace_back(grid1);
+    }
 
     // Check if there's more data to go though
     if (cam0_idx >= grids0.size() || cam1_idx >= grids1.size()) {

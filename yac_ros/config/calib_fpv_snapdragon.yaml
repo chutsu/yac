@@ -1,0 +1,33 @@
+ros:
+  bag: "/data/fpv/indoor_forward_calib_snapdragon_cam.bag"
+  cam0_topic: "/snappy_cam/stereo_l"
+  cam1_topic: "/snappy_cam/stereo_r"
+
+settings:
+  data_path: "/data/fpv/cam_calib_data"
+  results_fpath: "/data/fpv/cam_calib_data/calib_results.yaml"
+  imshow: true
+
+calib_target:
+  target_type: 'aprilgrid'  # Target type
+  tag_rows: 4               # Number of rows
+  tag_cols: 5               # Number of cols
+  tag_size: 0.075           # Size of apriltag, edge to edge [m]
+  tag_spacing: 0.2          # Ratio of space between tags to tagSize
+                            # Example: tagSize=2m, spacing=0.5m --> tagSpacing=0.25[-]
+
+cam0:
+  proj_model: "pinhole"
+  dist_model: "equi4"
+  lens_hfov: 90.0
+  lens_vfov: 90.0
+  resolution: [640.0, 480.0]
+  rate: 30.0
+
+cam1:
+  proj_model: "pinhole"
+  dist_model: "equi4"
+  lens_hfov: 90.0
+  lens_vfov: 90.0
+  resolution: [640.0, 480.0]
+  rate: 30.0

@@ -13,7 +13,7 @@ cameras. Specifically:
     cd <your catkin workspace>
     git clone https://github.com/chutsu/yac
     catkin build -DCMAKE_BUILD_TYPE=Release yac yac_ros
-    # Note: If you don't build in release mode the optimization will be slow.
+    # Note: If you don't build in release mode the optimization will be very very very slow.
 
 
 ## LICENCE

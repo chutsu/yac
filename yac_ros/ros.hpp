@@ -158,7 +158,6 @@ std::string ros_node_name(int argc, char *argv[]) {
       return arg.substr(8);
     }
   }
-
   FATAL("Failed to find node name?");
 }
 

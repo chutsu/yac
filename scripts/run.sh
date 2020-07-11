@@ -12,7 +12,8 @@ catkin build -DCMAKE_BUILD_TYPE=Release yac yac_ros
 source ~/catkin_ws/devel/setup.bash
 # roslaunch yac_ros calib_mono.launch
 # roslaunch yac_ros calib_stereo.launch
-roslaunch yac_ros calib_mocap.launch
+# roslaunch yac_ros calib_mocap.launch
+rosrun yac_ros calib_mono
 
 # Build tests
 # cd tests

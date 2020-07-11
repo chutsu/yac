@@ -6,7 +6,7 @@ cameras. Specifically:
 
 - [Calibrate monocular camera intrinsics](#calibrate-monocular-camera-intrinsics)
 - [Calibrate stereo camera intrinsics and extrinsics](#calibrate-stereo-camera-intrinsics-and-extrinsics)
-- [Calibrate mocap marker to camera extrinsics](#calibrate-stereo-camera-extrinsics)
+- [Calibrate mocap marker to camera extrinsics](#calibrate-mocap-marker-to-camera-extrinsics)
 
 
 Build

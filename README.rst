@@ -1,4 +1,5 @@
-# YAC - Yet Another Calibrator
+YAC - Yet Another Calibrator
+============================
 
 Yet Another Calibrator (YAC) is a calibration tool for calibrating RGB
 cameras. Specifically:
@@ -8,7 +9,8 @@ cameras. Specifically:
 - Mocap marker to camera extrinsics
 
 
-## Build
+Build
+-----
 
     cd <your catkin workspace>
     git clone https://github.com/chutsu/yac
@@ -16,16 +18,21 @@ cameras. Specifically:
     # Note: If you don't build in release mode the optimization will be very very very slow.
 
 
-## Calibration Target
+Calibration Target
+------------------
 
 `yac` uses a grid of AprilTags, a.k.a an AprilGrid, as a calibration target.
 
-![AprilGrid](docs/aprilgrid.png)
+.. image:: docs/aprilgrid.png
+   :width 80%
+   :align center
 
-Click [here](docs/aprilgrid_A0.pdf)) to download and print the AprilGrid.
+Click `here docs/aprilgrid_A0.pdf` to download and print the AprilGrid.
 During calibration make sure the calibration target is as flat as possible.
 
-## Calibrate Monocular Camera Intrinsics
+
+Calibrate Monocular Camera Intrinsics
+-------------------------------------
 
 Example `calib_camera.yaml` configuration file:
 
@@ -50,7 +57,8 @@ Example `calib_camera.yaml` configuration file:
       rate: 30.0
 
 
-## Calibrate Stereo Camera Intrinsics and Extrinsics
+Calibrate Stereo Camera Intrinsics and Extrinsics
+-------------------------------------------------
 
 Example `calib_stereo.yaml` configuration file:
 
@@ -84,7 +92,8 @@ Example `calib_stereo.yaml` configuration file:
       rate: 30.0
 
 
-## Calibrate Mocap Marker to Camera Extrinsics
+Calibrate Mocap Marker to Camera Extrinsics
+-------------------------------------------
 
 Example `calib_mocap_camera.yaml` configuration file:
 
@@ -112,6 +121,7 @@ Example `calib_mocap_camera.yaml` configuration file:
       rate: 30.0
 
 
-## LICENCE
+LICENCE
+-------
 
 MIT

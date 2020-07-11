@@ -23,7 +23,9 @@ Calibration Target
 
 `yac` uses a grid of AprilTags, a.k.a an AprilGrid, as a calibration target.
 
-<img src="docs/aprilgrid.png" alt="AprilGrid" width="70%"/>
+<p align="center">
+<img src="docs/aprilgrid.png" alt="AprilGrid" width="40%"/>
+</p>
 
 Click [here](docs/aprilgrid_A0.pdf) to download and print the AprilGrid.
 During calibration make sure the calibration target is as flat as possible.

@@ -12,7 +12,7 @@ namespace yac {
 
 /**
  * Pose parameter block
- **/
+ */
 struct calib_pose_t {
   double q[4] = {0.0, 0.0, 0.0, 1.0}; // x, y, z, w
   double r[3] = {0.0, 0.0, 0.0};      // x, y, z
@@ -122,7 +122,6 @@ struct calib_params_t {
     return static_cast<const calib_params_t &>(*this).toString(cam_index);
   }
 };
-
 
 /**
  * Calibration target.

@@ -1,6 +1,6 @@
 ros:
-  train_bag: "/data/srl/srl-191205-train.bag"
-  test_bag: "/data/srl/srl-191205-test.bag"
+  train_bag: "/data/aabm/200115-vicon-train.bag"
+  test_bag: "/data/aabm/200115-vicon-test.bag"
 
   cam0_topic: "/cam0/image"
   body0_topic: "/body0/pose"

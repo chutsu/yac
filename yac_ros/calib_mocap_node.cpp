@@ -3,7 +3,7 @@
 #include "ros.hpp"
 
 using namespace yac;
-std::string test_out_path = "/tmp/vicon_test";
+std::string test_out_path = "/tmp/mocap_test";
 
 void clear_test_output() {
   std::string cmd = "rm -rf " + test_out_path;
@@ -806,9 +806,9 @@ int main(int argc, char *argv[]) {
     FATAL("Failed to calibrate camera!");
   }
 
-  // Calibrate vicon object to camera transform
+  // Calibrate mocap object to camera transform
   dataset_t ds = process_dataset(data_path, calib_results_path, calib_target);
-  calib_vicon_marker_solve(ds.grids,
+  calib_mocap_marker_solve(ds.grids,
                            ds.cam,
                            ds.T_WM,
                            ds.T_MC,

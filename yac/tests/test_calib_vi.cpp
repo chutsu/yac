@@ -175,57 +175,9 @@ int test_calib_stereo_solve() {
   return 0;
 }
 
-// int test_calib_stereo_stats() {
-//   // Load stereo calibration data
-//   std::vector<aprilgrid_t> cam0_aprilgrids;
-//   std::vector<aprilgrid_t> cam1_aprilgrids;
-//   int retval = 0;
-//   load_stereo_calib_data(CAM0_APRILGRID_DATA,
-//                          CAM1_APRILGRID_DATA,
-//                          cam0_aprilgrids,
-//                          cam1_aprilgrids);
-//   if (retval != 0) {
-//     LOG_ERROR("Failed to local calibration data!");
-//     return -1;
-//   }
-//
-//   // Setup cam0 intrinsics and distortion
-//   const int img_w = 752;
-//   const int img_h = 480;
-//   const double lens_hfov = 98.0;
-//   const double lens_vfov = 73.0;
-//   const double fx = pinhole_focal(img_w, lens_hfov);
-//   const double fy = pinhole_focal(img_h, lens_vfov);
-//   const double cx = img_w / 2.0;
-//   const double cy = img_h / 2.0;
-//   const vec4_t proj_params{fx, fy, cx, cy};
-//   const vec4_t dist_params{0.01, 0.0001, 0.0001, 0.0001};
-//   // -- cam0: pinhole radtan
-//   pinhole_t<radtan4_t> cam0{img_w, img_h, proj_params, dist_params};
-//   // -- cam1: pinhole radtan
-//   pinhole_t<radtan4_t> cam1{img_w, img_h, proj_params, dist_params};
-//
-//   // Test
-//   mat4_t T_C0C1 = I(4);
-//   mat4s_t poses;
-//   retval = calib_stereo_solve(cam0_aprilgrids, cam1_aprilgrids,
-//                               cam0, cam1,
-//                               T_C0C1, poses);
-//   if (retval != 0) {
-//     LOG_ERROR("Failed to calibrate stereo cameras!");
-//     return -1;
-//   }
-//
-//   return 0;
-// }
-
 void test_suite() {
   test_setup();
-
-  // Stereo camera tests
-  MU_ADD_TEST(test_calib_stereo_residual);
-  MU_ADD_TEST(test_calib_stereo_solve);
-  // MU_ADD_TEST(test_calib_stereo_stats);
+  MU_ADD_TEST(test_calib_vi_residual);
 }
 
 } // namespace yac

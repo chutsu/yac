@@ -1,4 +1,4 @@
-#include "calib_vicon_marker.hpp"
+#include "calib_mocap_marker.hpp"
 
 namespace yac {
 
@@ -32,11 +32,11 @@ static int process_aprilgrid(const aprilgrid_t &aprilgrid,
     for (size_t i = 0; i < 4; i++) {
       const auto kp = keypoints[i];
       const auto obj_pt = object_points[i];
-      const auto residual = new vicon_marker_residual_t{proj_model, dist_model,
+      const auto residual = new mocap_marker_residual_t{proj_model, dist_model,
                                                         kp, obj_pt};
 
       const auto cost_func =
-          new ceres::AutoDiffCostFunction<vicon_marker_residual_t,
+          new ceres::AutoDiffCostFunction<mocap_marker_residual_t,
                                           2, // Size of: residual
                                           4, // Size of: intrinsics
                                           4, // Size of: distortion
@@ -64,7 +64,7 @@ static int process_aprilgrid(const aprilgrid_t &aprilgrid,
   return 0;
 }
 
-int calib_vicon_marker_solve(const aprilgrids_t &aprilgrids,
+int calib_mocap_marker_solve(const aprilgrids_t &aprilgrids,
                              calib_params_t &cam,
                              mat4s_t &T_WM,
                              mat4_t &T_MC,
@@ -104,14 +104,14 @@ int calib_vicon_marker_solve(const aprilgrids_t &aprilgrids,
     problem->SetParameterization(T_WM_params[i].q,
                                  &quaternion_parameterization);
 
-    // Fixing the marker pose - assume vicon is calibrated and accurate
+    // Fixing the marker pose - assume mocap is calibrated and accurate
     problem->SetParameterBlockConstant(T_WM_params[i].q);
     problem->SetParameterBlockConstant(T_WM_params[i].r);
   }
 
-  // Fix camera parameters
-  problem->SetParameterBlockConstant(cam.proj_params.data());
-  problem->SetParameterBlockConstant(cam.dist_params.data());
+  // // Fix camera parameters
+  // problem->SetParameterBlockConstant(cam.proj_params.data());
+  // problem->SetParameterBlockConstant(cam.dist_params.data());
 
   // Fix T_WF parameters
   // problem->SetParameterBlockConstant(T_WF_param.q);
@@ -134,6 +134,46 @@ int calib_vicon_marker_solve(const aprilgrids_t &aprilgrids,
   ceres::Solve(options, problem.get(), &summary);
   std::cout << summary.FullReport() << std::endl;
 
+  // Estimate covariance matrix
+  std::vector<std::pair<const double*, const double*>> covar_blocks;
+  covar_blocks.push_back({T_MC_param.q, T_MC_param.q});
+  covar_blocks.push_back({T_MC_param.q, T_MC_param.r});
+  covar_blocks.push_back({T_MC_param.r, T_WF_param.r});
+
+  ceres::Covariance::Options covar_options;
+  covar_options.algorithm_type = ceres::SPARSE_QR;
+  covar_options.sparse_linear_algebra_library_type = ceres::SUITE_SPARSE;
+  ceres::Covariance covar(covar_options);
+  const auto retval = covar.Compute(covar_blocks, problem.get());
+  if (retval == false) {
+    printf("Estimate covariance failed!\n");
+  }
+
+  double q_MC_q_MC_covar[3 * 3] = {0};
+  double q_MC_r_MC_covar[3 * 3] = {0};
+  double r_MC_r_MC_covar[3 * 3] = {0};
+
+  covar.GetCovarianceBlockInTangentSpace(T_MC_param.q, T_MC_param.q, q_MC_q_MC_covar);
+  covar.GetCovarianceBlockInTangentSpace(T_MC_param.q, T_MC_param.r, q_MC_r_MC_covar);
+  covar.GetCovarianceBlockInTangentSpace(T_MC_param.r, T_MC_param.r, r_MC_r_MC_covar);
+
+  Eigen::Map<Eigen::Matrix<double, 3, 3, Eigen::RowMajor>> covar_rot(q_MC_q_MC_covar);
+  auto rotx_std = (covar_rot(0, 0) < 1e-8) ? 0 : std::sqrt(covar_rot(0, 0));
+  auto roty_std = (covar_rot(1, 1) < 1e-8) ? 0 : std::sqrt(covar_rot(1, 1));
+  auto rotz_std = (covar_rot(2, 2) < 1e-8) ? 0 : std::sqrt(covar_rot(2, 2));
+  print_matrix("covar_rot", covar_rot);
+  printf("rotx_std: %f [deg]\n", rad2deg(rotx_std));
+  printf("roty_std: %f [deg]\n", rad2deg(roty_std));
+  printf("rotz_std: %f [deg]\n", rad2deg(rotz_std));
+
+  Eigen::Map<Eigen::Matrix<double, 3, 3, Eigen::RowMajor>> covar_trans(r_MC_r_MC_covar);
+  auto rx_std = std::sqrt(covar_trans(0, 0));
+  auto ry_std = std::sqrt(covar_trans(1, 1));
+  auto rz_std = std::sqrt(covar_trans(2, 2));
+  printf("rx_std: %e\n", rx_std);
+  printf("ry_std: %e\n", ry_std);
+  printf("rz_std: %e\n", rz_std);
+
   // Finish up
   // -- Marker pose
   T_WM.clear();
@@ -148,7 +188,7 @@ int calib_vicon_marker_solve(const aprilgrids_t &aprilgrids,
   return 0;
 }
 
-double evaluate_vicon_marker_cost(const aprilgrids_t &aprilgrids,
+double evaluate_mocap_marker_cost(const aprilgrids_t &aprilgrids,
                                   calib_params_t &cam,
                                   mat4s_t &T_WM,
                                   mat4_t &T_MC) {

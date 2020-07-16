@@ -18,9 +18,9 @@ install_base() {
 
 apt_update
 install_base
+install ros
 install apriltags
 install ceres
 install eigen
 install opencv3
 install yamlcpp
-install ros

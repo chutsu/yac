@@ -62,7 +62,7 @@ cam0:
 ```
 
 The above tells `yac` where to find the rosbag containing the calibration data,
-the calibration target and camera details. Now, we need to create a launch 
+the calibration target and camera details. Now, we need to create a launch
 file `calib_mono.launch`:
 
 ```
@@ -76,7 +76,7 @@ file `calib_mono.launch`:
 ```
 
 where we call the `calib_mono_node` and supply the calibration configuration
-file `calib_intel_d435i.yaml`. To run the calibration issue the following 
+file `calib_intel_d435i.yaml`. To run the calibration issue the following
 commands in the terminal:
 
 ```
@@ -123,7 +123,7 @@ configuration file.  Example `calib_intel_d435i.yaml` configuration file:
       rate: 30.0
 
 The above tells `yac` where to find the rosbag containing the calibration data,
-the calibration target and camera details. Now, we need to create a launch 
+the calibration target and camera details. Now, we need to create a launch
 file `calib_stereo.launch`:
 
 ```
@@ -137,7 +137,7 @@ file `calib_stereo.launch`:
 ```
 
 where we call the `calib_stereo_node` and supply the calibration configuration
-file `calib_intel_d435i.yaml`. To run the calibration issue the following 
+file `calib_intel_d435i.yaml`. To run the calibration issue the following
 commands in the terminal:
 
 ```

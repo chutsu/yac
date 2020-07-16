@@ -5,9 +5,9 @@ set -e
 # cd yac
 # mkdir -p build && cd build && cmake .. -DCMAKE_BUILD_TYPE=Release && make -j4
 
-cd ~/catkin_ws
+# cd ~/catkin_ws
 # catkin build -DCMAKE_BUILD_TYPE=Release yac
-catkin build -DCMAKE_BUILD_TYPE=Release yac yac_ros
+# catkin build -DCMAKE_BUILD_TYPE=Release yac yac_ros
 
 source ~/catkin_ws/devel/setup.bash
 # roslaunch yac_ros calib_mono.launch

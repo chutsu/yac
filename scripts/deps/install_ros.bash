@@ -1,35 +1,23 @@
-#!/bin/bash
-set -e  # exit on first error
+set -e
+BASEDIR=$(dirname "$0")
+source "$BASEDIR/config.bash"
 
-ROS_VERSION="melodic"
-ROS_BASH="/opt/ros/$ROS_VERSION/setup.bash"
-ROS_PACKAGES_URL='http://packages.ros.org/ros/ubuntu'
-APT_KEYS_URL='http://packages.ros.org/ros.key'
-APT_TARGETS="$(lsb_release -sc) main"
-SOURCES_LIST_TARGET='/etc/apt/sources.list.d/ros-latest.list'
+# Check if ROS is installed
+if [ -f "/etc/apt/sources.list.d/ros-latest.list" ]; then
+    exit 0;
+fi
 
-install() {
-	# Update sources.list and add apt-keys
-	echo "deb $ROS_PACKAGES_URL $APT_TARGETS" > $SOURCES_LIST_TARGET
-	wget $APT_KEYS_URL -O - | apt-key add -
-
-	# Update apt and install ros
-	apt-get update -qq  # -qq makes apt-get less noisy
-	apt-get install -y ros-$ROS_VERSION-desktop-full
-
-	# Initialize rosdep
-	rosdep init
-	rosdep update
-
-	# Env setup
-	echo "source $ROS_BASH" >> "$HOME/.bashrc"
-
-	# Install ros
-	apt-get install -y python-rosinstall python-catkin-tools
-
-	# Fix rosdep permissions
-	rosdep fix-permissions
-}
-
-# RUN
-install
+# Install ROS
+sudo sh -c 'echo "deb http://packages.ros.org/ros/ubuntu $(lsb_release -sc) main" > /etc/apt/sources.list.d/ros-latest.list'
+sudo apt-key adv \
+    --keyserver 'hkp://keyserver.ubuntu.com:80' \
+      --recv-key C1CF6E31E6BADE8868B172B4F42ED6FBAB17C654
+apt_update
+apt_install dpkg
+sudo dpkg --configure -a
+apt_install ros-melodic-desktop
+apt_install python-catkin-tools
+apt_install ros-melodic-gazebo-dev*
+apt_install python-rosdep
+sudo rosdep init
+rosdep update

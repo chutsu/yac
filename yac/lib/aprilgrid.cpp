@@ -30,7 +30,7 @@ aprilgrid_t aprilgrid_detector_detect(const aprilgrid_detector_t &detector,
 
   // Form results
   aprilgrid_t grid;
-  for (const auto tag : tags) {
+  for (const auto &tag : tags) {
     std::vector<cv::Point2f> img_pts;
     img_pts.emplace_back(tag.p[0].first, tag.p[0].second); // Bottom left
     img_pts.emplace_back(tag.p[1].first, tag.p[1].second); // Top left
@@ -65,7 +65,7 @@ void aprilgrid_add(aprilgrid_t &grid,
 
   // Push id and keypoints
   grid.ids.push_back(id);
-  for (const auto keypoint : keypoints) {
+  for (const auto &keypoint : keypoints) {
     grid.keypoints.emplace_back(keypoint.x, keypoint.y);
   }
 }
@@ -324,7 +324,7 @@ int aprilgrid_calc_relative_pose(aprilgrid_t &grid,
 
   // Create image points
   std::vector<cv::Point2f> img_pts;
-  for (const auto kp : grid.keypoints) {
+  for (const auto &kp : grid.keypoints) {
     img_pts.emplace_back(kp(0), kp(1));
   }
 
@@ -690,7 +690,7 @@ int aprilgrid_detect(aprilgrid_t &grid,
   std::sort(tags.begin(), tags.end(), sort_apriltag_by_id);
 
   // Form results
-  for (const auto tag : tags) {
+  for (const auto &tag : tags) {
     if (tag.good == false) {
       continue;
     }

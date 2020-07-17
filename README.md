@@ -1,6 +1,10 @@
 YAC - Yet Another Calibrator
 ============================
 
+<a href="https://github.com/chutsu/yac/actions?query=ci">
+  <img src="https://github.com/chutsu/yac/workflows/ci/badge.svg">
+</a>
+
 Yet Another Calibrator (YAC) is a calibration tool for calibrating RGB
 cameras. Specifically:
 

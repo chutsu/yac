@@ -3,10 +3,14 @@
 
 namespace yac {
 
-#define APRILGRID_CONF "test_data/calib/aprilgrid/target.yaml"
-#define APRILGRID_IMAGE "test_data/calib/aprilgrid/aprilgrid.png"
-#define CAM0_IMAGE "test_data/calib/stereo/cam0_1403709395937837056.png"
-#define CAM1_IMAGE "test_data/calib/stereo/cam1_1403709395937837056.png"
+#ifndef TEST_PATH
+  #define TEST_PATH "."
+#endif
+
+#define APRILGRID_CONF TEST_PATH "/test_data/calib/aprilgrid/target.yaml"
+#define APRILGRID_IMAGE TEST_PATH "/test_data/calib/aprilgrid/aprilgrid.png"
+#define CAM0_IMAGE TEST_PATH "/test_data/calib/stereo/cam0_1403709395937837056.png"
+#define CAM1_IMAGE TEST_PATH "/test_data/calib/stereo/cam1_1403709395937837056.png"
 #define CAM0_IMAGE_DIR "/data/euroc_mav/cam_april/mav0/cam0/data"
 #define CAM1_IMAGE_DIR "/data/euroc_mav/cam_april/mav0/cam1/data"
 

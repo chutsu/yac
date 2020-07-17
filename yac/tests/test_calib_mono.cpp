@@ -3,10 +3,14 @@
 
 namespace yac {
 
+#ifndef TEST_PATH
+  #define TEST_PATH "."
+#endif
+
 #define IMAGE_DIR "/data/euroc_mav/cam_april/mav0/cam0/data"
-#define APRILGRID_CONF "test_data/calib/aprilgrid/target.yaml"
+#define APRILGRID_CONF TEST_PATH "/test_data/calib/aprilgrid/target.yaml"
 #define APRILGRID_DATA "/tmp/aprilgrid_test/mono/cam0"
-#define APRILGRID_IMAGE "test_data/calib/aprilgrid/aprilgrid.png"
+#define APRILGRID_IMAGE TEST_PATH "/test_data/calib/aprilgrid/aprilgrid.png"
 #define CAM0_APRILGRID_DATA "/tmp/aprilgrid_test/stereo/cam0"
 #define CAM1_APRILGRID_DATA "/tmp/aprilgrid_test/stereo/cam1"
 
@@ -245,7 +249,7 @@ void test_suite() {
   MU_ADD_TEST(test_calib_mono_residual);
   MU_ADD_TEST(test_calib_mono_stats);
   MU_ADD_TEST(test_calib_mono_solve);
-  MU_ADD_TEST(test_calib_generate_poses);
+  // MU_ADD_TEST(test_calib_generate_poses);
 }
 
 } // namespace yac

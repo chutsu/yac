@@ -9,3 +9,7 @@ jobs:
       run: make deps
     - name: build
       run: make release
+    - name: download test data
+      run: make download_test_data
+    - name: run tests
+      run: make tests

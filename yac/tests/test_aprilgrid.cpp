@@ -4,9 +4,13 @@
 
 namespace yac {
 
+#ifndef TEST_PATH
+  #define TEST_PATH "."
+#endif
+
 #define TEST_OUTPUT "/tmp/aprilgrid.csv"
-#define TEST_IMAGE "test_data/calib/aprilgrid/aprilgrid.png"
-#define TEST_CONF "test_data/calib/aprilgrid/target.yaml"
+#define TEST_IMAGE TEST_PATH "/test_data/calib/aprilgrid/aprilgrid.png"
+#define TEST_CONF TEST_PATH "/test_data/calib/aprilgrid/target.yaml"
 
 static void visualize_grid(const cv::Mat &image,
                            const mat3_t &K,
@@ -352,7 +356,7 @@ int test_aprilgrid_detect() {
   const vec4_t D{-0.28340811, 0.07395907, 0.00019359, 1.76187114e-05};
   aprilgrid_detect(grid, detector, image, K, D);
 
-  for (const auto corner : grid.points_CF) {
+  for (const auto &corner : grid.points_CF) {
     MU_CHECK(corner(0) < 1.0);
     MU_CHECK(corner(0) > -1.0);
     MU_CHECK(corner(1) < 1.0);

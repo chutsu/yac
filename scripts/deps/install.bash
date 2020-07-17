@@ -13,7 +13,7 @@ install() {
 }
 
 install_base() {
-  apt_install dialog apt-utils git mercurial cmake g++ clang
+  apt_install dialog apt-utils git mercurial cmake g++ clang wget
 }
 
 apt_update

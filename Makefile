@@ -10,7 +10,7 @@ release:
 		ln -sf ${PWD}/yac_ros ${HOME}/catkin_ws/src/yac_ros; \
 		cd ${HOME}/catkin_ws; \
 		catkin init; \
-		source /opt/ros/melodic/setup.bash; \
+		. /opt/ros/melodic/setup.sh; \
 		catkin build -DCMAKE_BUILD_TYPE=Release -j2
 
 debug:
@@ -19,5 +19,5 @@ debug:
 		ln -sf ${PWD}/yac_ros ${HOME}/catkin_ws/src/yac_ros; \
 		cd ${HOME}/catkin_ws; \
 		catkin init; \
-		source /opt/ros/melodic/setup.bash; \
+		. /opt/ros/melodic/setup.sh; \
 		catkin build -DCMAKE_BUILD_TYPE=Debug -j2

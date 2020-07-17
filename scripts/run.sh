@@ -9,9 +9,9 @@ set -e
 # catkin build -DCMAKE_BUILD_TYPE=Release yac
 # catkin build -DCMAKE_BUILD_TYPE=Release yac yac_ros
 
+# source ~/catkin_ws/devel/setup.bash
 make
 make tests
-source ~/catkin_ws/devel/setup.bash
 
 # rosrun yac test_aprilgrid
 # rosrun yac test_calib_data

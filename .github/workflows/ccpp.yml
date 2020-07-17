@@ -10,6 +10,6 @@ jobs:
     - name: build
       run: make release
     - name: download test data
-      run: make download_test_data
+      run: sudo make download_test_data
     - name: run tests
       run: make tests

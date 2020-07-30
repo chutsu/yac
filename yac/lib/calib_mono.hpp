@@ -16,10 +16,10 @@ namespace yac {
  * Calibration mono residual
  */
 struct calib_mono_residual_t {
-  double z_[2] = {0.0, 0.0};        ///< Measurement
-  double p_F_[3] = {0.0, 0.0, 0.0}; ///< Object point
   std::string proj_model_ = "pinhole";
   std::string dist_model_ = "radtan4";
+  double z_[2] = {0.0, 0.0};        ///< Measurement
+  double p_F_[3] = {0.0, 0.0, 0.0}; ///< Object point
 
   calib_mono_residual_t(const std::string &proj_model,
                         const std::string &dist_model,

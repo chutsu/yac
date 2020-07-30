@@ -23,6 +23,7 @@ void process_rosbag(const std::string &rosbag_path,
 
   // Process ROS bag
   LOG_INFO("Processing ROS bag [%s]", rosbag_path.c_str());
+  LOG_INFO("cam0 topic [%s]", cam0_topic.c_str());
   rosbag::View bag_view(bag);
   size_t msg_idx = 0;
   for (const auto &msg : bag_view) {

@@ -100,23 +100,23 @@ int calib_mono_solve(const aprilgrids_t &aprilgrids,
   ceres::Solve(options, &problem, &summary);
   std::cout << summary.FullReport() << std::endl;
 
-  // Estimate covariance matrix
-  std::vector<std::pair<const double*, const double*>> covar_blocks;
-  double *proj_params = calib_params.proj_params.data();
-  covar_blocks.push_back(std::make_pair(proj_params, proj_params));
-  printf("nb covar blocks: %zu\n", covar_blocks.size());
-
-  ceres::Covariance::Options covar_options;
-  ceres::Covariance covar_est(covar_options);
-  const auto retval = covar_est.Compute(covar_blocks, &problem);
-  if (retval == false) {
-    printf("Failed to estimate covariance!\n");
-  }
-
-  double proj_proj_covar[4 * 4] = {0};
-  covar_est.GetCovarianceBlock(proj_params, proj_params, proj_proj_covar);
-  Eigen::Map<Eigen::Matrix<double, 4, 4, Eigen::RowMajor>> covar_mat(proj_proj_covar);
-  print_matrix("covar_mat", covar_mat);
+  // // Estimate covariance matrix
+  // std::vector<std::pair<const double*, const double*>> covar_blocks;
+  // double *proj_params = calib_params.proj_params.data();
+  // covar_blocks.push_back(std::make_pair(proj_params, proj_params));
+  // printf("nb covar blocks: %zu\n", covar_blocks.size());
+  //
+  // ceres::Covariance::Options covar_options;
+  // ceres::Covariance covar_est(covar_options);
+  // const auto retval = covar_est.Compute(covar_blocks, &problem);
+  // if (retval == false) {
+  //   printf("Failed to estimate covariance!\n");
+  // }
+  //
+  // double proj_proj_covar[4 * 4] = {0};
+  // covar_est.GetCovarianceBlock(proj_params, proj_params, proj_proj_covar);
+  // Eigen::Map<Eigen::Matrix<double, 4, 4, Eigen::RowMajor>> covar_mat(proj_proj_covar);
+  // print_matrix("covar_mat", covar_mat);
 
   // Clean up
   T_CF.clear();

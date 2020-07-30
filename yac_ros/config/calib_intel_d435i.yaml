@@ -1,7 +1,9 @@
 ros:
-  bag: "/data/intel_d435i/imucam-1.bag"
-  cam0_topic: "/stereo/camera0/image"
-  cam1_topic: "/stereo/camera1/image"
+  # bag: "/data/intel_d435i/imucam-1.bag"
+  # cam0_topic: "/stereo/camera0/image"
+  # cam1_topic: "/stereo/camera1/image"
+  bag: "/data/calib_mono.bag"
+  cam0_topic: "/rs/rgb0/image"
 
 settings:
   data_path: "/data/intel_d435i/calib_data"

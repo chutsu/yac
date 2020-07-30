@@ -55,10 +55,9 @@ static void image_cb(const sensor_msgs::ImageConstPtr &msg) {
     }
   }
 
-
   if (capture_event) {
     printf("Capturing cam0 image [%d]\n", save_counter);
-    bag.write("/cam0/image", ts, msg);
+    bag.write(cam0_topic, ts, msg);
     capture_event = false;
     save_counter++;
   }

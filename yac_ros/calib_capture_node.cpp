@@ -61,10 +61,8 @@ int main(int argc, char *argv[]) {
   // Get ROS params
   ros::NodeHandle nh;
   std::string rosbag_path;
-  std::string body0_topic_type;
-  std::string target0_topic_type;
-  ROS_PARAM(nh, node_name + "/rosbag_path", rosbag_path);
   ROS_PARAM(nh, node_name + "/imshow", imshow);
+  ROS_PARAM(nh, node_name + "/rosbag_path", rosbag_path);
   ROS_PARAM(nh, node_name + "/cam0_topic", cam0_topic);
 
   // Setup ROS bag

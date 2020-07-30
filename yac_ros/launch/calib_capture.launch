@@ -1,0 +1,9 @@
+<launch>
+  <node pkg="yac_ros" type="calib_mocap_capture_node" name="calib_mocap_capture_node" required="true" output="screen">
+    <param name="rosbag_path" value="/data/vicon_capture.bag" />
+    <param name="config_file" value="$(find yac_ros)/config/calib_intel_d435i.yaml" />
+    <param name="imshow" value="true" />
+
+    <param name="cam0_topic" value="/camera/color/image_raw" />
+  </node>
+</launch>

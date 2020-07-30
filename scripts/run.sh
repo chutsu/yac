@@ -11,7 +11,7 @@ set -e
 
 # source ~/catkin_ws/devel/setup.bash
 make
-make tests
+# make tests
 
 # rosrun yac test_aprilgrid
 # rosrun yac test_calib_data

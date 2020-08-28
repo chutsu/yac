@@ -18,12 +18,12 @@ deps:
 release: ${CATKIN_WS} ${YAC_PATH}
 	@cd ${CATKIN_WS} && \
 		. /opt/ros/melodic/setup.sh && \
-		catkin build -DCMAKE_BUILD_TYPE=Release -j2
+		catkin build yac yac_ros -DCMAKE_BUILD_TYPE=Release -j2
 
 debug: ${CATKIN_WS} ${YAC_PATH}
 	@cd ${CATKIN_WS} && \
 		. /opt/ros/melodic/setup.sh && \
-		catkin build -DCMAKE_BUILD_TYPE=Debug -j2
+		catkin build yac yac_ros -DCMAKE_BUILD_TYPE=Debug -j2
 
 download_test_data:
 	@bash ./scripts/download_test_data.bash

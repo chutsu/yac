@@ -399,7 +399,7 @@ void detect_aprilgrids(const calib_target_t &calib_target,
     const timestamp_t ts = std::stoull(output_file);
     output_file = remove_ext(output_file);
     output_file += ".csv";
-    const auto save_path = paths_combine(grid_path, output_file);
+    const auto save_path = paths_join(grid_path, output_file);
 
     // -- Setup AprilGrid
     const int tag_rows = calib_target.tag_rows;
@@ -417,7 +417,7 @@ void detect_aprilgrids(const calib_target_t &calib_target,
     }
 
     // -- Detect
-    const auto image_path = paths_combine(cam0_path, image_paths[i]);
+    const auto image_path = paths_join(cam0_path, image_paths[i]);
     const cv::Mat image = cv::imread(image_path);
     aprilgrid_detect(grid, detector, image);
     grid.timestamp = ts;
@@ -483,7 +483,7 @@ double loop_test_dataset(const std::string test_path,
   //   // LOG_INFO("Image [%s]", image_file.c_str());
   //
   //   // Load image
-  //   auto image = cv::imread(paths_combine(cam0_path, image_file));
+  //   auto image = cv::imread(paths_join(cam0_path, image_file));
   //   const auto img_w = image.cols;
   //   const auto img_h = image.rows;
   //

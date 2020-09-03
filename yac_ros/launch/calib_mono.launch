@@ -1,5 +1,5 @@
 <launch>
   <node pkg="yac_ros" type="calib_mono_node" name="calib_mono_node" required="true" output="screen">
-    <param name="config_file" value="$(find yac_ros)/config/calib_intel_d435i.yaml" />
+    <param name="config_file" value="$(find yac_ros)/config/calib_pointgrey.yaml" />
   </node>
 </launch>

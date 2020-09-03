@@ -10,6 +10,104 @@
 
 namespace yac {
 
+template <typename T>
+int pinhole_radtan4_project(const Eigen::Matrix<T, 8, 1> &params,
+                            const Eigen::Matrix<T, 3, 1> &point,
+                            Eigen::Matrix<T, 2, 1> &image_point) {
+  // Check for singularity
+  const T z_norm = sqrt(point(2) * point(2)); // std::abs doesn't work for all T
+  if ((T) z_norm < (T) 1.0e-12) {
+    return -1;
+  }
+
+  // Extract intrinsics params
+  const T fx = params(0);
+  const T fy = params(1);
+  const T cx = params(2);
+  const T cy = params(3);
+  const T k1 = params(4);
+  const T k2 = params(5);
+  const T p1 = params(6);
+  const T p2 = params(7);
+
+  // Project
+  const T x = point(0) / point(2);
+  const T y = point(1) / point(2);
+
+  // Apply Radial distortion factor
+  const T x2 = x * x;
+  const T y2 = y * y;
+  const T r2 = x2 + y2;
+  const T r4 = r2 * r2;
+  const T radial_factor = T(1) + (k1 * r2) + (k2 * r4);
+  const T x_dash = x * radial_factor;
+  const T y_dash = y * radial_factor;
+
+  // Apply Tangential distortion factor
+  const T xy = x * y;
+  const T x_ddash = x_dash + (T(2) * p1 * xy + p2 * (r2 + T(2) * x2));
+  const T y_ddash = y_dash + (p1 * (r2 + T(2) * y2) + T(2) * p2 * xy);
+
+  // Scale and center
+  image_point(0) = fx * x_ddash + cx;
+  image_point(1) = fy * y_ddash + cy;
+
+  if (point(2) > T(0.0)) {
+    return 0; // Point is infront of camera
+  } else {
+    return 1; // Point is behind camera
+  }
+}
+
+template <typename T>
+int pinhole_equi4_project(const Eigen::Matrix<T, 8, 1> &params,
+                          const Eigen::Matrix<T, 3, 1> &point,
+                          Eigen::Matrix<T, 2, 1> &image_point) {
+  // Check for singularity
+  const T z_norm = sqrt(point(2) * point(2)); // std::abs doesn't work for all T
+  if ((T) z_norm < (T) 1.0e-12) {
+    return -1;
+  }
+
+  // Extract intrinsics params
+  const T fx = params(0);
+  const T fy = params(1);
+  const T cx = params(2);
+  const T cy = params(3);
+  const T k1 = params(4);
+  const T k2 = params(5);
+  const T k3 = params(6);
+  const T k4 = params(7);
+
+  // Project
+  const T x = point(0) / point(2);
+  const T y = point(1) / point(2);
+
+	// Apply equi distortion
+	const T r = sqrt(x * x + y * y);
+	if ((T) r < (T) 1e-8) {
+		return -1;
+	}
+	const T th = atan(r);
+	const T th2 = th * th;
+	const T th4 = th2 * th2;
+	const T th6 = th4 * th2;
+	const T th8 = th4 * th4;
+	const T thd = th * (T(1.0) + k1 * th2 + k2 * th4 + k3 * th6 + k4 * th8);
+	const T x_dash = (thd / r) * x;
+	const T y_dash = (thd / r) * y;
+
+  // Scale and center
+  image_point(0) = fx * x_dash + cx;
+  image_point(1) = fy * y_dash + cy;
+
+  if (point(2) > T(0.0)) {
+    return 0; // Point is infront of camera
+  } else {
+    return 1; // Point is behind camera
+  }
+}
+
 /**
  * Pose parameter block
  */
@@ -81,7 +179,7 @@ struct calib_params_t {
                  const vecx_t &proj_params_,
                  const vecx_t &dist_params_)
     : img_w{img_w_}, img_h{img_h_},
-      dist_model{dist_model_}, proj_model{proj_model_},
+      proj_model{proj_model_}, dist_model{dist_model_},
       proj_params{proj_params_}, dist_params{dist_params_} {}
 
   calib_params_t(const std::string &proj_model_,
@@ -102,6 +200,11 @@ struct calib_params_t {
     proj_params << fx, fy, cx, cy;
     dist_params << 0.01, 0.0001, 0.0001, 0.0001;
   }
+
+	std::vector<int> resolution() {
+		std::vector<int> res{img_w, img_h};
+		return res;
+	}
 
   std::string toString(const int cam_index=-1) const {
     const std::string indent = (cam_index != -1) ? "  " : "";

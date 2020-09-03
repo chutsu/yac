@@ -69,7 +69,7 @@ int preprocess_camera_data(const calib_target_t &target,
     const timestamp_t ts = std::stoull(output_file);
     output_file = remove_ext(output_file);
     output_file += ".csv";
-    const auto save_path = paths_combine(output_dir, output_file);
+    const auto save_path = paths_join(output_dir, output_file);
 
     // -- Setup AprilGrid
     const int tag_rows = target.tag_rows;
@@ -87,7 +87,7 @@ int preprocess_camera_data(const calib_target_t &target,
     }
 
     // -- Detect
-    const auto image_path = paths_combine(image_dir, image_paths[i]);
+    const auto image_path = paths_join(image_dir, image_paths[i]);
     const cv::Mat image = cv::imread(image_path);
     aprilgrid_detect(grid, detector, image, cam_K, cam_D);
     grid.timestamp = ts;
@@ -174,7 +174,7 @@ int load_camera_calib_data(const std::string &data_dir,
   // Load AprilGrid data
   for (size_t i = 0; i < data_paths.size(); i++) {
     // Load
-    const auto data_path = paths_combine(data_dir, data_paths[i]);
+    const auto data_path = paths_join(data_dir, data_paths[i]);
     aprilgrid_t grid;
     if (aprilgrid_load(grid, data_path) != 0) {
       LOG_ERROR("Failed to load AprilGrid data [%s]!", data_path.c_str());

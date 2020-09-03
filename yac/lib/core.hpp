@@ -18,8 +18,14 @@
  * - Statistics
  * - Transform
  * - Time
+ * - Networking
  * - Interpolation
+ * - Control
+ * - Measurements
+ * - Models
  * - Vision
+ * - Parameters
+ * - Simulation
  * - Factor Graph
  *
  ****************************************************************************/
@@ -59,6 +65,7 @@
 #include <yaml-cpp/yaml.h>
 
 #include <Eigen/Dense>
+#include <Eigen/Sparse>
 #include <Eigen/Geometry>
 #include <unsupported/Eigen/Splines>
 
@@ -110,6 +117,9 @@ typedef Eigen::Matrix<real_t, 1, Eigen::Dynamic> row_vector_t;
 typedef Eigen::Matrix<real_t, Eigen::Dynamic, 1> col_vector_t;
 typedef Eigen::Array<real_t, Eigen::Dynamic, 1> arrayx_t;
 
+typedef Eigen::SparseMatrix<real_t> sp_mat_t;
+typedef Eigen::SparseVector<real_t> sp_vec_t;
+
 typedef std::vector<vec2_t, Eigen::aligned_allocator<vec2_t>> vec2s_t;
 typedef std::vector<vec3_t, Eigen::aligned_allocator<vec3_t>> vec3s_t;
 typedef std::vector<vec4_t, Eigen::aligned_allocator<vec4_t>> vec4s_t;
@@ -138,7 +148,10 @@ using map_mat_t = Eigen::Map<Eigen::Matrix<real_t, ROWS, COLS, STRIDE_TYPE>>;
 template <int ROWS>
 using map_vec_t = Eigen::Map<Eigen::Matrix<real_t, ROWS, 1>>;
 
-typedef uint64_t timestamp_t;
+typedef std::unordered_map<long, std::unordered_map<long, real_t>> mat_hash_t;
+typedef std::vector<std::pair<long int, long int>> mat_indicies_t;
+
+typedef int64_t timestamp_t;
 typedef std::vector<timestamp_t> timestamps_t;
 
 /******************************************************************************
@@ -477,11 +490,72 @@ std::set<T> intersection(const std::list<std::vector<T>> &vecs) {
   return retval;
 }
 
+/**
+ * Ordered Set
+ */
+template <class T>
+class ordered_set_t {
+public:
+  using iterator                     = typename std::vector<T>::iterator;
+  using const_iterator               = typename std::vector<T>::const_iterator;
+
+  iterator begin()                   { return vector.begin(); }
+  iterator end()                     { return vector.end(); }
+  const_iterator begin() const       { return vector.begin(); }
+  const_iterator end() const         { return vector.end(); }
+  const T& at(const size_t i) const  { return vector.at(i); }
+  const T& front() const             { return vector.front(); }
+  const T& back() const              { return vector.back(); }
+  void insert(const T& item)         { if (set.insert(item).second) vector.push_back(item); }
+  size_t count(const T& item) const  { return set.count(item); }
+  bool empty() const                 { return set.empty(); }
+  size_t size() const                { return set.size(); }
+  void clear()                       { vector.clear(); set.clear(); }
+
+private:
+  std::vector<T> vector;
+  std::set<T>    set;
+};
+
+/**
+ * Save 3D features to csv file defined in `path`.
+ */
+void save_features(const std::string &path, const vec3s_t &features);
+
+/**
+ * Save pose to `csv_file` incrementally.
+ */
+void save_pose(FILE *csv_file,
+               const timestamp_t &ts,
+               const quat_t &rot,
+               const vec3_t &pos);
+
+/**
+ * Save pose to `csv_file` incrementally.
+ */
+void save_pose(FILE *csv_file, const timestamp_t &ts, const vecx_t &pose);
+
+/**
+ * Save poses to csv file in `path`.
+ */
+void save_poses(const std::string &path,
+                const timestamps_t &timestamps,
+                const quats_t &orientations,
+                const vec3s_t &positions);
+
+/**
+ * Save poses to csv file in `path`.
+ */
+void save_poses(const std::string &path, const mat4s_t &poses);
+
+/**
+ * Check jacobian
+ */
 int check_jacobian(const std::string &jac_name,
                    const matx_t &fdiff,
                    const matx_t &jac,
                    const real_t threshold,
-                   const bool print = false);
+                   const bool print=false);
 
 /******************************************************************************
  *                                FILESYSTEM
@@ -622,11 +696,11 @@ std::vector<std::string> path_split(const std::string path);
  * @param path2 Path 22
  * @returns Combined path
  */
-std::string paths_combine(const std::string path1, const std::string path2);
+std::string paths_join(const std::string path1, const std::string path2);
 
 
 /******************************************************************************
- *                                  CONFIG
+ *                              CONFIGURATION
  *****************************************************************************/
 
 struct config_t {
@@ -1230,6 +1304,11 @@ matx_t enforce_psd(const matx_t &A);
 matx_t nullspace(const matx_t &A);
 
 /**
+ * Check if two matrices `A` and `B` are equal.
+ */
+bool equals(const matx_t &A, const matx_t &B);
+
+/**
  * Load std::vector of real_ts to an Eigen::Matrix
  *
  * @param[in] x Matrix values
@@ -1249,6 +1328,36 @@ void load_matrix(const std::vector<real_t> &x,
  * @param[out] x Output vector of matrix values
  */
 void load_matrix(const matx_t A, std::vector<real_t> &x);
+
+/** Pseudo Inverse via SVD **/
+matx_t pinv(const matx_t &A, const real_t tol=1e-4);
+
+/** Rank of matrix A **/
+long int rank(const matx_t &A);
+
+/**
+ * Perform Schur's Complement
+ */
+int schurs_complement(matx_t &H, vecx_t &b,
+                      const size_t m, const size_t r,
+                      const bool precond=false, const bool debug=false);
+
+
+// /**
+//  * Recover covariance(i, l) (a specific value in the covariance matrix) from
+//  * the upper triangular matrix `U` with precomputed diagonal vector containing
+//  * `diag(U)^{-1}`. Computed covariances will be stored in the `hash` to avoid
+//  * recomputing the value again.
+//  */
+// real_t covar_recover(const long i, const long l,
+//                      const matx_t &U, const vecx_t &diag,
+//                      mat_hash_t &hash);
+//
+// /**
+//  * From the Hessian matrix `H`, recover the covariance values defined in
+//  * `indicies`. Returns a matrix hashmap of covariance values.
+//  */
+// mat_hash_t covar_recover(const matx_t &H, const mat_indicies_t &indicies);
 
 /******************************************************************************
  *                                 Geometry
@@ -1477,6 +1586,14 @@ int randi(const int ub, const int lb);
 real_t randf(const real_t ub, const real_t lb);
 
 /**
+ * Sum values in vector.
+ *
+ * @param[in] x Array of numbers
+ * @return Sum of vector
+ */
+real_t sum(const std::vector<real_t> &x);
+
+/**
  * Calculate median given an array of numbers
  *
  * @param[in] v Array of numbers
@@ -1491,6 +1608,11 @@ real_t median(const std::vector<real_t> &v);
  * @return Mean vector
  */
 vec3_t mean(const vec3s_t &x);
+
+/**
+ * Root Mean Squared Error.
+ */
+real_t rmse(const std::vector<real_t> &residuals);
 
 /**
  * Shannon Entropy of a given covariance matrix `covar`.
@@ -1531,7 +1653,7 @@ Eigen::Matrix<T, 4, 4> tf(const Eigen::Matrix<T, 3, 3> &C,
  * Form a 4x4 homogeneous transformation matrix from a pointer to real_t array
  * containing (quaternion + translation) 7 elements: (qw, qx, qy, qz, x, y, z)
  */
-mat4_t tf(const real_t *params);
+mat4_t tf(const vecx_t &params);
 
 /**
  * Form a 4x4 homogeneous transformation matrix from a
@@ -1685,6 +1807,22 @@ mat3_t quat_rmul_xyz(const quat_t &q);
 mat3_t quat_mat_xyz(const mat4_t &Q);
 
 /**
+ * Add noise to rotation matrix `rot`, where noise `n` is in degrees.
+ */
+mat3_t add_noise(const mat3_t &rot, const real_t n);
+
+/**
+ * Add noise to position vector `pos`, where noise `n` is in meters.
+ */
+vec3_t add_noise(const vec3_t &pos, const real_t n);
+
+/**
+ * Add noise to transform `pose`, where `pos_n` is in meters and `rot_n` is in
+ * degrees.
+ */
+mat4_t add_noise(const mat4_t &pose, const real_t pos_n, const real_t rot_n);
+
+/**
  * Initialize attitude using IMU gyroscope `w_m` and accelerometer `a_m`
  * measurements. The calculated attitude outputted into to `C_WS`. Note: this
  * function does not calculate initial yaw angle in the world frame. Only the
@@ -1733,6 +1871,29 @@ float mtoc(struct timespec *tic);
  * Get time now in milliseconds since epoch
  */
 real_t time_now();
+
+/**
+ * Profiler
+ */
+struct profiler_t {
+  std::map<std::string, timespec> timers;
+  std::map<std::string, float> record;
+
+  profiler_t() {}
+
+  void start(const std::string &key) {
+    timers[key] = tic();
+  }
+
+  float stop(const std::string &key) {
+    record[key] = toc(&timers[key]);
+    return record[key];
+  }
+
+  void print(const std::string &key) {
+    printf("[%s]: %.4fs\n", key.c_str(), stop(key));
+  }
+};
 
 /*****************************************************************************
  *                               NETWORKING
@@ -2006,6 +2167,418 @@ void sim_imu_measurement(sim_imu_t &imu,
                          const vec3_t &a_WS_W,
                          vec3_t &a_WS_S,
                          vec3_t &w_WS_S);
+
+/*****************************************************************************
+ *                                CONTROL
+ *****************************************************************************/
+
+/**
+ * PID Controller
+ */
+struct pid_t {
+  real_t error_prev = 0.0;
+  real_t error_sum = 0.0;
+
+  real_t error_p = 0.0;
+  real_t error_i = 0.0;
+  real_t error_d = 0.0;
+
+  real_t k_p = 0.0;
+  real_t k_i = 0.0;
+  real_t k_d = 0.0;
+
+  pid_t();
+  pid_t(const real_t k_p, const real_t k_i, const real_t k_d);
+  ~pid_t();
+};
+
+/**
+ * `pid_t` to output stream
+ */
+std::ostream &operator<<(std::ostream &os, const pid_t &pid);
+
+/**
+ * Update controller
+ *
+ * @returns Controller command
+ */
+real_t pid_update(pid_t &p,
+                  const real_t setpoint,
+                  const real_t actual,
+                  const real_t dt);
+
+/**
+ * Update controller
+ *
+ * @returns Controller command
+ */
+real_t pid_update(pid_t &p, const real_t error, const real_t dt);
+
+/**
+ * Reset controller
+ */
+void pid_reset(pid_t &p);
+
+/**
+ * Carrot control
+ */
+struct carrot_ctrl_t {
+  vec3s_t waypoints;
+  vec3_t wp_start = vec3_t::Zero();
+  vec3_t wp_end = vec3_t::Zero();
+  size_t wp_index = 0;
+  real_t look_ahead_dist = 0.0;
+
+  carrot_ctrl_t();
+  ~carrot_ctrl_t();
+};
+
+/**
+ * Configure carrot control using a list of position `waypoints` (x, y, z), and
+ * a `look_ahead` distance in [m].
+ *
+ * @returns 0 for success, -1 for failure
+ */
+int carrot_ctrl_configure(carrot_ctrl_t &cc,
+                          const vec3s_t &waypoints,
+                          const real_t look_ahead_dist);
+
+/**
+ * Calculate closest point along current trajectory using current position
+ * `pos`, and outputs the closest point in `result`.
+ *
+ * @returns A number to denote progress along the waypoint, if -1 then the
+ * position is before `wp_start`, 0 if the position is between `wp_start` and
+ * `wp_end`, and finally 1 if the position is after `wp_end`.
+ */
+int carrot_ctrl_closest_point(const carrot_ctrl_t &cc,
+                              const vec3_t &pos,
+                              vec3_t &result);
+
+/**
+ * Calculate carrot point using current position `pos`, and outputs the carrot
+ * point in `result`.
+ *
+ * @returns A number to denote progress along the waypoint, if -1 then the
+ * position is before `wp_start`, 0 if the position is between `wp_start` and
+ * `wp_end`, and finally 1 if the position is after `wp_end`.
+ */
+int carrot_ctrl_carrot_point(const carrot_ctrl_t &cc,
+                             const vec3_t &pos,
+                             vec3_t &result);
+
+/**
+ * Update carrot controller using current position `pos` and outputs the carrot
+ * point in `result`.
+ *
+ * @returns 0 for success, 1 for all waypoints reached and -1 for failure
+ */
+int carrot_ctrl_update(carrot_ctrl_t &cc, const vec3_t &pos, vec3_t &carrot_pt);
+
+/******************************************************************************
+ *                               MEASUREMENTS
+ *****************************************************************************/
+
+struct meas_t {
+  timestamp_t ts = 0;
+
+  meas_t() {}
+  meas_t(const timestamp_t &ts_) : ts{ts_} {}
+  virtual ~meas_t() {}
+};
+
+struct imu_meas_t {
+  timestamp_t ts = 0;
+  vec3_t accel{0.0, 0.0, 0.0};
+  vec3_t gyro{0.0, 0.0, 0.0};
+
+  imu_meas_t() {}
+
+  imu_meas_t(const timestamp_t &ts_, const vec3_t &accel_, const vec3_t &gyro_)
+    : ts{ts_}, accel{accel_}, gyro{gyro_} {}
+
+  ~imu_meas_t() {}
+};
+
+struct imu_data_t {
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
+  timestamps_t timestamps;
+  vec3s_t accel;
+  vec3s_t gyro;
+
+  void add(const timestamp_t &ts, const vec3_t &acc, const vec3_t &gyr) {
+    timestamps.push_back(ts);
+    accel.push_back(acc);
+    gyro.push_back(gyr);
+  }
+
+  size_t size() const { return timestamps.size(); }
+  size_t size() { return static_cast<const imu_data_t &>(*this).size(); }
+
+  timestamp_t last_ts() const { return timestamps.back(); }
+  timestamp_t last_ts() { return static_cast<const imu_data_t &>(*this).last_ts(); }
+
+  void clear() {
+    timestamps.clear();
+    accel.clear();
+    gyro.clear();
+  }
+};
+
+// struct image_t : meas_t {
+//   int width = 0;
+//   int height = 0;
+//   float *data = nullptr;
+//
+//   image_t() {}
+//
+//   image_t(const timestamp_t ts_, const int width_, const int height_)
+//       : meas_t{ts_}, width{width_}, height{height_} {
+//     data = new float[width * height];
+//   }
+//
+//   image_t(const timestamp_t ts_,
+//           const int width_,
+//           const int height_,
+//           float *data_)
+//       : meas_t{ts_}, width{width_}, height{height_}, data{data_} {}
+//
+//   virtual ~image_t() {
+//     if (data) {
+//       free(data);
+//     }
+//   }
+// };
+
+struct cam_frame_t {
+  timestamp_t ts = 0;
+  vec2s_t keypoints;
+  std::vector<size_t> feature_ids;
+
+  cam_frame_t() {}
+
+  cam_frame_t(const timestamp_t &ts_,
+              const vec2s_t &keypoints_,
+              const std::vector<size_t> feature_ids_)
+    : ts{ts_}, keypoints{keypoints_}, feature_ids{feature_ids_} {}
+
+  ~cam_frame_t() {}
+};
+
+/******************************************************************************
+ *                                 MODELS
+ *****************************************************************************/
+
+/**
+ * Create DH transform from link n to link n-1 (end to front)
+ *
+ * @param[in] theta
+ * @param[in] d
+ * @param[in] a
+ * @param[in] alpha
+ *
+ * @returns DH transform
+ */
+mat4_t dh_transform(const real_t theta,
+                    const real_t d,
+                    const real_t a,
+                    const real_t alpha);
+
+/**
+ * 2-DOF Gimbal Model
+ */
+struct gimbal_model_t {
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
+
+  // Parameter vector of transform from
+  // static camera to base-mechanism
+  vecx_t tau_s = zeros(6, 1);
+
+  // Parameter vector of transform from
+  // end-effector to dynamic camera
+  vecx_t tau_d = zeros(6, 1);
+
+  // First gibmal-joint
+  real_t Lambda1 = 0.0;
+  vec3_t w1 = zeros(3, 1);
+
+  // Second gibmal-joint
+  real_t Lambda2 = 0.0;
+  vec3_t w2 = zeros(3, 1);
+
+  real_t theta1_offset = 0.0;
+  real_t theta2_offset = 0.0;
+
+  gimbal_model_t();
+  gimbal_model_t(const vec6_t &tau_s,
+                 const vec6_t &tau_d,
+                 const real_t Lambda1,
+                 const vec3_t w1,
+                 const real_t Lambda2,
+                 const vec3_t w2,
+                 const real_t theta1_offset = 0.0,
+                 const real_t theta2_offset = 0.0);
+  virtual ~gimbal_model_t();
+};
+
+/**
+ * Set gimbal attitude
+ *
+ * @param[in,out] model Model
+ * @param[in] roll Roll [rads]
+ * @param[in] pitch Pitch [rads]
+ */
+void gimbal_model_set_attitude(gimbal_model_t &model,
+                               const real_t roll,
+                               const real_t pitch);
+
+/**
+ * Get gimbal joint angle
+ *
+ * @param[in] model Model
+ * @returns Gimbal joint angles
+ */
+vec2_t gimbal_model_get_joint_angles(const gimbal_model_t &model);
+
+/**
+ * Returns transform from static camera to base mechanism
+ *
+ * @param[in] model Model
+ * @returns Transform
+ */
+mat4_t gimbal_model_T_BS(const gimbal_model_t &model);
+
+/**
+ * Returns transform from base mechanism to end-effector
+ *
+ * @param[in] model Model
+ * @returns Transform
+ */
+mat4_t gimbal_model_T_EB(const gimbal_model_t &model);
+
+/**
+ * Returns transform from end-effector to dynamic camera
+ *
+ * @param[in] model Model
+ * @returns Transform
+ */
+mat4_t gimbal_model_T_DE(const gimbal_model_t &model);
+
+/**
+ * Returns transform from static to dynamic camera
+ *
+ * @param[in] model Model
+ * @returns Transform
+ */
+mat4_t gimbal_model_T_DS(const gimbal_model_t &model);
+
+/**
+ * Returns transform from static to dynamic camera
+ *
+ * @param[in,out] model Model
+ * @param[in] theta Gimbal roll and pitch [radians]
+ * @returns Transform from static to dynamic camera
+ */
+mat4_t gimbal_model_T_DS(gimbal_model_t &model, const vec2_t &theta);
+
+/**
+ * gimbal_model_t to output stream
+ */
+std::ostream &operator<<(std::ostream &os, const gimbal_model_t &gimbal);
+
+/**
+ * Calculate target angular velocity and time taken to traverse a desired
+ * circle * trajectory of radius r and velocity v
+ *
+ * @param[in] r Desired circle radius
+ * @param[in] v Desired trajectory velocity
+ * @param[in] w Target angular velocity
+ * @param[in] time Target time taken to complete circle trajectory
+ **/
+void circle_trajectory(const real_t r, const real_t v, real_t *w, real_t *time);
+
+/**
+ * Two wheel robot
+ */
+struct two_wheel_t {
+  vec3_t r_G = vec3_t::Zero();
+  vec3_t v_G = vec3_t::Zero();
+  vec3_t a_G = vec3_t::Zero();
+  vec3_t rpy_G = vec3_t::Zero();
+  vec3_t w_G = vec3_t::Zero();
+
+  real_t vx_desired = 0.0;
+  real_t yaw_desired = 0.0;
+
+  pid_t vx_controller{0.1, 0.0, 0.1};
+  pid_t yaw_controller{0.1, 0.0, 0.1};
+
+  vec3_t a_B = vec3_t::Zero();
+  vec3_t v_B = vec3_t::Zero();
+  vec3_t w_B = vec3_t::Zero();
+
+  two_wheel_t() {}
+
+  two_wheel_t(const vec3_t &r_G_, const vec3_t &v_G_, const vec3_t &rpy_G_)
+      : r_G{r_G_}, v_G{v_G_}, rpy_G{rpy_G_} {}
+
+  ~two_wheel_t() {}
+
+  void update(const real_t dt) {
+    const vec3_t r_G_prev = r_G;
+    const vec3_t v_G_prev = v_G;
+    const vec3_t rpy_G_prev = rpy_G;
+
+    r_G += euler321(rpy_G) * v_B * dt;
+    v_G = (r_G - r_G_prev) / dt;
+    a_G = (v_G - v_G_prev) / dt;
+
+    rpy_G += euler321(rpy_G) * w_B * dt;
+    w_G = rpy_G - rpy_G_prev;
+    a_B = euler123(rpy_G) * a_G;
+
+    // Wrap angles to +/- pi
+    for (int i = 0; i < 3; i++) {
+      rpy_G(i) = (rpy_G(i) > M_PI) ? rpy_G(i) - 2 * M_PI : rpy_G(i);
+      rpy_G(i) = (rpy_G(i) < -M_PI) ? rpy_G(i) + 2 * M_PI : rpy_G(i);
+    }
+  }
+};
+
+/**
+ * MAV model
+ */
+struct mav_model_t {
+  vec3_t attitude{0.0, 0.0, 0.0};         ///< Attitude in global frame
+  vec3_t angular_velocity{0.0, 0.0, 0.0}; ///< Angular velocity in global frame
+  vec3_t position{0.0, 0.0, 0.0};         ///< Position in global frame
+  vec3_t linear_velocity{0.0, 0.0, 0.0};  ///< Linear velocity in global frame
+
+  real_t Ix = 0.0963; ///< Moment of inertia in x-axis
+  real_t Iy = 0.0963; ///< Moment of inertia in y-axis
+  real_t Iz = 0.1927; ///< Moment of inertia in z-axis
+
+  real_t kr = 0.1; ///< Rotation drag constant
+  real_t kt = 0.2; ///< Translation drag constant
+
+  real_t l = 0.9; ///< MAV arm length
+  real_t d = 1.0; ///< drag constant
+
+  real_t m = 1.0;  ///< Mass
+  real_t g = 9.81; ///< Gravity
+};
+
+/**
+ * Update
+ *
+ * @param[in,out] qm Model
+ * @param[in] motor_inputs Motor inputs (m1, m2, m3, m4)
+ * @param[in] dt Time difference (s)
+ * @returns 0 for success, -1 for failure
+ */
+int mav_model_update(mav_model_t &qm,
+                     const vec4_t &motor_inputs,
+                     const real_t dt);
 
 /*****************************************************************************
  *                                  CV
@@ -2334,12 +2907,12 @@ cv::Mat draw_grid_features(const cv::Mat &image,
  *
  * @returns List of keypoints
  */
-std::vector<cv::KeyPoint> grid_fast(const cv::Mat &image,
-                                    const int max_corners = 100,
-                                    const int grid_rows = 5,
-                                    const int grid_cols = 5,
-                                    const real_t threshold = 10.0,
-                                    const bool nonmax_suppression = true);
+std::vector<cv::Point2f> grid_fast(const cv::Mat &image,
+                                   const int max_corners = 100,
+                                   const int grid_rows = 5,
+                                   const int grid_cols = 5,
+                                   const real_t threshold = 10.0,
+                                   const bool nonmax_suppression = true);
 
 /**
  * Grid good
@@ -2745,35 +3318,26 @@ std::ostream &operator<<(std::ostream &os, const equi4_t &equi4);
  */
 template <typename DM = nodist_t>
 struct projection_t {
-  int img_w = 0;
-  int img_h = 0;
+  int resolution[2] = {0, 0};
   vecx_t params;
   DM distortion;
 
   projection_t() {}
 
-  projection_t(const int img_w_,
-               const int img_h_,
+  projection_t(const int resolution_[2],
                const vecx_t &proj_params_,
                const vecx_t &dist_params_)
-    : img_w{img_w_},
-      img_h{img_h_},
+    : resolution{resolution_[0], resolution_[1]},
       params{proj_params_},
       distortion{dist_params_} {}
 
-  projection_t(const int img_w_,
-               const int img_h_,
-               const real_t *proj_params_,
+  projection_t(const int resolution_[2],
+               const vecx_t &params_,
                const size_t proj_params_size_,
-               const real_t *dist_params_)
-    : img_w{img_w_},
-      img_h{img_h_},
-      distortion{dist_params_} {
-    params.resize(proj_params_size_);
-    for (size_t i = 0; i < proj_params_size_; i++) {
-      params(i) = proj_params_[i];
-    }
-  }
+               const size_t dist_params_size_)
+    : projection_t{resolution_,
+                   params_.head(proj_params_size_),
+                   params_.tail(dist_params_size_)} {}
 
   ~projection_t() {}
 
@@ -2794,28 +3358,25 @@ template <typename DM = nodist_t>
 struct pinhole_t : projection_t<DM> {
   static const size_t proj_params_size = 4;
   static const size_t dist_params_size = DM::params_size;
+  static const size_t params_size = proj_params_size + dist_params_size;
 
   pinhole_t() {}
 
-  pinhole_t(const int img_w,
-            const int img_h,
+  pinhole_t(const int resolution[2],
             const vecx_t &proj_params,
             const vecx_t &dist_params)
-    : projection_t<DM>{img_w, img_h, proj_params, dist_params} {}
+    : projection_t<DM>{resolution, proj_params, dist_params} {}
 
-  pinhole_t(const int img_w,
-            const int img_h,
-            const real_t *proj_params,
-            const real_t *dist_params)
-    : projection_t<DM>{img_w, img_h, proj_params, proj_params_size, dist_params} {}
+  pinhole_t(const int resolution[2],
+            const vecx_t &params)
+    : projection_t<DM>{resolution, params, proj_params_size, DM::params_size} {}
 
-  pinhole_t(const int img_w,
-            const int img_h,
+  pinhole_t(const int resolution[2],
             const real_t fx,
             const real_t fy,
             const real_t cx,
             const real_t cy)
-      : projection_t<DM>{img_w, img_h, vec4_t{fx, fy, cx, cy}, zeros(0)} {}
+      : projection_t<DM>{resolution, vec4_t{fx, fy, cx, cy}, zeros(0)} {}
 
   ~pinhole_t() {}
 
@@ -2879,8 +3440,8 @@ struct pinhole_t : projection_t<DM> {
     z_hat(1) = fy() * p_dist(1) + cy();
 
     // Check projection
-    const bool x_ok = (z_hat(0) >= 0 && z_hat(0) <= this->img_w);
-    const bool y_ok = (z_hat(1) >= 0 && z_hat(1) <= this->img_h);
+    const bool x_ok = (z_hat(0) >= 0 && z_hat(0) <= this->resolution[0]);
+    const bool y_ok = (z_hat(1) >= 0 && z_hat(1) <= this->resolution[1]);
     if (x_ok == false || y_ok == false) {
       return -2;
     }
@@ -2950,6 +3511,19 @@ struct pinhole_t : projection_t<DM> {
   matx_t J_dist(const vec2_t &p) const {
     return J_point() * this->distortion.J_dist(p);
   }
+
+  matx_t J_params(const vec2_t &p) {
+    return static_cast<const pinhole_t &>(*this).J_params(p);
+  }
+
+  matx_t J_params(const vec2_t &p) const {
+    const vec2_t p_dist = this->distortion.distort(p);
+
+    matx_t J = zeros(2, params_size);
+    J.block(0, 0, 2, proj_params_size) = J_proj(p_dist);
+    J.block(0, dist_params_size, 2, proj_params_size) = J_dist(p);
+    return J;
+  }
 };
 
 typedef pinhole_t<radtan4_t> pinhole_radtan4_t;
@@ -2981,104 +3555,102 @@ mat3_t pinhole_K(const int img_w,
                  const real_t lens_hfov,
                  const real_t lens_vfov);
 
-template <typename T>
-int pinhole_radtan4_project(const Eigen::Matrix<T, 8, 1> &params,
-                            const Eigen::Matrix<T, 3, 1> &point,
-                            Eigen::Matrix<T, 2, 1> &image_point) {
-  // Check for singularity
-  const T z_norm = sqrt(point(2) * point(2)); // std::abs doesn't work for all T
-  if ((T) z_norm < (T) 1.0e-12) {
-    return -1;
-  }
+/******************************************************************************
+ *                               PARAMETERS
+ *****************************************************************************/
 
-  // Extract intrinsics params
-  const T fx = params(0);
-  const T fy = params(1);
-  const T cx = params(2);
-  const T cy = params(3);
-  const T k1 = params(4);
-  const T k2 = params(5);
-  const T p1 = params(6);
-  const T p2 = params(7);
+struct imu_params_t {
+  real_t rate = 0.0;        // IMU rate [Hz]
+  real_t tau_a = 0.0;       // Reversion time constant for accel [s]
+  real_t tau_g = 0.0;       // Reversion time constant for gyro [s]
+  real_t sigma_g_c = 0.0;   // Gyro noise density [rad/s/sqrt(Hz)]
+  real_t sigma_a_c = 0.0;   // Accel noise density [m/s^s/sqrt(Hz)]
+  real_t sigma_gw_c = 0.0;  // Gyro drift noise density [rad/s^s/sqrt(Hz)]
+  real_t sigma_aw_c = 0.0;  // Accel drift noise density [m/s^2/sqrt(Hz)]
+  real_t g = 9.81;          // Gravity vector [ms-2]
+};
 
-  // Project
-  const T x = point(0) / point(2);
-  const T y = point(1) / point(2);
+/*****************************************************************************
+ *                               SIMULATION
+ *****************************************************************************/
 
-  // Apply Radial distortion factor
-  const T x2 = x * x;
-  const T y2 = y * y;
-  const T r2 = x2 + y2;
-  const T r4 = r2 * r2;
-  const T radial_factor = T(1) + (k1 * r2) + (k2 * r4);
-  const T x_dash = x * radial_factor;
-  const T y_dash = y * radial_factor;
+enum sim_event_type_t {
+  NOT_SET,
+  CAMERA,
+  IMU,
+};
 
-  // Apply Tangential distortion factor
-  const T xy = x * y;
-  const T x_ddash = x_dash + (T(2) * p1 * xy + p2 * (r2 + T(2) * x2));
-  const T y_ddash = y_dash + (p1 * (r2 + T(2) * y2) + T(2) * p2 * xy);
+struct sim_event_t {
+  sim_event_type_t type = NOT_SET;
+  int sensor_id = 0;
+  timestamp_t ts = 0;
+  imu_meas_t imu;
+  cam_frame_t frame;
 
-  // Scale and center
-  image_point(0) = fx * x_ddash + cx;
-  image_point(1) = fy * y_ddash + cy;
+  // Camera event
+  sim_event_t(const int sensor_id_,
+              const timestamp_t &ts_,
+              const vec2s_t &keypoints_,
+              const std::vector<size_t> &feature_idxs_)
+    : type{CAMERA},
+      sensor_id{sensor_id_},
+      ts{ts_},
+      frame{ts_, keypoints_, feature_idxs_} {}
 
-  if (point(2) > T(0.0)) {
-    return 0; // Point is infront of camera
-  } else {
-    return 1; // Point is behind camera
-  }
-}
+  // IMU event
+  sim_event_t(const int sensor_id_, const timestamp_t &ts_,
+              const vec3_t &accel_, const vec3_t &gyro_)
+    : type{IMU}, sensor_id{sensor_id_}, ts{ts_}, imu{ts_, accel_, gyro_} {}
+};
 
-template <typename T>
-int pinhole_equi4_project(const Eigen::Matrix<T, 8, 1> &params,
-                          const Eigen::Matrix<T, 3, 1> &point,
-                          Eigen::Matrix<T, 2, 1> &image_point) {
-  // Check for singularity
-  const T z_norm = sqrt(point(2) * point(2)); // std::abs doesn't work for all T
-  if ((T) z_norm < (T) 1.0e-12) {
-    return -1;
-  }
+struct vio_sim_data_t {
+  // Settings
+  real_t sensor_velocity = 0.3;
+  real_t cam_rate = 30;
+  real_t imu_rate = 400;
 
-  // Extract intrinsics params
-  const T fx = params(0);
-  const T fy = params(1);
-  const T cx = params(2);
-  const T cy = params(3);
-  const T k1 = params(4);
-  const T k2 = params(5);
-  const T k3 = params(6);
-  const T k4 = params(7);
+  // Scene data
+  vec3s_t features;
 
-  // Project
-  const T x = point(0) / point(2);
-  const T y = point(1) / point(2);
+  // Camera data
+  timestamps_t cam_ts;
+  vec3s_t cam_pos_gnd;
+  quats_t cam_rot_gnd;
+  mat4s_t cam_poses_gnd;
+  vec3s_t cam_pos;
+  quats_t cam_rot;
+  mat4s_t cam_poses;
+  std::vector<std::vector<size_t>> observations;
+  std::vector<vec2s_t> keypoints;
 
-	// Apply equi distortion
-	const T r = sqrt(x * x + y * y);
-	if ((T) r < (T) 1e-8) {
-		return -1;
-	}
-	const T th = atan(r);
-	const T th2 = th * th;
-	const T th4 = th2 * th2;
-	const T th6 = th4 * th2;
-	const T th8 = th4 * th4;
-	const T thd = th * (T(1.0) + k1 * th2 + k2 * th4 + k3 * th6 + k4 * th8);
-	const T x_dash = (thd / r) * x;
-	const T y_dash = (thd / r) * y;
+  // IMU data
+  timestamps_t imu_ts;
+  vec3s_t imu_acc;
+  vec3s_t imu_gyr;
+  vec3s_t imu_pos;
+  quats_t imu_rot;
+  mat4s_t imu_poses;
+  vec3s_t imu_vel;
 
-  // Scale and center
-  image_point(0) = fx * x_dash + cx;
-  image_point(1) = fy * y_dash + cy;
+  // Simulation timeline
+  std::multimap<timestamp_t, sim_event_t> timeline;
 
-  if (point(2) > T(0.0)) {
-    return 0; // Point is infront of camera
-  } else {
-    return 1; // Point is behind camera
-  }
-}
+  // Add IMU measurement to timeline
+  void add(const int sensor_id,
+           const timestamp_t &ts,
+           const vec3_t &accel,
+           const vec3_t &gyro);
+
+  // Add camera frame to timeline
+  void add(const int sensor_id,
+           const timestamp_t &ts,
+           const vec2s_t &keypoints,
+           const std::vector<size_t> &feature_idxs);
+
+  void save(const std::string &dir);
+};
+
+void sim_circle_trajectory(const real_t circle_r, vio_sim_data_t &sim_data);
 
 } //  namespace yac
-
 #endif // YAC_CORE_HPP

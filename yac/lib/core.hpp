@@ -1653,6 +1653,12 @@ Eigen::Matrix<T, 4, 4> tf(const Eigen::Matrix<T, 3, 3> &C,
  * Form a 4x4 homogeneous transformation matrix from a pointer to real_t array
  * containing (quaternion + translation) 7 elements: (qw, qx, qy, qz, x, y, z)
  */
+mat4_t tf(const double *params);
+
+/**
+ * Form a 4x4 homogeneous transformation matrix from a pointer to real_t array
+ * containing (quaternion + translation) 7 elements: (qw, qx, qy, qz, x, y, z)
+ */
 mat4_t tf(const vecx_t &params);
 
 /**

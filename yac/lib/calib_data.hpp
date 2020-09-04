@@ -206,6 +206,11 @@ struct calib_params_t {
 		return res;
 	}
 
+	std::vector<int> resolution() const {
+		std::vector<int> res{img_w, img_h};
+		return res;
+	}
+
   std::string toString(const int cam_index=-1) const {
     const std::string indent = (cam_index != -1) ? "  " : "";
     const std::string str_img_w = std::to_string(img_w);

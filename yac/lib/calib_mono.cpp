@@ -7,12 +7,8 @@ namespace yac {
  ****************************************************************************/
 
 static int process_aprilgrid(const aprilgrid_t &aprilgrid,
-                             const int resolution[2],
-                             const std::string &proj_model,
-                             const std::string &dist_model,
-                             double *intrinsics,
-                             double *distortion,
-                             calib_pose_t *T_CF,
+                             calib_params_t &calib_params,
+                             pose_t &pose,
                              ceres::Problem &problem) {
   for (const auto &tag_id : aprilgrid.ids) {
     // Get keypoints
@@ -31,30 +27,84 @@ static int process_aprilgrid(const aprilgrid_t &aprilgrid,
 
     // Form residual block
     for (size_t i = 0; i < 4; i++) {
-      const auto cost_func = new calib_mono_residual_t{resolution,
-																											 proj_model,
-																											 dist_model,
-																											 keypoints[i],
-																											 object_points[i]};
-      problem.AddResidualBlock(cost_func, // Cost function
-                               NULL,      // Loss function
-                               T_CF->q,
-                               T_CF->r,
-                               intrinsics,
-                               distortion);
+      const auto kp = keypoints[i];
+      const auto obj_pt = object_points[i];
+      const auto cost_func = new calib_mono_residual_t{calib_params, kp, obj_pt};
+      problem.AddResidualBlock(cost_func,
+                               NULL,
+                               pose.param.data(),
+                               calib_params.proj_params.data(),
+                               calib_params.dist_params.data());
     }
   }
 
   return 0;
 }
 
+class PoseLocalParameterization : public ceres::LocalParameterization {
+public:
+  PoseLocalParameterization() {}
+  virtual ~PoseLocalParameterization() {}
+
+  virtual bool Plus(const double *x, const double *delta,
+                    double *x_plus_delta) const {
+		// Form transform
+		mat4_t T = tf(x);
+
+		// Update rotation
+		vec3_t dalpha{delta[0], delta[1], delta[2]};
+		quat_t q = tf_quat(T);
+		quat_t dq = quat_delta(dalpha);
+		q = dq * q;
+		q.normalize();
+
+		// Update translation
+		vec3_t dr{delta[3], delta[4], delta[5]};
+		vec3_t r = tf_trans(T);
+		r = r + dr;
+
+		// Copy results to `x_plus_delta`
+		x_plus_delta[0] = q.x();
+		x_plus_delta[1] = q.y();
+		x_plus_delta[2] = q.z();
+		x_plus_delta[3] = q.w();
+
+		x_plus_delta[4] = r(0);
+		x_plus_delta[5] = r(1);
+		x_plus_delta[6] = r(2);
+
+		return true;
+	}
+
+  // Jacobian of Plus(x, delta) w.r.t delta at delta = 0.
+  virtual bool ComputeJacobian(const double *x, double *jacobian) const {
+		Eigen::Map<Eigen::Matrix<double, 7, 6, Eigen::RowMajor>> Jp(jacobian);
+		Jp.setZero();
+		Jp.bottomRightCorner<3, 3>().setIdentity();
+
+    mat_t<4, 3> S = zeros(4, 3);
+    S(0, 0) = 0.5;
+    S(1, 1) = 0.5;
+    S(2, 2) = 0.5;
+
+    mat4_t T = tf(x);
+    quat_t q = tf_quat(T);
+    Jp.block<4, 3>(0, 0) = oplus(q) * S;
+
+		return true;
+	}
+
+  virtual int GlobalSize() const { return 7; }
+  virtual int LocalSize() const { return 6; }
+};
+
 int calib_mono_solve(const aprilgrids_t &aprilgrids,
                      calib_params_t &calib_params,
                      mat4s_t &T_CF) {
   // Optimization variables
-  std::vector<calib_pose_t> T_CF_params;
+  std::vector<pose_t> poses;
   for (size_t i = 0; i < aprilgrids.size(); i++) {
-    T_CF_params.emplace_back(aprilgrids[i].T_CF);
+    poses.emplace_back(i, i, aprilgrids[i].T_CF);
   }
 
   // Setup optimization problem
@@ -62,25 +112,21 @@ int calib_mono_solve(const aprilgrids_t &aprilgrids,
   problem_options.local_parameterization_ownership =
       ceres::DO_NOT_TAKE_OWNERSHIP;
   ceres::Problem problem(problem_options);
-  ceres::EigenQuaternionParameterization quaternion_parameterization;
+  // ceres::EigenQuaternionParameterization quaternion_parameterization;
+  PoseLocalParameterization pose_parameterization;
 
   // Process all aprilgrid data
-	int resolution[2] = {calib_params.img_w, calib_params.img_h};
   for (size_t i = 0; i < aprilgrids.size(); i++) {
     int retval = process_aprilgrid(aprilgrids[i],
-                                   resolution,
-                                   calib_params.proj_model,
-                                   calib_params.dist_model,
-                                   calib_params.proj_params.data(),
-                                   calib_params.dist_params.data(),
-                                   &T_CF_params[i],
+                                   calib_params,
+                                   poses[i],
                                    problem);
     if (retval != 0) {
       LOG_ERROR("Failed to add AprilGrid measurements to problem!");
       return -1;
     }
-    problem.SetParameterization(T_CF_params[i].q,
-                                &quaternion_parameterization);
+    problem.SetParameterization(poses[i].param.data(),
+                                &pose_parameterization);
   }
 
   // Set solver options
@@ -94,28 +140,10 @@ int calib_mono_solve(const aprilgrids_t &aprilgrids,
   ceres::Solve(options, &problem, &summary);
   std::cout << summary.FullReport() << std::endl;
 
-  // // Estimate covariance matrix
-  // std::vector<std::pair<const double*, const double*>> covar_blocks;
-  // double *proj_params = calib_params.proj_params.data();
-  // covar_blocks.push_back(std::make_pair(proj_params, proj_params));
-  // printf("nb covar blocks: %zu\n", covar_blocks.size());
-  //
-  // ceres::Covariance::Options covar_options;
-  // ceres::Covariance covar_est(covar_options);
-  // const auto retval = covar_est.Compute(covar_blocks, &problem);
-  // if (retval == false) {
-  //   printf("Failed to estimate covariance!\n");
-  // }
-  //
-  // double proj_proj_covar[4 * 4] = {0};
-  // covar_est.GetCovarianceBlock(proj_params, proj_params, proj_proj_covar);
-  // Eigen::Map<Eigen::Matrix<double, 4, 4, Eigen::RowMajor>> covar_mat(proj_proj_covar);
-  // print_matrix("covar_mat", covar_mat);
-
   // Clean up
   T_CF.clear();
-  for (auto pose_param : T_CF_params) {
-    T_CF.push_back(pose_param.T());
+  for (auto pose : poses) {
+    T_CF.push_back(pose.tf());
   }
 
   return 0;
@@ -238,21 +266,14 @@ int calib_mono_solve(const std::string &config_file) {
 int calib_mono_stats(const aprilgrids_t &aprilgrids,
                      const calib_params_t &calib_params,
                      const mat4s_t &poses) {
-  const std::string proj_model = calib_params.proj_model;
-  const std::string dist_model = calib_params.dist_model;
-  const double *proj_params = calib_params.proj_params.data();
-  const double *dist_params = calib_params.dist_params.data();
-
   // Obtain residuals using optimized params
-	int resolution[2] = {calib_params.img_w, calib_params.img_h};
   vec2s_t residuals;
   for (size_t i = 0; i < aprilgrids.size(); i++) {
     const auto aprilgrid = aprilgrids[i];
 
     // Form relative pose
     const mat4_t T_CF = poses[i];
-    const quat_t q_CF = tf_quat(T_CF);
-    const vec3_t r_CF = tf_trans(T_CF);
+    pose_t pose(i, i, T_CF);
 
     // Iterate over all tags in AprilGrid
     for (const auto &tag_id : aprilgrid.ids) {
@@ -272,24 +293,18 @@ int calib_mono_stats(const aprilgrids_t &aprilgrids,
 
       // Form residual and call the functor for four corners of the tag
       for (size_t j = 0; j < 4; j++) {
-        real_t res[2] = {0.0, 0.0};
-        // const calib_mono_residual_t residual{proj_model, dist_model,
-        //                                      keypoints[j], object_points[j]};
-        // residual(proj_params,
-        //          dist_params,
-        //          q_CF.coeffs().data(),
-        //          r_CF.data(),
-        //          res);
-        const calib_mono_residual_t residual{resolution, proj_model, dist_model,
-																						 keypoints[j], object_points[j]};
+        const auto kp = keypoints[j];
+        const auto obj_pt = object_points[j];
+        const calib_mono_residual_t residual{calib_params,kp, obj_pt};
 
-				const double *parameters[4] = {q_CF.coeffs().data(),
-																			 r_CF.data(),
-																			 proj_params,
-															   			 dist_params};
+        std::vector<const double *> params;
+				params.push_back(pose.param.data());
+				params.push_back(calib_params.proj_params.data());
+				params.push_back(calib_params.dist_params.data());
 
-				residual.Evaluate(parameters, res, nullptr);
-        residuals.emplace_back(res[0], res[1]);
+        vec2_t r;
+				residual.Evaluate(params.data(), r.data(), nullptr);
+        residuals.push_back(r);
       }
     }
   }
@@ -304,10 +319,194 @@ int calib_mono_stats(const aprilgrids_t &aprilgrids,
   const real_t err_mean = err_sum / (real_t) residuals.size();
   const real_t rmse = sqrt(err_mean);
   std::cout << "nb_residuals: " << residuals.size() << std::endl;
-  std::cout << "RMSE Reprojection Error [px]: " << rmse << std::endl;
+  std::cout << "rmse reproj error [px]: " << rmse << std::endl;
 
   return 0;
 }
+
+struct cost_func_spec_t {
+  const ceres::CostFunction *cost_fn;
+  const std::vector<const double *> params;
+  const std::vector<std::string> param_types;
+  const std::vector<int> min_param_sizes;
+  size_t nb_res = 0;
+  size_t nb_params = 0;
+  std::vector<int> parameter_block_sizes;
+
+  bool status = false;
+  double *r;
+  double **J;
+
+  cost_func_spec_t(const ceres::CostFunction *cost_fn_,
+                   const std::vector<const double *> &params_,
+                   const std::vector<std::string> &param_types_,
+                   const std::vector<int> &min_param_sizes_)
+    : cost_fn{cost_fn_},
+      params{params_},
+      param_types{param_types_},
+      min_param_sizes{min_param_sizes_},
+      nb_res{(size_t) cost_fn->num_residuals()},
+      nb_params{cost_fn->parameter_block_sizes().size()},
+      parameter_block_sizes{cost_fn->parameter_block_sizes()} {
+    // Allocate memory for residual vector
+    r = (double *) malloc(sizeof(double) * nb_res);
+
+    // Allocate memory for jacobians
+    J = (double **) malloc(sizeof(double *) * nb_params);
+    for (size_t i = 0; i < nb_params; i++) {
+      const auto &block_size = cost_fn->parameter_block_sizes()[i];
+      J[i] = (double *) malloc(sizeof(double) * block_size);
+    }
+
+    // Evaluate
+    status = cost_fn->Evaluate(params.data(), r, J);
+  }
+
+  virtual ~cost_func_spec_t() {
+    // Free residual vector
+    free(r);
+
+    // Free jacobians
+    size_t nb_params = cost_fn->parameter_block_sizes().size();
+    for (size_t i = 0; i < nb_params; i++) {
+      free(J[i]);
+    }
+    free(J);
+  }
+};
+
+struct calib_mono_covar_est_t {
+  const calib_params_t &calib_params;
+  std::vector<cost_func_spec_t> cost_specs;
+  std::vector<ceres::CostFunction *> cost_funcs;
+  std::vector<calib_pose_t *> poses;
+
+  calib_mono_covar_est_t(const calib_params_t &calib_params_)
+    : calib_params{calib_params_} {}
+
+  virtual ~calib_mono_covar_est_t() {
+    for (const auto &pose : poses) {
+      free(pose);
+    }
+  }
+
+  void add(const aprilgrid_t &grid, const mat4_t &T_CF) {
+    // Add pose
+    auto pose = new calib_pose_t(T_CF);
+    poses.push_back(pose);
+
+    // Add reprojection residuals
+    for (const auto &tag_id : grid.ids) {
+      // Get keypoints
+      vec2s_t keypoints;
+      if (aprilgrid_get(grid, tag_id, keypoints) != 0) {
+        FATAL("Failed to get AprilGrid keypoints!");
+      }
+
+      // Get object points
+      vec3s_t object_points;
+      if (aprilgrid_object_points(grid, tag_id, object_points) != 0) {
+        FATAL("Failed to calculate AprilGrid object points!");
+      }
+
+      // Form residual block
+      for (size_t i = 0; i < 4; i++) {
+        auto kp = keypoints[i];
+        auto obj_pt = object_points[i];
+        auto cost_fn = new calib_mono_residual_t{calib_params, kp, obj_pt};
+        cost_funcs.push_back(cost_fn);
+
+        std::vector<const double *> params;
+        params.push_back(pose->q);
+        params.push_back(pose->r);
+        params.push_back(calib_params.proj_params.data());
+        params.push_back(calib_params.dist_params.data());
+
+        std::vector<std::string> param_types;
+        param_types.push_back("quat");
+        param_types.push_back("trans");
+        param_types.push_back("proj_params");
+        param_types.push_back("dist_params");
+
+        std::vector<int> min_param_sizes;
+        min_param_sizes.push_back(3);
+        min_param_sizes.push_back(3);
+        min_param_sizes.push_back(4);
+        min_param_sizes.push_back(4);
+
+        cost_specs.emplace_back(cost_fn, params, param_types, min_param_sizes);
+      }
+    }
+  }
+
+  matx_t estimate_covariance() {
+    std::unordered_map<std::string, size_t> param_cs;
+    param_cs["quat"] = 0;
+    param_cs["trans"] = 0;
+    param_cs["proj_params"] = poses.size() * 6; ;
+    param_cs["dist_params"] = param_cs["proj_params"] + 8;
+
+    // Assign param global index
+    size_t params_size = 0;
+    std::vector<int> factor_ok;
+    std::unordered_map<const double *, size_t> param_index; // double * - column start
+
+    for (const auto &spec : cost_specs) {
+      for (size_t i = 0; i < spec.nb_params; i++) {
+        const auto param = spec.params[i];
+        const auto param_type = spec.param_types[i];
+        const auto param_size = spec.parameter_block_sizes[i];
+        if (param_index.count(param) > 0) {
+          continue; // Skip this param
+        }
+
+        param_index.insert({param, param_cs[param_type]});
+        param_cs[param_type] += param_size;
+        params_size += param_size;
+      }
+    }
+
+    // Form Hessian
+    size_t nb_cols = poses.size() * 6 + 8;
+    size_t nb_rows = cost_funcs.size() * 2;
+    matx_t H = zeros(nb_rows, nb_cols);
+
+    return H;
+  }
+};
+
+
+// int calib_mono_estimate_covariance(const aprilgrids_t &aprilgrids,
+//                                    calib_params_t &calib_params,
+//                                    mat4s_t &T_CF) {
+//   // Optimization variables
+//   std::vector<calib_pose_t> T_CF_params;
+//   for (size_t i = 0; i < aprilgrids.size(); i++) {
+//     T_CF_params.emplace_back(aprilgrids[i].T_CF);
+//   }
+//
+//   // Process all aprilgrid data
+//   for (size_t i = 0; i < aprilgrids.size(); i++) {
+//     int retval = process_aprilgrid(aprilgrids[i],
+//                                    calib_params.resolution().data(),
+//                                    calib_params.proj_model,
+//                                    calib_params.dist_model,
+//                                    calib_params.proj_params.data(),
+//                                    calib_params.dist_params.data(),
+//                                    &T_CF_params[i],
+//                                    problem);
+//     if (retval != 0) {
+//       LOG_ERROR("Failed to add AprilGrid measurements to problem!");
+//       return -1;
+//     }
+//     problem.SetParameterization(T_CF_params[i].q,
+//                                 &quaternion_parameterization);
+//   }
+//
+//
+//   return 0;
+// }
+
 
 mat4_t calib_target_origin(const calib_target_t &target,
                            const vec2_t &cam_res,

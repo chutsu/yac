@@ -1991,9 +1991,15 @@ real_t gauss_normal() {
  *                               TRANSFORM
  *****************************************************************************/
 
+mat4_t tf(const double *params) {
+  const quat_t q{params[3], params[0], params[1], params[2]};
+  const vec3_t r{params[4], params[5], params[6]};
+  return tf(q, r);
+}
+
 mat4_t tf(const vecx_t &params) {
   assert(params.size() == 7);
-  const quat_t q{params(0), params(1), params(2), params(3)};
+  const quat_t q{params(3), params(0), params(1), params(2)};
   const vec3_t r{params(4), params(5), params(6)};
   return tf(q, r);
 }

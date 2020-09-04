@@ -9,6 +9,7 @@
 
 #include "core.hpp"
 #include "calib_data.hpp"
+#include "factor.hpp"
 
 namespace yac {
 
@@ -26,69 +27,62 @@ static mat4_t oplus(const quat_t & q_BC) {
 }
 
 static matx_t lift_quaternion(const quat_t &q) {
-  mat_t<3, 4> Jq_pinv = zeros(3, 4);
-  Jq_pinv.topLeftCorner<3, 3>() = 2.0 * I(3);
+  // clang-format off
+  mat_t<3, 4, Eigen::RowMajor> Jq_pinv;
+  Jq_pinv << 2.0, 0.0, 0.0, 0.0,
+             0.0, 2.0, 0.0, 0.0,
+             0.0, 0.0, 2.0, 0.0;
+  // clang-format on
 
   const Eigen::Quaterniond q_inv(q.w(), -q.x(), -q.y(), -q.z());
-
-  Eigen::Matrix<double, 3, 4, Eigen::RowMajor> J_lift = Jq_pinv * oplus(q_inv);
-
-  return J_lift;
+  return Jq_pinv * oplus(q_inv);
 }
 
 /**
  * Calibration mono residual
  */
 struct calib_mono_residual_t
-		: public ceres::SizedCostFunction<2, 4, 3, 4, 4> {
+		: public ceres::SizedCostFunction<2, 7, 4, 4> {
   int resolution_[2] = {0, 0};
   std::string proj_model_ = "pinhole";
   std::string dist_model_ = "radtan4";
   vec2_t z_{0.0, 0.0};        ///< Measurement
   vec3_t r_FFi_{0.0, 0.0, 0.0}; ///< Object point
 
-  calib_mono_residual_t(const int resolution[2],
-                        const std::string &proj_model,
-                        const std::string &dist_model,
+  calib_mono_residual_t(const calib_params_t &calib_params,
                         const vec2_t &z,
                         const vec3_t &r_FFi)
-      : resolution_{resolution[0], resolution[1]},
-        proj_model_{proj_model},
-        dist_model_{dist_model},
+      : resolution_{calib_params.img_w, calib_params.img_h},
+        proj_model_{calib_params.proj_model},
+        dist_model_{calib_params.dist_model},
         z_{z(0), z(1)},
         r_FFi_{r_FFi(0), r_FFi(1), r_FFi(2)} {}
 
   ~calib_mono_residual_t() {}
 
-  /**
-   * Calculate residual (auto diff version)
-   */
   bool Evaluate(double const * const *parameters,
                 double *residuals,
-                double **jacobians) const {
+                double **jacobians,
+                double **jacobians_min) const {
     // Map camera-fiducial pose
-    const quat_t q_CF(parameters[0][3],
-                      parameters[0][0],
-                      parameters[0][1],
-                      parameters[0][2]);
-    const mat3_t C_CF = q_CF.toRotationMatrix();
-    const vec3_t r_CF{parameters[1][0], parameters[1][1], parameters[1][2]};
-    const mat4_t T_CF = tf(C_CF, r_CF);
+    const mat4_t T_CF = tf(parameters[0]);
+    const mat3_t C_CF = tf_rot(T_CF);
+    const quat_t q_CF{C_CF};
 
     // Map camera parameters
     vecx_t proj_params;
 		proj_params.resize(4);
-    proj_params << parameters[2][0],
-                   parameters[2][1],
-                   parameters[2][2],
-                   parameters[2][3];
+    proj_params << parameters[1][0],
+                   parameters[1][1],
+                   parameters[1][2],
+                   parameters[1][3];
 
     vecx_t dist_params;
 		dist_params.resize(4);
-    dist_params << parameters[3][0],
-                   parameters[3][1],
-                   parameters[3][2],
-                   parameters[3][3];
+    dist_params << parameters[2][0],
+                   parameters[2][1],
+                   parameters[2][2],
+                   parameters[2][3];
 
     // Transform and project point to image plane
     const vec3_t r_CFi = tf_point(T_CF, r_FFi_);
@@ -124,45 +118,124 @@ struct calib_mono_residual_t
     if (jacobians) {
       // Jacobians w.r.t q_CF
       if (jacobians[0]) {
-        Eigen::Matrix<double, 2, 3, Eigen::RowMajor> J0_min;
-        J0_min = -1 * Jh * -skew(C_CF * r_FFi_);
+        Eigen::Matrix<double, 2, 6, Eigen::RowMajor> J0_min;
+        J0_min.block(0, 0, 2, 3) = -1 * Jh * -skew(C_CF * r_FFi_);
+        J0_min.block(0, 3, 2, 3) = -1 * Jh * I(3);
 				if (valid == false) {
 					J0_min.setZero();
 				}
 
-        Eigen::Map<Eigen::Matrix<double, 2, 4, Eigen::RowMajor>> J0(jacobians[0]);
-        J0 = J0_min * lift_quaternion(q_CF);
-      }
+        Eigen::Matrix<double, 6, 7, Eigen::RowMajor> J_lift;
+        J_lift.setZero();
+        J_lift.topLeftCorner<3, 4>() = lift_quaternion(q_CF);
+        J_lift.bottomRightCorner<3, 3>().setIdentity();
 
-      // Jacobians w.r.t r_CF
-      if (jacobians[1]) {
-        Eigen::Map<Eigen::Matrix<double, 2, 3, Eigen::RowMajor>> J1(jacobians[1]);
-        J1 = -1 * Jh * I(3);
-				if (valid == false) {
-					J1.setZero();
-				}
+        Eigen::Map<Eigen::Matrix<double, 2, 7, Eigen::RowMajor>> J0(jacobians[0]);
+        J0 = J0_min * J_lift;
+
+        if (jacobians_min && jacobians_min[0]) {
+          Eigen::Map<Eigen::Matrix<double, 2, 6, Eigen::RowMajor>> J(jacobians_min[0]);
+          J = J0_min;
+        }
       }
 
       // Jacobians w.r.t proj parameters
-      if (jacobians[2]) {
-        Eigen::Map<Eigen::Matrix<double, 2, 4, Eigen::RowMajor>> J2(jacobians[2]);
-        J2 = -1 * J_params.block(0, 0, 2, 4);
+      if (jacobians[1]) {
+        Eigen::Map<Eigen::Matrix<double, 2, 4, Eigen::RowMajor>> J1(jacobians[1]);
+        J1 = -1 * J_params.block(0, 0, 2, 4);
 				if (valid == false) {
-					J2.setZero();
+					J1.setZero();
 				}
+
+        if (jacobians_min && jacobians_min[1]) {
+          Eigen::Map<Eigen::Matrix<double, 2, 4, Eigen::RowMajor>> J(jacobians_min[1]);
+          J = J1;
+        }
       }
 
       // Jacobians w.r.t dist parameters
-      if (jacobians[3]) {
-        Eigen::Map<Eigen::Matrix<double, 2, 4, Eigen::RowMajor>> J3(jacobians[3]);
-        J3 = -1 * J_params.block(0, 4, 2, 4);
+      if (jacobians[2]) {
+        Eigen::Map<Eigen::Matrix<double, 2, 4, Eigen::RowMajor>> J2(jacobians[2]);
+        J2 = -1 * J_params.block(0, 4, 2, 4);
 				if (valid == false) {
-					J3.setZero();
+					J2.setZero();
 				}
+
+        if (jacobians_min && jacobians_min[2]) {
+          Eigen::Map<Eigen::Matrix<double, 2, 4, Eigen::RowMajor>> J(jacobians_min[2]);
+          J = J2;
+        }
       }
+
+      // // Jacobians w.r.t q_CF
+      // if (jacobians[0]) {
+      //   Eigen::Matrix<double, 2, 3, Eigen::RowMajor> J0_min;
+      //   J0_min = -1 * Jh * -skew(C_CF * r_FFi_);
+			// 	if (valid == false) {
+			// 		J0_min.setZero();
+			// 	}
+      //
+      //   Eigen::Map<Eigen::Matrix<double, 2, 4, Eigen::RowMajor>> J0(jacobians[0]);
+      //   J0 = J0_min * lift_quaternion(q_CF);
+      //
+      //   if (jacobians_min && jacobians_min[0]) {
+      //     Eigen::Map<Eigen::Matrix<double, 2, 3, Eigen::RowMajor>> J(jacobians_min[0]);
+      //     J = J0_min;
+      //   }
+      // }
+      //
+      // // Jacobians w.r.t r_CF
+      // if (jacobians[1]) {
+      //   Eigen::Map<Eigen::Matrix<double, 2, 3, Eigen::RowMajor>> J1(jacobians[1]);
+      //   J1 = -1 * Jh * I(3);
+			// 	if (valid == false) {
+			// 		J1.setZero();
+			// 	}
+      //
+      //   if (jacobians_min && jacobians_min[1]) {
+      //     Eigen::Map<Eigen::Matrix<double, 2, 3, Eigen::RowMajor>> J(jacobians_min[1]);
+      //     J = J1;
+      //   }
+      // }
+
+      // // Jacobians w.r.t proj parameters
+      // if (jacobians[2]) {
+      //   Eigen::Map<Eigen::Matrix<double, 2, 4, Eigen::RowMajor>> J2(jacobians[2]);
+      //   J2 = -1 * J_params.block(0, 0, 2, 4);
+			// 	if (valid == false) {
+			// 		J2.setZero();
+			// 	}
+      //
+      //   if (jacobians_min && jacobians_min[2]) {
+      //     Eigen::Map<Eigen::Matrix<double, 2, 4, Eigen::RowMajor>> J(jacobians_min[2]);
+      //     J = J2;
+      //   }
+      // }
+      //
+      // // Jacobians w.r.t dist parameters
+      // if (jacobians[3]) {
+      //   Eigen::Map<Eigen::Matrix<double, 2, 4, Eigen::RowMajor>> J3(jacobians[3]);
+      //   J3 = -1 * J_params.block(0, 4, 2, 4);
+			// 	if (valid == false) {
+			// 		J3.setZero();
+			// 	}
+      //
+      //   if (jacobians_min && jacobians_min[3]) {
+      //     Eigen::Map<Eigen::Matrix<double, 2, 4, Eigen::RowMajor>> J(jacobians_min[3]);
+      //     J = J3;
+      //   }
+      // }
     }
 
     return true;
+
+
+  }
+
+  bool Evaluate(double const * const *parameters,
+                double *residuals,
+                double **jacobians) const {
+    return Evaluate(parameters, residuals, jacobians, nullptr);
   }
 };
 
@@ -175,6 +248,15 @@ struct calib_mono_residual_t
 int calib_mono_solve(const aprilgrids_t &aprilgrids,
                      calib_params_t &calib_params,
                      mat4s_t &T_CF);
+
+/**
+ * Estimate the covariance of the monocular camera calibration problem.
+ *
+ * @returns 0 or -1 for success or failure
+ */
+int calib_mono_estimate_covariance(const aprilgrids_t &aprilgrids,
+                                   calib_params_t &calib_params,
+                                   mat4s_t &T_CF);
 
 /**
  * Calibrate camera intrinsics and relative pose between camera and fiducial

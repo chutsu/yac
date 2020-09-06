@@ -288,7 +288,7 @@ int calib_stereo_solve(const std::string &config_file) {
   std::cout << cam1_params.toString(1) << std::endl;
   std::cout << "T_C0C1:\n" << T_C0C1 << std::endl;
   std::cout << std::endl;
-  calib_mono_stats(cam0_aprilgrids, cam0_params, T_C0F);
+  // calib_mono_stats(cam0_aprilgrids, cam0_params, T_C0F);
 
   // Save results
   printf("\x1B[92mSaving optimization results to [%s]\033[0m\n",

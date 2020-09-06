@@ -6,8 +6,8 @@ set -e
 # mkdir -p build && cd build && cmake .. -DCMAKE_BUILD_TYPE=Release && make -j4
 
 cd ~/catkin_ws
-# catkin build -DCMAKE_BUILD_TYPE=Debug yac
-catkin build -DCMAKE_BUILD_TYPE=Release yac
+catkin build -DCMAKE_BUILD_TYPE=Debug yac
+# catkin build -DCMAKE_BUILD_TYPE=Release yac
 # catkin build -DCMAKE_BUILD_TYPE=Release yac yac_ros
 
 # make
@@ -16,8 +16,8 @@ source ~/catkin_ws/devel/setup.bash
 
 # rosrun yac test_aprilgrid
 # rosrun yac test_calib_data
-# rosrun --prefix 'gdb -ex run' yac test_calib_mono
-rosrun yac test_calib_mono
+rosrun --prefix 'gdb -ex run' yac test_calib_mono
+# rosrun yac test_calib_mono
 # rosrun yac test_calib_stereo
 # rosrun yac test_calib_vi
 

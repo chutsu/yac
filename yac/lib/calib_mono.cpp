@@ -7,7 +7,7 @@ namespace yac {
  ****************************************************************************/
 
 static int process_aprilgrid(const aprilgrid_t &aprilgrid,
-                             calib_params_t &calib_params,
+                             camera_params_t &cam_params,
                              pose_t &pose,
                              ceres::Problem &problem) {
   for (const auto &tag_id : aprilgrid.ids) {
@@ -29,12 +29,11 @@ static int process_aprilgrid(const aprilgrid_t &aprilgrid,
     for (size_t i = 0; i < 4; i++) {
       const auto kp = keypoints[i];
       const auto obj_pt = object_points[i];
-      const auto cost_func = new calib_mono_residual_t{calib_params, kp, obj_pt};
+      const auto cost_func = new calib_mono_residual_t{cam_params, kp, obj_pt};
       problem.AddResidualBlock(cost_func,
                                NULL,
                                pose.param.data(),
-                               calib_params.proj_params.data(),
-                               calib_params.dist_params.data());
+                               cam_params.param.data());
     }
   }
 
@@ -99,7 +98,7 @@ public:
 };
 
 int calib_mono_solve(const aprilgrids_t &aprilgrids,
-                     calib_params_t &calib_params,
+                     camera_params_t &cam_params,
                      mat4s_t &T_CF) {
   // Optimization variables
   std::vector<pose_t> poses;
@@ -118,7 +117,7 @@ int calib_mono_solve(const aprilgrids_t &aprilgrids,
   // Process all aprilgrid data
   for (size_t i = 0; i < aprilgrids.size(); i++) {
     int retval = process_aprilgrid(aprilgrids[i],
-                                   calib_params,
+                                   cam_params,
                                    poses[i],
                                    problem);
     if (retval != 0) {
@@ -150,7 +149,7 @@ int calib_mono_solve(const aprilgrids_t &aprilgrids,
 }
 
 static int save_results(const std::string &save_path,
-                        const calib_params_t &cam) {
+                        const camera_params_t &params) {
   // Open results file
   FILE *outfile = fopen(save_path.c_str(), "w");
   if (outfile == NULL) {
@@ -158,13 +157,15 @@ static int save_results(const std::string &save_path,
   }
 
   // Save results
-  const char *proj_model = cam.proj_model.c_str();
-  const char *dist_model = cam.dist_model.c_str();
-  const std::string intrinsics = arr2str(cam.proj_params.data(), 4);
-  const std::string distortion = arr2str(cam.dist_params.data(), 4);
+  const int img_w = params.resolution[0];
+  const int img_h = params.resolution[1];
+  const char *proj_model = params.proj_model.c_str();
+  const char *dist_model = params.dist_model.c_str();
+  const std::string intrinsics = arr2str(params.proj_params().data(), 4);
+  const std::string distortion = arr2str(params.dist_params().data(), 4);
 
   fprintf(outfile, "cam0:\n");
-  fprintf(outfile, "  resolution: [%d, %d]\n", cam.img_w, cam.img_h);
+  fprintf(outfile, "  resolution: [%d, %d]\n", img_w, img_h);
   fprintf(outfile, "  proj_model: \"%s\"\n", proj_model);
   fprintf(outfile, "  dist_model: \"%s\"\n", dist_model);
   fprintf(outfile, "  proj_params: %s\n", intrinsics.c_str());
@@ -235,27 +236,41 @@ int calib_mono_solve(const std::string &config_file) {
   }
 
   // Setup initial camera intrinsics and distortion for optimization
-  calib_params_t calib_params(proj_model, dist_model,
-                              resolution(0), resolution(1),
-                              lens_hfov, lens_vfov);
+  // calib_params_t calib_params(proj_model, dist_model,
+  //                             resolution(0), resolution(1),
+  //                             lens_hfov, lens_vfov);
+
+  // Setup camera intrinsics and distortion
+  const id_t id = 0;
+  const int cam_idx = 0;
+  const int cam_res[2] = {(int) resolution[0], (int) resolution[1]};
+  const double fx = pinhole_focal(cam_res[0], 98.0);
+  const double fy = pinhole_focal(cam_res[1], 73.0);
+  const double cx = cam_res[0] / 2.0;
+  const double cy = cam_res[1] / 2.0;
+  const vec4_t proj_params{fx, fy, cx, cy};
+  const vec4_t dist_params{0.0, 0.0, 0.0, 0.0};
+  camera_params_t cam_params{id, cam_idx, cam_res,
+                             proj_model, dist_model,
+                             proj_params, dist_params};
 
   // Calibrate camera
   LOG_INFO("Calibrating camera!");
   mat4s_t T_CF;
-  if (calib_mono_solve(grids, calib_params, T_CF) != 0) {
+  if (calib_mono_solve(grids, cam_params, T_CF) != 0) {
     LOG_ERROR("Failed to calibrate camera data!");
     return -1;
   }
 
   // Show results
   std::cout << "Optimization results:" << std::endl;
-  std::cout << calib_params.toString(0) << std::endl;
-  calib_mono_stats(grids, calib_params, T_CF);
+  // std::cout << calib_params.toString(0) << std::endl;
+  calib_mono_stats(grids, cam_params, T_CF);
 
   // Save results
   printf("\x1B[92mSaving optimization results to [%s]\033[0m\n",
          results_fpath.c_str());
-  if (save_results(results_fpath, calib_params) != 0) {
+  if (save_results(results_fpath, cam_params) != 0) {
     LOG_ERROR("Failed to save results to [%s]!", results_fpath.c_str());
     return -1;
   }
@@ -264,7 +279,7 @@ int calib_mono_solve(const std::string &config_file) {
 }
 
 int calib_mono_stats(const aprilgrids_t &aprilgrids,
-                     const calib_params_t &calib_params,
+                     const camera_params_t &cam_params,
                      const mat4s_t &poses) {
   // Obtain residuals using optimized params
   vec2s_t residuals;
@@ -295,12 +310,11 @@ int calib_mono_stats(const aprilgrids_t &aprilgrids,
       for (size_t j = 0; j < 4; j++) {
         const auto kp = keypoints[j];
         const auto obj_pt = object_points[j];
-        const calib_mono_residual_t residual{calib_params,kp, obj_pt};
+        const calib_mono_residual_t residual{cam_params, kp, obj_pt};
 
         std::vector<const double *> params;
 				params.push_back(pose.param.data());
-				params.push_back(calib_params.proj_params.data());
-				params.push_back(calib_params.dist_params.data());
+				params.push_back(cam_params.param.data());
 
         vec2_t r;
 				residual.Evaluate(params.data(), r.data(), nullptr);
@@ -323,158 +337,6 @@ int calib_mono_stats(const aprilgrids_t &aprilgrids,
 
   return 0;
 }
-
-struct cost_func_spec_t {
-  const ceres::CostFunction *cost_fn;
-  const std::vector<const double *> params;
-  const std::vector<std::string> param_types;
-  const std::vector<int> min_param_sizes;
-  size_t nb_res = 0;
-  size_t nb_params = 0;
-  std::vector<int> parameter_block_sizes;
-
-  bool status = false;
-  double *r;
-  double **J;
-
-  cost_func_spec_t(const ceres::CostFunction *cost_fn_,
-                   const std::vector<const double *> &params_,
-                   const std::vector<std::string> &param_types_,
-                   const std::vector<int> &min_param_sizes_)
-    : cost_fn{cost_fn_},
-      params{params_},
-      param_types{param_types_},
-      min_param_sizes{min_param_sizes_},
-      nb_res{(size_t) cost_fn->num_residuals()},
-      nb_params{cost_fn->parameter_block_sizes().size()},
-      parameter_block_sizes{cost_fn->parameter_block_sizes()} {
-    // Allocate memory for residual vector
-    r = (double *) malloc(sizeof(double) * nb_res);
-
-    // Allocate memory for jacobians
-    J = (double **) malloc(sizeof(double *) * nb_params);
-    for (size_t i = 0; i < nb_params; i++) {
-      const auto &block_size = cost_fn->parameter_block_sizes()[i];
-      J[i] = (double *) malloc(sizeof(double) * block_size);
-    }
-
-    // Evaluate
-    status = cost_fn->Evaluate(params.data(), r, J);
-  }
-
-  virtual ~cost_func_spec_t() {
-    // Free residual vector
-    free(r);
-
-    // Free jacobians
-    size_t nb_params = cost_fn->parameter_block_sizes().size();
-    for (size_t i = 0; i < nb_params; i++) {
-      free(J[i]);
-    }
-    free(J);
-  }
-};
-
-struct calib_mono_covar_est_t {
-  const calib_params_t &calib_params;
-  std::vector<cost_func_spec_t> cost_specs;
-  std::vector<ceres::CostFunction *> cost_funcs;
-  std::vector<calib_pose_t *> poses;
-
-  calib_mono_covar_est_t(const calib_params_t &calib_params_)
-    : calib_params{calib_params_} {}
-
-  virtual ~calib_mono_covar_est_t() {
-    for (const auto &pose : poses) {
-      free(pose);
-    }
-  }
-
-  void add(const aprilgrid_t &grid, const mat4_t &T_CF) {
-    // Add pose
-    auto pose = new calib_pose_t(T_CF);
-    poses.push_back(pose);
-
-    // Add reprojection residuals
-    for (const auto &tag_id : grid.ids) {
-      // Get keypoints
-      vec2s_t keypoints;
-      if (aprilgrid_get(grid, tag_id, keypoints) != 0) {
-        FATAL("Failed to get AprilGrid keypoints!");
-      }
-
-      // Get object points
-      vec3s_t object_points;
-      if (aprilgrid_object_points(grid, tag_id, object_points) != 0) {
-        FATAL("Failed to calculate AprilGrid object points!");
-      }
-
-      // Form residual block
-      for (size_t i = 0; i < 4; i++) {
-        auto kp = keypoints[i];
-        auto obj_pt = object_points[i];
-        auto cost_fn = new calib_mono_residual_t{calib_params, kp, obj_pt};
-        cost_funcs.push_back(cost_fn);
-
-        std::vector<const double *> params;
-        params.push_back(pose->q);
-        params.push_back(pose->r);
-        params.push_back(calib_params.proj_params.data());
-        params.push_back(calib_params.dist_params.data());
-
-        std::vector<std::string> param_types;
-        param_types.push_back("quat");
-        param_types.push_back("trans");
-        param_types.push_back("proj_params");
-        param_types.push_back("dist_params");
-
-        std::vector<int> min_param_sizes;
-        min_param_sizes.push_back(3);
-        min_param_sizes.push_back(3);
-        min_param_sizes.push_back(4);
-        min_param_sizes.push_back(4);
-
-        cost_specs.emplace_back(cost_fn, params, param_types, min_param_sizes);
-      }
-    }
-  }
-
-  matx_t estimate_covariance() {
-    std::unordered_map<std::string, size_t> param_cs;
-    param_cs["quat"] = 0;
-    param_cs["trans"] = 0;
-    param_cs["proj_params"] = poses.size() * 6; ;
-    param_cs["dist_params"] = param_cs["proj_params"] + 8;
-
-    // Assign param global index
-    size_t params_size = 0;
-    std::vector<int> factor_ok;
-    std::unordered_map<const double *, size_t> param_index; // double * - column start
-
-    for (const auto &spec : cost_specs) {
-      for (size_t i = 0; i < spec.nb_params; i++) {
-        const auto param = spec.params[i];
-        const auto param_type = spec.param_types[i];
-        const auto param_size = spec.parameter_block_sizes[i];
-        if (param_index.count(param) > 0) {
-          continue; // Skip this param
-        }
-
-        param_index.insert({param, param_cs[param_type]});
-        param_cs[param_type] += param_size;
-        params_size += param_size;
-      }
-    }
-
-    // Form Hessian
-    size_t nb_cols = poses.size() * 6 + 8;
-    size_t nb_rows = cost_funcs.size() * 2;
-    matx_t H = zeros(nb_rows, nb_cols);
-
-    return H;
-  }
-};
-
 
 // int calib_mono_estimate_covariance(const aprilgrids_t &aprilgrids,
 //                                    calib_params_t &calib_params,

@@ -96,25 +96,79 @@ int test_calib_mono_solve() {
   // Load calibration data
   std::vector<aprilgrid_t> aprilgrids;
   std::vector<timestamp_t> timestamps;
-  int retval = load_camera_calib_data(APRILGRID_DATA, aprilgrids, timestamps);
-  MU_CHECK(retval == 0);
+  MU_CHECK(load_camera_calib_data(APRILGRID_DATA, aprilgrids, timestamps) == 0);
   MU_CHECK(aprilgrids.size() > 0);
   MU_CHECK(aprilgrids[0].ids.size() > 0);
 
   // Setup camera intrinsics and distortion
-  calib_params_t calib_params("pinhole", "radtan4",
-                              752, 480, 98.0, 73.0);
+  const id_t id = 0;
+  const int cam_idx = 0;
+  const int cam_res[2] = {752, 480};
+  const std::string proj_model = "pinhole";
+  const std::string dist_model = "radtan4";
+  const double fx = pinhole_focal(cam_res[0], 98.0);
+  const double fy = pinhole_focal(cam_res[1], 73.0);
+  const double cx = cam_res[0] / 2.0;
+  const double cy = cam_res[1] / 2.0;
+  const vec4_t proj_params{fx, fy, cx, cy};
+  const vec4_t dist_params{0.0, 0.0, 0.0, 0.0};
+  camera_params_t cam_params{id, cam_idx, cam_res,
+                             proj_model, dist_model,
+                             proj_params, dist_params};
 
   // Test
   mat4s_t T_CF;
-  MU_CHECK(calib_mono_solve(aprilgrids, calib_params, T_CF) == 0);
+  MU_CHECK(calib_mono_solve(aprilgrids, cam_params, T_CF) == 0);
   MU_CHECK(aprilgrids.size() == T_CF.size());
-  calib_mono_stats(aprilgrids, calib_params, T_CF);
+  calib_mono_stats(aprilgrids, cam_params, T_CF);
 
-  // Show results
-  // std::cout << "Optimized intrinsics and distortions:" << std::endl;
+  // // Show results
+  // std::cout << "Optimized results:" << std::endl;
   // print_vector("cam0.proj_params", calib_params.proj_params);
   // print_vector("cam0.dist_params", calib_params.dist_params);
+
+  return 0;
+}
+
+int test_calib_mono_estimate_covariance() {
+  // Load calibration data
+  std::vector<aprilgrid_t> aprilgrids;
+  std::vector<timestamp_t> timestamps;
+  MU_CHECK(load_camera_calib_data(APRILGRID_DATA, aprilgrids, timestamps) == 0);
+  MU_CHECK(aprilgrids.size() > 0);
+  MU_CHECK(aprilgrids[0].ids.size() > 0);
+
+  // Setup camera intrinsics and distortion
+  const int cam_idx = 0;
+  const int cam_res[2] = {752, 480};
+  const std::string proj_model = "pinhole";
+  const std::string dist_model = "radtan4";
+  const double fx = pinhole_focal(cam_res[0], 98.0);
+  const double fy = pinhole_focal(cam_res[1], 73.0);
+  const double cx = cam_res[0] / 2.0;
+  const double cy = cam_res[1] / 2.0;
+  const vec4_t proj_params{fx, fy, cx, cy};
+  const vec4_t dist_params{0.0, 0.0, 0.0, 0.0};
+
+  // // Test
+  // mat4s_t T_CF;
+  // MU_CHECK(calib_mono_solve(aprilgrids, cam_params, T_CF) == 0);
+  // MU_CHECK(aprilgrids.size() == T_CF.size());
+  // calib_mono_stats(aprilgrids, cam_params, T_CF);
+
+  // Estimate covariance
+  calib_mono_covar_est_t covar_est(cam_idx, cam_res,
+                                   proj_model, dist_model,
+                                   proj_params, dist_params);
+  // for (size_t i = 0; i < aprilgrids.size(); i++) {
+  for (size_t i = 0; i < 10; i++) {
+    const auto aprilgrid = aprilgrids[i];
+    covar_est.add(aprilgrid);
+  }
+
+  matx_t covar;
+  MU_CHECK(covar_est.estimate(covar) == 0);
+  mat2csv("/tmp/covar.csv", covar);
 
   return 0;
 }
@@ -229,6 +283,7 @@ void test_suite() {
 
   // MU_ADD_TEST(test_calib_mono_residual);
   MU_ADD_TEST(test_calib_mono_solve);
+  // MU_ADD_TEST(test_calib_mono_estimate_covariance);
   MU_ADD_TEST(test_calib_nbv);
 }
 

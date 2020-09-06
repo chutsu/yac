@@ -206,6 +206,8 @@ struct camera_params_t : param_t {
   camera_params_t(const id_t id_,
                   const int cam_index_,
                   const int resolution_[2],
+                  const std::string proj_model_,
+                  const std::string dist_model_,
                   const vecx_t &proj_params_,
                   const vecx_t &dist_params_,
                   const bool fixed_=false)
@@ -214,6 +216,8 @@ struct camera_params_t : param_t {
               fixed_},
       cam_index{cam_index_},
       resolution{resolution_[0], resolution_[1]},
+      proj_model{proj_model_},
+      dist_model{dist_model_},
       proj_size{proj_params_.size()},
       dist_size{dist_params_.size()} {
     param.resize(proj_size + dist_size);
@@ -223,6 +227,8 @@ struct camera_params_t : param_t {
 
   vecx_t proj_params() { return param.head(proj_size); }
   vecx_t dist_params() { return param.tail(dist_size); }
+  vecx_t proj_params() const { return param.head(proj_size); }
+  vecx_t dist_params() const { return param.tail(dist_size); }
   void plus(const vecx_t &dx) { param += dx; }
   void perturb(const int i, const real_t step_size) { param(i) += step_size; }
 };

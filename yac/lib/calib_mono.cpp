@@ -338,38 +338,6 @@ int calib_mono_stats(const aprilgrids_t &aprilgrids,
   return 0;
 }
 
-// int calib_mono_estimate_covariance(const aprilgrids_t &aprilgrids,
-//                                    calib_params_t &calib_params,
-//                                    mat4s_t &T_CF) {
-//   // Optimization variables
-//   std::vector<calib_pose_t> T_CF_params;
-//   for (size_t i = 0; i < aprilgrids.size(); i++) {
-//     T_CF_params.emplace_back(aprilgrids[i].T_CF);
-//   }
-//
-//   // Process all aprilgrid data
-//   for (size_t i = 0; i < aprilgrids.size(); i++) {
-//     int retval = process_aprilgrid(aprilgrids[i],
-//                                    calib_params.resolution().data(),
-//                                    calib_params.proj_model,
-//                                    calib_params.dist_model,
-//                                    calib_params.proj_params.data(),
-//                                    calib_params.dist_params.data(),
-//                                    &T_CF_params[i],
-//                                    problem);
-//     if (retval != 0) {
-//       LOG_ERROR("Failed to add AprilGrid measurements to problem!");
-//       return -1;
-//     }
-//     problem.SetParameterization(T_CF_params[i].q,
-//                                 &quaternion_parameterization);
-//   }
-//
-//
-//   return 0;
-// }
-
-
 mat4_t calib_target_origin(const calib_target_t &target,
                            const vec2_t &cam_res,
                            const double hfov) {

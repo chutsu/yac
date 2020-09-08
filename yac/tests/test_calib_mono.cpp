@@ -1,6 +1,5 @@
 #include "munit.hpp"
 #include "calib_mono.hpp"
-// #include "factor.hpp"
 
 namespace yac {
 
@@ -149,6 +148,9 @@ int test_calib_mono_estimate_covariance() {
   const double cy = cam_res[1] / 2.0;
   const vec4_t proj_params{fx, fy, cx, cy};
   const vec4_t dist_params{0.0, 0.0, 0.0, 0.0};
+  camera_params_t cam_params{0, cam_idx, cam_res,
+                             proj_model, dist_model,
+                             proj_params, dist_params};
 
   // // Test
   // mat4s_t T_CF;
@@ -157,14 +159,7 @@ int test_calib_mono_estimate_covariance() {
   // calib_mono_stats(aprilgrids, cam_params, T_CF);
 
   // Estimate covariance
-  calib_mono_covar_est_t covar_est(cam_idx, cam_res,
-                                   proj_model, dist_model,
-                                   proj_params, dist_params);
-  // for (size_t i = 0; i < aprilgrids.size(); i++) {
-  for (size_t i = 0; i < 10; i++) {
-    const auto aprilgrid = aprilgrids[i];
-    covar_est.add(aprilgrid);
-  }
+  calib_mono_covar_est_t covar_est(cam_params, aprilgrids);
 
   matx_t covar;
   MU_CHECK(covar_est.estimate(covar) == 0);
@@ -173,107 +168,42 @@ int test_calib_mono_estimate_covariance() {
   return 0;
 }
 
-int test_calib_nbv() {
-  // Setup calibration target
+int test_calib_mono_find_nbv() {
+  // Load calibration data
+  std::vector<aprilgrid_t> aprilgrids;
+  std::vector<timestamp_t> timestamps;
+  MU_CHECK(load_camera_calib_data(APRILGRID_DATA, aprilgrids, timestamps) == 0);
+  MU_CHECK(aprilgrids.size() > 0);
+  MU_CHECK(aprilgrids[0].ids.size() > 0);
+
+  // Setup camera intrinsics and distortion
+  const int cam_idx = 0;
+  const int cam_res[2] = {752, 480};
+  const std::string proj_model = "pinhole";
+  const std::string dist_model = "radtan4";
+  const double fx = pinhole_focal(cam_res[0], 98.0);
+  const double fy = pinhole_focal(cam_res[1], 73.0);
+  const double cx = cam_res[0] / 2.0;
+  const double cy = cam_res[1] / 2.0;
+  const vec4_t proj_params{fx, fy, cx, cy};
+  const vec4_t dist_params{0.0, 0.0, 0.0, 0.0};
+  camera_params_t cam_params{0, cam_idx, cam_res,
+                             proj_model, dist_model,
+                             proj_params, dist_params};
+
+  // // Test
+  // mat4s_t T_CF;
+  // MU_CHECK(calib_mono_solve(aprilgrids, cam_params, T_CF) == 0);
+  // MU_CHECK(aprilgrids.size() == T_CF.size());
+  // calib_mono_stats(aprilgrids, cam_params, T_CF);
+
+  // Find next best view
   calib_target_t target;
   if (calib_target_load(target, APRILGRID_CONF) != 0) {
-    LOG_ERROR("Failed to load calib target [%s]!", APRILGRID_CONF);
-    return -1;
+    FATAL("Failed to load calib target [%s]!", APRILGRID_CONF);
   }
-
-  // // Setup camera
-  // cv::VideoCapture camera(0);
-  // if (camera.isOpened() == false) {
-  //   return -1;
-  // }
-  // sleep(2);
-
-  // // Guess the camera intrinsics and distortion
-  // cv::Mat frame;
-  // camera.read(frame);
-  // const auto detector = aprilgrid_detector_t();
-  // const double fx = pinhole_focal(frame.cols, 120.0);
-  // const double fy = pinhole_focal(frame.rows, 120.0);
-  // const double cx = frame.cols / 2.0;
-  // const double cy = frame.rows / 2.0;
-  // const mat3_t cam_K = pinhole_K(fx, fy, cx, cy);
-  // const vec4_t cam_D = zeros(4, 1);
-
-  // graph_t graph;
-  // graph_add_landmark(
-
-  // Generate nbv poses
-  // mat4s_t nbv_poses = calib_generate_poses(target);
-  // mat4s_t nbv_poses = generate_nbv_poses(target);
-  // mat4s_t nbv_poses = generate_initial_poses(target);
-  // save_poses("/tmp/poses.csv", nbv_poses);
-
-  // // Loop camera feed
-  // // int pose_idx = randi(0, nbv_poses.size());
-  // while (true) {
-  //   // Get image
-  //   cv::Mat frame;
-  //   camera.read(frame);
-  //
-  //   // Detect AprilGrid
-  //   aprilgrid_t grid;
-  //   aprilgrid_set_properties(grid,
-  //                            target.tag_rows,
-  //                            target.tag_cols,
-  //                            target.tag_size,
-  //                            target.tag_spacing);
-  //   aprilgrid_detect(grid, detector, frame, cam_K, cam_D);
-  //
-  // //   // Calculate calibration target from camera view
-  // //   vec3s_t object_points;
-  // //   aprilgrid_object_points(grid, object_points);
-  // //   const size_t nb_pts = object_points.size();
-  // //   const matx_t hp_T = vecs2mat(object_points);
-  // //   const mat4_t T_TC = nbv_poses[pose_idx];
-  // //   const mat4_t T_CT = T_TC.inverse();
-  // //   const matx_t hp_C = T_CT * hp_T;
-  // //   const matx_t p_C = hp_C.block(0, 0, 3, nb_pts);
-  // //
-  // //   // Project target corners to camera frame
-  // //   for (size_t i = 0; i < nb_pts; i++) {
-  // //     const vec3_t p = p_C.block(0, i, 3, 1);
-  // //     const vec3_t pt{p(0) / p(2), p(1) / p(2), 1.0};
-  // //     const vec2_t pixel = (K * pt).head(2);
-  // //     cv::Point2f cv_pixel(pixel(0), pixel(1));
-  // //     if (i < 4) {
-  // //       cv::circle(frame, cv_pixel, 3, cv::Scalar(0, 255, 0), -1);
-  // //     } else {
-  // //       cv::circle(frame, cv_pixel, 3, cv::Scalar(0, 0, 255), -1);
-  // //     }
-  // //   }
-  // //
-  // //   const vec3_t pos_desired = tf_trans(T_CT);
-  // //   const vec3_t pos_actual = tf_trans(grid.T_CF);
-  // //   const double pos_diff = (pos_desired - pos_actual).norm();
-  // //   bool pos_ok = (pos_diff < 0.25) ? true : false;
-  // //
-  // //   const vec3_t rpy_desired = quat2euler(tf_quat(T_CT));
-  // //   const vec3_t rpy_actual = quat2euler(tf_quat(grid.T_CF));
-  // //   const double rpy_diff = (rpy_desired - rpy_actual).norm();
-  // //   bool rpy_ok = (rad2deg(rpy_diff) < 10.0) ? true : false;
-  // //
-  // //   printf("pos diff [%.2f]\t rpy_diff [%.2f]\n", pos_diff, rpy_diff);
-  // //   if (pos_ok && rpy_ok) {
-  // //     pose_idx = randf(0, nbv_poses.size());
-  // //   }
-  // //
-  // //   // const std::string title = "AprilGrid";
-  // //   // aprilgrid_imshow(grid, title, frame);
-  // //
-  //   // Show image and get user input
-  //   cv::Mat frame_flip;
-  //   cv::flip(frame, frame_flip, 1);
-  //   cv::imshow("Image", frame_flip);
-  //   char key = (char) cv::waitKey(1);
-  //   if (key == 'q') {
-  //     break;
-  //   }
-  // }
+  nbv_t nbv(target, cam_params, aprilgrids);
+  nbv.find_nbv(target);
 
   return 0;
 }
@@ -282,9 +212,9 @@ void test_suite() {
   test_setup();
 
   // MU_ADD_TEST(test_calib_mono_residual);
-  MU_ADD_TEST(test_calib_mono_solve);
+  // MU_ADD_TEST(test_calib_mono_solve);
   // MU_ADD_TEST(test_calib_mono_estimate_covariance);
-  MU_ADD_TEST(test_calib_nbv);
+  MU_ADD_TEST(test_calib_mono_find_nbv);
 }
 
 } // namespace yac

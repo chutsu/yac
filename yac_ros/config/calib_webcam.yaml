@@ -1,0 +1,18 @@
+ros:
+  cam0_topic: "/cam0/image"
+
+calib_target:
+  target_type: 'aprilgrid'  # Target type
+  tag_rows: 6               # Number of rows
+  tag_cols: 6               # Number of cols
+  tag_size: 0.088           # Size of apriltag, edge to edge [m]
+  tag_spacing: 0.3          # Ratio of space between tags to tagSize
+                            # Example: tagSize=2m, spacing=0.5m --> tagSpacing=0.25[-]
+
+cam0:
+  proj_model: "pinhole"
+  dist_model: "radtan4"
+  lens_hfov: 69.4
+  lens_vfov: 42.5
+  resolution: [640.0, 480.0]
+  rate: 30.0

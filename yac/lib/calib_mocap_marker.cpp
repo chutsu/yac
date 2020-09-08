@@ -3,15 +3,15 @@
 namespace yac {
 
 static int process_aprilgrid(const aprilgrid_t &aprilgrid,
-                             calib_params_t &cam,
+                             camera_params_t &cam,
                              calib_pose_t *T_MC,
                              calib_pose_t *T_WM,
                              calib_pose_t *T_WF,
                              ceres::Problem *problem) {
   const std::string proj_model = cam.proj_model;
   const std::string dist_model = cam.dist_model;
-  double *intrinsics = cam.proj_params.data();
-  double *distortion = cam.dist_params.data();
+  double *intrinsics = cam.proj_params().data();
+  double *distortion = cam.dist_params().data();
 
   for (const auto &tag_id : aprilgrid.ids) {
     // Get keypoints
@@ -65,7 +65,7 @@ static int process_aprilgrid(const aprilgrid_t &aprilgrid,
 }
 
 int calib_mocap_marker_solve(const aprilgrids_t &aprilgrids,
-                             calib_params_t &cam,
+                             camera_params_t &cam,
                              mat4s_t &T_WM,
                              mat4_t &T_MC,
                              mat4_t &T_WF) {

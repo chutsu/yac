@@ -15,14 +15,14 @@ namespace yac {
 
 /// Oplus matrix of a quaternion, i.e. q_AB*q_BC = oplus(q_BC)*q_AB.coeffs().
 static mat4_t oplus(const quat_t & q_BC) {
-	// clang-format off
+  // clang-format off
   vec4_t q = q_BC.coeffs();
   mat4_t Q;
   Q(0,0) =  q[3]; Q(0,1) =  q[2]; Q(0,2) = -q[1]; Q(0,3) =  q[0];
   Q(1,0) = -q[2]; Q(1,1) =  q[3]; Q(1,2) =  q[0]; Q(1,3) =  q[1];
   Q(2,0) =  q[1]; Q(2,1) = -q[0]; Q(2,2) =  q[3]; Q(2,3) =  q[2];
   Q(3,0) = -q[0]; Q(3,1) = -q[1]; Q(3,2) = -q[2]; Q(3,3) =  q[3];
-	// clang-format on
+  // clang-format on
   return Q;
 }
 
@@ -76,7 +76,7 @@ struct calib_mono_residual_t : public ceres::SizedCostFunction<2, 7, 8> {
 
     // Map camera parameters
     vecx_t cam_params;
-		cam_params.resize(8);
+    cam_params.resize(8);
     cam_params << parameters[1][0],
                   parameters[1][1],
                   parameters[1][2],
@@ -92,19 +92,19 @@ struct calib_mono_residual_t : public ceres::SizedCostFunction<2, 7, 8> {
     mat_t<2, 3> Jh;
     matx_t J_params;
     vec2_t z_hat;
-		bool valid = true;
+    bool valid = true;
     if (proj_model_ == "pinhole" && dist_model_ == "radtan4") {
       pinhole_radtan4_t camera{resolution_, cam_params};
       if (camera.project(r_CFi, z_hat, Jh) != 0) {
-				valid = false;
+        valid = false;
         // return true;
       }
-			J_params = camera.J_params(p);
+      J_params = camera.J_params(p);
 
     } else if (proj_model_ == "pinhole" && dist_model_ == "equi4") {
       pinhole_equi4_t camera{resolution_, cam_params};
       if (camera.project(r_CFi, z_hat, Jh) != 0) {
-				valid = false;
+        valid = false;
         // return true;
       }
     } else {
@@ -122,10 +122,9 @@ struct calib_mono_residual_t : public ceres::SizedCostFunction<2, 7, 8> {
       if (jacobians[0]) {
         J_min[0].block(0, 0, 2, 3) = -1 * Jh * -skew(C_CF * r_FFi_);
         J_min[0].block(0, 3, 2, 3) = -1 * Jh * I(3);
-				if (valid == false) {
-					J_min[0].setZero();
-				}
-				// print_matrix("J0", J_min[0]);
+        if (valid == false) {
+          J_min[0].setZero();
+        }
 
         Eigen::Matrix<double, 6, 7, Eigen::RowMajor> J_lift;
         J_lift.setZero();
@@ -139,10 +138,9 @@ struct calib_mono_residual_t : public ceres::SizedCostFunction<2, 7, 8> {
       // Jacobians w.r.t camera parameters
       if (jacobians[1]) {
         J_min[1] = -1 * J_params;
-				if (valid == false) {
-					J_min[1].setZero();
-				}
-				// print_matrix("J1", J_min[1]);
+        if (valid == false) {
+          J_min[1].setZero();
+        }
 
         Eigen::Map<Eigen::Matrix<double, 2, 8, Eigen::RowMajor>> J1(jacobians[1]);
         J1 = J_min[1];
@@ -203,6 +201,7 @@ int calib_mono_stats(const aprilgrids_t &aprilgrids,
                      const camera_params_t &cam_params,
                      const mat4s_t &poses);
 
+/** Cost function Spec **/
 struct cost_func_spec_t {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
@@ -285,27 +284,37 @@ struct cost_func_spec_t {
   }
 };
 
+/** Monocular Camera Calibration Covariance Estimation **/
 struct calib_mono_covar_est_t {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
   int frame_idx = 0;
   bool pose_prior_set = false;
 
-  std::vector<cost_func_spec_t *> cost_specs;
+  std::deque<cost_func_spec_t *> cost_specs;
   camera_params_t *cam_params = nullptr;
-  std::vector<pose_t *> poses;
+  std::deque<pose_t *> poses;
 
-  calib_mono_covar_est_t(const int cam_idx_,
-                         const int cam_res_[2],
-                         const std::string &proj_model_,
-                         const std::string &dist_model_,
-                         const vecx_t &proj_params_,
-                         const vecx_t &dist_params_)
-    : cam_params{new camera_params_t{0, cam_idx_, cam_res_,
-                                     proj_model_, dist_model_,
-                                     proj_params_, dist_params_}} {
-    const auto cam_prior = new cost_func_spec_t(0, cam_params);
+  calib_mono_covar_est_t(const camera_params_t &params_,
+                         const aprilgrids_t &grids) {
+    const int cam_idx = params_.cam_index;
+    const int cam_res[2] = {params_.resolution[0], params_.resolution[1]};
+    const std::string &proj_model = params_.proj_model;
+    const std::string &dist_model = params_.dist_model;
+    const vecx_t &proj_params = params_.proj_params();
+    const vecx_t &dist_params = params_.dist_params();
+    cam_params = new camera_params_t{0, cam_idx, cam_res,
+                                     proj_model, dist_model,
+                                     proj_params, dist_params};
+
+    // Add camera params prior
+    const auto cam_prior = new cost_func_spec_t(frame_idx, cam_params);
     cost_specs.push_back(cam_prior);
+
+    // for (size_t i = 0; i < grids.size(); i++) {
+    for (size_t i = 0; i < 10; i++) {
+      add(grids[i]);
+    }
   }
 
   virtual ~calib_mono_covar_est_t() {
@@ -327,14 +336,13 @@ struct calib_mono_covar_est_t {
 
     // Add pose prior if not already added
     if (pose_prior_set == false) {
-      const auto pose_prior = new cost_func_spec_t(1, pose);
+      const auto pose_prior = new cost_func_spec_t(frame_idx, pose);
       cost_specs.push_back(pose_prior);
       pose_prior_set = true;
     }
 
     // Add reprojection residuals
     for (const auto &tag_id : grid.ids) {
-
       // Get keypoints
       vec2s_t keypoints;
       if (aprilgrid_get(grid, tag_id, keypoints) != 0) {
@@ -349,15 +357,31 @@ struct calib_mono_covar_est_t {
 
       // Form residual block
       for (size_t i = 0; i < 4; i++) {
-        int id = cost_specs.size();
         auto &kp = keypoints[i];
         auto &obj_pt = object_points[i];
-        auto spec = new cost_func_spec_t{id, pose, cam_params, kp, obj_pt};
+        auto spec = new cost_func_spec_t{frame_idx, pose, cam_params, kp, obj_pt};
         cost_specs.push_back(spec);
       }
     }
 
     frame_idx++;
+  }
+
+  void remove_last() {
+    // Remove cost specs that belong to the last frame index
+    while (cost_specs.back()->frame_idx == (frame_idx-1)) {
+      auto last_spec = cost_specs.back();
+      cost_specs.pop_back();
+      delete last_spec;
+    }
+
+    // Remove last pose that belong to the last frame index
+    auto last_pose = poses.back();
+    poses.pop_back();
+    delete last_pose;
+
+    // Decrement frame index
+    frame_idx--;
   }
 
   int estimate(matx_t &covar) {
@@ -386,7 +410,7 @@ struct calib_mono_covar_est_t {
     }
 
     // Form Hessian
-    size_t H_size = frame_idx * 6 + 8;
+    const size_t H_size = frame_idx * 6 + 8;
     matx_t H = zeros(H_size, H_size);
 
     for (const auto &spec : cost_specs) {
@@ -415,33 +439,151 @@ struct calib_mono_covar_est_t {
     }
 
     // Recover covariance matrix
+    // covar = pinv(H);
     Eigen::FullPivLU<Eigen::MatrixXd> LU(H);
     if (LU.rank() != H.rows()) { // Check full rank
       return -1;
     } else {
       covar = H.llt().solve(I(H.rows()));
+      // covar = pinv(H);
     }
 
     return 0;
   }
 };
 
-/**
- * Estimate the covariance of the monocular camera calibration problem.
- *
- * @returns 0 or -1 for success or failure
- */
-int calib_mono_estimate_covariance(const aprilgrids_t &aprilgrids,
-                                   calib_params_t &calib_params,
-                                   mat4s_t &T_CF);
-
-/**
- * Generate poses
- */
 mat4s_t calib_generate_poses(const calib_target_t &target);
-
 mat4s_t generate_initial_poses(const calib_target_t &target);
 mat4s_t generate_nbv_poses(const calib_target_t &target);
+
+template <typename CAMERA>
+struct test_grid_t {
+  const int grid_rows = 5;
+  const int grid_cols = 5;
+  const double grid_depth = 5.0;
+  vec2s_t keypoints;
+  vec3s_t object_points;
+
+  test_grid_t(const camera_params_t &cam_params) {
+    const double dx = cam_params.resolution[0] / (grid_cols + 1);
+    const double dy = cam_params.resolution[1] / (grid_rows + 1);
+
+    auto cam_res = cam_params.resolution;
+    auto proj_params = cam_params.proj_params();
+    auto dist_params = cam_params.dist_params();
+    CAMERA camera{cam_res, proj_params, dist_params};
+
+    double kp_x = 0;
+    double kp_y = 0;
+    for (int i = 1; i < (grid_cols + 1); i++) {
+      kp_y += dy;
+      for (int j = 1; j < (grid_rows + 1); j++) {
+        kp_x += dx;
+
+        // Keypoint
+        const vec2_t kp{kp_x, kp_y};
+        keypoints.push_back(kp);
+
+        // Object point
+        Eigen::Vector3d ray;
+        camera.back_project(kp, ray);
+        object_points.push_back(ray * grid_depth);
+      }
+      kp_x = 0;
+    }
+  }
+};
+
+/** NBV for Monocular Camera Calibration **/
+struct nbv_t {
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+  calib_target_t calib_target;
+  calib_mono_covar_est_t covar_est;
+
+  nbv_t(const calib_target_t &target_,
+        const camera_params_t &cam_params_,
+        const aprilgrids_t &aprilgrids_)
+    : calib_target{target_}, covar_est{cam_params_, aprilgrids_} {}
+
+  virtual ~nbv_t() {}
+
+  int find_nbv(const calib_target_t &target) {
+    mat4s_t nbv_poses = generate_nbv_poses(target);
+    auto cam_params = covar_est.cam_params;
+
+    int cam_res[2] = {cam_params->resolution[0], cam_params->resolution[1]};
+    auto proj_params = cam_params->proj_params();
+    auto dist_params = cam_params->dist_params();
+    pinhole_radtan4_t camera{cam_res, proj_params, dist_params};
+
+    matx_t covar;
+    int retval = covar_est.estimate(covar);
+    if (retval == -1) {
+      LOG_WARN("Failed to recover covariance!");
+      return -1;
+    }
+    auto base_score = covar.trace();
+    printf("base score: %f\n", base_score);
+
+    real_t best_score = 0.0;
+    mat4_t best_pose = I(4);
+    for (const auto &pose : nbv_poses) {
+      aprilgrid_t grid;
+      aprilgrid_set_properties(grid,
+                               target.tag_rows,
+                               target.tag_cols,
+                               target.tag_size,
+                               target.tag_spacing);
+      grid.T_CF = pose;
+
+      for (int tag_id = 0; tag_id < 36; tag_id++) {
+        vec3s_t object_points;
+        vec3s_t test_points;
+        aprilgrid_object_points(grid, tag_id, object_points);
+        for (int i = 0; i < 4; i++) {
+          // auto test_point = object_points[i];
+          // test_point(2) = 5.0;
+          auto test_point = tf_point(pose, object_points[i]);
+          test_points.push_back(test_point);
+        }
+
+        vec2s_t keypoints;
+        for (int i = 0; i < 4; i++) {
+          vec2_t kp;
+          camera.project(test_points[i], kp);
+          keypoints.push_back(kp);
+        }
+
+        aprilgrid_add(grid, tag_id, keypoints);
+      }
+      covar_est.add(grid);
+
+      matx_t covar_nbv;
+      int retval = covar_est.estimate(covar_nbv);
+      if (retval == -1) {
+        LOG_WARN("Failed to recover covariance! Skipping this pose!");
+        continue;
+      }
+
+      auto score = covar_nbv.trace();
+      // auto score =  shannon_entropy(covar);
+
+      printf("score: %f\n", score);
+      printf("diff score: %f\n", base_score - score);
+      if (score > best_score) {
+        best_score = score;
+        best_pose = pose;
+      }
+      covar_est.remove_last();
+    }
+
+    printf("best score: %f\n", best_score);
+    printf("diff: %f\n", base_score - best_score);
+    print_matrix("best pose", best_pose);
+
+    return 0;
+  }
+};
 
 } //  namespace yac
 #endif // YAC_CALIB_MONO_HPP

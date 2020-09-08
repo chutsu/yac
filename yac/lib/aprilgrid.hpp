@@ -62,6 +62,9 @@ void aprilgrid_add(aprilgrid_t &grid,
                    const int id,
                    const std::vector<cv::Point2f> &keypoints);
 
+/** Add AprilTag measurement to AprilGrid. */
+void aprilgrid_add(aprilgrid_t &grid, const int id, const vec2s_t &keypoints);
+
 /** Remove AprilTag measurement from AprilGrid based on id. */
 void aprilgrid_remove(aprilgrid_t &grid, const int id);
 

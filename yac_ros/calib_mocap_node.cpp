@@ -284,7 +284,7 @@ void lerp_body_poses(const aprilgrids_t &grids,
 
 struct dataset_t {
   aprilgrids_t grids;
-  calib_params_t cam;
+  camera_params_t cam;
   mat4s_t T_WM;
   mat4_t T_MC;
   mat4_t T_WF;
@@ -351,11 +351,12 @@ dataset_t process_dataset(const std::string &data_path,
   std::cout << "---- Loading AprilGrids" << std::endl;
   aprilgrids_t aprilgrids = load_aprilgrids(grid0_path);
   // -- Camera proj_params and dist_params
-  int img_w = resolution(0);
-  int img_h = resolution(1);
-  ds.cam = calib_params_t{proj_model, dist_model,
-                          img_w, img_h,
-                          proj_params, dist_params};
+  // int img_w = resolution(0);
+  // int img_h = resolution(1);
+  int cam_res[2] = {(int)resolution(0), (int)resolution(1)};
+  ds.cam = camera_params_t{0, 0, cam_res,
+                           proj_model, dist_model,
+                           proj_params, dist_params};
   // -- Vicon marker pose
   std::cout << "---- Loading body poses" << std::endl;
   timestamps_t body_timestamps;
@@ -381,7 +382,10 @@ dataset_t process_dataset(const std::string &data_path,
   std::cout << "nb grids: " << ds.grids.size() << std::endl;
   std::cout << "nb poses: " << ds.T_WM.size() << std::endl;
   std::cout << std::endl;
-  std::cout << ds.cam.toString(0) << std::endl;
+  printf("cam0.proj_model: %s\n", ds.cam.proj_model.c_str());
+  printf("cam0.dist_model: %s\n", ds.cam.dist_model.c_str());
+  print_vector("cam0.proj_params", ds.cam.proj_params());
+  print_vector("cam0.dist_params", ds.cam.dist_params());
   print_matrix("T_MC", ds.T_MC);
   print_matrix("T_WF", ds.T_WF);
 
@@ -601,7 +605,10 @@ void show_results(const dataset_t &ds) {
   std::cout << std::endl;
 
   // Optimized Parameters
-  std::cout << ds.cam.toString(0) << std::endl;
+  printf("cam0.proj_model: %s\n", ds.cam.proj_model.c_str());
+  printf("cam0.dist_model: %s\n", ds.cam.dist_model.c_str());
+  print_vector("cam0.proj_params", ds.cam.proj_params());
+  print_vector("cam0.dist_params", ds.cam.dist_params());
   print_matrix("T_WF", ds.T_WF);
   print_matrix("T_WM", ds.T_WM[0]);
   print_matrix("T_MC", ds.T_MC);
@@ -642,17 +649,17 @@ void save_results(const std::string &output_path, const dataset_t &ds) {
     fprintf(fp, "  dist_model: \"%s\"\n", cam.dist_model.c_str());
     fprintf(fp, "  proj_params: ");
     fprintf(fp, "[");
-    fprintf(fp, "%lf, ", cam.proj_params(0));
-    fprintf(fp, "%lf, ", cam.proj_params(1));
-    fprintf(fp, "%lf, ", cam.proj_params(2));
-    fprintf(fp, "%lf", cam.proj_params(3));
+    fprintf(fp, "%lf, ", cam.proj_params()(0));
+    fprintf(fp, "%lf, ", cam.proj_params()(1));
+    fprintf(fp, "%lf, ", cam.proj_params()(2));
+    fprintf(fp, "%lf", cam.proj_params()(3));
     fprintf(fp, "]\n");
     fprintf(fp, "  dist_params: ");
     fprintf(fp, "[");
-    fprintf(fp, "%lf, ", cam.dist_params(0));
-    fprintf(fp, "%lf, ", cam.dist_params(1));
-    fprintf(fp, "%lf, ", cam.dist_params(2));
-    fprintf(fp, "%lf", cam.dist_params(3));
+    fprintf(fp, "%lf, ", cam.dist_params()(0));
+    fprintf(fp, "%lf, ", cam.dist_params()(1));
+    fprintf(fp, "%lf, ", cam.dist_params()(2));
+    fprintf(fp, "%lf", cam.dist_params()(3));
     fprintf(fp, "]\n");
     fprintf(fp, "\n");
 

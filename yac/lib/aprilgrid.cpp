@@ -70,6 +70,20 @@ void aprilgrid_add(aprilgrid_t &grid,
   }
 }
 
+void aprilgrid_add(aprilgrid_t &grid, const int id, const vec2s_t &keypoints) {
+  assert(keypoints.size() == 4);
+
+  // Set AprilGrid as detected
+  grid.detected = true;
+  grid.nb_detections++;
+
+  // Push id and keypoints
+  grid.ids.push_back(id);
+  for (const auto &keypoint : keypoints) {
+    grid.keypoints.push_back(keypoint);
+  }
+}
+
 void aprilgrid_remove(aprilgrid_t &grid, const int id) {
   // Get index where id is stored
   size_t index = 0;

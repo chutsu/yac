@@ -66,8 +66,8 @@ TARGET_LINK_LIBRARIES(calib_capture_node ${DEPS})
 ADD_EXECUTABLE(calib_mono_node calib_mono_node.cpp)
 TARGET_LINK_LIBRARIES(calib_mono_node ${DEPS})
 
-ADD_EXECUTABLE(calib_mono_nbv_node calib_mono_nbv_node.cpp)
-TARGET_LINK_LIBRARIES(calib_mono_nbv_node ${DEPS})
+# ADD_EXECUTABLE(calib_mono_nbv_node calib_mono_nbv_node.cpp)
+# TARGET_LINK_LIBRARIES(calib_mono_nbv_node ${DEPS})
 
 ADD_EXECUTABLE(calib_stereo_node calib_stereo_node.cpp)
 TARGET_LINK_LIBRARIES(calib_stereo_node ${DEPS})

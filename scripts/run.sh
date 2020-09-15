@@ -12,16 +12,16 @@ set -e
 # su -s ${USER}
 
 # Build docker image
-# docker image build -t yac_docker .
+docker image build -t yac_docker .
 
 # Run docker image
 # Note: -v /data:/data means allow docker instance to have access to /data dir
-docker run \
-  -e DISPLAY=$DISPLAY \
-  -v /tmp/.X11-unix:/tmp/.X11-unix \
-  -v /data:/data \ 
-  --network="host" \
-  -it --rm yac_docker
+# docker run \
+#   -e DISPLAY=$DISPLAY \
+#   -v /tmp/.X11-unix:/tmp/.X11-unix \
+#   -v /data:/data \ 
+#   --network="host" \
+#   -it --rm yac_docker
 
 
 # Build YAC

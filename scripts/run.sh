@@ -1,18 +1,41 @@
 #/bin/bash
 set -e
 
+# Install Docker
+# sudo apt install docker.io -yyy -q
+# sudo systemctl start docker
+# sudo systemctl enable docker  # Now reboot computer
+
+# Add user to docker group for permissions
+# sudo groupadd docker
+# sudo usermod -aG docker ${USER}
+# su -s ${USER}
+
+# Build docker image
+# docker image build -t yac_docker .
+
+# Run docker image
+# Note: -v /data:/data means allow docker instance to have access to /data dir
+docker run \
+  -e DISPLAY=$DISPLAY \
+  -v /tmp/.X11-unix:/tmp/.X11-unix \
+  -v /data:/data \ 
+  --network="host" \
+  -it --rm yac_docker
+
+
 # Build YAC
 # cd yac
 # mkdir -p build && cd build && cmake .. -DCMAKE_BUILD_TYPE=Release && make -j4
 
-cd ~/catkin_ws
+# cd ~/catkin_ws
 # catkin build -DCMAKE_BUILD_TYPE=Debug yac -j2
 # catkin build -DCMAKE_BUILD_TYPE=Release yac -j2
-catkin build -DCMAKE_BUILD_TYPE=Release yac yac_ros -j2
+# catkin build -DCMAKE_BUILD_TYPE=Release yac yac_ros -j2
 
 # make
 # make tests
-source ~/catkin_ws/devel/setup.bash
+# source ~/catkin_ws/devel/setup.bash
 
 # rosrun yac test_aprilgrid
 # rosrun yac test_calib_data

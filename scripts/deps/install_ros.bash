@@ -3,9 +3,10 @@ BASEDIR=$(dirname "$0")
 source "$BASEDIR/config.bash"
 
 # Check if ROS is installed
-if [ -f "/etc/apt/sources.list.d/ros-latest.list" ]; then
-    exit 0;
-fi
+[ -f "/etc/apt/sources.list.d/ros-latest.list" ] && exit;
+[ -d "/opt/ros/melodic" ] && exit;
+
+Target Packages (main/binary-amd64/Packages) is configured multiple times in /etc/apt/sources.list.d/ros-latest.list:1 and /etc/apt/sources.list.d/ros1-latest.list:
 
 # Install ROS
 sudo sh -c 'echo "deb http://packages.ros.org/ros/ubuntu $(lsb_release -sc) main" > /etc/apt/sources.list.d/ros-latest.list'

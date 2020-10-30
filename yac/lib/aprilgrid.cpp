@@ -629,6 +629,7 @@ int aprilgrid_load(aprilgrid_t &grid, const std::string &data_path) {
   // Grid detected
   if (grid.ids.size()) {
     grid.detected = true;
+    grid.nb_detections = grid.ids.size();
   }
 
   // Clean up

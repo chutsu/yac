@@ -1,29 +1,18 @@
 ros:
-  # bag: "/data/pointgrey/mono-1/calib_mono.bag"
-  # cam0_topic: "/camera/image_color"
-  # bag: "/data/pointgrey/mono-2/calib_mono.bag"
-  # cam0_topic: "/camera/image_color"
-  # bag: "/data/pointgrey/mono-3/calib_mono.bag"
-  # cam0_topic: "/camera/image_color"
   bag: "/data/pointgrey/mono-4/calib_mono.bag"
   cam0_topic: "/camera/image_raw"
 
 settings:
-  # data_path: "/data/pointgrey/mono-1"
-  # results_fpath: "/data/pointgrey/mono-1/calib_results.yaml"
-  # data_path: "/data/pointgrey/mono-2"
-  # results_fpath: "/data/pointgrey/mono-2/calib_results.yaml"
-  # data_path: "/data/pointgrey/mono-3"
-  # results_fpath: "/data/pointgrey/mono-3/calib_results.yaml"
   data_path: "/data/pointgrey/mono-4"
   results_fpath: "/data/pointgrey/mono-4/calib_results.yaml"
+  sigma_vision: 0.5
   imshow: true
 
 calib_target:
   target_type: 'aprilgrid'  # Target type
   tag_rows: 6               # Number of rows
   tag_cols: 6               # Number of cols
-  tag_size: 0.00212         # Size of apriltag, edge to edge [m]
+  tag_size: 0.088           # Size of apriltag, edge to edge [m]
   tag_spacing: 0.3          # Ratio of space between tags to tagSize
                             # Example: tagSize=2m, spacing=0.5m --> tagSpacing=0.25[-]
 cam0:

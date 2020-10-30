@@ -1,6 +1,7 @@
 #include <limits>
 #include "munit.hpp"
 #include "aprilgrid.hpp"
+#include "euroc.hpp"
 
 namespace yac {
 
@@ -368,6 +369,29 @@ int test_aprilgrid_detect() {
   return 0;
 }
 
+int test_aprilgrid_detect2() {
+  const auto detector = aprilgrid_detector_t();
+  const cv::Mat image = cv::imread(TEST_IMAGE);
+  const mat3_t K = pinhole_K(458.654, 457.296, 367.215, 248.375);
+  const vec4_t D{-0.28340811, 0.07395907, 0.00019359, 1.76187114e-05};
+
+  euroc_calib_t calib_data("/data/euroc_mav/imu_april");
+
+  long int nb_detections = 0;
+  for (const auto &image_path : calib_data.cam0_data.image_paths) {
+    const auto image = cv::imread(image_path);
+
+    aprilgrid_t grid{0, 6, 6, 0.088, 0.3};
+    aprilgrid_detect(grid, detector, image, K, D);
+    aprilgrid_imshow(grid, "AprilGrid detection", image);
+
+    nb_detections += grid.nb_detections;
+  }
+  printf("total nb detections: %ld\n", nb_detections);
+
+  return 0;
+}
+
 int test_aprilgrid_intersection() {
   aprilgrid_t grid0;
   aprilgrid_t grid1;
@@ -483,6 +507,7 @@ void test_suite() {
   MU_ADD_TEST(test_aprilgrid_save_and_load);
   MU_ADD_TEST(test_aprilgrid_print);
   MU_ADD_TEST(test_aprilgrid_detect);
+  // MU_ADD_TEST(test_aprilgrid_detect2);
   MU_ADD_TEST(test_aprilgrid_intersection);
   MU_ADD_TEST(test_aprilgrid_intersection2);
   MU_ADD_TEST(test_aprilgrid_random_sample);

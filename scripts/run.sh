@@ -12,7 +12,7 @@ set -e
 # su -s ${USER}
 
 # Build docker image
-docker image build -t yac_docker .
+# docker image build -t yac_docker .
 
 # Run docker image
 # Note: -v /data:/data means allow docker instance to have access to /data dir
@@ -33,15 +33,16 @@ docker image build -t yac_docker .
 # catkin build -DCMAKE_BUILD_TYPE=Release yac -j2
 # catkin build -DCMAKE_BUILD_TYPE=Release yac yac_ros -j2
 
-# make
+make
+# make debug
 # make tests
-# source ~/catkin_ws/devel/setup.bash
+source ~/catkin_ws/devel/setup.bash
 
-# rosrun yac test_aprilgrid
-# rosrun yac test_calib_data
+rosrun yac test_aprilgrid
+rosrun yac test_calib_data
 # rosrun --prefix 'gdb -ex run' yac test_calib_mono
-# rosrun yac test_calib_mono
-# rosrun yac test_calib_stereo
+rosrun yac test_calib_mono
+rosrun yac test_calib_stereo
 # rosrun yac test_calib_vi
 
 # roslaunch yac_ros calib_capture.launch
@@ -52,7 +53,7 @@ docker image build -t yac_docker .
 
 # Build tests
 # cd tests
-# ./test_aprilgrid
+# ./test_aprilgrid --target
 # ./test_calib_data
 # ./test_calib_mono
 # rosrun yac test_calib_stereo

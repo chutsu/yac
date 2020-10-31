@@ -51,17 +51,17 @@ struct aprilgrid_detector_t {
         tag_cols{tag_cols_},
         tag_size{tag_size_},
         tag_spacing{tag_spacing_} {
-		apriltag_detector_add_family(det_v3, tf);
-		det_v3->quad_decimate = 1.0;
-		det_v3->quad_sigma = 0.0;  // Blur
-		det_v3->nthreads = 2;
-		det_v3->debug = 0;
-		det_v3->refine_edges = 1;
-	}
+    apriltag_detector_add_family(det_v3, tf);
+    det_v3->quad_decimate = 1.0;
+    det_v3->quad_sigma = 0.0;  // Blur
+    det_v3->nthreads = 2;
+    det_v3->debug = 0;
+    det_v3->refine_edges = 1;
+  }
 
   ~aprilgrid_detector_t() {
     apriltag_detector_destroy(det_v3);
-	}
+  }
 };
 
 /**
@@ -213,7 +213,7 @@ void aprilgrid_filter_tags(const cv::Mat &image,
 int aprilgrid_detect(const aprilgrid_detector_t &detector,
                      const cv::Mat &image,
                      aprilgrid_t &grid,
-					 	 	 		 	 const bool use_v3=false);
+                         const bool use_v3=false);
 
 /**
  * Detect AprilGrid.
@@ -224,7 +224,7 @@ int aprilgrid_detect(const aprilgrid_detector_t &detector,
                      const mat3_t &cam_K,
                      const vec4_t &cam_D,
                      aprilgrid_t &grid,
-					 	 	 		 	 const bool use_v3=false);
+                         const bool use_v3=false);
 
 /**
  * Find the intersection of two aprilgrids

@@ -212,7 +212,7 @@ int preprocess_stereo_data(const calib_target_t &target,
   std::vector<std::string> output_paths = {cam0_output_dir, cam1_output_dir};
   int retvals[2] = {0, 0};
 
-	#pragma omp parallel for
+  #pragma omp parallel for
   for (size_t i = 0; i < 2; i++) {
     retvals[i] = preprocess_camera_data(target,
                                         data_paths[i],

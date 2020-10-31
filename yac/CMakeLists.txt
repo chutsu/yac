@@ -34,12 +34,13 @@ INSTALL(DIRECTORY lib/
 INCLUDE_DIRECTORIES(lib)
 ADD_LIBRARY(
   yac
-  lib/core.cpp
   lib/aprilgrid.cpp
   lib/calib_data.cpp
+  # lib/calib_mocap_marker.cpp
   lib/calib_mono.cpp
   lib/calib_stereo.cpp
-  # lib/calib_mocap_marker.cpp
+  lib/ceres_utils.cpp
+  lib/core.cpp
 )
 
 # TESTS

@@ -11,6 +11,11 @@ cameras. Specifically:
 - Camera intrinsics
 - Stereo camera intrinsics and extrinsics
 
+Supported projection-distortion models:
+
+- pinhole-radtan4
+- pinhole-equi4
+
 
 Build
 -----

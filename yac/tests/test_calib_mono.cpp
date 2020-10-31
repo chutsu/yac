@@ -82,13 +82,13 @@ int test_calib_mono_residual() {
 
     // Form residual and call the functor
     double residuals[2] = {0.0, 0.0};
-		const double *parameters[2] = {rel_pose.param.data(), cam.param.data()};
+    const double *parameters[2] = {rel_pose.param.data(), cam.param.data()};
     calib_mono_residual_t<pinhole_radtan4_t> residual{cam_res, r_FFi, z, covar};
     residual.Evaluate(parameters, residuals, nullptr);
 
     // Just some arbitrary test to make sure reprojection error is not larger
     // than 100pixels in x or y direction. But often this can be the case ...
-		// printf("residuals: (%.2f, %.2f)\n", residuals[0], residuals[1]);
+    // printf("residuals: (%.2f, %.2f)\n", residuals[0], residuals[1]);
     MU_CHECK(residuals[0] < 200.0);
     MU_CHECK(residuals[1] < 200.0);
   }

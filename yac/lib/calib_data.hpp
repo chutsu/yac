@@ -84,19 +84,19 @@ int pinhole_equi4_project(const Eigen::Matrix<T, 8, 1> &params,
   const T x = point(0) / point(2);
   const T y = point(1) / point(2);
 
-	// Apply equi distortion
-	const T r = sqrt(x * x + y * y);
-	if ((T) r < (T) 1e-8) {
-		return -1;
-	}
-	const T th = atan(r);
-	const T th2 = th * th;
-	const T th4 = th2 * th2;
-	const T th6 = th4 * th2;
-	const T th8 = th4 * th4;
-	const T thd = th * (T(1.0) + k1 * th2 + k2 * th4 + k3 * th6 + k4 * th8);
-	const T x_dash = (thd / r) * x;
-	const T y_dash = (thd / r) * y;
+  // Apply equi distortion
+  const T r = sqrt(x * x + y * y);
+  if ((T) r < (T) 1e-8) {
+    return -1;
+  }
+  const T th = atan(r);
+  const T th2 = th * th;
+  const T th4 = th2 * th2;
+  const T th6 = th4 * th2;
+  const T th8 = th4 * th4;
+  const T thd = th * (T(1.0) + k1 * th2 + k2 * th4 + k3 * th6 + k4 * th8);
+  const T x_dash = (thd / r) * x;
+  const T y_dash = (thd / r) * y;
 
   // Scale and center
   image_point(0) = fx * x_dash + cx;
@@ -202,15 +202,15 @@ struct calib_params_t {
     dist_params << 0.01, 0.0001, 0.0001, 0.0001;
   }
 
-	std::vector<int> resolution() {
-		std::vector<int> res{img_w, img_h};
-		return res;
-	}
+  std::vector<int> resolution() {
+    std::vector<int> res{img_w, img_h};
+    return res;
+  }
 
-	std::vector<int> resolution() const {
-		std::vector<int> res{img_w, img_h};
-		return res;
-	}
+  std::vector<int> resolution() const {
+    std::vector<int> res{img_w, img_h};
+    return res;
+  }
 
   std::string toString(const int cam_index=-1) const {
     const std::string indent = (cam_index != -1) ? "  " : "";

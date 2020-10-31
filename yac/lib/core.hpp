@@ -3491,14 +3491,14 @@ struct pinhole_t : projection_t<DM> {
   int back_project(const vec2_t &kp, vec3_t &ray) {
     const real_t px = (kp(0) - cx()) / fx();
     const real_t py = (kp(1) - cy()) / fy();
-		const vec2_t p{px, py};
+    const vec2_t p{px, py};
 
-		const vec2_t p_undist = this->distortion.undistort(p);
-		ray(0) = p_undist(0);
-		ray(1) = p_undist(1);
-		ray(2) = 1.0;
+    const vec2_t p_undist = this->distortion.undistort(p);
+    ray(0) = p_undist(0);
+    ray(1) = p_undist(1);
+    ray(2) = 1.0;
 
-		return 0;
+    return 0;
   }
 
   mat2_t J_point() {

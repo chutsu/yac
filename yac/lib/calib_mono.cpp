@@ -145,7 +145,7 @@ int calib_mono_solve(const std::string &config_file) {
 // mat4_t calib_target_origin(const calib_target_t &target,
 //                            const vec2_t &cam_res,
 //                            const double hfov) {
-// 	const double tag_rows = target.tag_rows;
+//   const double tag_rows = target.tag_rows;
 //   const double tag_cols = target.tag_cols;
 //   const double tag_size = target.tag_size;
 //   const double tag_spacing = target.tag_spacing;
@@ -341,73 +341,73 @@ int calib_mono_solve(const std::string &config_file) {
 // }
 
 // void estimate_covar() {
-// 	// Push calibration params to recover covariance
-// 	std::vector<std::shared_ptr<ParameterBlock>> recover_params;
-// 	recover_params.push_back(T_SC_blocks_[0]);
-// 	recover_params.push_back(T_SC_blocks_[1]);
-// 	recover_params.push_back(cam_blocks_[0]);
-// 	recover_params.push_back(cam_blocks_[1]);
+//   // Push calibration params to recover covariance
+//   std::vector<std::shared_ptr<ParameterBlock>> recover_params;
+//   recover_params.push_back(T_SC_blocks_[0]);
+//   recover_params.push_back(T_SC_blocks_[1]);
+//   recover_params.push_back(cam_blocks_[0]);
+//   recover_params.push_back(cam_blocks_[1]);
 //
-// 	std::vector<std::pair<const double *, const double *>> covar_blocks;
-// 	for (size_t i = 0; i < recover_params.size(); i++) {
-// 		auto param_i = recover_params[i]->parameters();
-// 		for (size_t j = i; j < recover_params.size(); j++) {
-// 			auto param_j = recover_params[j]->parameters();
-// 			covar_blocks.push_back({param_i, param_j});
-// 		}
-// 	}
+//   std::vector<std::pair<const double *, const double *>> covar_blocks;
+//   for (size_t i = 0; i < recover_params.size(); i++) {
+//     auto param_i = recover_params[i]->parameters();
+//     for (size_t j = i; j < recover_params.size(); j++) {
+//       auto param_j = recover_params[j]->parameters();
+//       covar_blocks.push_back({param_i, param_j});
+//     }
+//   }
 //
-// 	// Estimate covariance options
-// 	::ceres::Covariance::Options options;
-// 	options.num_threads = 1;
-// 	options.algorithm_type = ::ceres::SPARSE_QR;
+//   // Estimate covariance options
+//   ::ceres::Covariance::Options options;
+//   options.num_threads = 1;
+//   options.algorithm_type = ::ceres::SPARSE_QR;
 //
-// 	// Estimate covariance
-// 	::ceres::Covariance covar_est(options);
-// 	auto problem_ptr = problem_->problem_.get();
-// 	if (covar_est.Compute(covar_blocks, problem_ptr) == false) {
-// 		LOG_ERROR("Failed to estimate covariance!");
-// 		LOG_ERROR("Maybe Hessian is not full rank?");
-// 		return -1;
-// 	}
+//   // Estimate covariance
+//   ::ceres::Covariance covar_est(options);
+//   auto problem_ptr = problem_->problem_.get();
+//   if (covar_est.Compute(covar_blocks, problem_ptr) == false) {
+//     LOG_ERROR("Failed to estimate covariance!");
+//     LOG_ERROR("Maybe Hessian is not full rank?");
+//     return -1;
+//   }
 //
-// 	// Form covariance matrix
-// 	calib_covar = zeros(28, 28);
-// 	size_t idx_i = 0;
-// 	size_t idx_j = 0;
-// 	for (size_t i = 0; i < recover_params.size(); i++) {
-// 		auto param_i = recover_params[i]->parameters();
-// 		auto size_i = recover_params[i]->minimalDimension();
+//   // Form covariance matrix
+//   calib_covar = zeros(28, 28);
+//   size_t idx_i = 0;
+//   size_t idx_j = 0;
+//   for (size_t i = 0; i < recover_params.size(); i++) {
+//     auto param_i = recover_params[i]->parameters();
+//     auto size_i = recover_params[i]->minimalDimension();
 //
-// 		for (size_t j = i; j < recover_params.size(); j++) {
-// 			auto param_j = recover_params[j]->parameters();
-// 			auto size_j = recover_params[j]->minimalDimension();
+//     for (size_t j = i; j < recover_params.size(); j++) {
+//       auto param_j = recover_params[j]->parameters();
+//       auto size_j = recover_params[j]->minimalDimension();
 //
-// 			// Get covariance block
-// 			Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> covar_block;
-// 			covar_block.resize(size_i, size_j);
-// 			covar_est.GetCovarianceBlockInTangentSpace(param_i, param_j, covar_block.data());
+//       // Get covariance block
+//       Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> covar_block;
+//       covar_block.resize(size_i, size_j);
+//       covar_est.GetCovarianceBlockInTangentSpace(param_i, param_j, covar_block.data());
 //
-// 			if (i == j) {
-// 				// Diagonal block
-// 				calib_covar.block(idx_i, idx_j, size_i, size_j) = covar_block;
-// 			} else {
-// 				// Off-diagonal block
-// 				calib_covar.block(idx_i, idx_j, size_i, size_j) = covar_block;
-// 				calib_covar.block(idx_j, idx_i, size_j, size_i) = covar_block.transpose();
-// 			}
+//       if (i == j) {
+//         // Diagonal block
+//         calib_covar.block(idx_i, idx_j, size_i, size_j) = covar_block;
+//       } else {
+//         // Off-diagonal block
+//         calib_covar.block(idx_i, idx_j, size_i, size_j) = covar_block;
+//         calib_covar.block(idx_j, idx_i, size_j, size_i) = covar_block.transpose();
+//       }
 //
-// 			idx_j += size_j;
-// 		}
-// 		idx_i += size_i;
-// 		idx_j = idx_i;
-// 	}
+//       idx_j += size_j;
+//     }
+//     idx_i += size_i;
+//     idx_j = idx_i;
+//   }
 //
-// 	// Check if calib_covar is full-rank?
-// 	if (rank(calib_covar) != calib_covar.rows()) {
-// 		LOG_ERROR("calib_covar is not full rank!");
-// 		return -1;
-// 	}
+//   // Check if calib_covar is full-rank?
+//   if (rank(calib_covar) != calib_covar.rows()) {
+//     LOG_ERROR("calib_covar is not full rank!");
+//     return -1;
+//   }
 // }
 
 } //  namespace yac

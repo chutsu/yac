@@ -431,13 +431,13 @@ static void matrix_to_quat(const matd_t *R, double q[4])
         q[2] = -( m2 - m8 ) / S;
         q[3] = -( m4 - m1 ) / S;
         q[0] = 0.25 * S;
-    } else if ( m0 > m5 && m0 > m10 )  {	// Column 0:
+    } else if ( m0 > m5 && m0 > m10 )  {  // Column 0:
         S  = sqrtf( 1.0 + m0 - m5 - m10 ) * 2;
         q[1] = -0.25 * S;
         q[2] = -(m4 + m1 ) / S;
         q[3] = -(m2 + m8 ) / S;
         q[0] = (m9 - m6 ) / S;
-    } else if ( m5 > m10 ) {			// Column 1:
+    } else if ( m5 > m10 ) {      // Column 1:
         S  = sqrtf( 1.0 + m5 - m0 - m10 ) * 2;
         q[1] = -(m4 + m1 ) / S;
         q[2] = -0.25 * S;

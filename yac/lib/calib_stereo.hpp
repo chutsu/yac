@@ -117,14 +117,10 @@ struct calib_stereo_residual_t
 
         // Convert from minimial jacobians to local jacobian
         mat_t<6, 7, row_major_t> J_lift_cam0;
-        J_lift_cam0.setZero();
-        J_lift_cam0.topLeftCorner<3, 4>() = lift_quaternion(q_C0F);
-        J_lift_cam0.bottomRightCorner<3, 3>().setIdentity();
-
         mat_t<6, 7, row_major_t> J_lift_cam1;
-        J_lift_cam1.setZero();
-        J_lift_cam1.topLeftCorner<3, 4>() = lift_quaternion(q_C1F);
-        J_lift_cam1.bottomRightCorner<3, 3>().setIdentity();
+
+        pose_lift_jacobian(q_C0F, J_lift_cam0);
+        pose_lift_jacobian(q_C1F, J_lift_cam1);
 
         Eigen::Map<mat_t<4, 7, row_major_t>> J0(jacobians[0]);
         J0.block(0, 0, 2, 7) = J_min[0].block(0, 0, 2, 6) * J_lift_cam0;
@@ -142,9 +138,7 @@ struct calib_stereo_residual_t
 
         // Convert from minimial jacobians to local jacobian
         mat_t<6, 7, row_major_t> J_lift_cam1;
-        J_lift_cam1.setZero();
-        J_lift_cam1.topLeftCorner<3, 4>() = lift_quaternion(q_C1F);
-        J_lift_cam1.bottomRightCorner<3, 3>().setIdentity();
+        pose_lift_jacobian(q_C1F, J_lift_cam1);
 
         Eigen::Map<mat_t<4, 7, row_major_t>> J1(jacobians[1]);
         J1.block(0, 0, 2, 7).setZero();

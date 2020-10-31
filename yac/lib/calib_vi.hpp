@@ -8,10 +8,139 @@
 #include <ceres/ceres.h>
 
 #include "core.hpp"
-#include "calib_mono.hpp"
 #include "calib_data.hpp"
+#include "ceres_utils.hpp"
 
 namespace yac {
+
+template <typename CAMERA_TYPE>
+struct calib_reproj_residual_t
+    : public ceres::SizedCostFunction<2, 7, 7, 7, 8> {
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
+
+  int cam_res_[2] = {0, 0};
+  vec3_t r_FFi_{0.0, 0.0, 0.0};
+  vec2_t z_{0.0, 0.0};
+
+  const mat2_t covar_;
+  const mat2_t info_;
+  const mat2_t sqrt_info_;
+  mutable matxs_t J_min;
+
+  calib_reproj_residual_t(const int cam_res[2],
+                          const vec3_t &r_FFi,
+                          const vec2_t &z,
+                          const mat2_t &covar)
+      : cam_res_{cam_res[0], cam_res[1]},
+        r_FFi_{r_FFi}, z_{z},
+        covar_{covar},
+        info_{covar.inverse()},
+        sqrt_info_{info_.llt().matrixL().transpose()} {
+    J_min.push_back(zeros(2, 6)); // T_WF
+    J_min.push_back(zeros(2, 6)); // T_WS
+    J_min.push_back(zeros(2, 6)); // T_SC
+    J_min.push_back(zeros(2, 8)); // cam params
+  }
+
+  ~calib_reproj_residual_t() {}
+
+  bool Evaluate(double const * const *params,
+                double *residuals,
+                double **jacobians) const {
+    // Map fiducial pose T_WF
+    const mat4_t T_WF = tf(params[0]);
+    const mat3_t C_WF = tf_rot(T_WF);
+    const quat_t q_WF{C_WF};
+
+    // Map sensor pose T_WS
+    const mat4_t T_WS = tf(params[1]);
+    const mat4_t T_SW = T_WS.inverse();
+    const mat3_t C_WS = tf_rot(T_WS);
+    const quat_t q_WS{C_WS};
+
+    // Map sensor-camera pose T_SC
+    const mat4_t T_SC = tf(params[2]);
+    const mat4_t T_CS = T_SC.inverse();
+    const mat3_t C_SC = tf_rot(T_SC);
+    const quat_t q_SC{C_SC};
+
+    // Map camera params
+    Eigen::Map<const vecx_t> cam_params(params[3], 8);
+
+    // Transform and project point to image plane
+    const vec3_t r_CFi = tf_point(T_CS * T_SW * T_WF, r_FFi_);
+    const vec2_t p{r_CFi(0) / r_CFi(2), r_CFi(1) / r_CFi(2)};
+    mat_t<2, 3> Jh;
+    matx_t J_params;
+    vec2_t z_hat;
+    bool valid = true;
+
+    CAMERA_TYPE camera{cam_res_, cam_params};
+    if (camera.project(r_CFi, z_hat, Jh) != 0) {
+      valid = false;
+    }
+    J_params = camera.J_params(p);
+
+    // Residuals
+    const vec2_t r = sqrt_info_ * (z_ - z_hat);
+    residuals[0] = r(0);
+    residuals[1] = r(1);
+
+    // Jacobians
+    matx_t weighted_Jh = -1 * sqrt_info_ * Jh;
+
+    if (jacobians != NULL) {
+      // Jacobians w.r.t. T_WF
+      if (jacobians[0] != NULL) {
+        J_min[0].block(0, 0, 2, 3) = weighted_Jh * -skew(C_WF * r_FFi_);
+        J_min[0].block(0, 3, 2, 3) = weighted_Jh * I(3);
+        if (valid == false) {
+          J_min[0].setZero();
+        }
+
+        // Convert from minimial jacobians to local jacobian
+        pose_lift_jacobian(J_min[0], q_WF, jacobians[0]);
+      }
+
+      // Jacobians w.r.t T_WS
+      if (jacobians[1] != NULL) {
+        J_min[1].block(0, 0, 2, 3) = weighted_Jh * -skew(C_WS * r_FFi_);
+        J_min[1].block(0, 3, 2, 3) = weighted_Jh * I(3);
+        if (valid == false) {
+          J_min[1].setZero();
+        }
+
+        // Convert from minimial jacobians to local jacobian
+        pose_lift_jacobian(J_min[1], q_WS, jacobians[1]);
+      }
+
+      // Jacobians w.r.t T_SC
+      if (jacobians[2] != NULL) {
+        J_min[2].block(0, 0, 2, 3) = weighted_Jh * -skew(C_SC * r_FFi_);
+        J_min[2].block(0, 3, 2, 3) = weighted_Jh * I(3);
+        if (valid == false) {
+          J_min[2].setZero();
+        }
+
+        // Convert from minimial jacobians to local jacobian
+        pose_lift_jacobian(J_min[2], q_SC, jacobians[2]);
+      }
+
+      // Jacobians w.r.t. camera parameters
+      if (jacobians[3] != NULL) {
+        J_min[1] = -1 * sqrt_info_ * J_params;
+        if (valid == false) {
+          J_min[1].setZero();
+        }
+
+        Eigen::Map<mat_t<2, 8, row_major_t>> J1(jacobians[1]);
+        J1 = J_min[1];
+      }
+    }
+
+    return true;
+  }
+};
 
 /** Inertial residual */
 struct calib_imu_residual_t {
@@ -120,15 +249,9 @@ struct calib_imu_residual_t {
     }
   }
 
-  /**
-   * Calculate residual
-   */
-  template <typename T>
-  bool operator()(const T *const q_i_, const T *const r_i_,
-                  const T *const sb_i_,
-                  const T *const q_j_, const T *const r_j_,
-                  const T *const sb_j_,
-                  T *residual) const {
+  bool Evaluate(double const * const *params,
+                double *residuals,
+                double **jacobians) const {
     // Map out parameters
     // -- Sensor pose at timestep i
     const mat4_t T_i = tf(params[0]);
@@ -137,16 +260,16 @@ struct calib_imu_residual_t {
     const quat_t q_i = tf_quat(T_i);
     const vec3_t r_i = tf_trans(T_i);
     // -- Speed and bias at timestamp i
-    const vec_t<9> sb_i{params[1]->param};
+    const vec_t<9> sb_i{params[1]};
     const vec3_t v_i = sb_i.segment<3>(0);
     const vec3_t ba_i = sb_i.segment<3>(3);
     const vec3_t bg_i = sb_i.segment<3>(6);
     // -- Sensor pose at timestep j
-    const mat4_t T_j = tf(params[2]->param);
+    const mat4_t T_j = tf(params[2]);
     const quat_t q_j = tf_quat(T_j);
     const vec3_t r_j = tf_trans(T_j);
     // -- Speed and bias at timestep j
-    const vec_t<9> sb_j{params[3]->param};
+    const vec_t<9> sb_j{params[3]};
     const vec3_t v_j = sb_j.segment<3>(0);
     const vec3_t ba_j = sb_j.segment<3>(3);
     const vec3_t bg_j = sb_j.segment<3>(6);
@@ -168,20 +291,90 @@ struct calib_imu_residual_t {
     const quat_t gamma = dq * quat_delta(dq_dbg * dbg);
 
     const quat_t q_i_inv = q_i.inverse();
-    const quat_t q_j_inv = q_j.inverse();
+    // const quat_t q_j_inv = q_j.inverse();
     const quat_t gamma_inv = gamma.inverse();
 
     // clang-format off
-    residuals << C_i_inv * (r_j - r_i - v_i * dt_ij + 0.5 * g * dt_ij_sq) - alpha,
-                 C_i_inv * (v_j - v_i + g * dt_ij) - beta,
-                 2.0 * (gamma_inv * (q_i_inv * q_j)).vec(),
-                 ba_j - ba_i,
-                 bg_j - bg_i;
+    Eigen::Map<vec_t<15>> r(residuals);
+    r << C_i_inv * (r_j - r_i - v_i * dt_ij + 0.5 * g * dt_ij_sq) - alpha,
+         C_i_inv * (v_j - v_i + g * dt_ij) - beta,
+         2.0 * (gamma_inv * (q_i_inv * q_j)).vec(),
+         ba_j - ba_i,
+         bg_j - bg_i;
     // clang-format on
 
     return true;
   }
 };
+
+/**
+ * Calibrate stereo camera extrinsics and relative pose between cameras. This
+ * function assumes that the path to `config_file` is a yaml file of the form:
+ */
+template <typename CAMERA_TYPE>
+int calib_vi_solve(const std::map<int, aprilgrid_t> &cam_grids,
+                   const mat2_t &covar,
+                   std::map<int, camera_params_t> &cam_params,
+                   std::map<int, extrinsic_t> &extrinsics) {
+  // Setup optimization problem
+  ceres::Problem::Options prob_options;
+  prob_options.local_parameterization_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
+  std::unique_ptr<ceres::Problem> problem(new ceres::Problem(prob_options));
+  PoseLocalParameterization pose_parameterization;
+
+  // // Process all aprilgrid data
+  // for (size_t i = 0; i < cam0_grids.size(); i++) {
+  //   int retval = process_aprilgrid<CAMERA_TYPE>(cam0_grids[i],
+  //                                               cam1_grids[i],
+  //                                               covar,
+  //                                               &rel_poses[i],
+  //                                               &extrinsic_param,
+  //                                               cam0,
+  //                                               cam1,
+  //                                               problem.get());
+  //   if (retval != 0) {
+  //     LOG_ERROR("Failed to add AprilGrid measurements to problem!");
+  //     return -1;
+  //   }
+  //
+  //   problem->SetParameterization(rel_poses[i].param.data(),
+  //                                &pose_parameterization);
+  // }
+
+  // Set solver options
+  // ceres::Solver::Options options;
+  // options.minimizer_progress_to_stdout = true;
+  // options.max_num_iterations = 100;
+  // options.check_gradients = true;
+
+  // // Solve
+  // ceres::Solver::Summary summary;
+  // ceres::Solve(options, problem.get(), &summary);
+  // std::cout << summary.FullReport() << std::endl;
+
+  // // Show results
+  // std::vector<double> cam0_errs, cam1_errs;
+  // double cam0_rmse, cam1_rmse = 0.0;
+  // double cam0_mean, cam1_mean = 0.0;
+  // calib_mono_stats<CAMERA_TYPE>(cam0_grids, *cam0, *T_C0F, &cam0_errs, &cam0_rmse, &cam0_mean);
+  // calib_mono_stats<CAMERA_TYPE>(cam1_grids, *cam1, *T_C1F, &cam1_errs, &cam1_rmse, &cam1_mean);
+
+  // printf("Optimization results:\n");
+  // printf("---------------------\n");
+  // print_vector("cam0.proj_params", (*cam0).proj_params());
+  // print_vector("cam0.dist_params", (*cam0).dist_params());
+  // print_vector("cam1.proj_params", (*cam1).proj_params());
+  // print_vector("cam1.dist_params", (*cam1).dist_params());
+  // printf("\n");
+  // print_matrix("T_C1C0", *T_C1C0);
+  // printf("cam0 rms reproj error [px]: %f\n", cam0_rmse);
+  // printf("cam1 rms reproj error [px]: %f\n", cam1_rmse);
+  // printf("cam0 mean reproj error [px]: %f\n", cam0_mean);
+  // printf("cam1 mean reproj error [px]: %f\n", cam1_mean);
+  // printf("\n");
+
+  return 0;
+}
 
 } //  namespace yac
 #endif // YAC_CALIB_VI_HPP

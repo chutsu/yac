@@ -143,8 +143,8 @@ static uint64_t rotate90(uint64_t w, int numBits)
     int p = numBits;
     uint64_t l = 0;
     if (numBits % 4 == 1) {
-	p = numBits - 1;
-	l = 1;
+  p = numBits - 1;
+  l = 1;
     }
     w = ((w >> l) << (p/4 + l)) | (w >> (3 * p/ 4 + l) << l) | (w & l);
     w &= ((APRILTAG_U64_ONE << numBits) - 1);

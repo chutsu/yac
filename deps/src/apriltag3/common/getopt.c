@@ -44,14 +44,14 @@ typedef struct getopt_option getopt_option_t;
 
 struct getopt_option
 {
-	char *sname;
-	char *lname;
-	char *svalue;
+  char *sname;
+  char *lname;
+  char *svalue;
 
-	char *help;
-	int type;
+  char *help;
+  int type;
 
-	int spacer;
+  int spacer;
 
     int was_specified;
 };

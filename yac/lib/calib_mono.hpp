@@ -71,7 +71,7 @@ struct calib_mono_residual_t : public ceres::SizedCostFunction<2, 7, 8> {
     J_params = camera.J_params(p);
 
     // Residuals
-		const vec2_t r = sqrt_info_ * (z_ - z_hat);
+    const vec2_t r = sqrt_info_ * (z_ - z_hat);
     residuals[0] = r(0);
     residuals[1] = r(1);
 
@@ -88,12 +88,7 @@ struct calib_mono_residual_t : public ceres::SizedCostFunction<2, 7, 8> {
         }
 
         // Convert from minimial jacobians to local jacobian
-        Eigen::Map<mat_t<2, 7, row_major_t>> J0(jacobians[0]);
-        mat_t<6, 7, row_major_t> J_lift;
-        J_lift.setZero();
-        J_lift.topLeftCorner<3, 4>() = lift_quaternion(q_CF);
-        J_lift.bottomRightCorner<3, 3>().setIdentity();
-        J0 = J_min[0] * J_lift;
+        pose_lift_jacobian(J_min[0], q_CF, jacobians[0]);
       }
 
       // Jacobians w.r.t camera params
@@ -193,16 +188,16 @@ int calib_mono_stats(const aprilgrids_t &aprilgrids,
         const auto z = keypoints[j];
         const auto r_FFi = object_points[j];
 
-				vec_t<8> params;
-				params << cam_params.proj_params(), cam_params.dist_params();
-				CAMERA_TYPE camera(cam_params.resolution, params);
+        vec_t<8> params;
+        params << cam_params.proj_params(), cam_params.dist_params();
+        CAMERA_TYPE camera(cam_params.resolution, params);
 
-				vec2_t z_hat;
-				const vec3_t r_CFi = tf_point(T_CF, r_FFi);
-				camera.project(r_CFi, z_hat);
-				vec2_t r = z - z_hat;
+        vec2_t z_hat;
+        const vec3_t r_CFi = tf_point(T_CF, r_FFi);
+        camera.project(r_CFi, z_hat);
+        vec2_t r = z - z_hat;
 
-				residuals.push_back(r);
+        residuals.push_back(r);
       }
     }
   }
@@ -275,37 +270,37 @@ int calib_mono_solve(const aprilgrids_t &grids,
   std::cout << summary.FullReport() << std::endl;
 
   // // Evaluate
-	// auto eval = [&](ceres::ResidualBlockId res_id, vec2_t &r) {
-	// 	const auto cost_fn = problem.GetCostFunctionForResidualBlock(res_id);
+  // auto eval = [&](ceres::ResidualBlockId res_id, vec2_t &r) {
+  //   const auto cost_fn = problem.GetCostFunctionForResidualBlock(res_id);
   //   r = zeros(cost_fn->num_residuals(), 1);
-	// 	std::vector<double *> param_blocks;
-	// 	problem.GetParameterBlocksForResidualBlock(res_id, &param_blocks);
+  //   std::vector<double *> param_blocks;
+  //   problem.GetParameterBlocksForResidualBlock(res_id, &param_blocks);
   //   return cost_fn->Evaluate(param_blocks.data(), r.data(), nullptr);
   // };
 
-	// // Get residual blocks
-	// int inliers = 0;
-	// int outliers = 0;
-	// std::vector<ceres::ResidualBlockId> res_ids;
-	// problem.GetResidualBlocks(&res_ids);
-	// for (const auto res_id : res_ids) {
-	// 	vec2_t r{0.0, 0.0};
-	// 	eval(res_id, r);
+  // // Get residual blocks
+  // int inliers = 0;
+  // int outliers = 0;
+  // std::vector<ceres::ResidualBlockId> res_ids;
+  // problem.GetResidualBlocks(&res_ids);
+  // for (const auto res_id : res_ids) {
+  //   vec2_t r{0.0, 0.0};
+  //   eval(res_id, r);
   //
-	// 	if (r.norm() > 3.0) {
-	// 		problem.RemoveResidualBlock(res_id);
-	// 		outliers++;
-	// 	} else {
-	// 		inliers++;
-	// 	}
-	// }
-	// printf("\n");
-	// printf("nb %d inliers\n", inliers);
-	// printf("nb %d outliers\n", outliers);
-	// printf("ratio of outliers/inliers: %f", (double) outliers / (double) inliers);
-	// printf("\n");
+  //   if (r.norm() > 3.0) {
+  //     problem.RemoveResidualBlock(res_id);
+  //     outliers++;
+  //   } else {
+  //     inliers++;
+  //   }
+  // }
+  // printf("\n");
+  // printf("nb %d inliers\n", inliers);
+  // printf("nb %d outliers\n", outliers);
+  // printf("ratio of outliers/inliers: %f", (double) outliers / (double) inliers);
+  // printf("\n");
 
-	// // Solve the problem again
+  // // Solve the problem again
   // ceres::Solve(options, &problem, &summary);
   // std::cout << summary.FullReport() << std::endl;
 

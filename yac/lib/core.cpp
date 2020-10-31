@@ -522,7 +522,7 @@ void save_poses(const std::string &path, const mat4s_t &poses) {
     fprintf(csv, "%f,", r(1));
     fprintf(csv, "%f\n", r(2));
   }
-	fflush(csv);
+  fflush(csv);
   fclose(csv);
 }
 

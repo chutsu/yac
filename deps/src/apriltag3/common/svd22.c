@@ -63,23 +63,23 @@ USV' = [ CT -ST ][  e*CP  e*SP ]
 
 A00+A11 = e*CT*CP + f*ST*SP + e*SP*ST + f*CP*CT
         = e*(CP*CT + SP*ST) + f*(SP*ST + CP*CT)
-    	= (e+f)(CP*CT + SP*ST)
-B0	    = (e+f)*cos(P-T)
+      = (e+f)(CP*CT + SP*ST)
+B0      = (e+f)*cos(P-T)
 
 A00-A11 = e*CT*CP + f*ST*SP - e*SP*ST - f*CP*CT
         = e*(CP*CT - SP*ST) - f*(-ST*SP + CP*CT)
-	    = (e-f)(CP*CT - SP*ST)
-B1	    = (e-f)*cos(P+T)
+      = (e-f)(CP*CT - SP*ST)
+B1      = (e-f)*cos(P+T)
 
 A01+A10 = e*CT*SP - f*ST*CP + e*ST*CP - f*SP*CT
-	    = e(CT*SP + ST*CP) - f*(ST*CP + SP*CT)
-	    = (e-f)*(CT*SP + ST*CP)
-B2	    = (e-f)*sin(P+T)
+      = e(CT*SP + ST*CP) - f*(ST*CP + SP*CT)
+      = (e-f)*(CT*SP + ST*CP)
+B2      = (e-f)*sin(P+T)
 
 A01-A10 = e*CT*SP - f*ST*CP - e*ST*CP + f*SP*CT
-	= e*(CT*SP - ST*CP) + f(SP*CT - ST*CP)
-	= (e+f)*(CT*SP - ST*CP)
-B3	= (e+f)*sin(P-T)
+  = e*(CT*SP - ST*CP) + f(SP*CT - ST*CP)
+  = (e+f)*(CT*SP - ST*CP)
+B3  = (e+f)*sin(P-T)
 
 B0 = (e+f)*cos(P-T)
 B1 = (e-f)*cos(P+T)

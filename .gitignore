@@ -1,2 +1,12 @@
 build
 tags
+
+deps/bin
+deps/include
+deps/lib
+deps/share
+deps/*.log
+deps/src/apriltag3/build
+deps/src/apriltags/build
+deps/src/ceres-solver
+deps/src/SuiteSparse

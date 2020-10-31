@@ -39,7 +39,7 @@ make
 source ~/catkin_ws/devel/setup.bash
 
 # --prefix 'gdb -ex run'
-rosrun yac test_aprilgrid
+# rosrun yac test_aprilgrid
 # rosrun yac test_calib_data
 # rosrun yac test_calib_mono
 # rosrun yac test_calib_stereo

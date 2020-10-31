@@ -1,6 +1,11 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8.3)
 PROJECT(yac)
 
+# Tell cmake where to find custom
+# - AprilTag3
+SET(apriltag3_DIR "../deps/share/apriltag/cmake")
+SET(apriltags_DIR "../deps/share/apriltag/cmake")
+
 # DEPENDENCIES
 FIND_PACKAGE(Ceres REQUIRED)
 FIND_PACKAGE(OpenCV REQUIRED)

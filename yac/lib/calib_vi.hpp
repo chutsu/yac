@@ -13,9 +13,7 @@
 
 namespace yac {
 
-/**
- * Inertial residual
- */
+/** Inertial residual */
 struct calib_imu_residual_t {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 

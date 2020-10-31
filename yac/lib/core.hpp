@@ -1562,6 +1562,12 @@ mat3_t Jr(const vec3_t &psi);
 
 } // namespace lie
 
+/// Oplus matrix of a quaternion, i.e. q_AB*q_BC = oplus(q_BC)*q_AB.coeffs().
+mat4_t oplus(const quat_t & q_BC);
+
+matx_t lift_quaternion(const quat_t &q);
+
+
 
 /******************************************************************************
  *                                STATISTICS

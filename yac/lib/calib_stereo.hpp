@@ -10,6 +10,7 @@
 #include "core.hpp"
 #include "calib_mono.hpp"
 #include "calib_data.hpp"
+#include "ceres_utils.hpp"
 
 namespace yac {
 
@@ -17,7 +18,8 @@ namespace yac {
  * Stereo camera calibration residual
  */
 template <typename CAMERA_TYPE>
-struct calib_stereo_residual_t : public ceres::SizedCostFunction<4, 7, 7, 8, 8> {
+struct calib_stereo_residual_t
+    : public ceres::SizedCostFunction<4, 7, 7, 8, 8> {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
   int cam_res_[2] = {0, 0};
@@ -99,13 +101,16 @@ struct calib_stereo_residual_t : public ceres::SizedCostFunction<4, 7, 7, 8, 8> 
     r.segment<2>(2) = sqrt_info_ * (z_C1_ - z_C1_hat);
 
     // Jacobians
+    matx_t cam0_weighted_Jh = -1 * sqrt_info_ * cam0_Jh;
+    matx_t cam1_weighted_Jh = -1 * sqrt_info_ * cam1_Jh;
+
     if (jacobians) {
       // Jacobians w.r.t T_C0F
       if (jacobians[0]) {
-        J_min[0].block(0, 0, 2, 3) = -1 * sqrt_info_ * cam0_Jh * -skew(C_C0F * r_FFi_);
-        J_min[0].block(0, 3, 2, 3) = -1 * sqrt_info_ * cam0_Jh * I(3);
-        J_min[0].block(2, 0, 2, 3) = -1 * sqrt_info_ * cam1_Jh * -skew(C_C1F * r_FFi_);
-        J_min[0].block(2, 3, 2, 3) = -1 * sqrt_info_ * cam1_Jh * I(3);
+        J_min[0].block(0, 0, 2, 3) = cam0_weighted_Jh * -skew(C_C0F * r_FFi_);
+        J_min[0].block(0, 3, 2, 3) = cam0_weighted_Jh * I(3);
+        J_min[0].block(2, 0, 2, 3) = cam1_weighted_Jh * -skew(C_C1F * r_FFi_);
+        J_min[0].block(2, 3, 2, 3) = cam1_weighted_Jh * I(3);
         if (valid == false) {
           J_min[0].setZero();
         }
@@ -129,8 +134,8 @@ struct calib_stereo_residual_t : public ceres::SizedCostFunction<4, 7, 7, 8, 8> 
       // Jacobians w.r.t T_C1C0
       if (jacobians[1]) {
         J_min[1].block(0, 0, 2, 6).setZero();
-        J_min[1].block(2, 0, 2, 3) = -1 * sqrt_info_ * cam1_Jh * -skew(C_C1C0 * r_C0Fi);
-        J_min[1].block(2, 3, 2, 3) = -1 * sqrt_info_ * cam1_Jh * I(3);
+        J_min[1].block(2, 0, 2, 3) = cam1_weighted_Jh * -skew(C_C1C0 * r_C0Fi);
+        J_min[1].block(2, 3, 2, 3) = cam1_weighted_Jh * I(3);
         if (valid == false) {
           J_min[1].setZero();
         }

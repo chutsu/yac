@@ -41,8 +41,8 @@ source ~/catkin_ws/devel/setup.bash
 # --prefix 'gdb -ex run'
 # rosrun yac test_aprilgrid
 # rosrun yac test_calib_data
-# rosrun yac test_calib_mono
-rosrun yac test_calib_stereo
+rosrun yac test_calib_mono
+# rosrun yac test_calib_stereo
 # rosrun yac test_calib_vi
 
 # roslaunch yac_ros calib_capture.launch

@@ -200,15 +200,16 @@ int preprocess_stereo_data(const calib_target_t &target,
                            const real_t cam1_lens_hfov,
                            const real_t cam1_lens_vfov,
                            const std::string &cam0_output_dir,
-                           const std::string &cam1_output_dir) {
+                           const std::string &cam1_output_dir,
+                           const bool imshow) {
   std::vector<std::string> data_paths = {cam0_image_dir, cam1_image_dir};
   std::vector<vec2_t> resolutions = {cam0_image_size, cam1_image_size};
   std::vector<real_t> hfovs = {cam0_lens_hfov, cam1_lens_hfov};
   std::vector<real_t> vfovs = {cam0_lens_vfov, cam1_lens_vfov};
   std::vector<std::string> output_paths = {cam0_output_dir, cam1_output_dir};
-
   int retvals[2] = {0, 0};
-#pragma omp parallel for
+
+  #pragma omp parallel for
   for (size_t i = 0; i < 2; i++) {
     retvals[i] = preprocess_camera_data(target,
                                         data_paths[i],
@@ -216,7 +217,7 @@ int preprocess_stereo_data(const calib_target_t &target,
                                         hfovs[i],
                                         vfovs[i],
                                         output_paths[i],
-                                        false,
+                                        (i == 0 && imshow) ? true : false,
                                         (i == 0) ? true : false);
   }
 

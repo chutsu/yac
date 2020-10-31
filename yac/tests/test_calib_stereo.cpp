@@ -185,14 +185,16 @@ int test_calib_stereo_solve() {
   // Test
   const mat2_t covar = pow(0.5, 2) * I(2);
   mat4_t T_C1C0 = I(4);
-  mat4s_t poses;
+  mat4s_t T_C0F;
+  mat4s_t T_C1F;
   retval = calib_stereo_solve<pinhole_radtan4_t>(cam0_aprilgrids,
                                                  cam1_aprilgrids,
                                                  covar,
                                                  &cam0,
                                                  &cam1,
                                                  &T_C1C0,
-                                                 &poses);
+                                                 &T_C0F,
+                                                 &T_C1F);
   if (retval != 0) {
     LOG_ERROR("Failed to calibrate stereo cameras!");
     return -1;

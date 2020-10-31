@@ -6,6 +6,7 @@ mkdir -p /data/euroc_mav/
 BASE_URL="http://robotics.ethz.ch/~asl-datasets/ijrr_euroc_mav_dataset"
 CALIB_URL=${BASE_URL}"/calibration_datasets"
 
+# DOWNLOAD DATASET FLAT-FILES
 cd /data/euroc_mav
 
 if [ ! -f cam_april.zip ]; then
@@ -22,3 +23,16 @@ unzip -oq cam_april.zip -d cam_april
 echo "unzipping imu_april.zip"
 mkdir -p imu_april
 unzip -oq imu_april.zip -d imu_april
+
+
+# DOWNLOAD ROSBAGS
+cd /data/euroc_mav
+mkdir -p rosbags
+
+if [ ! -f cam_april.bag ]; then
+  wget "${CALIB_URL}/cam_april/cam_april.bag"
+fi
+
+if [ ! -f imu_april.bag ]; then
+  wget "${CALIB_URL}/imu_april/imu_april.bag"
+fi

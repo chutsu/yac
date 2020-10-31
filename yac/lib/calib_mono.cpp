@@ -2,10 +2,6 @@
 
 namespace yac {
 
-/*****************************************************************************
- *                             MONCULAR CAMERA
- ****************************************************************************/
-
 static int save_results(const std::string &save_path,
                         const camera_params_t &params,
                         const double rmse,
@@ -45,7 +41,7 @@ int calib_mono_solve(const std::string &config_file) {
   // Calibration config data
   std::string data_path;
   std::string results_fpath;
-  bool imshow = false;
+  bool imshow = true;
   double sigma_vision = 0.0;
   vec2_t resolution{0.0, 0.0};
   real_t lens_hfov = 0.0;
@@ -57,8 +53,8 @@ int calib_mono_solve(const std::string &config_file) {
   config_t config{config_file};
   parse(config, "settings.data_path", data_path);
   parse(config, "settings.results_fpath", results_fpath);
-  parse(config, "settings.imshow", imshow, true);
-  parse(config, "settings.sigma_vision", imshow, true);
+  parse(config, "settings.imshow", imshow);
+  parse(config, "settings.sigma_vision", sigma_vision);
   parse(config, "cam0.resolution", resolution);
   parse(config, "cam0.lens_hfov", lens_hfov);
   parse(config, "cam0.lens_vfov", lens_vfov);

@@ -24,6 +24,8 @@ void process_rosbag(const std::string &rosbag_path,
 
   // Process ROS bag
   LOG_INFO("Processing ROS bag [%s]", rosbag_path.c_str());
+  LOG_INFO("- cam0 topic [%s]", cam0_topic.c_str());
+  LOG_INFO("- cam1 topic [%s]", cam1_topic.c_str());
   rosbag::View bag_view(bag);
   size_t msg_idx = 0;
   bool cam_event = false;
@@ -42,7 +44,7 @@ void process_rosbag(const std::string &rosbag_path,
 
     // Print progress
     if (cam_event) {
-      if (msg_idx % 10 == 0) {
+      if ((msg_idx % 10) == 0) {
         printf(".");
       }
       msg_idx++;

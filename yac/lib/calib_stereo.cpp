@@ -69,6 +69,7 @@ int calib_stereo_solve(const std::string &config_file) {
   // Calibration settings
   std::string data_path;
   std::string results_fpath;
+  bool imshow = false;
   double sigma_vision = 0.0;
 
   std::vector<int> cam0_res;
@@ -87,6 +88,7 @@ int calib_stereo_solve(const std::string &config_file) {
   config_t config{config_file};
   parse(config, "settings.data_path", data_path);
   parse(config, "settings.results_fpath", results_fpath);
+  parse(config, "settings.imshow", imshow);
   parse(config, "settings.sigma_vision", sigma_vision);
   parse(config, "cam0.resolution", cam0_res);
   parse(config, "cam0.lens_hfov", cam0_lens_hfov);
@@ -127,7 +129,8 @@ int calib_stereo_solve(const std::string &config_file) {
                                       cam1_lens_hfov,
                                       cam1_lens_vfov,
                                       cam0_grid_path,
-                                      cam1_grid_path);
+                                      cam1_grid_path,
+                                      imshow);
   if (retval != 0) {
     LOG_ERROR("Failed to preprocess calibration data!");
     return -1;
@@ -181,33 +184,39 @@ int calib_stereo_solve(const std::string &config_file) {
   LOG_INFO("Calibrating stereo camera!");
   mat4_t T_C0C1 = I(4);
   mat4s_t T_C0F;
+  mat4s_t T_C1F;
   mat2_t covar = pow(sigma_vision, 2) * I(2);
   calib_stereo_results_t results;
 
+  // -- Pinhole-Radtan4
   if (cam0_proj_model == "pinhole" && cam0_dist_model == "radtan4") {
     calib_stereo_solve<pinhole_radtan4_t>(cam0_grids, cam1_grids, covar,
-                                          &cam0, &cam1, &T_C0C1, &T_C0F);
+                                          &cam0, &cam1,
+                                          &T_C0C1, &T_C0F, &T_C1F);
     calib_mono_stats<pinhole_radtan4_t>(cam0_grids, cam0, T_C0F,
                                         &results.cam0_errors,
                                         &results.cam0_rmse_error,
                                         &results.cam0_mean_error);
-    calib_mono_stats<pinhole_radtan4_t>(cam1_grids, cam1, T_C0F,
+    calib_mono_stats<pinhole_radtan4_t>(cam1_grids, cam1, T_C1F,
                                         &results.cam1_errors,
                                         &results.cam1_rmse_error,
                                         &results.cam1_mean_error);
 
+  // -- Pinhole-Equi4
   } else if (cam0_proj_model == "pinhole" && cam0_dist_model == "equi4") {
     calib_stereo_solve<pinhole_equi4_t>(cam0_grids, cam1_grids, covar,
-                                        &cam0, &cam1, &T_C0C1, &T_C0F);
+                                        &cam0, &cam1,
+                                        &T_C0C1, &T_C0F, &T_C1F);
     calib_mono_stats<pinhole_equi4_t>(cam0_grids, cam0, T_C0F,
                                       &results.cam0_errors,
                                       &results.cam0_rmse_error,
                                       &results.cam0_mean_error);
-    calib_mono_stats<pinhole_equi4_t>(cam1_grids, cam1, T_C0F,
+    calib_mono_stats<pinhole_equi4_t>(cam1_grids, cam1, T_C1F,
                                       &results.cam1_errors,
                                       &results.cam1_rmse_error,
                                       &results.cam1_mean_error);
 
+  // -- Unsupported
   } else {
     LOG_ERROR("[%s-%s] unsupported!", cam0_proj_model.c_str(),
                                       cam0_dist_model.c_str());

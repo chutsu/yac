@@ -248,7 +248,8 @@ int calib_stereo_solve(const std::vector<aprilgrid_t> &cam0_grids,
                        camera_params_t *cam0,
                        camera_params_t *cam1,
                        mat4_t *T_C1C0,
-                       mat4s_t *T_C0F) {
+                       mat4s_t *T_C0F,
+                       mat4s_t *T_C1F) {
   assert(cam0_grids.size() == cam1_grids.size());
 
   // Setup optimization variables
@@ -297,11 +298,10 @@ int calib_stereo_solve(const std::vector<aprilgrid_t> &cam0_grids,
   std::cout << summary.FullReport() << std::endl;
 
   // Finish up
-  mat4s_t T_C1F;
   *T_C1C0 = extrinsic_param.tf();
   for (auto pose : rel_poses) {
     (*T_C0F).emplace_back(pose.tf());
-    T_C1F.emplace_back((*T_C1C0) * (*T_C0F).back());
+    (*T_C1F).emplace_back(*T_C1C0 * pose.tf());
   }
 
   // Show results
@@ -309,7 +309,7 @@ int calib_stereo_solve(const std::vector<aprilgrid_t> &cam0_grids,
   double cam0_rmse, cam1_rmse = 0.0;
   double cam0_mean, cam1_mean = 0.0;
   calib_mono_stats<CAMERA_TYPE>(cam0_grids, *cam0, *T_C0F, &cam0_errs, &cam0_rmse, &cam0_mean);
-  calib_mono_stats<CAMERA_TYPE>(cam1_grids, *cam1, T_C1F, &cam1_errs, &cam1_rmse, &cam1_mean);
+  calib_mono_stats<CAMERA_TYPE>(cam1_grids, *cam1, *T_C1F, &cam1_errs, &cam1_rmse, &cam1_mean);
 
   printf("Optimization results:\n");
   printf("---------------------\n");

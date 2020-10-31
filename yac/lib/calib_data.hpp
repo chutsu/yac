@@ -325,7 +325,8 @@ int preprocess_stereo_data(const calib_target_t &target,
                            const real_t cam1_lens_hfov,
                            const real_t cam1_lens_vfov,
                            const std::string &cam0_output_dir,
-                           const std::string &cam1_output_dir);
+                           const std::string &cam1_output_dir,
+                           const bool imshow = false);
 
 /**
  * Extract and only keep common aprilgrid corners between `grids0` and `grids1`.

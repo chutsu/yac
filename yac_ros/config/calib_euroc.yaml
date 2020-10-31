@@ -1,10 +1,11 @@
 ros:
-  bag: "/data/pointgrey/mono-4/calib_mono.bag"
-  cam0_topic: "/camera/image_raw"
+  bag: "/data/euroc_mav/calib/cam_april.bag"
+  cam0_topic: "/cam0/image_raw"
+  cam1_topic: "/cam1/image_raw"
 
 settings:
-  data_path: "/data/pointgrey/mono-4"
-  results_fpath: "/data/pointgrey/mono-4/calib_results.yaml"
+  data_path: "/tmp/cam_april"
+  results_fpath: "/tmp/cam_april/calib_results.yaml"
   sigma_vision: 0.5
   imshow: true
 
@@ -15,10 +16,19 @@ calib_target:
   tag_size: 0.088           # Size of apriltag, edge to edge [m]
   tag_spacing: 0.3          # Ratio of space between tags to tagSize
                             # Example: tagSize=2m, spacing=0.5m --> tagSpacing=0.25[-]
+
 cam0:
   proj_model: "pinhole"
-  dist_model: "equi4"
-  lens_hfov: 120
-  lens_vfov: 120
-  resolution: [1224, 1024]
-  rate: 35.0
+  dist_model: "radtan4"
+  lens_hfov: 90
+  lens_vfov: 90
+  resolution: [752, 480]
+  rate: 20.0
+
+cam1:
+  proj_model: "pinhole"
+  dist_model: "radtan4"
+  lens_hfov: 90
+  lens_vfov: 90
+  resolution: [752, 480]
+  rate: 20.0

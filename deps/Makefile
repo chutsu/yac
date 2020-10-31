@@ -8,11 +8,11 @@ clean:
 	@rm -rf share
 
 apriltag3:
-	@echo "Building AprilTag3 ..."
+	@echo "Building apriltag3 ..."
 	@bash ./build_apriltag3.bash > build_apriltag3.log
 
 apriltags:
-	@echo "Building AprilTags ..."
+	@echo "Building apriltags ..."
 	@bash ./build_apriltags.bash > build_apriltags.log
 
 suitesparse:

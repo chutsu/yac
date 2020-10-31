@@ -19,7 +19,7 @@ install_base() {
 apt_update
 install_base
 install ros
-install apriltags
+#install apriltags
 install ceres
 install eigen
 install opencv3

@@ -14,6 +14,7 @@ ${CATKIN_WS}:
 deps:
 	@echo "[Installing Dependencies]"
 	@sudo bash ./scripts/deps/install.bash
+	@make -s -C deps
 
 release: ${CATKIN_WS} ${YAC_PATH}
 	@cd ${CATKIN_WS} && \

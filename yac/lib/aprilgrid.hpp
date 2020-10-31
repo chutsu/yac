@@ -3,9 +3,23 @@
 
 #include <algorithm>
 
-/// Order matters with the AprilTags lib. The detector has to be first.
+/// Order matters with the AprilTags lib by Michael Kaess. The detector first.
 #include <AprilTags/TagDetector.h>
 #include <AprilTags/Tag36h11.h>
+
+/// AprilTags3 by Ed Olsen
+extern "C" {
+#include "apriltag3/apriltag.h"
+#include "apriltag3/tag36h11.h"
+#include "apriltag3/tag25h9.h"
+#include "apriltag3/tag16h5.h"
+#include "apriltag3/tagCircle21h7.h"
+#include "apriltag3/tagCircle49h12.h"
+#include "apriltag3/tagCustom48h12.h"
+#include "apriltag3/tagStandard41h12.h"
+#include "apriltag3/tagStandard52h13.h"
+#include "apriltag3/common/getopt.h"
+}
 
 #include "core.hpp"
 
@@ -16,13 +30,18 @@ namespace yac {
  */
 struct aprilgrid_detector_t {
   /// Grid properties
-  bool configured = false;
+  bool configured = true;
   int tag_rows = 0;
   int tag_cols = 0;
   real_t tag_size = 0.0;
   real_t tag_spacing = 0.0;
 
+  // AprilTags by Michael Kaess
   AprilTags::AprilGridDetector det;
+
+  // AprilTag3 by Ed Olsen
+  apriltag_family_t *tf = tag36h11_create();
+  apriltag_detector_t *det_v3 = apriltag_detector_create();
 
   aprilgrid_detector_t(const int tag_rows_,
                        const int tag_cols_,
@@ -31,9 +50,18 @@ struct aprilgrid_detector_t {
       : tag_rows{tag_rows_},
         tag_cols{tag_cols_},
         tag_size{tag_size_},
-        tag_spacing{tag_spacing_} {}
+        tag_spacing{tag_spacing_} {
+		apriltag_detector_add_family(det_v3, tf);
+		det_v3->quad_decimate = 1.0;
+		det_v3->quad_sigma = 0.0;  // Blur
+		det_v3->nthreads = 2;
+		det_v3->debug = 0;
+		det_v3->refine_edges = 1;
+	}
 
-  ~aprilgrid_detector_t() {}
+  ~aprilgrid_detector_t() {
+    apriltag_detector_destroy(det_v3);
+	}
 };
 
 /**
@@ -184,7 +212,8 @@ void aprilgrid_filter_tags(const cv::Mat &image,
  */
 int aprilgrid_detect(const aprilgrid_detector_t &detector,
                      const cv::Mat &image,
-                     aprilgrid_t &grid);
+                     aprilgrid_t &grid,
+					 	 	 		 	 const bool use_v3=false);
 
 /**
  * Detect AprilGrid.
@@ -194,7 +223,8 @@ int aprilgrid_detect(const aprilgrid_detector_t &detector,
                      const cv::Mat &image,
                      const mat3_t &cam_K,
                      const vec4_t &cam_D,
-                     aprilgrid_t &grid);
+                     aprilgrid_t &grid,
+					 	 	 		 	 const bool use_v3=false);
 
 /**
  * Find the intersection of two aprilgrids

@@ -7,10 +7,10 @@ namespace yac {
   #define TEST_PATH "."
 #endif
 
-#define IMAGE_DIR "/data/euroc_mav/cam_april/mav0/cam0/data"
 #define APRILGRID_CONF TEST_PATH "/test_data/calib/aprilgrid/target.yaml"
-#define APRILGRID_DATA "/tmp/aprilgrid_test/mono/cam0"
 #define APRILGRID_IMAGE TEST_PATH "/test_data/calib/aprilgrid/aprilgrid.png"
+#define CAM0_IMAGE_DIR "/data/euroc_mav/cam_april/mav0/cam0/data"
+#define CAM1_IMAGE_DIR "/data/euroc_mav/cam_april/mav0/cam1/data"
 #define CAM0_APRILGRID_DATA "/tmp/aprilgrid_test/stereo/cam0"
 #define CAM1_APRILGRID_DATA "/tmp/aprilgrid_test/stereo/cam1"
 
@@ -22,16 +22,21 @@ void test_setup() {
   }
 
   // Test preprocess data
-  const std::string image_dir = IMAGE_DIR;
   const vec2_t image_size{752, 480};
   const double lens_hfov = 98.0;
   const double lens_vfov = 73.0;
-  int retval = preprocess_camera_data(target,
-                                      image_dir,
+  int retval = preprocess_stereo_data(target,
+                                      CAM0_IMAGE_DIR,
+                                      CAM1_IMAGE_DIR,
+                                      image_size,
                                       image_size,
                                       lens_hfov,
                                       lens_vfov,
-                                      APRILGRID_DATA);
+                                      lens_hfov,
+                                      lens_vfov,
+                                      CAM0_APRILGRID_DATA,
+                                      CAM1_APRILGRID_DATA,
+                                      true);
   if (retval == -1) {
     FATAL("Failed to preprocess camera data!");
   }
@@ -42,7 +47,7 @@ int test_calib_stereo_residual() {
   std::vector<aprilgrid_t> cam0_aprilgrids;
   std::vector<aprilgrid_t> cam1_aprilgrids;
   int retval = load_stereo_calib_data(CAM0_APRILGRID_DATA,
-                                      CAM0_APRILGRID_DATA,
+                                      CAM1_APRILGRID_DATA,
                                       cam0_aprilgrids,
                                       cam1_aprilgrids);
   if (retval != 0) {
@@ -159,8 +164,8 @@ int test_calib_stereo_solve() {
   const int img_w = 752;
   const int img_h = 480;
   const int cam_res[2] = {img_w, img_h};
-  const double lens_hfov = 98.0;
-  const double lens_vfov = 73.0;
+  const double lens_hfov = 90.0;
+  const double lens_vfov = 90.0;
   // -- cam0 intrinsics and distortion
   const double cam0_fx = pinhole_focal(img_w, lens_hfov);
   const double cam0_fy = pinhole_focal(img_h, lens_vfov);

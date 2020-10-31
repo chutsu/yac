@@ -39,6 +39,7 @@ flags = [
     '-I', '/usr/include/ignition/msgs1',
     '-I', '/usr/include/ignition/transport4',
     '-I', '/opt/ros/melodic/include',
+    '-I', 'yac/deps/include',
     '-I', 'yac/lib',
     '-I', '/home/chutsu/catkin_ws/devel/include',
     '-I', './ClangCompleter',

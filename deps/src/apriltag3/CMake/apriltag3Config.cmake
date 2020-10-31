@@ -1,4 +1,4 @@
-include("${CMAKE_CURRENT_LIST_DIR}/apriltagTargets.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/apriltag3Targets.cmake")
 
 if (NOT MSVC) 
     include(CMakeFindDependencyMacro)

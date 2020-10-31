@@ -92,7 +92,7 @@ int preprocess_camera_data(const calib_target_t &target,
     // -- Detect
     const auto image_path = paths_join(image_dir, image_paths[i]);
     const cv::Mat image = cv::imread(image_path);
-    aprilgrid_detect(detector, image, cam_K, cam_D, grid);
+    aprilgrid_detect(detector, image, cam_K, cam_D, grid, false);
     grid.timestamp = ts;
 
     // -- Save AprilGrid
@@ -212,7 +212,7 @@ int preprocess_stereo_data(const calib_target_t &target,
   std::vector<std::string> output_paths = {cam0_output_dir, cam1_output_dir};
   int retvals[2] = {0, 0};
 
-  #pragma omp parallel for
+	#pragma omp parallel for
   for (size_t i = 0; i < 2; i++) {
     retvals[i] = preprocess_camera_data(target,
                                         data_paths[i],

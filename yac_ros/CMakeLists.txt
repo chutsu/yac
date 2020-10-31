@@ -1,12 +1,18 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8.3)
 PROJECT(yac_ros)
 
+# Tell cmake where to find custom
+# - AprilTag3
+SET(apriltag3_DIR "../deps/share/apriltag3/cmake")
+
 # DEPENDENCIES
 FIND_PACKAGE(Ceres REQUIRED)
 FIND_PACKAGE(OpenCV REQUIRED)
 FIND_PACKAGE(Eigen3 REQUIRED)
 INCLUDE_DIRECTORIES(${EIGEN3_INCLUDE_DIR})
-SET(YAC_DEPS yaml-cpp ceres apriltags ${OpenCV_LIBS})
+INCLUDE_DIRECTORIES("../deps/include")
+LINK_DIRECTORIES("../deps/lib")
+SET(YAC_DEPS yaml-cpp ceres apriltag3 apriltags ${OpenCV_LIBS})
 
 # CATKIN DEPENDENCIES
 CMAKE_POLICY(SET CMP0054 NEW)
@@ -60,8 +66,8 @@ INSTALL(
 )
 
 # ROS NODES
-ADD_EXECUTABLE(calib_capture_node calib_capture_node.cpp)
-TARGET_LINK_LIBRARIES(calib_capture_node ${DEPS})
+# ADD_EXECUTABLE(calib_capture_node calib_capture_node.cpp)
+# TARGET_LINK_LIBRARIES(calib_capture_node ${DEPS})
 
 ADD_EXECUTABLE(calib_mono_node calib_mono_node.cpp)
 TARGET_LINK_LIBRARIES(calib_mono_node ${DEPS})

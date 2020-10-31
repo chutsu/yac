@@ -2,6 +2,7 @@
 #define YAC_CALIB_DATA_HPP
 
 #include <string>
+#include <thread>
 
 #include <opencv2/calib3d/calib3d.hpp>
 

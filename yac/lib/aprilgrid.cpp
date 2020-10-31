@@ -2,7 +2,6 @@
 
 namespace yac {
 
-
 void aprilgrid_add(aprilgrid_t &grid,
                    const int id,
                    const std::vector<cv::Point2f> &keypoints) {
@@ -641,31 +640,72 @@ void aprilgrid_filter_tags(const cv::Mat &image,
 
 int aprilgrid_detect(const aprilgrid_detector_t &detector,
                      const cv::Mat &image,
-                     aprilgrid_t &grid) {
-  assert(grid.configured);
+                     aprilgrid_t &grid,
+					 	 	 		 	 const bool use_v3) {
+  assert(detector.configured);
   aprilgrid_clear(grid);
+
+  grid.configured = true;
+  grid.tag_rows = detector.tag_rows;
+  grid.tag_cols = detector.tag_cols;
+  grid.tag_size = detector.tag_size;
+  grid.tag_spacing = detector.tag_spacing;
 
   // Convert image to gray-scale
   const cv::Mat image_gray = rgb2gray(image);
 
-  // Extract tags
-  std::vector<apriltag_t> tags = detector.det.extractTags(image_gray);
-  aprilgrid_filter_tags(image, tags);
-  std::sort(tags.begin(), tags.end(), sort_apriltag_by_id);
+	if (use_v3) {
+		// Use AprilTags3
+		// -- Make an image_u8_t header for the Mat data
+		image_u8_t im = {.width = image_gray.cols,
+										.height = image_gray.rows,
+										.stride = image_gray.cols,
+										.buf = image_gray.data};
 
-  // Form results
-  for (const auto &tag : tags) {
-    if (tag.good == false) {
-      continue;
-    }
+		// -- Detector tags
+		zarray_t *detections = apriltag_detector_detect(detector.det_v3, &im);
+		for (int i = 0; i < zarray_size(detections); i++) {
+			apriltag_detection_t *det;
+			zarray_get(detections, i, &det);
 
-    std::vector<cv::Point2f> img_pts;
-    img_pts.emplace_back(tag.p[0].first, tag.p[0].second); // Bottom left
-    img_pts.emplace_back(tag.p[1].first, tag.p[1].second); // Top left
-    img_pts.emplace_back(tag.p[2].first, tag.p[2].second); // Top right
-    img_pts.emplace_back(tag.p[3].first, tag.p[3].second); // Bottom right
-    aprilgrid_add(grid, tag.id, img_pts);
-  }
+			// if (det->decision_margin < 180.0) {
+			//   continue;
+			// }
+
+			// printf("apriltag hamming: %d\n", det->hamming);
+			// printf("apriltag decision margin: %f\n", det->decision_margin);
+			// printf("\n");
+
+			std::vector<cv::Point2f> img_pts;
+			img_pts.emplace_back(det->p[0][0], det->p[0][1]); // Bottom left
+			img_pts.emplace_back(det->p[1][0], det->p[1][1]); // Bottom right
+			img_pts.emplace_back(det->p[2][0], det->p[2][1]); // Top right
+			img_pts.emplace_back(det->p[3][0], det->p[3][1]); // Top left
+			aprilgrid_add(grid, det->id, img_pts);
+		}
+		apriltag_detections_destroy(detections);
+
+	} else {
+		// Use AprilTags by Michael Kaess
+		// Extract tags
+		std::vector<apriltag_t> tags = detector.det.extractTags(image_gray);
+		aprilgrid_filter_tags(image, tags);
+		std::sort(tags.begin(), tags.end(), sort_apriltag_by_id);
+
+		// Form results
+		for (const auto &tag : tags) {
+			if (tag.good == false) {
+				continue;
+			}
+
+			std::vector<cv::Point2f> img_pts;
+			img_pts.emplace_back(tag.p[0].first, tag.p[0].second); // Bottom left
+			img_pts.emplace_back(tag.p[1].first, tag.p[1].second); // Top left
+			img_pts.emplace_back(tag.p[2].first, tag.p[2].second); // Top right
+			img_pts.emplace_back(tag.p[3].first, tag.p[3].second); // Bottom right
+			aprilgrid_add(grid, tag.id, img_pts);
+		}
+	}
 
   return grid.nb_detections;
 }
@@ -674,9 +714,10 @@ int aprilgrid_detect(const aprilgrid_detector_t &detector,
                      const cv::Mat &image,
                      const mat3_t &cam_K,
                      const vec4_t &cam_D,
-                     aprilgrid_t &grid) {
-  assert(grid.configured);
-  if (aprilgrid_detect(detector, image, grid) == 0) {
+                     aprilgrid_t &grid,
+					 	 	 		 	 const bool use_v3) {
+  assert(detector.configured);
+  if (aprilgrid_detect(detector, image, grid, use_v3) == 0) {
     return 0;
   }
   aprilgrid_calc_relative_pose(grid, cam_K, cam_D);

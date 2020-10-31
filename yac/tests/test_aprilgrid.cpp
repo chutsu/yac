@@ -498,19 +498,19 @@ int test_aprilgrid_random_sample() {
 }
 
 void test_suite() {
-  // MU_ADD_TEST(test_aprilgrid_constructor);
-  // MU_ADD_TEST(test_aprilgrid_add);
-  // MU_ADD_TEST(test_aprilgrid_remove);
-  // MU_ADD_TEST(test_aprilgrid_get);
-  // MU_ADD_TEST(test_aprilgrid_grid_index);
-  // MU_ADD_TEST(test_aprilgrid_calc_relative_pose);
-  // MU_ADD_TEST(test_aprilgrid_save_and_load);
-  // MU_ADD_TEST(test_aprilgrid_print);
-  // MU_ADD_TEST(test_aprilgrid_detect);
-  MU_ADD_TEST(test_aprilgrid_detect2);
-  // MU_ADD_TEST(test_aprilgrid_intersection);
-  // MU_ADD_TEST(test_aprilgrid_intersection2);
-  // MU_ADD_TEST(test_aprilgrid_random_sample);
+  MU_ADD_TEST(test_aprilgrid_constructor);
+  MU_ADD_TEST(test_aprilgrid_add);
+  MU_ADD_TEST(test_aprilgrid_remove);
+  MU_ADD_TEST(test_aprilgrid_get);
+  MU_ADD_TEST(test_aprilgrid_grid_index);
+  MU_ADD_TEST(test_aprilgrid_calc_relative_pose);
+  MU_ADD_TEST(test_aprilgrid_save_and_load);
+  MU_ADD_TEST(test_aprilgrid_print);
+  MU_ADD_TEST(test_aprilgrid_detect);
+  // MU_ADD_TEST(test_aprilgrid_detect2);
+  MU_ADD_TEST(test_aprilgrid_intersection);
+  MU_ADD_TEST(test_aprilgrid_intersection2);
+  MU_ADD_TEST(test_aprilgrid_random_sample);
 }
 
 } // namespace yac

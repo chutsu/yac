@@ -55,7 +55,10 @@ int preprocess_camera_data(const calib_target_t &target,
   if (show_progress) {
     LOG_INFO("Processing images ...");
   }
-  aprilgrid_detector_t detector;
+  aprilgrid_detector_t detector{target.tag_rows,
+                                target.tag_cols,
+                                target.tag_size,
+                                target.tag_spacing};
 
   for (size_t i = 0; i < image_paths.size(); i++) {
     // -- Print progress
@@ -89,7 +92,7 @@ int preprocess_camera_data(const calib_target_t &target,
     // -- Detect
     const auto image_path = paths_join(image_dir, image_paths[i]);
     const cv::Mat image = cv::imread(image_path);
-    aprilgrid_detect(grid, detector, image, cam_K, cam_D);
+    aprilgrid_detect(detector, image, cam_K, cam_D, grid);
     grid.timestamp = ts;
 
     // -- Save AprilGrid

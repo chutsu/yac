@@ -2,57 +2,6 @@
 
 namespace yac {
 
-aprilgrid_detector_t::aprilgrid_detector_t() {}
-
-aprilgrid_detector_t::~aprilgrid_detector_t() {}
-
-aprilgrid_t::aprilgrid_t() {}
-
-aprilgrid_t::aprilgrid_t(const timestamp_t &timestamp,
-                         const int tag_rows,
-                         const int tag_cols,
-                         const real_t tag_size,
-                         const real_t tag_spacing)
-    : configured{true}, tag_rows{tag_rows}, tag_cols{tag_cols},
-      tag_size{tag_size}, tag_spacing{tag_spacing}, timestamp{timestamp} {}
-
-aprilgrid_t::~aprilgrid_t() {}
-
-aprilgrid_t aprilgrid_detector_detect(const aprilgrid_detector_t &detector,
-                                      const cv::Mat &image) {
-  // Convert image to gray-scale
-  const cv::Mat image_gray = rgb2gray(image);
-
-  // Extract tags
-  std::vector<apriltag_t> tags = detector.det.extractTags(image_gray);
-  aprilgrid_filter_tags(image, tags);
-  std::sort(tags.begin(), tags.end(), sort_apriltag_by_id);
-
-  // Form results
-  aprilgrid_t grid;
-  for (const auto &tag : tags) {
-    std::vector<cv::Point2f> img_pts;
-    img_pts.emplace_back(tag.p[0].first, tag.p[0].second); // Bottom left
-    img_pts.emplace_back(tag.p[1].first, tag.p[1].second); // Top left
-    img_pts.emplace_back(tag.p[2].first, tag.p[2].second); // Top right
-    img_pts.emplace_back(tag.p[3].first, tag.p[3].second); // Bottom right
-    aprilgrid_add(grid, tag.id, img_pts);
-  }
-
-  return grid;
-}
-
-aprilgrid_t aprilgrid_detector_detect(const aprilgrid_detector_t &detector,
-                                      const cv::Mat &image,
-                                      const mat3_t &cam_K,
-                                      const vec4_t &cam_D) {
-  auto grid = aprilgrid_detector_detect(detector, image);
-  if (grid.detected) {
-    aprilgrid_calc_relative_pose(grid, cam_K, cam_D);
-  }
-
-  return grid;
-}
 
 void aprilgrid_add(aprilgrid_t &grid,
                    const int id,
@@ -690,9 +639,9 @@ void aprilgrid_filter_tags(const cv::Mat &image,
   }
 }
 
-int aprilgrid_detect(aprilgrid_t &grid,
-                     const aprilgrid_detector_t &detector,
-                     const cv::Mat &image) {
+int aprilgrid_detect(const aprilgrid_detector_t &detector,
+                     const cv::Mat &image,
+                     aprilgrid_t &grid) {
   assert(grid.configured);
   aprilgrid_clear(grid);
 
@@ -721,13 +670,13 @@ int aprilgrid_detect(aprilgrid_t &grid,
   return grid.nb_detections;
 }
 
-int aprilgrid_detect(aprilgrid_t &grid,
-                     const aprilgrid_detector_t &detector,
+int aprilgrid_detect(const aprilgrid_detector_t &detector,
                      const cv::Mat &image,
                      const mat3_t &cam_K,
-                     const vec4_t &cam_D) {
+                     const vec4_t &cam_D,
+                     aprilgrid_t &grid) {
   assert(grid.configured);
-  if (aprilgrid_detect(grid, detector, image) == 0) {
+  if (aprilgrid_detect(detector, image, grid) == 0) {
     return 0;
   }
   aprilgrid_calc_relative_pose(grid, cam_K, cam_D);

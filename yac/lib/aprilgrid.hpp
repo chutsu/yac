@@ -15,10 +15,25 @@ namespace yac {
  * AprilGrid Detector
  */
 struct aprilgrid_detector_t {
+  /// Grid properties
+  bool configured = false;
+  int tag_rows = 0;
+  int tag_cols = 0;
+  real_t tag_size = 0.0;
+  real_t tag_spacing = 0.0;
+
   AprilTags::AprilGridDetector det;
 
-  aprilgrid_detector_t();
-  ~aprilgrid_detector_t();
+  aprilgrid_detector_t(const int tag_rows_,
+                       const int tag_cols_,
+                       const real_t tag_size_,
+                       const real_t tag_spacing_)
+      : tag_rows{tag_rows_},
+        tag_cols{tag_cols_},
+        tag_size{tag_size_},
+        tag_spacing{tag_spacing_} {}
+
+  ~aprilgrid_detector_t() {}
 };
 
 /**
@@ -46,13 +61,17 @@ struct aprilgrid_t {
   vec3s_t points_CF;
   mat4_t T_CF = I(4);
 
-  aprilgrid_t();
+  aprilgrid_t() {}
   aprilgrid_t(const timestamp_t &timestamp,
-              const int tag_rows,
-              const int tag_cols,
-              const real_t tag_size,
-              const real_t tag_spacing);
-  ~aprilgrid_t();
+                          const int tag_rows,
+                          const int tag_cols,
+                          const real_t tag_size,
+                          const real_t tag_spacing)
+      : configured{true},
+        tag_rows{tag_rows}, tag_cols{tag_cols},
+        tag_size{tag_size}, tag_spacing{tag_spacing},
+        timestamp{timestamp} {}
+  ~aprilgrid_t() {}
 };
 typedef AprilTags::TagDetection apriltag_t;
 typedef std::vector<aprilgrid_t> aprilgrids_t;
@@ -163,19 +182,19 @@ void aprilgrid_filter_tags(const cv::Mat &image,
  * Detect AprilGrid.
  * @returns number of AprilTags detected
  */
-int aprilgrid_detect(aprilgrid_t &grid,
-                     const aprilgrid_detector_t &detector,
-                     const cv::Mat &image);
+int aprilgrid_detect(const aprilgrid_detector_t &detector,
+                     const cv::Mat &image,
+                     aprilgrid_t &grid);
 
 /**
  * Detect AprilGrid.
  * @returns number of AprilTags detected.
  */
-int aprilgrid_detect(aprilgrid_t &grid,
-                     const aprilgrid_detector_t &detector,
+int aprilgrid_detect(const aprilgrid_detector_t &detector,
                      const cv::Mat &image,
                      const mat3_t &cam_K,
-                     const vec4_t &cam_D);
+                     const vec4_t &cam_D,
+                     aprilgrid_t &grid);
 
 /**
  * Find the intersection of two aprilgrids

@@ -232,17 +232,17 @@ int test_aprilgrid_grid_index() {
 int test_aprilgrid_calc_relative_pose() {
   // Detect tags
   const cv::Mat image = cv::imread(TEST_IMAGE, cv::IMREAD_GRAYSCALE);
-  const auto detector = aprilgrid_detector_t();
+  const int rows = 6;
+  const int cols = 6;
+  const double size = 0.088;
+  const double spacing = 0.3;
+  const auto detector = aprilgrid_detector_t(rows, cols, size, spacing);
   auto tags = detector.det.extractTags(image);
 
   // Extract relative pose
   const mat3_t K = pinhole_K(458.654, 457.296, 367.215, 248.375);
   const vec4_t D{-0.28340811, 0.07395907, 0.00019359, 1.76187114e-05};
-  const int tag_rows = 6;
-  const int tag_cols = 6;
-  const double tag_size = 0.088;
-  const double tag_spacing = 0.3;
-  aprilgrid_t grid(0, tag_rows, tag_cols, tag_size, tag_spacing);
+  aprilgrid_t grid(0, rows, cols, size, spacing);
 
   for (const auto &tag : tags) {
     // Image points (counter-clockwise, from bottom left)
@@ -351,11 +351,11 @@ int test_aprilgrid_detect() {
   aprilgrid_t grid;
   MU_CHECK(aprilgrid_configure(grid, TEST_CONF) == 0);
 
-  const auto detector = aprilgrid_detector_t();
+  const auto detector = aprilgrid_detector_t(6, 6, 0.088, 0.3);
   const cv::Mat image = cv::imread(TEST_IMAGE);
   const mat3_t K = pinhole_K(458.654, 457.296, 367.215, 248.375);
   const vec4_t D{-0.28340811, 0.07395907, 0.00019359, 1.76187114e-05};
-  aprilgrid_detect(grid, detector, image, K, D);
+  aprilgrid_detect(detector, image, K, D, grid);
 
   for (const auto &corner : grid.points_CF) {
     MU_CHECK(corner(0) < 1.0);
@@ -370,7 +370,7 @@ int test_aprilgrid_detect() {
 }
 
 int test_aprilgrid_detect2() {
-  const auto detector = aprilgrid_detector_t();
+  const auto detector = aprilgrid_detector_t(6, 6, 0.088, 0.3);
   const cv::Mat image = cv::imread(TEST_IMAGE);
   const mat3_t K = pinhole_K(458.654, 457.296, 367.215, 248.375);
   const vec4_t D{-0.28340811, 0.07395907, 0.00019359, 1.76187114e-05};
@@ -381,8 +381,8 @@ int test_aprilgrid_detect2() {
   for (const auto &image_path : calib_data.cam0_data.image_paths) {
     const auto image = cv::imread(image_path);
 
-    aprilgrid_t grid{0, 6, 6, 0.088, 0.3};
-    aprilgrid_detect(grid, detector, image, K, D);
+    aprilgrid_t grid;
+    aprilgrid_detect(detector, image, K, D, grid);
     aprilgrid_imshow(grid, "AprilGrid detection", image);
 
     nb_detections += grid.nb_detections;
@@ -398,12 +398,12 @@ int test_aprilgrid_intersection() {
   MU_CHECK(aprilgrid_configure(grid0, TEST_CONF) == 0);
   MU_CHECK(aprilgrid_configure(grid1, TEST_CONF) == 0);
 
-  const auto detector = aprilgrid_detector_t();
+  const auto detector = aprilgrid_detector_t(6, 6, 0.088, 0.3);
   const cv::Mat image = cv::imread(TEST_IMAGE);
   const mat3_t K = pinhole_K(458.654, 457.296, 367.215, 248.375);
   const vec4_t D{-0.28340811, 0.07395907, 0.00019359, 1.76187114e-05};
-  aprilgrid_detect(grid0, detector, image, K, D);
-  aprilgrid_detect(grid1, detector, image, K, D);
+  aprilgrid_detect(detector, image, K, D, grid0);
+  aprilgrid_detect(detector, image, K, D, grid1);
 
   // Remove tag id 2 from grid1
   aprilgrid_remove(grid1, 2);
@@ -432,13 +432,13 @@ int test_aprilgrid_intersection2() {
   MU_CHECK(aprilgrid_configure(grid1, TEST_CONF) == 0);
   MU_CHECK(aprilgrid_configure(grid2, TEST_CONF) == 0);
 
-  const auto detector = aprilgrid_detector_t();
+  const auto detector = aprilgrid_detector_t(6, 6, 0.088, 0.3);
   const cv::Mat image = cv::imread(TEST_IMAGE);
   const mat3_t K = pinhole_K(458.654, 457.296, 367.215, 248.375);
   const vec4_t D{-0.28340811, 0.07395907, 0.00019359, 1.76187114e-05};
-  aprilgrid_detect(grid0, detector, image, K, D);
-  aprilgrid_detect(grid1, detector, image, K, D);
-  aprilgrid_detect(grid2, detector, image, K, D);
+  aprilgrid_detect(detector, image, K, D, grid0);
+  aprilgrid_detect(detector, image, K, D, grid1);
+  aprilgrid_detect(detector, image, K, D, grid2);
 
   // Randomly remove between 2 to 10 tags from grid0, grid1 and grid2
   for (int i = 0; i < randi(2, 10); i++) {
@@ -469,11 +469,11 @@ int test_aprilgrid_random_sample() {
   aprilgrid_t grid;
   MU_CHECK(aprilgrid_configure(grid, TEST_CONF) == 0);
 
-  const auto detector = aprilgrid_detector_t();
+  const auto detector = aprilgrid_detector_t(6, 6, 0.088, 0.3);
   const cv::Mat image = cv::imread(TEST_IMAGE);
   const mat3_t K = pinhole_K(458.654, 457.296, 367.215, 248.375);
   const vec4_t D{-0.28340811, 0.07395907, 0.00019359, 1.76187114e-05};
-  aprilgrid_detect(grid, detector, image, K, D);
+  aprilgrid_detect(detector, image, K, D, grid);
 
   const size_t n = 5;
   std::vector<int> tag_ids;

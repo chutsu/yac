@@ -641,7 +641,7 @@ void aprilgrid_filter_tags(const cv::Mat &image,
 int aprilgrid_detect(const aprilgrid_detector_t &detector,
                      const cv::Mat &image,
                      aprilgrid_t &grid,
-                         const bool use_v3) {
+                     const bool use_v3) {
   assert(detector.configured);
   aprilgrid_clear(grid);
 

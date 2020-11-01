@@ -188,43 +188,4 @@ int calib_mocap_marker_solve(const aprilgrids_t &aprilgrids,
   return 0;
 }
 
-double evaluate_mocap_marker_cost(const aprilgrids_t &aprilgrids,
-                                  calib_params_t &cam,
-                                  mat4s_t &T_WM,
-                                  mat4_t &T_MC) {
-  assert(aprilgrids.size() > 0);
-  assert(T_WM.size() > 0);
-  assert(T_WM.size() == aprilgrids.size());
-
-  // Optimization variables
-  calib_pose_t T_MC_param{T_MC};
-  calib_pose_t T_WF_param{T_WM[0] * T_MC * aprilgrids[0].T_CF};
-  std::vector<calib_pose_t> T_WM_params;
-  for (size_t i = 0; i < T_WM.size(); i++) {
-    T_WM_params.push_back(T_WM[i]);
-  }
-
-  // Setup optimization problem
-  ceres::Problem::Options problem_options;
-  std::unique_ptr<ceres::Problem> problem(new ceres::Problem(problem_options));
-
-  // Process all aprilgrid data
-  for (size_t i = 0; i < aprilgrids.size(); i++) {
-    int retval = process_aprilgrid(aprilgrids[i],
-                                   cam,
-                                   &T_MC_param,
-                                   &T_WM_params[i],
-                                   &T_WF_param,
-                                   problem.get());
-    if (retval != 0) {
-      LOG_ERROR("Failed to add AprilGrid measurements to problem!");
-      return -1;
-    }
-  }
-
-  double cost;
-  problem->Evaluate(ceres::Problem::EvaluateOptions(), &cost, NULL, NULL, NULL);
-  return cost;
-}
-
 } //  namespace yac

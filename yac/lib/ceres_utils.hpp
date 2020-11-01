@@ -7,11 +7,18 @@
 
 namespace yac {
 
+// Oplus matrix of a quaternion,
+// i.e. q_AB * q_BC = oplus(q_BC) * q_AB.coeffs().
+mat4_t oplus(const quat_t & q_BC);
+
+// Compute matrix to lift a quaternion.
+matx_t lift_quaternion(const quat_t &q);
+
 // Only computes the J_lift jacobian. J = J_min * J_lift.
-void pose_lift_jacobian(const quat_t &q, mat_t<6, 7, row_major_t> &J_lift);
+void lift_pose_jacobian(const quat_t &q, mat_t<6, 7, row_major_t> &J_lift);
 
 // Convert from pose minimial 2x6 jacobians to the full 2x7 jacobian
-void pose_lift_jacobian(const mat_t<2, 6> &J_min, const quat_t &q, double *J_raw);
+void lift_pose_jacobian(const mat_t<2, 6> &J_min, const quat_t &q, double *J_raw);
 
 // Pose local parameterization
 class PoseLocalParameterization : public ceres::LocalParameterization {

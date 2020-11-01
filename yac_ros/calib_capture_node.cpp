@@ -11,10 +11,10 @@ using namespace yac;
 bool keep_running = true;
 bool capture_event = false;
 int save_counter = 0;
-const auto detector = aprilgrid_detector_t();
+aprilgrid_detector_t detector(6, 6, 0.088, 0.3);
 rosbag::Bag bag;
 bool imshow = true;
-bool viz_detection = true;
+bool show_detection = true;
 std::string cam0_topic;
 
 static void signal_handler(int sig) {
@@ -37,9 +37,9 @@ static void image_cb(const sensor_msgs::ImageConstPtr &msg) {
   if (imshow) {
     auto vis_image = gray2rgb(image);
 
-    if (viz_detection) {
+    if (show_detection) {
       aprilgrid_t grid;
-      aprilgrid_detect(grid, detector, image);
+      aprilgrid_detect(detector, image, grid);
       cv::Scalar color(0, 0, 255);
       for (const auto &kp: grid.keypoints) {
         cv::circle(vis_image, cv::Point(kp(0), kp(1)), 1.0, color, 2, 8);
@@ -75,7 +75,7 @@ int main(int argc, char *argv[]) {
   ros::NodeHandle nh;
   std::string rosbag_path;
   ROS_PARAM(nh, node_name + "/imshow", imshow);
-  ROS_PARAM(nh, node_name + "/viz_detection", viz_detection);
+  ROS_PARAM(nh, node_name + "/show_detection", show_detection);
   ROS_PARAM(nh, node_name + "/rosbag_path", rosbag_path);
   ROS_PARAM(nh, node_name + "/cam0_topic", cam0_topic);
 

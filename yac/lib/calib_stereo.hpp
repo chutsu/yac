@@ -115,12 +115,12 @@ struct calib_stereo_residual_t
           J_min[0].setZero();
         }
 
-        // Convert from minimial jacobians to local jacobian
+        // Convert from minimal 2x6 jacobian to full 2x7 jacobian
         mat_t<6, 7, row_major_t> J_lift_cam0;
         mat_t<6, 7, row_major_t> J_lift_cam1;
 
-        pose_lift_jacobian(q_C0F, J_lift_cam0);
-        pose_lift_jacobian(q_C1F, J_lift_cam1);
+        lift_pose_jacobian(q_C0F, J_lift_cam0);
+        lift_pose_jacobian(q_C1F, J_lift_cam1);
 
         Eigen::Map<mat_t<4, 7, row_major_t>> J0(jacobians[0]);
         J0.block(0, 0, 2, 7) = J_min[0].block(0, 0, 2, 6) * J_lift_cam0;
@@ -136,9 +136,9 @@ struct calib_stereo_residual_t
           J_min[1].setZero();
         }
 
-        // Convert from minimial jacobians to local jacobian
+        // Convert from minimal 2x6 jacobian to full 2x7 jacobian
         mat_t<6, 7, row_major_t> J_lift_cam1;
-        pose_lift_jacobian(q_C1F, J_lift_cam1);
+        lift_pose_jacobian(q_C1F, J_lift_cam1);
 
         Eigen::Map<mat_t<4, 7, row_major_t>> J1(jacobians[1]);
         J1.block(0, 0, 2, 7).setZero();

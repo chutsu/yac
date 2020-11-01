@@ -59,3 +59,6 @@ TARGET_LINK_LIBRARIES(test_calib_data yac ${DEPS})
 
 ADD_EXECUTABLE(test_calib_stereo tests/test_calib_stereo.cpp)
 TARGET_LINK_LIBRARIES(test_calib_stereo yac ${DEPS})
+
+ADD_EXECUTABLE(test_calib_vi tests/test_calib_vi.cpp)
+TARGET_LINK_LIBRARIES(test_calib_vi yac ${DEPS})

@@ -17,13 +17,28 @@ Supported projection-distortion models:
 - pinhole-equi4
 
 
+Dependencies
+-----
+
+		# Ubuntu packages
+    libyaml-cpp-dev
+		libeigen3-dev
+    libceres-dev
+		libopencv-dev
+    libomp-dev (optional)
+
+		# Custom (see deps dir)
+		Modified apriltag3 (https://github.com/AprilRobotics/apriltag)
+		Modified apriltags (https://github.com/chutsu/apriltags)
+
+
 Build
 -----
 
     cd <your catkin workspace>
     git clone https://github.com/chutsu/yac
     catkin build -DCMAKE_BUILD_TYPE=Release yac yac_ros
-    # Note: If you don't build in release mode the optimization will be very very very slow.
+    # Note: Optimization will be very slow if not built in RELEASE mode.
 
 
 Calibration Target
@@ -32,11 +47,11 @@ Calibration Target
 `yac` uses a grid of AprilTags, a.k.a an AprilGrid, as a calibration target.
 
 <p align="center">
-<img src="docs/aprilgrid.png" alt="AprilGrid" width="40%"/>
+  <img src="docs/aprilgrid.png" alt="AprilGrid" width="40%"/>
 </p>
 
 Click [here](docs/aprilgrid_A0.pdf) to download and print the AprilGrid.
-During calibration make sure the calibration target is as flat as possible.
+During data collection make sure the calibration target is as flat as possible.
 
 
 Calibrate Camera Intrinsics or Stereo Intrinsics and Extrinsics

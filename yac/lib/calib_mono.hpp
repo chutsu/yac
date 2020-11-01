@@ -88,7 +88,7 @@ struct calib_mono_residual_t : public ceres::SizedCostFunction<2, 7, 8> {
         }
 
         // Convert from minimial jacobians to local jacobian
-        pose_lift_jacobian(J_min[0], q_CF, jacobians[0]);
+        lift_pose_jacobian(J_min[0], q_CF, jacobians[0]);
       }
 
       // Jacobians w.r.t camera params

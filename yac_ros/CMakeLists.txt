@@ -66,8 +66,8 @@ INSTALL(
 )
 
 # ROS NODES
-# ADD_EXECUTABLE(calib_capture_node calib_capture_node.cpp)
-# TARGET_LINK_LIBRARIES(calib_capture_node ${DEPS})
+ADD_EXECUTABLE(calib_capture_node calib_capture_node.cpp)
+TARGET_LINK_LIBRARIES(calib_capture_node ${DEPS})
 
 ADD_EXECUTABLE(calib_mono_node calib_mono_node.cpp)
 TARGET_LINK_LIBRARIES(calib_mono_node ${DEPS})

@@ -87,43 +87,45 @@ struct calib_reproj_residual_t
     residuals[1] = r(1);
 
     // Jacobians
-    matx_t weighted_Jh = -1 * sqrt_info_ * Jh;
+    const matx_t weighted_Jh = -1 * sqrt_info_ * Jh;
+		const mat3_t C_CW = tf_rot(T_CS * T_SW);
+		const mat3_t C_CS = C_SC.transpose();
 
     if (jacobians != NULL) {
       // Jacobians w.r.t. T_WF
       if (jacobians[0] != NULL) {
-        J_min[0].block(0, 0, 2, 3) = weighted_Jh * -skew(C_WF * r_FFi_);
-        J_min[0].block(0, 3, 2, 3) = weighted_Jh * I(3);
+        J_min[0].block(0, 0, 2, 3) = weighted_Jh * -C_CW * -skew(C_WF * r_FFi_);
+        J_min[0].block(0, 3, 2, 3) = weighted_Jh * -C_CW * I(3);
         if (valid == false) {
           J_min[0].setZero();
         }
 
         // Convert from minimial jacobians to local jacobian
-        pose_lift_jacobian(J_min[0], q_WF, jacobians[0]);
+        lift_pose_jacobian(J_min[0], q_WF, jacobians[0]);
       }
 
       // Jacobians w.r.t T_WS
       if (jacobians[1] != NULL) {
-        J_min[1].block(0, 0, 2, 3) = weighted_Jh * -skew(C_WS * r_FFi_);
-        J_min[1].block(0, 3, 2, 3) = weighted_Jh * I(3);
+        J_min[1].block(0, 0, 2, 3) = weighted_Jh * -C_CW * -skew(C_WS * r_CFi);
+        J_min[1].block(0, 3, 2, 3) = weighted_Jh * -C_CW * I(3);
         if (valid == false) {
           J_min[1].setZero();
         }
 
         // Convert from minimial jacobians to local jacobian
-        pose_lift_jacobian(J_min[1], q_WS, jacobians[1]);
+        lift_pose_jacobian(J_min[1], q_WS, jacobians[1]);
       }
 
       // Jacobians w.r.t T_SC
       if (jacobians[2] != NULL) {
-        J_min[2].block(0, 0, 2, 3) = weighted_Jh * -skew(C_SC * r_FFi_);
-        J_min[2].block(0, 3, 2, 3) = weighted_Jh * I(3);
+        J_min[2].block(0, 0, 2, 3) = weighted_Jh * C_CS * skew(C_SC * r_CFi);
+        J_min[2].block(0, 3, 2, 3) = weighted_Jh * -C_CS * I(3);
         if (valid == false) {
           J_min[2].setZero();
         }
 
         // Convert from minimial jacobians to local jacobian
-        pose_lift_jacobian(J_min[2], q_SC, jacobians[2]);
+        lift_pose_jacobian(J_min[2], q_SC, jacobians[2]);
       }
 
       // Jacobians w.r.t. camera parameters
@@ -146,6 +148,7 @@ struct calib_reproj_residual_t
 struct calib_imu_residual_t {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 
+	const int imu_index = 0;
   const timestamps_t imu_ts;
   const vec3s_t imu_accel;
   const vec3s_t imu_gyro;
@@ -154,6 +157,14 @@ struct calib_imu_residual_t {
   mat_t<15, 15> P = zeros(15, 15);  // Covariance matrix
   mat_t<12, 12> Q = zeros(12, 12);  // noise matrix
   mat_t<15, 15> F = zeros(15, 15);  // Transition matrix
+  mutable matxs_t J_min;
+
+	// Parameter indicies
+	const int ROT_IDX = 0;
+	const int POS_IDX = 3;
+	const int VEL_IDX = 6;
+	const int BA_IDX = 9;
+	const int BG_IDX = 12;
 
   // Delta position, velocity and rotation between timestep i and j
   // (i.e start and end of imu measurements)
@@ -165,22 +176,18 @@ struct calib_imu_residual_t {
   vec3_t bg{0.0, 0.0, 0.0};
   vec3_t ba{0.0, 0.0, 0.0};
 
-  calib_imu_residual_t(const id_t id_,
-                       const timestamps_t imu_ts_,
+  calib_imu_residual_t(const int imu_index_,
+				 	 	 	 	 	 		 const timestamps_t imu_ts_,
                        const vec3s_t imu_accel_,
-                       const vec3s_t imu_gyro_ ,
-                       const mat_t<15, 15> &info_,
-                       const std::vector<param_t *> &params_)
-      : factor_t{id_, info_, params_},
-        imu_ts{imu_ts_},
+                       const vec3s_t imu_gyro_ )
+      : imu_index{imu_index_},
+			 	imu_ts{imu_ts_},
         imu_accel{imu_accel_},
         imu_gyro{imu_gyro_} {
-    residuals = zeros(15, 1);
-    jacobians.push_back(zeros(15, 6));  // T_WS at timestep i
-    jacobians.push_back(zeros(15, 9));  // Speed and bias at timestep i
-    jacobians.push_back(zeros(15, 6));  // T_WS at timestep j
-    jacobians.push_back(zeros(15, 9));  // Speed and bias at timestep j
-
+    J_min.push_back(zeros(15, 6));  // T_WS at timestep i
+    J_min.push_back(zeros(15, 9));  // Speed and bias at timestep i
+    J_min.push_back(zeros(15, 6));  // T_WS at timestep j
+    J_min.push_back(zeros(15, 9));  // Speed and bias at timestep j
     propagate(imu_ts_, imu_accel_, imu_gyro_);
   }
 
@@ -198,20 +205,20 @@ struct calib_imu_residual_t {
   void propagate(const timestamps_t &ts,
                  const vec3s_t &a_m,
                  const vec3s_t &w_m) {
+		assert(ts.size() > 2);
     assert(ts.size() == a_m.size());
     assert(w_m.size() == a_m.size());
 
+		real_t dt = 0.0;
     real_t dt_prev = ns2sec(ts[1] - ts[0]);
     for (size_t i = 0; i < w_m.size(); i++) {
       // Calculate dt
-      real_t dt = 0.0;
       if ((i + 1) < w_m.size()) {
         dt = ns2sec(ts[i + 1] - ts[i]);
         dt_prev = dt;
       } else {
         dt = dt_prev;
       }
-      // printf("i: %zu\n", i);
 
       // Update relative position and velocity
       dp = dp + dv * dt + 0.5 * (dq * (a_m[i] - ba)) * dt * dt;
@@ -226,26 +233,24 @@ struct calib_imu_residual_t {
       // Transition matrix F
       const mat3_t C_ji = dq.toRotationMatrix();
       mat_t<15, 15> F_i = zeros(15, 15);
-      F_i.block<3, 3>(0, 3) = I(3);
-      F_i.block<3, 3>(3, 6) = -C_ji * skew(a_m[i] - ba);
-      F_i.block<3, 3>(3, 9) = -C_ji;
-      F_i.block<3, 3>(6, 6) = -skew(w_m[i] - bg);
-      F_i.block<3, 3>(6, 12) = -I(3);
+      F_i.block<3, 3>(ROT_IDX, ROT_IDX) = -skew(w_m[i] - bg);
+      F_i.block<3, 3>(ROT_IDX, BG_IDX) = -I(3);
+      F_i.block<3, 3>(POS_IDX, VEL_IDX) = I(3);
+      F_i.block<3, 3>(VEL_IDX, ROT_IDX) = -C_ji * skew(a_m[i] - ba);
+      F_i.block<3, 3>(VEL_IDX, BA_IDX) = -C_ji;
 
       // Input matrix G
       mat_t<15, 12> G_i = zeros(15, 12);
-      G_i.block<3, 3>(3, 0) = -C_ji;
-      G_i.block<3, 3>(6, 3) = -I(3);
-      G_i.block<3, 3>(9, 6) = I(3);
-      G_i.block<3, 3>(12, 9) = I(3);
+      G_i.block<3, 3>(ROT_IDX, BG_IDX) = -I(3);
+      G_i.block<3, 3>(VEL_IDX, BA_IDX) = -C_ji;
+      G_i.block<3, 3>(BA_IDX, BA_IDX) = I(3);
+      G_i.block<3, 3>(BG_IDX, BG_IDX) = I(3);
 
-      // Update covariance matrix
-      const mat_t<15, 15> I_Fi_dt = (I(15) + F * dt);
-      const mat_t<15, 12> Gi_dt = (G_i * dt);
-      P = I_Fi_dt * P * I_Fi_dt.transpose() + Gi_dt * Q * Gi_dt.transpose();
-
-      // Update Jacobian
+      // Update jacobian and covariance matrix
+      const mat_t<15, 15> I_Fi_dt = I(15) + dt * F;
+      const mat_t<15, 12> Gi_dt = G_i * dt;
       F = I_Fi_dt * F;
+      P = I_Fi_dt * P * I_Fi_dt.transpose() + Gi_dt * Q * Gi_dt.transpose();
     }
   }
 
@@ -275,11 +280,15 @@ struct calib_imu_residual_t {
     const vec3_t bg_j = sb_j.segment<3>(6);
 
     // Obtain Jacobians for gyro and accel bias
-    const mat3_t dp_dbg = F.block<3, 3>(0, 9);
-    const mat3_t dp_dba = F.block<3, 3>(0, 12);
-    const mat3_t dv_dbg = F.block<3, 3>(3, 9);
-    const mat3_t dv_dba = F.block<3, 3>(3, 12);
-    const mat3_t dq_dbg = F.block<3, 3>(6, 12);
+    const mat3_t dp_dba = F.block<3, 3>(POS_IDX, BA_IDX);
+    const mat3_t dp_dbg = F.block<3, 3>(POS_IDX, BG_IDX);
+    const mat3_t dv_dba = F.block<3, 3>(VEL_IDX, BA_IDX);
+    const mat3_t dv_dbg = F.block<3, 3>(VEL_IDX, BG_IDX);
+    const mat3_t dq_dbg = F.block<3, 3>(ROT_IDX, BG_IDX);
+
+		// Calculate square root info
+		const matx_t info{P.inverse()};
+    const matx_t sqrt_info{info.llt().matrixL().transpose()};
 
     // Calculate residuals
     const real_t dt_ij = ns2sec(imu_ts.back() - imu_ts.front());
@@ -291,17 +300,63 @@ struct calib_imu_residual_t {
     const quat_t gamma = dq * quat_delta(dq_dbg * dbg);
 
     const quat_t q_i_inv = q_i.inverse();
-    // const quat_t q_j_inv = q_j.inverse();
+    const quat_t q_j_inv = q_j.inverse();
     const quat_t gamma_inv = gamma.inverse();
 
     // clang-format off
+		const vec3_t err_rot = 2.0 * (gamma_inv * (q_i_inv * q_j)).vec();
+		const vec3_t err_trans = C_i_inv * (r_j - r_i - v_i * dt_ij + 0.5 * g * dt_ij_sq) - alpha;
+		const vec3_t err_vel = C_i_inv * (v_j - v_i + g * dt_ij) - beta;
+		const vec3_t err_ba = ba_j - ba_i;
+		const vec3_t err_bg = bg_j - bg_i;
     Eigen::Map<vec_t<15>> r(residuals);
-    r << C_i_inv * (r_j - r_i - v_i * dt_ij + 0.5 * g * dt_ij_sq) - alpha,
-         C_i_inv * (v_j - v_i + g * dt_ij) - beta,
-         2.0 * (gamma_inv * (q_i_inv * q_j)).vec(),
-         ba_j - ba_i,
-         bg_j - bg_i;
+		r << err_rot, err_trans, err_vel, err_ba, err_bg;
+		r = sqrt_info * r;
     // clang-format on
+
+		// Calculate Jacobians
+		if (jacobians) {
+			// Jacobian w.r.t. pose_i
+			if (jacobians[0]) {
+				J_min[0] = zeros(15, 6);
+				J_min[0].block<3, 3>(ROT_IDX, ROT_IDX) = -quat_mat_xyz(quat_lmul(q_j_inv * q_i) * quat_rmul(gamma));
+				J_min[0].block<3, 3>(POS_IDX, ROT_IDX) = skew(C_i_inv * (r_j - r_i - v_i * dt_ij + 0.5 * g * dt_ij_sq));
+				J_min[0].block<3, 3>(POS_IDX, POS_IDX) = -C_i_inv;
+				J_min[0].block<3, 3>(VEL_IDX, ROT_IDX) = skew(C_i_inv * (v_j - v_i + g * dt_ij));
+				J_min[0] = sqrt_info * J_min[0];
+			}
+
+			// Jacobian w.r.t. sb_i
+			if (jacobians[1]) {
+				J_min[1] = zeros(15, 9);
+				J_min[1].block<3, 3>(POS_IDX, VEL_IDX - VEL_IDX) = -C_i_inv * dt_ij;
+				J_min[1].block<3, 3>(POS_IDX, BA_IDX - VEL_IDX) = -dp_dba;
+				J_min[1].block<3, 3>(POS_IDX, BG_IDX - VEL_IDX) = -dp_dbg;
+				J_min[1].block<3, 3>(VEL_IDX, VEL_IDX - VEL_IDX) = -C_i_inv;
+				J_min[1].block<3, 3>(VEL_IDX, BA_IDX - VEL_IDX) = -dv_dba;
+				J_min[1].block<3, 3>(VEL_IDX, BG_IDX - VEL_IDX) = -dv_dbg;
+				J_min[1].block<3, 3>(BA_IDX, BA_IDX - VEL_IDX) = -I(3);
+				J_min[1].block<3, 3>(BG_IDX, BG_IDX - VEL_IDX) = -I(3);
+				J_min[1] = sqrt_info * J_min[1];
+			}
+
+			// Jacobian w.r.t. pose_j
+			if (jacobians[2]) {
+				J_min[2] = zeros(15, 6);
+				J_min[2].block<3, 3>(ROT_IDX, ROT_IDX) = quat_lmul_xyz(gamma_inv * q_i_inv * q_j_inv);
+				J_min[2].block<3, 3>(POS_IDX, POS_IDX) = C_i_inv;
+				J_min[2] = sqrt_info * J_min[2];
+			}
+
+			// Jacobian w.r.t. sb_j
+			if (jacobians[3]) {
+				// -- Speed and bias at j Jacobian
+				J_min[3] = zeros(15, 9);
+				J_min[3].block<3, 3>(3, 0) = C_i_inv;
+				J_min[3].block<3, 3>(9, 3) = I(3);
+				J_min[3] = sqrt_info * J_min[3];
+			}
+		}
 
     return true;
   }

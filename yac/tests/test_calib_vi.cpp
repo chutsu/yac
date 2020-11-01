@@ -1,5 +1,4 @@
 #include "munit.hpp"
-#include "factor.hpp"
 #include "calib_vi.hpp"
 
 namespace yac {

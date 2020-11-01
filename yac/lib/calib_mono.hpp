@@ -8,9 +8,9 @@
 #include <ceres/ceres.h>
 
 #include "core.hpp"
-#include "factor.hpp"
 #include "calib_data.hpp"
 #include "ceres_utils.hpp"
+#include "calib_params.hpp"
 
 namespace yac {
 
@@ -81,8 +81,8 @@ struct calib_mono_residual_t : public ceres::SizedCostFunction<2, 7, 8> {
     if (jacobians) {
       // Jacobians w.r.t T_CF
       if (jacobians[0]) {
-        J_min[0].block(0, 0, 2, 3) = weighted_Jh * -skew(C_CF * r_FFi_);
-        J_min[0].block(0, 3, 2, 3) = weighted_Jh * I(3);
+        J_min[0].block(0, 0, 2, 3) = weighted_Jh * I(3);
+        J_min[0].block(0, 3, 2, 3) = weighted_Jh * -skew(C_CF * r_FFi_);
         if (valid == false) {
           J_min[0].setZero();
         }

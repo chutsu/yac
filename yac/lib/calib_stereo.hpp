@@ -7,10 +7,7 @@
 
 #include <ceres/ceres.h>
 
-#include "core.hpp"
 #include "calib_mono.hpp"
-#include "calib_data.hpp"
-#include "ceres_utils.hpp"
 
 namespace yac {
 
@@ -107,10 +104,10 @@ struct calib_stereo_residual_t
     if (jacobians) {
       // Jacobians w.r.t T_C0F
       if (jacobians[0]) {
-        J_min[0].block(0, 0, 2, 3) = cam0_weighted_Jh * -skew(C_C0F * r_FFi_);
-        J_min[0].block(0, 3, 2, 3) = cam0_weighted_Jh * I(3);
-        J_min[0].block(2, 0, 2, 3) = cam1_weighted_Jh * -skew(C_C1F * r_FFi_);
-        J_min[0].block(2, 3, 2, 3) = cam1_weighted_Jh * I(3);
+        J_min[0].block(0, 0, 2, 3) = cam0_weighted_Jh * I(3);
+        J_min[0].block(0, 3, 2, 3) = cam0_weighted_Jh * -skew(C_C0F * r_FFi_);
+        J_min[0].block(2, 0, 2, 3) = cam1_weighted_Jh * I(3);
+        J_min[0].block(2, 3, 2, 3) = cam1_weighted_Jh * -skew(C_C1F * r_FFi_);
         if (valid == false) {
           J_min[0].setZero();
         }
@@ -130,8 +127,8 @@ struct calib_stereo_residual_t
       // Jacobians w.r.t T_C1C0
       if (jacobians[1]) {
         J_min[1].block(0, 0, 2, 6).setZero();
-        J_min[1].block(2, 0, 2, 3) = cam1_weighted_Jh * -skew(C_C1C0 * r_C0Fi);
-        J_min[1].block(2, 3, 2, 3) = cam1_weighted_Jh * I(3);
+        J_min[1].block(2, 0, 2, 3) = cam1_weighted_Jh * I(3);
+        J_min[1].block(2, 3, 2, 3) = cam1_weighted_Jh * -skew(C_C1C0 * r_C0Fi);
         if (valid == false) {
           J_min[1].setZero();
         }

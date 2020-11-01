@@ -1,5 +1,5 @@
-#ifndef YAC_FACTOR_HPP
-#define YAC_FACTOR_HPP
+#ifndef YAC_CALIB_PARAMS_HPP
+#define YAC_CALIB_PARAMS_HPP
 
 #include "core.hpp"
 
@@ -76,22 +76,22 @@ struct pose_t : param_t {
     const quat_t q{tf_quat(T)};
     const vec3_t r{tf_trans(T)};
 
-    param(0) = q.x();
-    param(1) = q.y();
-    param(2) = q.z();
-    param(3) = q.w();
+    param(0) = r(0);
+    param(1) = r(1);
+    param(2) = r(2);
 
-    param(4) = r(0);
-    param(5) = r(1);
-    param(6) = r(2);
+    param(3) = q.x();
+    param(4) = q.y();
+    param(5) = q.z();
+    param(6) = q.w();
   }
 
   quat_t rot() const {
-    return quat_t{param[3], param[0], param[1], param[2]};
+    return quat_t{param[6], param[3], param[4], param[5]};
   }
 
   vec3_t trans() const {
-    return vec3_t{param[4], param[5], param[6]};
+    return vec3_t{param[0], param[1], param[2]};
   }
 
   mat4_t tf() const {
@@ -103,50 +103,50 @@ struct pose_t : param_t {
   mat4_t tf() { return static_cast<const pose_t &>(*this).tf(); }
 
   void set_trans(const vec3_t &r) {
-    param(4) = r(0);
-    param(5) = r(1);
-    param(6) = r(2);
+    param(0) = r(0);
+    param(1) = r(1);
+    param(2) = r(2);
   }
 
   void set_rot(const quat_t &q) {
-    param(0) = q.x();
-    param(1) = q.y();
-    param(2) = q.z();
-    param(3) = q.w();
+    param(3) = q.x();
+    param(4) = q.y();
+    param(5) = q.z();
+    param(6) = q.w();
   }
 
   void set_rot(const mat3_t &C) {
     quat_t q{C};
-    param(0) = q.x();
-    param(1) = q.y();
-    param(2) = q.z();
-    param(3) = q.w();
+    param(3) = q.x();
+    param(4) = q.y();
+    param(5) = q.z();
+    param(6) = q.w();
   }
 
   void plus(const vecx_t &dx) {
-    // Rotation component
-    const vec3_t dalpha{dx(0), dx(1), dx(2)};
-    const quat_t dq = quat_delta(dalpha);
-    const quat_t q{param[3], param[0], param[1], param[2]};
-    const quat_t q_updated = dq * q;
-    param(0) = q_updated.x();
-    param(1) = q_updated.y();
-    param(2) = q_updated.z();
-    param(3) = q_updated.w();
-
     // Translation component
-    param(4) += dx(3);
-    param(5) += dx(4);
-    param(6) += dx(5);
+    param(0) += dx(0);
+    param(1) += dx(1);
+    param(2) += dx(2);
+
+    // Rotation component
+    const vec3_t dalpha{dx(3), dx(4), dx(5)};
+    const quat_t dq = quat_delta(dalpha);
+    const quat_t q{param[6], param[3], param[4], param[5]};
+    const quat_t q_updated = dq * q;
+    param(3) = q_updated.x();
+    param(4) = q_updated.y();
+    param(5) = q_updated.z();
+    param(6) = q_updated.w();
   }
 
   void perturb(const int i, const real_t step_size) {
     if (i >= 0 && i < 3) {
-      const auto T_WS_diff = tf_perturb_rot(this->tf(), step_size, i);
+      const auto T_WS_diff = tf_perturb_trans(this->tf(), step_size, i);
       this->set_rot(tf_rot(T_WS_diff));
       this->set_trans(tf_trans(T_WS_diff));
     } else if (i >= 3 && i <= 5) {
-      const auto T_WS_diff = tf_perturb_trans(this->tf(), step_size, i - 3);
+      const auto T_WS_diff = tf_perturb_rot(this->tf(), step_size, i - 3);
       this->set_rot(tf_rot(T_WS_diff));
       this->set_trans(tf_trans(T_WS_diff));
     } else {
@@ -253,4 +253,4 @@ struct sb_params_t : param_t {
 };
 
 } // namespace yac
-#endif // YAC_FACTOR_HPP
+#endif // YAC_CALIB_PARAMS_HPP

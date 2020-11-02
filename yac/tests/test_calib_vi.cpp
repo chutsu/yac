@@ -101,6 +101,7 @@ int test_imu_propagate() {
   // sb_params_t sb_j{3, imu_data.timestamps.back(), sim_data.imu_vel.back(), zeros(3, 1), zeros(3, 1)};
 
   const int imu_index = 0;
+	const imu_params_t imu_params;
 	timestamps_t sub_imu_timestamps(&sim_data.imu_ts[0], &sim_data.imu_ts[half_index]);
 	vec3s_t sub_imu_accel(&sim_data.imu_acc[0], &sim_data.imu_acc[half_index]);
 	vec3s_t sub_imu_gyro(&sim_data.imu_gyr[0], &sim_data.imu_gyr[half_index]);
@@ -109,10 +110,7 @@ int test_imu_propagate() {
 	printf("nb imu accel: %ld\n", sub_imu_accel.size());
 	printf("nb imu gyro: %ld\n", sub_imu_gyro.size());
 
-  calib_imu_residual_t residual(imu_index,
-			 													imu_data.timestamps,
-                      	  	 	 	imu_data.accel,
-                      	  	 	 	imu_data.gyro);
+  imu_error_t residual(imu_index, imu_params, imu_data);
   // calib_imu_residual_t residual(imu_index,
 	// 		 													sub_imu_timestamps,
   //                     	  	 	 	sub_imu_accel,

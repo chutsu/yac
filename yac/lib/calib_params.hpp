@@ -248,6 +248,14 @@ struct sb_params_t : param_t {
     param << v_, ba_, bg_;
   }
 
+  sb_params_t(const id_t id_,
+             const timestamp_t &ts_,
+             const vec_t<9> &sb_,
+             const bool fixed_=false)
+    : param_t{"sb_params_t", id_, ts_, 9, 9, fixed_} {
+    param = sb_;
+  }
+
   void plus(const vecx_t &dx) { param += dx; }
   void perturb(const int i, const real_t step_size) { param(i) += step_size; }
 };

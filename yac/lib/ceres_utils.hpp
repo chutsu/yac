@@ -20,6 +20,11 @@ void lift_pose_jacobian(const quat_t &q, mat_t<6, 7, row_major_t> &J_lift);
 // Convert from pose minimial 2x6 jacobians to the full 2x7 jacobian
 void lift_pose_jacobian(const mat_t<2, 6> &J_min, const quat_t &q, double *J_raw);
 
+// Evaluate residual block
+bool evaluate_residual_block(const ceres::Problem &problem,
+                             const ceres::ResidualBlockId res_id,
+                             vec2_t &r);
+
 // Pose local parameterization
 class PoseLocalParameterization : public ceres::LocalParameterization {
 public:

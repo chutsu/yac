@@ -42,4 +42,19 @@ void lift_pose_jacobian(const mat_t<2, 6> &J_min, const quat_t &q, double *J_raw
   J = J_min * J_lift;
 }
 
+bool evaluate_residual_block(const ceres::Problem &problem,
+                             const ceres::ResidualBlockId res_id,
+                             vec2_t &r) {
+  // Get residual block and allocate residual vector
+  const auto cost_fn = problem.GetCostFunctionForResidualBlock(res_id);
+  r = zeros(cost_fn->num_residuals(), 1);
+
+  // Get residual parameter blocks
+  std::vector<double *> param_blocks;
+  problem.GetParameterBlocksForResidualBlock(res_id, &param_blocks);
+
+  // Evaluate residual block
+  return cost_fn->Evaluate(param_blocks.data(), r.data(), nullptr);
+}
+
 } // namespace yac

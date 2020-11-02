@@ -14,9 +14,7 @@
 
 namespace yac {
 
-/**
- * Calibration mono residual
- */
+/** Calibration mono residual */
 template <typename CAMERA_TYPE>
 struct calib_mono_residual_t : public ceres::SizedCostFunction<2, 7, 8> {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
@@ -268,41 +266,6 @@ int calib_mono_solve(const aprilgrids_t &grids,
   ceres::Solver::Summary summary;
   ceres::Solve(options, &problem, &summary);
   std::cout << summary.FullReport() << std::endl;
-
-  // // Evaluate
-  // auto eval = [&](ceres::ResidualBlockId res_id, vec2_t &r) {
-  //   const auto cost_fn = problem.GetCostFunctionForResidualBlock(res_id);
-  //   r = zeros(cost_fn->num_residuals(), 1);
-  //   std::vector<double *> param_blocks;
-  //   problem.GetParameterBlocksForResidualBlock(res_id, &param_blocks);
-  //   return cost_fn->Evaluate(param_blocks.data(), r.data(), nullptr);
-  // };
-
-  // // Get residual blocks
-  // int inliers = 0;
-  // int outliers = 0;
-  // std::vector<ceres::ResidualBlockId> res_ids;
-  // problem.GetResidualBlocks(&res_ids);
-  // for (const auto res_id : res_ids) {
-  //   vec2_t r{0.0, 0.0};
-  //   eval(res_id, r);
-  //
-  //   if (r.norm() > 3.0) {
-  //     problem.RemoveResidualBlock(res_id);
-  //     outliers++;
-  //   } else {
-  //     inliers++;
-  //   }
-  // }
-  // printf("\n");
-  // printf("nb %d inliers\n", inliers);
-  // printf("nb %d outliers\n", outliers);
-  // printf("ratio of outliers/inliers: %f", (double) outliers / (double) inliers);
-  // printf("\n");
-
-  // // Solve the problem again
-  // ceres::Solve(options, &problem, &summary);
-  // std::cout << summary.FullReport() << std::endl;
 
   // Clean up
   (*T_CF).clear();

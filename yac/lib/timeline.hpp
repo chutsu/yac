@@ -2,6 +2,7 @@
 #define YAC_TIMELINE_HPP
 
 #include "core.hpp"
+#include "aprilgrid.hpp"
 
 namespace yac {
 
@@ -9,7 +10,8 @@ namespace yac {
 #define NOT_SET 0
 #define IMU_EVENT 1
 #define CAMERA_EVENT 2
-#define VICON_EVENT 3
+#define APRILGRID_EVENT 3
+#define VICON_EVENT 4
 
 struct timeline_event_t {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
@@ -26,6 +28,9 @@ struct timeline_event_t {
   int camera_index = -1;
   std::string image_path;
 
+  // Aprilgrid data
+  aprilgrid_t grid;
+
   // MOCAP data
   std::string object_name;
   vec3_t r_WM = zeros(3, 1);
@@ -37,22 +42,38 @@ struct timeline_event_t {
   timeline_event_t(const timestamp_t ts_,
                    const vec3_t &a_m_,
                    const vec3_t &w_m_)
-    : type{IMU_EVENT}, ts{ts_}, a_m{a_m_}, w_m{w_m_} {}
+    : type{IMU_EVENT},
+      ts{ts_},
+      a_m{a_m_},
+      w_m{w_m_} {}
 
   // Camera data constructor
   timeline_event_t(const timestamp_t ts_,
                    const int camera_index_,
                    const std::string &image_path_)
-      : type{CAMERA_EVENT}, ts{ts_}, camera_index{camera_index_},
+      : type{CAMERA_EVENT}, ts{ts_},
+        camera_index{camera_index_},
         image_path{image_path_} {}
+
+  // AprilGrid constructor
+  timeline_event_t(const timestamp_t ts_,
+                   const int camera_index_,
+                   const aprilgrid_t &grid_)
+      : type{APRILGRID_EVENT},
+        ts{ts_},
+        camera_index{camera_index_},
+        grid{grid_} {}
 
   // MOCAP data constructor
   timeline_event_t(const timestamp_t ts_,
                   const std::string &object_name_,
                   const vec3_t &r_WM_,
                   const quat_t &q_WM_)
-      : type{VICON_EVENT}, ts{ts_},
-        object_name{object_name_}, r_WM{r_WM_}, q_WM{q_WM_} {}
+      : type{VICON_EVENT},
+        ts{ts_},
+        object_name{object_name_},
+        r_WM{r_WM_},
+        q_WM{q_WM_} {}
 
   ~timeline_event_t() {}
 };

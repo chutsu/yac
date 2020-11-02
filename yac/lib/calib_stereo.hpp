@@ -11,9 +11,7 @@
 
 namespace yac {
 
-/**
- * Stereo camera calibration residual
- */
+/** Stereo camera calibration residual */
 template <typename CAMERA_TYPE>
 struct calib_stereo_residual_t
     : public ceres::SizedCostFunction<4, 7, 7, 8, 8> {

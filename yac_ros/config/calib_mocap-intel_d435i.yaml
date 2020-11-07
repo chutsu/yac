@@ -7,8 +7,10 @@ ros:
   target0_topic: "/target0/pose"
 
 settings:
+  fix_intrinsics: true
+  fix_mocap_poses: true
+  fix_fiducial_pose: false
   data_path: "/data/aabm/calib_vicon_data"
-  results_fpath: "/data/aabm/calib_vicon_data/calib_results.yaml"
   sigma_vision: 0.5
   imshow: true
 

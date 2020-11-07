@@ -70,7 +70,6 @@ void lerp_body_poses(const aprilgrids_t &grids,
 
 
 /** Mocap-Camera Calibration data */
-template <typename T>
 struct calib_mocap_data_t {
   bool fix_intrinsics = false;
   bool fix_mocap_poses = false;
@@ -80,6 +79,11 @@ struct calib_mocap_data_t {
   std::string results_fpath;
   double sigma_vision = 1.0;
   bool imshow = true;
+
+  std::string cam0_path;
+  std::string grid0_path;
+  std::string body0_csv_path;
+  std::string target0_csv_path;
 
   calib_target_t calib_target;
   mat2_t covar;
@@ -102,26 +106,26 @@ struct calib_mocap_data_t {
     parse(config, "settings.fix_mocap_poses", fix_mocap_poses);
     parse(config, "settings.fix_fiducial_pose", fix_fiducial_pose);
     parse(config, "settings.data_path", data_path);
-    parse(config, "settings.results_fpath", results_fpath);
     parse(config, "settings.sigma_vision", sigma_vision);
     parse(config, "settings.imshow", imshow);
     parse(config, "cam0.resolution", resolution);
     parse(config, "cam0.proj_model", proj_model);
     parse(config, "cam0.dist_model", dist_model);
 
-    // Data path
-    const auto cam0_path = data_path + "/cam0/data";
-    const auto grid0_path = data_path + "/grid0/cam0/data";
-    const auto body0_csv_path = data_path + "/body0/data.csv";
-    const auto target0_csv_path = data_path + "/target0/data.csv";
-
-    // Set covariance matrix
-    covar = I(2) * (1 / pow(sigma_vision, 2));
+    // Setup paths
+    results_fpath = paths_join(data_path, "calib_results.yaml");
+    cam0_path = data_path + "/cam0/data";
+    grid0_path = data_path + "/grid0/cam0/data";
+    body0_csv_path = data_path + "/body0/data.csv";
+    target0_csv_path = data_path + "/target0/data.csv";
 
     // Load calibration target
     if (calib_target_load(calib_target, config_file, "calib_target") != 0) {
       FATAL("Failed to load calib target in [%s]!", config_file.c_str());
     }
+
+    // Set covariance matrix
+    covar = I(2) * (1 / pow(sigma_vision, 2));
 
     // Load camera params
     if (yaml_has_key(config, "cam0.proj_params") == false) {
@@ -146,7 +150,7 @@ struct calib_mocap_data_t {
 
 
       // Perform intrinsics calibration
-      LOG_INFO("Calibrating [cam0] intrinsics!");
+      LOG_INFO("Calibrating camera intrinsics!");
       {
         const aprilgrid_detector_t detector(calib_target.tag_rows,
                                             calib_target.tag_cols,
@@ -173,14 +177,21 @@ struct calib_mocap_data_t {
           T_CF.push_back(grid.T_CF);
         }
 
-        int retval = calib_mono_solve<T>(cam0_grids, covar, &this->cam0, &T_CF);
+        int retval = 0;
+        if (proj_model == "pinhole" && dist_model == "radtan4") {
+          calib_mono_solve<pinhole_radtan4_t>(cam0_grids, covar, &this->cam0, &T_CF);
+        } else if (proj_model == "pinhole" && dist_model == "equi4") {
+          calib_mono_solve<pinhole_equi4_t>(cam0_grids, covar, &this->cam0, &T_CF);
+        } else {
+          FATAL("Unsupported [%s-%s]!", proj_model.c_str(), dist_model.c_str());
+        }
         if (retval != 0) {
           FATAL("Failed to calibrate [cam0] intrinsics!");
         }
       }
 
       // Redetect AprilGrid
-      LOG_INFO("-- Re-estimating the AprilGrids data");
+      LOG_INFO("Re-estimating AprilGrid data");
       {
         // Remove previously estimated aprilgrid
         const std::string cmd = "rm -rf " + grid0_path;
@@ -245,30 +256,10 @@ struct calib_mocap_data_t {
     const mat3_t C = euler321(deg2rad(euler));
     const mat4_t marker_cam_pose = tf(C, zeros(3, 1));
     this->T_MC0 = pose_t(param_id++, 0, marker_cam_pose);
-
-    // Show dataset stats
-    printf("Mocap Calibration dataset:\n");
-    printf("--------------------------\n");
-    printf("fix_intrinsics: %d\n", fix_intrinsics);
-    printf("fix_mocap_poses: %d\n", fix_mocap_poses);
-    printf("fix_fiducial_pose: %d\n", fix_fiducial_pose);
-    printf("\n");
-    printf("nb grids: %ld\n", grids.size());
-    printf("nb poses: %ld\n", T_WM.size());
-    printf("\n");
-    printf("cam0.proj_model: %s\n", cam0.proj_model.c_str());
-    printf("cam0.dist_model: %s\n", cam0.dist_model.c_str());
-    print_vector("cam0.proj_params", cam0.proj_params());
-    print_vector("cam0.dist_params", cam0.dist_params());
-    printf("\n");
-    print_matrix("T_WF", T_WF.tf());
-    print_matrix("T_MC0", T_MC0.tf());
   }
 };
 
-/**
- * MOCAP marker residual
- */
+/* MOCAP marker residual */
 template <typename CAMERA_TYPE>
 struct calib_mocap_residual_t
     : public ceres::SizedCostFunction<2, 7, 7, 7, 8> {
@@ -405,7 +396,7 @@ struct calib_mocap_residual_t
 template <typename T>
 static int process_aprilgrid(const size_t frame_idx,
                              const mat2_t &covar,
-                             calib_mocap_data_t<T> &data,
+                             calib_mocap_data_t &data,
                              ceres::Problem &problem) {
   const int *cam_res = data.cam0.resolution;
   const auto &grid = data.grids[frame_idx];
@@ -443,10 +434,10 @@ static int process_aprilgrid(const size_t frame_idx,
 }
 
 template <typename CAMERA_TYPE>
-static void show_results(const calib_mocap_data_t<CAMERA_TYPE> &data) {
-printf("\n");
-  printf("Calibration Results:\n");
-  printf("--------------------\n");
+static void show_results(const calib_mocap_data_t &data) {
+  printf("\n");
+  printf("Optimization Results:\n");
+  printf("---------------------\n");
 
   // -- Calibration metrics
   mat4s_t T_C0F;
@@ -492,7 +483,7 @@ printf("\n");
 }
 
 template <typename CAMERA_TYPE>
-static void save_results(const calib_mocap_data_t<CAMERA_TYPE> &data,
+static void save_results(const calib_mocap_data_t &data,
                          const std::string &output_path) {
   printf("\x1B[92mSaving optimization results to [%s]\033[0m\n",
          output_path.c_str());
@@ -651,13 +642,9 @@ static void save_results(const calib_mocap_data_t<CAMERA_TYPE> &data,
   }
 }
 
-/**
- * Calibrate mocap marker
- */
+/** Calibrate mocap marker to camera extrinsics */
 template <typename CAMERA_TYPE>
-int calib_mocap_solve(const std::string &calib_file) {
-  // Load calibration data
-  calib_mocap_data_t<CAMERA_TYPE> data(calib_file);
+int calib_mocap_solve(calib_mocap_data_t &data) {
   assert(data.grids.size() > 0);
   assert(data.T_WM.size() > 0);
   assert(data.T_WM.size() == data.grids.size());
@@ -671,8 +658,7 @@ int calib_mocap_solve(const std::string &calib_file) {
   // Process all aprilgrid data
   const mat2_t covar = I(2) * (1 / pow(0.5, 2));
   for (size_t i = 0; i < data.grids.size(); i++) {
-    int retval = process_aprilgrid<CAMERA_TYPE>(i, covar, data, problem);
-    if (retval != 0) {
+    if (process_aprilgrid<CAMERA_TYPE>(i, covar, data, problem) != 0) {
       LOG_ERROR("Failed to add AprilGrid measurements to problem!");
       return -1;
     }
@@ -712,9 +698,12 @@ int calib_mocap_solve(const std::string &calib_file) {
   options.num_threads = 1;
 
   // Solve
+  LOG_INFO("Calibrating mocap-marker to camera extrinsics ...");
   ceres::Solver::Summary summary;
   ceres::Solve(options, &problem, &summary);
-  std::cout << summary.FullReport() << std::endl;
+  // std::cout << summary.FullReport() << std::endl;
+  std::cout << summary.BriefReport() << std::endl;
+  std::cout << std::endl;
 
   // Show results
   show_results<CAMERA_TYPE>(data);
@@ -722,6 +711,8 @@ int calib_mocap_solve(const std::string &calib_file) {
 
   return 0;
 }
+
+int calib_mocap_solve(const std::string &config_file);
 
 } //  namespace yac
 #endif // YAC_CALIB_MOCAP_HPP

@@ -11,13 +11,13 @@ namespace yac {
 #define TEST_CALIB TEST_PATH "/test_data/calib_mocap-intel_d435i.yaml"
 
 int test_calib_mocap_data() {
-  calib_mocap_data_t<pinhole_radtan4_t> data(TEST_CALIB);
+  calib_mocap_data_t data(TEST_CALIB);
 
   return 0;
 }
 
 int test_calib_mocap_solve() {
-  calib_mocap_solve<pinhole_radtan4_t>(TEST_CALIB);
+  calib_mocap_solve(TEST_CALIB);
 
   return 0;
 }

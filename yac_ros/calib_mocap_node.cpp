@@ -324,7 +324,6 @@ int main(int argc, char *argv[]) {
   parse(config, "ros.body0_topic", body0_topic);
   parse(config, "ros.target0_topic", target0_topic);
   parse(config, "settings.data_path", data_path);
-  parse(config, "settings.results_fpath", calib_results_path);
 
   // Process rosbag
   process_rosbag(train_bag_path,
@@ -334,7 +333,7 @@ int main(int argc, char *argv[]) {
                  target0_topic);
 
   // Calibrate mocap marker to camera extrinsics
-  if (calib_mocap_solve<pinhole_radtan4_t>(config_file) != 0) {
+  if (calib_mocap_solve(config_file) != 0) {
     FATAL("Failed to calibrate camera!");
   }
 

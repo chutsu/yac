@@ -34,5 +34,6 @@ tests:
 		source ${CATKIN_WS}/devel/setup.bash && \
 		rosrun yac test_aprilgrid && \
 		rosrun yac test_calib_data && \
+		rosrun yac test_calib_mocap && \
 		rosrun yac test_calib_mono && \
 		rosrun yac test_calib_stereo

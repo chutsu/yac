@@ -266,7 +266,9 @@ int calib_mono_solve(const aprilgrids_t &grids,
   // Solve
   ceres::Solver::Summary summary;
   ceres::Solve(options, &problem, &summary);
-  std::cout << summary.FullReport() << std::endl;
+  // std::cout << summary.FullReport() << std::endl;
+  std::cout << summary.BriefReport() << std::endl;
+  std::cout << std::endl;
 
   // Clean up
   (*T_CF).clear();

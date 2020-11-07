@@ -289,7 +289,9 @@ int calib_stereo_solve(const std::vector<aprilgrid_t> &cam0_grids,
   // Solve
   ceres::Solver::Summary summary;
   ceres::Solve(options, problem.get(), &summary);
-  std::cout << summary.FullReport() << std::endl;
+  // std::cout << summary.FullReport() << std::endl;
+  std::cout << summary.BriefReport() << std::endl;
+  std::cout << std::endl;
 
   // Finish up
   *T_C1C0 = extrinsic_param.tf();

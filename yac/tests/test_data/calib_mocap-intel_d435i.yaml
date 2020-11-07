@@ -1,14 +1,5 @@
-ros:
-  train_bag: "/data/aabm/200115-vicon-train.bag"
-  test_bag: "/data/aabm/200115-vicon-test.bag"
-
-  cam0_topic: "/cam0/image"
-  body0_topic: "/body0/pose"
-  target0_topic: "/target0/pose"
-
 settings:
-  data_path: "/data/aabm/calib_vicon_data"
-  results_fpath: "/data/aabm/calib_vicon_data/calib_results.yaml"
+  data_path: "/tmp/mocap_data"
   fix_intrinsics: true
   fix_mocap_poses: true
   fix_fiducial_pose: false

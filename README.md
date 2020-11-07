@@ -10,6 +10,7 @@ cameras. Specifically:
 
 - Camera intrinsics
 - Stereo camera intrinsics and extrinsics
+- Mocap-marker to camera extrinsics
 
 Supported projection-distortion models:
 

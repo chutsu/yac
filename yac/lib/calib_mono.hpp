@@ -203,17 +203,18 @@ int calib_mono_stats(const aprilgrids_t &aprilgrids,
   // Calculate RMSE reprojection error
   std::vector<double> r;
   real_t err_sum = 0.0;
+  real_t err_sse = 0.0;
   for (auto &residual : residuals) {
     r.push_back(residual(0));
     r.push_back(residual(1));
 
     const real_t err = residual.norm();
-    const real_t err_sq = err * err;
-    err_sum += err_sq;
+    err_sum += err;
+    err_sse += err * err;
     (*errors).push_back(err);
   }
   *mean_err = err_sum / (real_t) residuals.size();
-  *rmse = sqrt(*mean_err);
+  *rmse = sqrt(err_sse / (real_t) residuals.size() );
 
   return 0;
 }

@@ -21,16 +21,16 @@ Supported projection-distortion models:
 Dependencies
 -----
 
-		# Ubuntu packages
+    # Ubuntu packages
     libyaml-cpp-dev
-		libeigen3-dev
+    libeigen3-dev
     libceres-dev
-		libopencv-dev
+    libopencv-dev
     libomp-dev (optional)
 
-		# Custom (see deps dir)
-		Modified apriltag3 (https://github.com/AprilRobotics/apriltag)
-		Modified apriltags (https://github.com/chutsu/apriltags)
+    # Custom (see deps dir)
+    Modified apriltag3 (https://github.com/AprilRobotics/apriltag)
+    Modified apriltags (https://github.com/chutsu/apriltags)
 
 
 Build

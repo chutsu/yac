@@ -36,10 +36,30 @@ Dependencies
 Build
 -----
 
-    cd <your catkin workspace>
+For the lazy :
+
+    # The following assumes you have a catkin workspace at $HOME/catkin_ws
+    # If not edit the CATKIN_WS variable in the Makefile
+
     git clone https://github.com/chutsu/yac
+    cd yac
+    make deps
+    make release
+
+
+Or standard approach:
+
+    # Clone repo to your catkin workspace
+    cd <your catkin workspace>/src
+    git clone https://github.com/chutsu/yac
+
+    # Install dependencies
+    cd yac && make deps
+
+    # Build yac
     catkin build -DCMAKE_BUILD_TYPE=Release yac yac_ros
     # Note: Optimization will be very slow if not built in RELEASE mode.
+
 
 
 Calibration Target

@@ -311,22 +311,21 @@ int main(int argc, char *argv[]) {
   // Parse config file
   std::string data_path;
   std::string calib_results_path;
-  std::string train_bag_path;
+  std::string rosbag_path;
   std::string test_bag_path;
   std::string cam0_topic;
   std::string body0_topic;
   std::string target0_topic;
 
   config_t config{config_file};
-  parse(config, "ros.train_bag", train_bag_path);
-  parse(config, "ros.test_bag", test_bag_path);
+  parse(config, "ros.rosbag", rosbag_path);
   parse(config, "ros.cam0_topic", cam0_topic);
   parse(config, "ros.body0_topic", body0_topic);
   parse(config, "ros.target0_topic", target0_topic);
   parse(config, "settings.data_path", data_path);
 
   // Process rosbag
-  process_rosbag(train_bag_path,
+  process_rosbag(rosbag_path,
                  data_path,
                  cam0_topic,
                  body0_topic,

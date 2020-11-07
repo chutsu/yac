@@ -526,6 +526,91 @@ void save_poses(const std::string &path, const mat4s_t &poses) {
   fclose(csv);
 }
 
+mat4_t load_pose(const std::string &fpath) {
+  mat4_t T_WF;
+
+  // Open file for loading
+  int nb_rows = 0;
+  FILE *fp = file_open(fpath.c_str(), "r", &nb_rows);
+  if (fp == nullptr) {
+    FATAL("Failed to open [%s]!", fpath.c_str());
+  }
+
+  // Create format string
+  std::string str_format;
+  str_format = "%ld,";              // Timestamp[ns]
+  str_format += "%lf,%lf,%lf,%lf,"; // Quaternion
+  str_format += "%lf,%lf,%lf";      // Position
+
+  // Parse file
+  for (int i = 0; i < nb_rows; i++) {
+    // Skip first line
+    if (i == 0) {
+      skip_line(fp);
+      continue;
+    }
+
+    // Parse line
+    timestamp_t ts = 0;
+    double qw, qx, qy, qz = 0.0;
+    double px, py, pz = 0.0;
+    int retval =
+        fscanf(fp, str_format.c_str(), &ts, &qw, &qx, &qy, &qz, &px, &py, &pz);
+    if (retval != 8) {
+      FATAL("Failed to parse line in [%s:%d]", fpath.c_str(), i);
+    }
+
+    // Just need 1 pose
+    quat_t q{qw, qx, qy, qz};
+    vec3_t r{px, py, pz};
+    return tf(q, r);
+  }
+
+  return I(4);
+}
+
+void load_poses(const std::string &fpath,
+                timestamps_t &timestamps,
+                mat4s_t &poses) {
+  // Open file for loading
+  int nb_rows = 0;
+  FILE *fp = file_open(fpath.c_str(), "r", &nb_rows);
+  if (fp == nullptr) {
+    FATAL("Failed to open [%s]!", fpath.c_str());
+  }
+
+  // Create format string
+  std::string str_format;
+  str_format = "%ld,";              // Timestamp[ns]
+  str_format += "%lf,%lf,%lf,%lf,"; // Quaternion
+  str_format += "%lf,%lf,%lf";      // Position
+
+  // Parse file
+  for (int i = 0; i < nb_rows; i++) {
+    // Skip first line
+    if (i == 0) {
+      skip_line(fp);
+      continue;
+    }
+
+    // Parse line
+    timestamp_t ts = 0;
+    double qw, qx, qy, qz = 0.0;
+    double px, py, pz = 0.0;
+    int retval =
+        fscanf(fp, str_format.c_str(), &ts, &qw, &qx, &qy, &qz, &px, &py, &pz);
+    if (retval != 8) {
+      FATAL("Failed to parse line in [%s:%d]", fpath.c_str(), i);
+    }
+
+    // Record
+    timestamps.push_back(ts);
+    quat_t q{qw, qx, qy, qz};
+    vec3_t r{px, py, pz};
+    poses.push_back(tf(q, r));
+  }
+}
+
 int check_jacobian(const std::string &jac_name,
                    const matx_t &fdiff,
                    const matx_t &jac,
@@ -2824,6 +2909,31 @@ void lerp_data(const std::deque<timestamp_t> &lerp_ts,
 
   target_ts = result_ts;
   target_data = result_data;
+}
+
+mat4_t lerp_pose(const timestamp_t &t0,
+                 const mat4_t &pose0,
+                 const timestamp_t &t1,
+                 const mat4_t &pose1,
+                 const timestamp_t &t_lerp) {
+  // Calculate alpha
+  const double numerator = (t_lerp - t0) * 1e-9;
+  const double denominator = (t1 - t0) * 1e-9;
+  const double alpha = numerator / denominator;
+
+  // Decompose start pose
+  const vec3_t trans0 = tf_trans(pose0);
+  const quat_t quat0{tf_rot(pose0)};
+
+  // Decompose end pose
+  const vec3_t trans1 = tf_trans(pose1);
+  const quat_t quat1{tf_rot(pose1)};
+
+  // Interpolate translation and rotation
+  const auto trans_interp = lerp(trans0, trans1, alpha);
+  const auto quat_interp = quat1.slerp(alpha, quat0);
+
+  return tf(quat_interp, trans_interp);
 }
 
 static void align_front(const std::deque<timestamp_t> &reference,

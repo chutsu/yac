@@ -18,9 +18,9 @@ struct calib_stereo_residual_t
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
   int cam_res_[2] = {0, 0};
+  vec3_t r_FFi_{0.0, 0.0, 0.0};
   vec2_t z_C0_{0.0, 0.0};
   vec2_t z_C1_{0.0, 0.0};
-  vec3_t r_FFi_{0.0, 0.0, 0.0};
 
   const mat2_t covar_;
   const mat2_t info_;

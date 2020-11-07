@@ -81,5 +81,5 @@ TARGET_LINK_LIBRARIES(calib_stereo_node ${DEPS})
 ADD_EXECUTABLE(calib_mocap_capture_node calib_mocap_capture_node.cpp)
 TARGET_LINK_LIBRARIES(calib_mocap_capture_node ${DEPS})
 
-# ADD_EXECUTABLE(calib_mocap_node calib_mocap_node.cpp)
-# TARGET_LINK_LIBRARIES(calib_mocap_node ${DEPS})
+ADD_EXECUTABLE(calib_mocap_node calib_mocap_node.cpp)
+TARGET_LINK_LIBRARIES(calib_mocap_node ${DEPS})

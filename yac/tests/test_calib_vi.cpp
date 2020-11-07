@@ -61,6 +61,7 @@ int test_imu_propagate() {
   sb_i << sim_data.imu_vel[0], zeros(6, 1);
 
   imu_data_t imu_data;
+  imu_data_t imu_buf;
   const vec3_t g{0.0, 0.0, -9.81};
 
 	std::vector<mat4_t> poses;
@@ -74,6 +75,7 @@ int test_imu_propagate() {
     vec_t<7> pose_j = pose_i;
     vec_t<9> sb_j = sb_i;
     imu_data.add(sim_data.imu_ts[k], sim_data.imu_acc[k], sim_data.imu_gyr[k]);
+    imu_buf.add(sim_data.imu_ts[k], sim_data.imu_acc[k], sim_data.imu_gyr[k]);
 
     if (imu_data.size() > 10) {
       imu_propagate(imu_data, g, pose_i, sb_i, pose_j, sb_j);
@@ -110,7 +112,8 @@ int test_imu_propagate() {
 	printf("nb imu accel: %ld\n", sub_imu_accel.size());
 	printf("nb imu gyro: %ld\n", sub_imu_gyro.size());
 
-  imu_error_t residual(imu_index, imu_params, imu_data);
+
+  imu_error_t residual(imu_index, imu_params, imu_buf);
   // calib_imu_residual_t residual(imu_index,
 	// 		 													sub_imu_timestamps,
   //                     	  	 	 	sub_imu_accel,
@@ -119,6 +122,9 @@ int test_imu_propagate() {
 	print_vector("dp", residual.dp);
 	print_vector("dv", residual.dv);
 	print_quaternion("dq", residual.dq);
+
+	printf("ts end: %f\n", ns2sec(sim_data.imu_ts.back()));
+	print_matrix("F", residual.F);
 
   // print_vector("pose_j", pose_i);
   // print_matrix("T_WS", tf(pose_i));

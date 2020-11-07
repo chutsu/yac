@@ -548,6 +548,14 @@ void save_poses(const std::string &path,
  */
 void save_poses(const std::string &path, const mat4s_t &poses);
 
+/** Load pose */
+mat4_t load_pose(const std::string &fpath);
+
+/** Load poses */
+void load_poses(const std::string &fpath,
+                timestamps_t &timestamps,
+                mat4s_t &poses);
+
 /**
  * Check jacobian
  */
@@ -2049,6 +2057,13 @@ void lerp_data(const std::deque<timestamp_t> &lerp_ts,
                std::deque<vec3_t> &target_data,
                const bool keep_old = false);
 
+/** Lerp pose */
+mat4_t lerp_pose(const timestamp_t &t0,
+                 const mat4_t &pose0,
+                 const timestamp_t &t1,
+                 const mat4_t &pose1,
+                 const timestamp_t &t_lerp);
+
 /**
  * Given two data signals with timestamps `ts0`, `vs0`, `ts1`, and `vs1`, this
  * function determines which data signal is at a lower rate and performs linear
@@ -3460,9 +3475,6 @@ struct pinhole_t : projection_t<DM> {
 
   int project(const vec3_t &p_C, vec2_t &z_hat, mat_t<2, 3> &J_h) const {
     int retval = project(p_C, z_hat);
-    if (retval != 0) {
-      return retval;
-    }
 
     // Projection Jacobian
     const real_t x = p_C(0);
@@ -3478,7 +3490,7 @@ struct pinhole_t : projection_t<DM> {
     const vec2_t p{x / z, y / z};
     J_h = J_point() * this->distortion.J_point(p) * J_proj;
 
-    return 0;
+    return retval;
   }
 
   int back_project(const vec2_t &kp, vec3_t &ray) {

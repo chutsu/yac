@@ -358,11 +358,6 @@ void image_message_handler(const rosbag::MessageInstance &msg,
   const auto ts_str = std::to_string(ts.toNSec());
   const std::string save_path{output_path + ts_str + ".png"};
 
-  // Check message already processed
-  if (file_exists(save_path)) {
-    return;
-  }
-
   // Check save dir
   if (dir_exists(output_path) == false) {
     if (dir_create(output_path) != 0) {
@@ -375,12 +370,15 @@ void image_message_handler(const rosbag::MessageInstance &msg,
   bridge = cv_bridge::toCvCopy(image_msg, "bgr8");
 
   // Save image to file
-  if (cv::imwrite(save_path, bridge->image) == false) {
-    FATAL("Failed to save image to [%s]", save_path.c_str());
+  if (file_exists(save_path) == false) {
+    if (cv::imwrite(save_path, bridge->image) == false) {
+      FATAL("Failed to save image to [%s]", save_path.c_str());
+    }
   }
 
   // Save image file to data.csv
   camera_data << ts.toNSec() << "," << ts.toNSec() << ".png" << std::endl;
+  camera_data.flush();
 }
 
 void imu_message_handler(const rosbag::MessageInstance &msg,

@@ -191,30 +191,30 @@ struct imu_error_t : public ceres::SizedCostFunction<15, 7, 9, 7, 9> {
   }
 
   void propagate(const timestamps_t &ts,
-                 const vec3s_t &a_m,
-                 const vec3s_t &w_m) {
+                 const vec3s_t &imu_acc,
+                 const vec3s_t &imu_gyr) {
 		assert(ts.size() > 2);
-    assert(ts.size() == a_m.size());
-    assert(w_m.size() == a_m.size());
+    assert(ts.size() == imu_acc.size());
+    assert(imu_gyr.size() == imu_acc.size());
 
 		real_t dt = 0.0;
     real_t dt_prev = ns2sec(ts[1] - ts[0]);
-    for (size_t i = 0; i < w_m.size(); i++) {
+    for (size_t k = 0; k < imu_gyr.size(); k++) {
       // Calculate dt
-      if ((i + 1) < w_m.size()) {
-        dt = ns2sec(ts[i + 1] - ts[i]);
+      if ((k + 1) < imu_gyr.size()) {
+        dt = ns2sec(ts[k + 1] - ts[k]);
         dt_prev = dt;
       } else {
         dt = dt_prev;
       }
 
       // Update relative position and velocity
-      dp = dp + dv * dt + 0.5 * (dq * (a_m[i] - ba)) * dt * dt;
-      dv = dv + (dq * (a_m[i] - ba)) * dt;
+      dp = dp + dv * dt + 0.5 * (dq * (imu_acc[k] - ba)) * dt * dt;
+      dv = dv + (dq * (imu_acc[k] - ba)) * dt;
 
       // Update relative rotation
       const real_t scalar = 1.0;
-      const vec3_t vector = 0.5 * (w_m[i] - bg) * dt;
+      const vec3_t vector = 0.5 * (imu_gyr[k] - bg) * dt;
       const quat_t dq_i{scalar, vector(0), vector(1), vector(2)};
       dq = dq * dq_i;
 
@@ -222,10 +222,14 @@ struct imu_error_t : public ceres::SizedCostFunction<15, 7, 9, 7, 9> {
       const mat3_t C_ji = dq.toRotationMatrix();
       mat_t<15, 15> F_i = zeros(15, 15);
       F_i.block<3, 3>(POS_IDX, VEL_IDX) = I(3);
-      F_i.block<3, 3>(ROT_IDX, ROT_IDX) = -skew(w_m[i] - bg);
+      F_i.block<3, 3>(ROT_IDX, ROT_IDX) = -skew(imu_gyr[k] - bg);
       F_i.block<3, 3>(ROT_IDX, BG_IDX) = -I(3);
-      F_i.block<3, 3>(VEL_IDX, ROT_IDX) = -C_ji * skew(a_m[i] - ba);
+      F_i.block<3, 3>(VEL_IDX, ROT_IDX) = -C_ji * skew(imu_acc[k] - ba);
       F_i.block<3, 3>(VEL_IDX, BA_IDX) = -C_ji;
+
+			printf("k: %ld\n", k);
+			printf("dt: %f\n", dt);
+			print_matrix("rot rot", -skew(imu_gyr[k] - bg));
 
       // Input matrix G
       mat_t<15, 12> G_i = zeros(15, 12);
@@ -235,7 +239,7 @@ struct imu_error_t : public ceres::SizedCostFunction<15, 7, 9, 7, 9> {
       G_i.block<3, 3>(BG_IDX, BG_IDX) = I(3);
 
       // Update jacobian and covariance matrix
-      const mat_t<15, 15> I_Fi_dt = I(15) + dt * F;
+      const mat_t<15, 15> I_Fi_dt = I(15) + dt * F_i;
       const mat_t<15, 12> Gi_dt = G_i * dt;
       F = I_Fi_dt * F;
       P = I_Fi_dt * P * I_Fi_dt.transpose() + Gi_dt * Q * Gi_dt.transpose();

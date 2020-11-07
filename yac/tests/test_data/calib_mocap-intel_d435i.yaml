@@ -9,6 +9,9 @@ ros:
 settings:
   data_path: "/data/aabm/calib_vicon_data"
   results_fpath: "/data/aabm/calib_vicon_data/calib_results.yaml"
+  fix_intrinsics: true
+  fix_mocap_poses: true
+  fix_fiducial_pose: false
   sigma_vision: 0.5
   imshow: true
 

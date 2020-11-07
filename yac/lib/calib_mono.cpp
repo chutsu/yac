@@ -23,6 +23,7 @@ static int save_results(const std::string &save_path,
   fprintf(outfile, "calib_results:\n");
   fprintf(outfile, "  rms_reproj_error:  %.2f  # [px]\n", rmse);
   fprintf(outfile, "  mean_reproj_error: %.2f  # [px]\n", mean);
+  fprintf(outfile, "\n");
 
   fprintf(outfile, "cam0:\n");
   fprintf(outfile, "  resolution: [%d, %d]\n", img_w, img_h);

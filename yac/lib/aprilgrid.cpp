@@ -248,6 +248,21 @@ int aprilgrid_object_points(const aprilgrid_t &grid, vec3s_t &object_points) {
   return 0;
 }
 
+vec2_t aprilgrid_center(const int rows,
+												const int cols,
+                        const double tag_size,
+												const double tag_spacing) {
+  double x = ((cols / 2.0) * tag_size);
+  x +=  (((cols / 2.0) - 1) * tag_spacing * tag_size);
+  x +=  (0.5 * tag_spacing * tag_size);
+
+  double y = ((rows / 2.0) * tag_size);
+  y +=  (((rows / 2.0) - 1) * tag_spacing * tag_size);
+  y +=  (0.5 * tag_spacing * tag_size);
+
+  return vec2_t{x, y};
+}
+
 int aprilgrid_calc_relative_pose(aprilgrid_t &grid,
                                  const mat3_t &cam_K,
                                  const vec4_t &cam_D) {
@@ -586,6 +601,30 @@ int aprilgrid_load(aprilgrid_t &grid, const std::string &data_path) {
   return 0;
 }
 
+aprilgrids_t load_aprilgrids(const std::string &dir_path) {
+  std::vector<std::string> csv_files;
+  if (list_dir(dir_path, csv_files) != 0) {
+    FATAL("Failed to list dir [%s]!", dir_path.c_str());
+  }
+  sort(csv_files.begin(), csv_files.end());
+
+  aprilgrids_t grids;
+  for (const auto &grid_csv : csv_files) {
+    const auto csv_path = dir_path + "/" + grid_csv;
+    aprilgrid_t grid;
+    if (aprilgrid_load(grid, csv_path) != 0) {
+      FATAL("Failed to load AprilGrid [%s]!", grid_csv.c_str());
+    }
+
+    if (grid.detected) {
+      grids.push_back(grid);
+    }
+  }
+
+  return grids;
+}
+
+
 int aprilgrid_configure(aprilgrid_t &grid, const std::string &target_file) {
   // Load target file
   config_t config{target_file};
@@ -636,6 +675,134 @@ void aprilgrid_filter_tags(const cv::Mat &image,
       ++iter;
     }
   }
+}
+
+int aprilgrid_equal(const aprilgrid_t &grid0, const aprilgrid_t &grid1) {
+  bool configured_ok = (grid0.configured == grid1.configured);
+  bool tag_rows_ok = (grid0.tag_rows == grid1.tag_rows);
+  bool tag_cols_ok = (grid0.tag_cols == grid1.tag_cols);
+  bool tag_size_ok = (grid0.tag_size == grid1.tag_size);
+  bool tag_spacing_ok = (grid0.tag_spacing == grid1.tag_spacing);
+
+  bool detected_ok = (grid0.detected == grid1.detected);
+  bool nb_detections_ok = (grid0.nb_detections == grid1.nb_detections);
+  bool timestamp_ok = (grid0.timestamp == grid1.timestamp);
+  bool ids_ok = (grid0.ids == grid1.ids);
+  bool keypoints_ok = (grid0.keypoints.size() == grid1.keypoints.size());
+
+  bool estimated_ok = (grid0.estimated == grid1.estimated);
+  bool points_ok = (grid0.points_CF.size() == grid1.points_CF.size());
+  bool T_CF_ok = ((grid0.T_CF - grid1.T_CF).norm() < 1e-3);
+
+  std::vector<bool> checklist = {
+    // Grid properties
+    configured_ok,
+    tag_rows_ok,
+    tag_cols_ok,
+    tag_size_ok,
+    tag_spacing_ok,
+    // Detections
+    detected_ok,
+    nb_detections_ok,
+    timestamp_ok,
+    ids_ok,
+    keypoints_ok,
+    // Estimation
+    estimated_ok,
+    points_ok,
+    T_CF_ok
+  };
+
+  std::vector<std::string> checklist_str = {
+    // Grid properties
+    "configured",
+    "tag_rows",
+    "tag_cols",
+    "tag_size",
+    "tag_spacing",
+    // Detections
+    "detected",
+    "nb_detections",
+    "timestamp",
+    "ids",
+    "keypoints",
+    // Estimation
+    "estimated",
+    "points",
+    "T_CF"
+  };
+
+  // Check
+  for (size_t i = 0; i < checklist.size(); i++) {
+    const auto &item = checklist[i];
+    if (item == false) {
+      printf("[%s] not the same!\n", checklist_str[i].c_str());
+      return false;
+    }
+  }
+
+  // Double check ids
+  if (grid0.ids.size() != grid1.ids.size()) {
+    printf("grid0.ids.size() != grid1.ids.size()\n");
+    return 0;
+  }
+  for (size_t i = 0; i < grid0.ids.size(); i++) {
+    if (grid0.ids[i] != grid1.ids[i]) {
+      printf("grid0.ids[%ld] != grid1.ids[%ld]\n", i, i);
+      return 0;
+    }
+  }
+
+  // Double check keypoints
+  if (grid0.keypoints.size() != grid1.keypoints.size()) {
+    printf("grid0.keypoints.size() != grid1.keypoints.size()\n");
+    return 0;
+  }
+  for (size_t i = 0; i < grid0.keypoints.size(); i++) {
+    const vec2_t kp0 = grid0.keypoints[i];
+    const vec2_t kp1 = grid1.keypoints[i];
+
+    const bool x_ok = fabs(kp0(0) - kp1(0)) < 1e-4;
+    const bool y_ok = fabs(kp0(1) - kp1(1)) < 1e-4;
+    if (x_ok == false || y_ok == false) {
+      printf("grid0.keypoints[%ld] != grid1.keypoints[%ld]\n", i, i);
+      printf("kp0: (%f, %f)\n", kp0(0), kp0(1));
+      printf("kp1: (%f, %f)\n", kp1(0), kp1(1));
+      return 0;
+    }
+  }
+
+  // Double check object points
+  if (grid0.points_CF.size() != grid1.points_CF.size()) {
+    printf("grid0.points_CF.size() != grid1.points_CF.size()\n");
+    return 0;
+  }
+  for (size_t i = 0; i < grid0.points_CF.size(); i++) {
+    const vec3_t p0 = grid0.points_CF[i];
+    const vec3_t p1 = grid1.points_CF[i];
+
+    const bool x_ok = fabs(p0(0) - p1(0)) < 1e-4;
+    const bool y_ok = fabs(p0(1) - p1(1)) < 1e-4;
+    const bool z_ok = fabs(p0(2) - p1(2)) < 1e-4;
+
+    if (x_ok == false || y_ok == false || z_ok == false) {
+      printf("grid0.points_CF[%ld] != grid1.points_CF[%ld]\n", i, i);
+      printf("p0: (%f, %f, %f)\n", p0(0), p0(1), p0(2));
+      printf("p1: (%f, %f, %f)\n", p1(0), p1(1), p1(2));
+      return 0;
+    }
+  }
+
+  // Double check T_CF
+  for (int i = 0; i < 4; i++) {
+    for (int j = 0; j < 4; j++) {
+      if (fabs(grid0.T_CF(i, j) - grid1.T_CF(i, j)) > 1e-4) {
+        return 0;
+      }
+    }
+  }
+
+  return 1;
 }
 
 int aprilgrid_detect(const aprilgrid_detector_t &detector,

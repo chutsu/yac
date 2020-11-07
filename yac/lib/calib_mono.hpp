@@ -130,8 +130,8 @@ static int process_aprilgrid(const aprilgrid_t &aprilgrid,
 
     // Form residual block
     for (size_t i = 0; i < 4; i++) {
-      vec2_t kp = keypoints[i];
-      vec3_t obj_pt = object_points[i];
+      const vec2_t kp = keypoints[i];
+      const vec3_t obj_pt = object_points[i];
       auto cost_fn = new calib_mono_residual_t<T>{cam_res, obj_pt, kp, covar};
       problem->AddResidualBlock(cost_fn,
                                 NULL,

@@ -91,10 +91,10 @@ struct aprilgrid_t {
 
   aprilgrid_t() {}
   aprilgrid_t(const timestamp_t &timestamp,
-                          const int tag_rows,
-                          const int tag_cols,
-                          const real_t tag_size,
-                          const real_t tag_spacing)
+              const int tag_rows,
+              const int tag_cols,
+              const real_t tag_size,
+              const real_t tag_spacing)
       : configured{true},
         tag_rows{tag_rows}, tag_cols{tag_cols},
         tag_size{tag_size}, tag_spacing{tag_spacing},
@@ -172,6 +172,13 @@ int aprilgrid_object_points(const aprilgrid_t &grid,
 int aprilgrid_object_points(const aprilgrid_t &grid, vec3s_t &object_points);
 
 /**
+ * Return AprilGrid center based on number of rows and cols, as well as the tag
+ * size and tag spacing.
+ */
+vec2_t aprilgrid_center(const int rows, const int cols,
+                        const double tag_size, const double tag_spacing);
+
+/**
  * Calculate relative position between AprilGrid and camera using solvepnp.
  * @returns 0 or -1 for success or failure.
  */
@@ -197,6 +204,11 @@ int aprilgrid_save(const aprilgrid_t &grid, const std::string &save_path);
 int aprilgrid_load(aprilgrid_t &grid, const std::string &data_path);
 
 /**
+ * Load AprilGrids.
+ */
+aprilgrids_t load_aprilgrids(const std::string &dir_path);
+
+/**
  * Configure AprilGrid detector.
  * @returns 0 or 1 for success or failure.
  */
@@ -207,13 +219,19 @@ void aprilgrid_filter_tags(const cv::Mat &image,
                            std::vector<AprilTags::TagDetection> &tags);
 
 /**
+ * Compare two aprilgrids to see if they're equal.
+ * @returns true or false.
+ */
+int aprilgrid_equal(const aprilgrid_t &grid0, const aprilgrid_t &grid1);
+
+/**
  * Detect AprilGrid.
  * @returns number of AprilTags detected
  */
 int aprilgrid_detect(const aprilgrid_detector_t &detector,
                      const cv::Mat &image,
                      aprilgrid_t &grid,
-                         const bool use_v3=false);
+                     const bool use_v3=false);
 
 /**
  * Detect AprilGrid.
@@ -224,7 +242,7 @@ int aprilgrid_detect(const aprilgrid_detector_t &detector,
                      const mat3_t &cam_K,
                      const vec4_t &cam_D,
                      aprilgrid_t &grid,
-                         const bool use_v3=false);
+                     const bool use_v3=false);
 
 /**
  * Find the intersection of two aprilgrids

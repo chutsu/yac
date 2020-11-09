@@ -249,9 +249,9 @@ int aprilgrid_object_points(const aprilgrid_t &grid, vec3s_t &object_points) {
 }
 
 vec2_t aprilgrid_center(const int rows,
-												const int cols,
+                        const int cols,
                         const double tag_size,
-												const double tag_spacing) {
+                        const double tag_spacing) {
   double x = ((cols / 2.0) * tag_size);
   x +=  (((cols / 2.0) - 1) * tag_spacing * tag_size);
   x +=  (0.5 * tag_spacing * tag_size);

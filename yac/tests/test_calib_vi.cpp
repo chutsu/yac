@@ -64,12 +64,12 @@ int test_imu_propagate() {
   imu_data_t imu_buf;
   const vec3_t g{0.0, 0.0, -9.81};
 
-	std::vector<mat4_t> poses;
-	std::vector<vec_t<9>> speed_biases;
-	poses.emplace_back(tf(q_WS, r_WS));
-	speed_biases.emplace_back(sb_i);
+  std::vector<mat4_t> poses;
+  std::vector<vec_t<9>> speed_biases;
+  poses.emplace_back(tf(q_WS, r_WS));
+  speed_biases.emplace_back(sb_i);
 
-	size_t half_index = sim_data.imu_ts.size() / 2.0;
+  size_t half_index = sim_data.imu_ts.size() / 2.0;
   for (size_t k = 0; k < sim_data.imu_ts.size(); k++) {
   // for (size_t k = 0; k < half_index; k++) {
     vec_t<7> pose_j = pose_i;
@@ -85,17 +85,17 @@ int test_imu_propagate() {
     pose_i = pose_j;
     sb_i = sb_j;
 
-		const quat_t q_WS{pose_i(3), pose_i(0), pose_i(1), pose_i(2)};
-		const vec3_t r_WS{pose_i(4), pose_i(5), pose_i(6)};
-		poses.emplace_back(tf(q_WS, r_WS));
-		speed_biases.emplace_back(sb_i);
+    const quat_t q_WS{pose_i(3), pose_i(0), pose_i(1), pose_i(2)};
+    const vec3_t r_WS{pose_i(4), pose_i(5), pose_i(6)};
+    poses.emplace_back(tf(q_WS, r_WS));
+    speed_biases.emplace_back(sb_i);
   }
 
-	print_matrix("pose_i", poses.front());
-	print_matrix("pose_j", poses.back());
-	print_vector("sb_i", speed_biases.front());
-	print_vector("sb_j", speed_biases.back());
-	printf("\n");
+  print_matrix("pose_i", poses.front());
+  print_matrix("pose_j", poses.back());
+  print_vector("sb_i", speed_biases.front());
+  print_vector("sb_j", speed_biases.back());
+  printf("\n");
 
   // pose_t pose_i{0, imu_data.timestamps[0], sim_data.imu_poses.front()};
   // sb_params_t sb_i{1, imu_data.timestamps[0], sim_data.imu_vel.front(), zeros(3, 1), zeros(3, 1)};
@@ -103,28 +103,28 @@ int test_imu_propagate() {
   // sb_params_t sb_j{3, imu_data.timestamps.back(), sim_data.imu_vel.back(), zeros(3, 1), zeros(3, 1)};
 
   const int imu_index = 0;
-	const imu_params_t imu_params;
-	timestamps_t sub_imu_timestamps(&sim_data.imu_ts[0], &sim_data.imu_ts[half_index]);
-	vec3s_t sub_imu_accel(&sim_data.imu_acc[0], &sim_data.imu_acc[half_index]);
-	vec3s_t sub_imu_gyro(&sim_data.imu_gyr[0], &sim_data.imu_gyr[half_index]);
+  const imu_params_t imu_params;
+  timestamps_t sub_imu_timestamps(&sim_data.imu_ts[0], &sim_data.imu_ts[half_index]);
+  vec3s_t sub_imu_accel(&sim_data.imu_acc[0], &sim_data.imu_acc[half_index]);
+  vec3s_t sub_imu_gyro(&sim_data.imu_gyr[0], &sim_data.imu_gyr[half_index]);
 
-	printf("nb imu ts: %ld\n", sub_imu_timestamps.size());
-	printf("nb imu accel: %ld\n", sub_imu_accel.size());
-	printf("nb imu gyro: %ld\n", sub_imu_gyro.size());
+  printf("nb imu ts: %ld\n", sub_imu_timestamps.size());
+  printf("nb imu accel: %ld\n", sub_imu_accel.size());
+  printf("nb imu gyro: %ld\n", sub_imu_gyro.size());
 
 
   imu_error_t residual(imu_index, imu_params, imu_buf);
   // calib_imu_residual_t residual(imu_index,
-	// 		 													sub_imu_timestamps,
-  //                     	  	 	 	sub_imu_accel,
-  //                     	  	 	 	sub_imu_gyro);
+  //                                sub_imu_timestamps,
+  //                                 sub_imu_accel,
+  //                                 sub_imu_gyro);
 
-	print_vector("dp", residual.dp);
-	print_vector("dv", residual.dv);
-	print_quaternion("dq", residual.dq);
+  print_vector("dp", residual.dp);
+  print_vector("dv", residual.dv);
+  print_quaternion("dq", residual.dq);
 
-	printf("ts end: %f\n", ns2sec(sim_data.imu_ts.back()));
-	print_matrix("F", residual.F);
+  printf("ts end: %f\n", ns2sec(sim_data.imu_ts.back()));
+  print_matrix("F", residual.F);
 
   // print_vector("pose_j", pose_i);
   // print_matrix("T_WS", tf(pose_i));

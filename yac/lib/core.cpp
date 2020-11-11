@@ -4392,7 +4392,7 @@ void sim_circle_trajectory(const real_t circle_r, vio_sim_data_t &sim_data) {
       std::vector<size_t> frame_obs;
       vec2s_t frame_kps;
 
-      for (const auto p_W : sim_data.features) {
+      for (const vec3_t &p_W : sim_data.features) {
         vec2_t z;
         const vec3_t p_C = tf_point(T_CW, p_W);
         if (camera.project(p_C, z) == 0) {
@@ -4426,14 +4426,14 @@ void sim_circle_trajectory(const real_t circle_r, vio_sim_data_t &sim_data) {
     imu.rate = sim_data.imu_rate;
     imu.tau_a = 3600;
     imu.tau_g = 3600;
-    imu.sigma_g_c = 0.0;
-    imu.sigma_a_c = 0.0;
-    imu.sigma_gw_c = 0.0;
-    imu.sigma_aw_c = 0.0;
-    // imu.sigma_g_c = 0.005;
-    // imu.sigma_a_c = 0.025;
-    // imu.sigma_gw_c = 1e-05;
-    // imu.sigma_aw_c = 0.001;
+    // imu.sigma_g_c = 0.0;
+    // imu.sigma_a_c = 0.0;
+    // imu.sigma_gw_c = 0.0;
+    // imu.sigma_aw_c = 0.0;
+    imu.sigma_g_c = 0.005;
+    imu.sigma_a_c = 0.025;
+    imu.sigma_gw_c = 1e-05;
+    imu.sigma_aw_c = 0.001;
     imu.g = 9.81;
 
     while (t <= t_end) {

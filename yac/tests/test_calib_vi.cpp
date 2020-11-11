@@ -53,78 +53,83 @@ int test_imu_propagate() {
   sim_circle_trajectory(4.0, sim_data);
   sim_data.save("/tmp/sim_data");
 
-  vec_t<7> pose_i;
-  vec_t<9> sb_i;
-  auto q_WS = sim_data.imu_rot[0];
-  auto r_WS = sim_data.imu_pos[0];
-  pose_i << q_WS.x(), q_WS.y(), q_WS.z(), q_WS.w(), r_WS;
-  sb_i << sim_data.imu_vel[0], zeros(6, 1);
+  const int imu_index = 0;
+  imu_params_t imu_params;
+  imu_params.sigma_a_c = 1.86e-03;
+  imu_params.sigma_g_c = 1.87e-04;
+  imu_params.sigma_aw_c = 4.33e-04;
+  imu_params.sigma_gw_c = 2.66e-05;
 
-  imu_data_t imu_data;
   imu_data_t imu_buf;
-  const vec3_t g{0.0, 0.0, -9.81};
 
-  std::vector<mat4_t> poses;
-  std::vector<vec_t<9>> speed_biases;
-  poses.emplace_back(tf(q_WS, r_WS));
-  speed_biases.emplace_back(sb_i);
+  id_t new_id = 0;
+  std::vector<imu_error_t *> imu_errors;
+  std::vector<pose_t *> poses;
+  std::vector<sb_params_t *> speed_biases;
+	ceres::Problem::Options prob_options;
+  prob_options.local_parameterization_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
+  ceres::Problem problem(prob_options);
+  PoseLocalParameterization pose_parameterization;
 
-  size_t half_index = sim_data.imu_ts.size() / 2.0;
+  const timestamp_t t0 = sim_data.imu_ts[0];
+  const mat4_t T_WS_0 = tf(sim_data.imu_rot[0], sim_data.imu_pos[0]);
+  const vec3_t vel_0 = sim_data.imu_vel[0];
+  const vec3_t ba_0 = zeros(3, 1);
+  const vec3_t bg_0 = zeros(3, 1);
+  auto pose0 = new pose_t{new_id++, t0, T_WS_0};
+  auto sb0 = new sb_params_t{new_id++, t0, vel_0, ba_0, bg_0};
+  poses.push_back(pose0);
+  speed_biases.push_back(sb0);
+
   for (size_t k = 0; k < sim_data.imu_ts.size(); k++) {
-  // for (size_t k = 0; k < half_index; k++) {
-    vec_t<7> pose_j = pose_i;
-    vec_t<9> sb_j = sb_i;
-    imu_data.add(sim_data.imu_ts[k], sim_data.imu_acc[k], sim_data.imu_gyr[k]);
     imu_buf.add(sim_data.imu_ts[k], sim_data.imu_acc[k], sim_data.imu_gyr[k]);
 
-    if (imu_data.size() > 10) {
-      imu_propagate(imu_data, g, pose_i, sb_i, pose_j, sb_j);
-      imu_data.clear();
+    if (imu_buf.size() > 5) {
+      auto imu_error = new imu_error_t{imu_index, imu_params, imu_buf};
+			imu_errors.push_back(imu_error);
+
+      pose_t *pose_i = poses.back();
+      sb_params_t *sb_i = speed_biases.back();
+      const mat4_t T_WS_i = pose_i->tf();
+      const vec_t<9> speed_biases_i = sb_i->param;
+
+      mat4_t T_WS_j;
+      vec_t<9> speed_biases_j;
+      imu_error->propagate(imu_buf,
+                           T_WS_i, speed_biases_i,
+                           T_WS_j, speed_biases_j);
+
+      const timestamp_t ts = imu_buf.timestamps.back();
+      pose_t *pose_j = new pose_t(new_id++, ts, T_WS_j);
+      sb_params_t *sb_j = new sb_params_t(new_id++, ts, speed_biases_j);
+      poses.push_back(pose_j);
+      speed_biases.push_back(sb_j);
+      imu_buf.clear();
+
+      problem.AddResidualBlock(imu_error,
+                               nullptr,
+                               pose_i->param.data(),
+                               sb_i->param.data(),
+                               pose_j->param.data(),
+                               sb_j->param.data());
+			break;
     }
-
-    pose_i = pose_j;
-    sb_i = sb_j;
-
-    const quat_t q_WS{pose_i(3), pose_i(0), pose_i(1), pose_i(2)};
-    const vec3_t r_WS{pose_i(4), pose_i(5), pose_i(6)};
-    poses.emplace_back(tf(q_WS, r_WS));
-    speed_biases.emplace_back(sb_i);
   }
 
-  print_matrix("pose_i", poses.front());
-  print_matrix("pose_j", poses.back());
-  print_vector("sb_i", speed_biases.front());
-  print_vector("sb_j", speed_biases.back());
-  printf("\n");
+	for (const auto pose : poses) {
+			problem.SetParameterization(pose->param.data(),
+																	&pose_parameterization);
+	}
 
-  // pose_t pose_i{0, imu_data.timestamps[0], sim_data.imu_poses.front()};
-  // sb_params_t sb_i{1, imu_data.timestamps[0], sim_data.imu_vel.front(), zeros(3, 1), zeros(3, 1)};
-  // pose_t pose_j{2, imu_data.timestamps.back(), sim_data.imu_poses.back()};
-  // sb_params_t sb_j{3, imu_data.timestamps.back(), sim_data.imu_vel.back(), zeros(3, 1), zeros(3, 1)};
+  ceres::Solver::Options options;
+  options.minimizer_progress_to_stdout = true;
+  options.max_num_iterations = 100;
+  // options.check_gradients = true;
 
-  const int imu_index = 0;
-  const imu_params_t imu_params;
-  timestamps_t sub_imu_timestamps(&sim_data.imu_ts[0], &sim_data.imu_ts[half_index]);
-  vec3s_t sub_imu_accel(&sim_data.imu_acc[0], &sim_data.imu_acc[half_index]);
-  vec3s_t sub_imu_gyro(&sim_data.imu_gyr[0], &sim_data.imu_gyr[half_index]);
-
-  printf("nb imu ts: %ld\n", sub_imu_timestamps.size());
-  printf("nb imu accel: %ld\n", sub_imu_accel.size());
-  printf("nb imu gyro: %ld\n", sub_imu_gyro.size());
-
-
-  imu_error_t residual(imu_index, imu_params, imu_buf);
-  // calib_imu_residual_t residual(imu_index,
-  //                                sub_imu_timestamps,
-  //                                 sub_imu_accel,
-  //                                 sub_imu_gyro);
-
-  print_vector("dp", residual.dp);
-  print_vector("dv", residual.dv);
-  print_quaternion("dq", residual.dq);
-
-  printf("ts end: %f\n", ns2sec(sim_data.imu_ts.back()));
-  print_matrix("F", residual.F);
+  ceres::Solver::Summary summary;
+  ceres::Solve(options, &problem, &summary);
+  std::cout << summary.FullReport() << std::endl;
+  std::cout << std::endl;
 
   // print_vector("pose_j", pose_i);
   // print_matrix("T_WS", tf(pose_i));

@@ -44,12 +44,13 @@ source ~/catkin_ws/devel/setup.bash
 # rosrun yac test_calib_mocap
 # rosrun yac test_calib_mono
 # rosrun yac test_calib_stereo
+rosrun yac test_calib_vi
 # rosrun yac test_calib_vi
 
 # roslaunch yac_ros calib_capture.launch
 # roslaunch yac_ros calib_mono.launch
 # roslaunch yac_ros calib_stereo.launch
-roslaunch yac_ros calib_mocap.launch
+# roslaunch yac_ros calib_mocap.launch
 # rosrun yac_ros calib_mono
 
 # Build tests

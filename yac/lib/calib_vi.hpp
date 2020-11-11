@@ -153,19 +153,25 @@ struct imu_error_t : public ceres::SizedCostFunction<15, 7, 9, 7, 9> {
   const int imu_index = 0;
   const imu_params_t imu_params;
   const imu_data_t imu_data;
-  const vec3_t g{0.0, 0.0, -9.81};
+  const vec3_t g{0.0, 0.0, 9.81};
 
-  mat_t<15, 15> F = I(15, 15);      // Transition matrix
-  mat_t<12, 12> Q = zeros(12, 12);  // noise matrix
+  mat_t<15, 15> J = I(15, 15);  // Jacobians
   mat_t<15, 15> P = zeros(15, 15);  // Covariance matrix
+  mat_t<12, 12> Q = zeros(12, 12);  // Noise covariance matrix
   mutable matxs_t J_min;
 
-  // Parameter order indicies
+  // State vector indicies
   const int POS_IDX = 0;
   const int ROT_IDX = 3;
   const int VEL_IDX = 6;
   const int BA_IDX = 9;
   const int BG_IDX = 12;
+
+  // Noise vector indicies
+  const int NA_IDX = 0;
+  const int NG_IDX = 3;
+  const int NBA_IDX = 6;
+  const int NBG_IDX = 9;
 
   // Delta position, velocity and rotation between timestep i and j
   // (i.e start and end of imu measurements)
@@ -183,26 +189,38 @@ struct imu_error_t : public ceres::SizedCostFunction<15, 7, 9, 7, 9> {
       : imu_index{imu_index_},
         imu_params{imu_params_},
         imu_data{imu_data_} {
+    // Setup minimal jacobians
     J_min.push_back(zeros(15, 6));  // T_WS at timestep i
     J_min.push_back(zeros(15, 9));  // Speed and bias at timestep i
     J_min.push_back(zeros(15, 6));  // T_WS at timestep j
     J_min.push_back(zeros(15, 9));  // Speed and bias at timestep j
-    propagate(imu_data.timestamps, imu_data.accel, imu_data.gyro);
+
+    // Form noise covariance matrix Q
+    Q.setZero();
+    Q.block<3, 3>(0, 0) = pow(imu_params_.sigma_a_c, 2) * I(3);
+    Q.block<3, 3>(3, 3) = pow(imu_params_.sigma_g_c, 2) * I(3);
+    Q.block<3, 3>(6, 6) = pow(imu_params_.sigma_aw_c, 2) * I(3);
+    Q.block<3, 3>(9, 9) = pow(imu_params_.sigma_gw_c, 2) * I(3);
+
+    // propagate(imu_data.timestamps, imu_data.accel, imu_data.gyro);
   }
 
-  void propagate(const timestamps_t &ts,
-                 const vec3s_t &imu_acc,
-                 const vec3s_t &imu_gyr) {
-    assert(ts.size() > 2);
-    assert(ts.size() == imu_acc.size());
+  void propagate(const imu_data_t &imu_data,
+                 const mat4_t &T_WS_i, const vec_t<9> &speed_biases_i,
+                 mat4_t &T_WS_j, vec_t<9> &speed_biases_j) {
+    const timestamps_t imu_ts = imu_data.timestamps;
+    const vec3s_t imu_gyr = imu_data.gyro;
+    const vec3s_t imu_acc = imu_data.accel;
+    assert(imu_ts.size() > 2);
+    assert(imu_ts.size() == imu_acc.size());
     assert(imu_gyr.size() == imu_acc.size());
 
     real_t dt = 0.0;
-    real_t dt_prev = ns2sec(ts[1] - ts[0]);
+    real_t dt_prev = ns2sec(imu_ts[1] - imu_ts[0]);
     for (size_t k = 0; k < imu_gyr.size(); k++) {
       // Calculate dt
       if ((k + 1) < imu_gyr.size()) {
-        dt = ns2sec(ts[k + 1] - ts[k]);
+        dt = ns2sec(imu_ts[k + 1] - imu_ts[k]);
         dt_prev = dt;
       } else {
         dt = dt_prev;
@@ -222,28 +240,40 @@ struct imu_error_t : public ceres::SizedCostFunction<15, 7, 9, 7, 9> {
       const mat3_t C_ji = dq.toRotationMatrix();
       mat_t<15, 15> F_i = zeros(15, 15);
       F_i.block<3, 3>(POS_IDX, VEL_IDX) = I(3);
-      F_i.block<3, 3>(ROT_IDX, ROT_IDX) = -skew(imu_gyr[k] - bg);
-      F_i.block<3, 3>(ROT_IDX, BG_IDX) = -I(3);
       F_i.block<3, 3>(VEL_IDX, ROT_IDX) = -C_ji * skew(imu_acc[k] - ba);
       F_i.block<3, 3>(VEL_IDX, BA_IDX) = -C_ji;
+      F_i.block<3, 3>(ROT_IDX, ROT_IDX) = -skew(imu_gyr[k] - bg);
+      F_i.block<3, 3>(ROT_IDX, BG_IDX) = -I(3);
 
-      printf("k: %ld\n", k);
-      printf("dt: %f\n", dt);
-      print_matrix("rot rot", -skew(imu_gyr[k] - bg));
+      // printf("k: %ld\n", k);
+      // printf("dt: %f\n", dt);
+      // print_matrix("rot rot", -skew(imu_gyr[k] - bg));
 
       // Input matrix G
       mat_t<15, 12> G_i = zeros(15, 12);
-      G_i.block<3, 3>(ROT_IDX, BG_IDX) = -I(3);
-      G_i.block<3, 3>(VEL_IDX, BA_IDX) = -C_ji;
-      G_i.block<3, 3>(BA_IDX, BA_IDX) = I(3);
-      G_i.block<3, 3>(BG_IDX, BG_IDX) = I(3);
+      G_i.block<3, 3>(VEL_IDX, NA_IDX) = -C_ji;
+      G_i.block<3, 3>(ROT_IDX, NG_IDX) = -I(3);
+      G_i.block<3, 3>(BA_IDX, NBA_IDX) = I(3);
+      G_i.block<3, 3>(BG_IDX, NBG_IDX) = I(3);
 
       // Update jacobian and covariance matrix
       const mat_t<15, 15> I_Fi_dt = I(15) + dt * F_i;
       const mat_t<15, 12> Gi_dt = G_i * dt;
-      F = I_Fi_dt * F;
+      J = I_Fi_dt * J;
       P = I_Fi_dt * P * I_Fi_dt.transpose() + Gi_dt * Q * Gi_dt.transpose();
+      // print_matrix("F_i", F_i);
+      // print_matrix("I_Fi_dt", I_Fi_dt);
+      // print_matrix("Gi_dt", Gi_dt);
+      // print_matrix("Q", Q);
+      // print_matrix("P", P);
     }
+
+    // Return results
+    const vec3_t pos_i = tf_trans(T_WS_i);
+    const quat_t rot_i = tf_quat(T_WS_i);
+    T_WS_j = tf(rot_i * dq, pos_i + dp);
+    speed_biases_j = speed_biases_i;
+    speed_biases_j.head(3) += dv;
   }
 
   bool Evaluate(double const * const *params,
@@ -272,11 +302,11 @@ struct imu_error_t : public ceres::SizedCostFunction<15, 7, 9, 7, 9> {
     const vec3_t bg_j = sb_j.segment<3>(6);
 
     // Obtain Jacobians for gyro and accel bias
-    const mat3_t dp_dba = F.block<3, 3>(POS_IDX, BA_IDX);
-    const mat3_t dp_dbg = F.block<3, 3>(POS_IDX, BG_IDX);
-    const mat3_t dv_dba = F.block<3, 3>(VEL_IDX, BA_IDX);
-    const mat3_t dv_dbg = F.block<3, 3>(VEL_IDX, BG_IDX);
-    const mat3_t dq_dbg = F.block<3, 3>(ROT_IDX, BG_IDX);
+    const mat3_t dp_dba = J.block<3, 3>(POS_IDX, BA_IDX);
+    const mat3_t dp_dbg = J.block<3, 3>(POS_IDX, BG_IDX);
+    const mat3_t dv_dba = J.block<3, 3>(VEL_IDX, BA_IDX);
+    const mat3_t dv_dbg = J.block<3, 3>(VEL_IDX, BG_IDX);
+    const mat3_t dq_dbg = J.block<3, 3>(ROT_IDX, BG_IDX);
 
     // Calculate square root info
     const matx_t info{P.inverse()};
@@ -308,60 +338,100 @@ struct imu_error_t : public ceres::SizedCostFunction<15, 7, 9, 7, 9> {
     r = sqrt_info * r;
     // clang-format on
 
+    // print_vector("err_trans", err_trans);
+    // print_vector("err_vel", err_vel);
+    // print_vector("predicted dpos", C_i_inv * (r_j - r_i - v_i * dt_ij + 0.5 * g * dt_ij_sq));
+    // print_vector("measured dpos", alpha);
+    // print_vector("predicted dvel", C_i_inv * (v_j - v_i + g * dt_ij));
+    // print_vector("measured dvel", beta);
+
+    // print_matrix("T_i", T_i);
+    // print_matrix("T_j", T_j);
+    // print_vector("v_i", v_i);
+    // print_vector("v_j", v_j);
+    // print_vector("ba_i", ba_i);
+    // print_vector("ba_j", ba_j);
+    // print_vector("bg_i", bg_i);
+    // print_vector("bg_j", bg_j);
+    // print_vector("err_trans", err_trans);
+    // print_vector("err_rot", err_rot);
+    // print_vector("err_vel", err_vel);
+    // print_vector("err_ba", err_ba);
+    // print_vector("err_bg", err_bg);
+
+    // printf("\n");
+    print_matrix("J", J);
+    print_matrix("P", P);
+    print_matrix("info", info);
+    print_matrix("sqrt_info", sqrt_info);
+
     // Calculate Jacobians
     // clang-format off
     if (jacobians) {
       // Jacobian w.r.t. pose_i
       if (jacobians[0]) {
         J_min[0] = zeros(15, 6);
-        J_min[0].block<3, 3>(POS_IDX, POS_IDX) = -C_i_inv;
-        J_min[0].block<3, 3>(POS_IDX, ROT_IDX) = skew(C_i_inv * (r_j - r_i - v_i * dt_ij + 0.5 * g * dt_ij_sq));
-        J_min[0].block<3, 3>(ROT_IDX, ROT_IDX) = -quat_mat_xyz(quat_lmul(q_j_inv * q_i) * quat_rmul(gamma));
-        J_min[0].block<3, 3>(VEL_IDX, ROT_IDX) = skew(C_i_inv * (v_j - v_i + g * dt_ij));
+        J_min[0].block<3, 3>(POS_IDX, 0) = -C_i_inv;
+        J_min[0].block<3, 3>(POS_IDX, 3) = skew(C_i_inv * (r_j - r_i - v_i * dt_ij + 0.5 * g * dt_ij_sq));
+        J_min[0].block<3, 3>(ROT_IDX, 0) = -quat_mat_xyz(quat_lmul(q_j_inv * q_i) * quat_rmul(gamma));
+        J_min[0].block<3, 3>(VEL_IDX, 3) = skew(C_i_inv * (v_j - v_i + g * dt_ij));
         J_min[0] = sqrt_info * J_min[0];
 
+        mat_t<6, 7, row_major_t> J_lift;
+        lift_pose_jacobian(q_i, J_lift);
+
         map_mat_t<15, 7, row_major_t> J0(jacobians[0]);
-        J0 = J_min[0];
+        J0 = J_min[0] * J_lift;
+				// J0.setZero();
+        // J0.block<15, 6>(0, 0) = J_min[0];
       }
 
       // Jacobian w.r.t. sb_i
       if (jacobians[1]) {
         J_min[1] = zeros(15, 9);
-        J_min[1].block<3, 3>(POS_IDX, VEL_IDX - VEL_IDX) = -C_i_inv * dt_ij;
-        J_min[1].block<3, 3>(POS_IDX, BA_IDX - VEL_IDX) = -dp_dba;
-        J_min[1].block<3, 3>(POS_IDX, BG_IDX - VEL_IDX) = -dp_dbg;
-        J_min[1].block<3, 3>(VEL_IDX, VEL_IDX - VEL_IDX) = -C_i_inv;
-        J_min[1].block<3, 3>(VEL_IDX, BA_IDX - VEL_IDX) = -dv_dba;
-        J_min[1].block<3, 3>(VEL_IDX, BG_IDX - VEL_IDX) = -dv_dbg;
-        J_min[1].block<3, 3>(BA_IDX, BA_IDX - VEL_IDX) = -I(3);
-        J_min[1].block<3, 3>(BG_IDX, BG_IDX - VEL_IDX) = -I(3);
+        J_min[1].block<3, 3>(POS_IDX, 0) = -C_i_inv * dt_ij;
+        J_min[1].block<3, 3>(POS_IDX, 3) = -dp_dba;
+        J_min[1].block<3, 3>(POS_IDX, 6) = -dp_dbg;
+        J_min[1].block<3, 3>(VEL_IDX, 0) = -C_i_inv;
+        J_min[1].block<3, 3>(VEL_IDX, 3) = -dv_dba;
+        J_min[1].block<3, 3>(VEL_IDX, 6) = -dv_dbg;
+        J_min[1].block<3, 3>(BA_IDX, 3) = -I(3);
+        J_min[1].block<3, 3>(BG_IDX, 6) = -I(3);
         J_min[1] = sqrt_info * J_min[1];
 
-        map_mat_t<15, 7, row_major_t> J1(jacobians[1]);
+        map_mat_t<15, 9, row_major_t> J1(jacobians[1]);
+				J1.setZero();
         J1 = J_min[1];
       }
 
       // Jacobian w.r.t. pose_j
       if (jacobians[2]) {
         J_min[2] = zeros(15, 6);
-        J_min[2].block<3, 3>(POS_IDX, POS_IDX) = C_i_inv;
-        J_min[2].block<3, 3>(ROT_IDX, ROT_IDX) = quat_lmul_xyz(gamma_inv * q_i_inv * q_j_inv);
+        J_min[2].block<3, 3>(POS_IDX, 0) = C_i_inv;
+
+        J_min[2].block<3, 3>(ROT_IDX, 3) = quat_lmul_xyz(gamma_inv * q_i_inv * q_j);
         J_min[2] = sqrt_info * J_min[2];
 
+        mat_t<6, 7, row_major_t> J_lift;
+        lift_pose_jacobian(q_j, J_lift);
+
         map_mat_t<15, 7, row_major_t> J2(jacobians[2]);
-        J2 = J_min[2];
+        J2 = J_min[2] * J_lift;
+				// J2.setZero();
+        // J2.block(0, 0, 15, 6) = J_min[2];
       }
 
       // Jacobian w.r.t. sb_j
       if (jacobians[3]) {
         // -- Speed and bias at j Jacobian
         J_min[3] = zeros(15, 9);
-        J_min[3].block<3, 3>(VEL_IDX, VEL_IDX - VEL_IDX) = C_i_inv;
-        J_min[3].block<3, 3>(BA_IDX, BA_IDX - VEL_IDX) = I(3);
-        J_min[3].block<3, 3>(BG_IDX, BG_IDX - VEL_IDX) = I(3);
+        J_min[3].block<3, 3>(VEL_IDX, 0) = C_i_inv;
+        J_min[3].block<3, 3>(BA_IDX, 3) = I(3);
+        J_min[3].block<3, 3>(BG_IDX, 6) = I(3);
         J_min[3] = sqrt_info * J_min[3];
 
         map_mat_t<15, 9, row_major_t> J3(jacobians[3]);
+				J3.setZero();
         J3 = J_min[3];
       }
     }

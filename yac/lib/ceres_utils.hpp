@@ -8,6 +8,7 @@
 namespace yac {
 
 // Oplus matrix of a quaternion,
+// Right quaternion product matrix
 // i.e. q_AB * q_BC = oplus(q_BC) * q_AB.coeffs().
 mat4_t oplus(const quat_t & q_BC);
 

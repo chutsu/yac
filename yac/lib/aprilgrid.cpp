@@ -649,10 +649,14 @@ int aprilgrid_configure(aprilgrid_t &grid, const std::string &target_file) {
 }
 
 void aprilgrid_filter_tags(const cv::Mat &image,
-                           std::vector<apriltag_t> &tags) {
-  std::vector<apriltag_t>::iterator iter = tags.begin();
-
+                           std::vector<apriltag_t> &tags,
+                           const bool verbose) {
   const real_t min_border_dist = 4.0;
+  const real_t max_subpix_disp = 1.2;
+
+  const size_t nb_tags_before = tags.size();
+  int removed = 0;
+  std::vector<apriltag_t>::iterator iter = tags.begin();
   for (iter = tags.begin(); iter != tags.end();) {
     bool remove = false;
 
@@ -668,12 +672,76 @@ void aprilgrid_filter_tags(const cv::Mat &image,
       remove |= true;
     }
 
+    if (remove == false) {
+      std::vector<cv::Point2f> corners_before;
+      std::vector<cv::Point2f> corners_after;
+
+      std::vector<cv::Point2f> corners;
+      corners.emplace_back(iter->p[0].first, iter->p[0].second); // Bottom left
+      corners.emplace_back(iter->p[1].first, iter->p[1].second); // Bottom right
+      corners.emplace_back(iter->p[2].first, iter->p[2].second); // Top right
+      corners.emplace_back(iter->p[3].first, iter->p[3].second); // Top left
+
+      corners_before.push_back(corners[0]);
+      corners_before.push_back(corners[1]);
+      corners_before.push_back(corners[2]);
+      corners_before.push_back(corners[3]);
+
+      const cv::Size win_size(2, 2);
+      const cv::Size zero_zone(-1, -1);
+      const cv::TermCriteria criteria(CV_TERMCRIT_EPS + CV_TERMCRIT_ITER, 30, 0.1);
+      cv::cornerSubPix(image, corners, win_size, zero_zone, criteria);
+
+      corners_after.push_back(corners[0]);
+      corners_after.push_back(corners[1]);
+      corners_after.push_back(corners[2]);
+      corners_after.push_back(corners[3]);
+
+      for (int i = 0; i < 4; i++) {
+        const auto &p_before = corners_before[i];
+        const auto &p_after = corners_after[i];
+
+        const auto dx = p_before.x - p_after.x;
+        const auto dy = p_before.y - p_after.y;
+        const auto dist = sqrt(dx * dx + dy * dy);
+        // printf("dist: %f\n", dist);
+        if (dist >= max_subpix_disp) {
+          remove = true;
+        }
+      }
+
+      iter->p[0].first = corners[0].x; iter->p[0].second = corners[0].y;
+      iter->p[1].first = corners[1].x; iter->p[1].second = corners[1].y;
+      iter->p[2].first = corners[2].x; iter->p[2].second = corners[2].y;
+      iter->p[3].first = corners[3].x; iter->p[3].second = corners[3].y;
+
+      // cv::Mat image_rgb = gray2rgb(image);
+      // for (const auto &corner : corners_before) {
+      //   cv::circle(image_rgb, corner, 2, cv::Scalar(0, 0, 255), -1);
+      // }
+      // for (const auto &corner : corners_after) {
+      //   cv::circle(image_rgb, corner, 2, cv::Scalar(0, 255, 0), -1);
+      // }
+    }
+
     // Delete flagged tags
     if (remove) {
       iter = tags.erase(iter);
+      removed++;
     } else {
       ++iter;
     }
+  }
+
+  // Clear tags if less than 4 tags are observed
+  if (tags.size() < 4) {
+    tags.clear();
+  }
+
+  if (verbose) {
+    printf("tags [before]: %ld\t", nb_tags_before);
+    printf("tags [after]: %ld\t", tags.size());
+    printf("removed: %d\n", removed);
   }
 }
 
@@ -856,7 +924,7 @@ int aprilgrid_detect(const aprilgrid_detector_t &detector,
     // Use AprilTags by Michael Kaess
     // Extract tags
     std::vector<apriltag_t> tags = detector.det.extractTags(image_gray);
-    aprilgrid_filter_tags(image, tags);
+    aprilgrid_filter_tags(image_gray, tags);
     std::sort(tags.begin(), tags.end(), sort_apriltag_by_id);
 
     // Form results

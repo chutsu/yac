@@ -6,10 +6,10 @@ default: release
 .PHONY: deps release debug
 
 ${YAC_PATH}:
-		ln -sf ${PWD} ${CATKIN_WS}/src/yac
+	ln -sf ${PWD} ${CATKIN_WS}/src/yac
 
 ${CATKIN_WS}:
-		@mkdir -p ${CATKIN_WS}/src; catkin init
+	@mkdir -p ${CATKIN_WS}/src; catkin init
 
 deps:
 	@echo "[Installing Dependencies]"
@@ -19,12 +19,12 @@ deps:
 release: ${CATKIN_WS} ${YAC_PATH}
 	@cd ${CATKIN_WS} && \
 		. /opt/ros/melodic/setup.sh && \
-		catkin build yac -DCMAKE_BUILD_TYPE=Release -j2
+		catkin build yac yac_ros -DCMAKE_BUILD_TYPE=Release -j2
 
 debug: ${CATKIN_WS} ${YAC_PATH}
 	@cd ${CATKIN_WS} && \
 		. /opt/ros/melodic/setup.sh && \
-		catkin build yac -DCMAKE_BUILD_TYPE=Debug -j2
+		catkin build yac yac_ros -DCMAKE_BUILD_TYPE=Debug -j2
 
 download_test_data:
 	@bash ./scripts/download_test_data.bash

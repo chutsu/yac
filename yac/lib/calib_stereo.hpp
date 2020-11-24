@@ -245,6 +245,8 @@ int calib_stereo_solve(const std::vector<aprilgrid_t> &cam0_grids,
                        mat4s_t *T_C0F,
                        mat4s_t *T_C1F) {
   assert(cam0_grids.size() == cam1_grids.size());
+  printf("cam0_grids: %ld\n", cam0_grids.size());
+  printf("cam1_grids: %ld\n", cam1_grids.size());
 
   // Setup optimization variables
   // -- Stereo camera extrinsics

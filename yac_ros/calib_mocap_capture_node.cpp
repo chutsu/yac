@@ -15,6 +15,12 @@ bool imshow;
 std::string cam0_topic;
 std::string body0_topic;
 std::string target0_topic;
+uint64_t cam0_first_ts = 0;
+uint64_t body0_first_ts = 0;
+uint64_t target0_first_ts = 0;
+uint64_t cam0_last_ts = 0;
+uint64_t body0_last_ts = 0;
+uint64_t target0_last_ts = 0;
 
 int cam_counter = 0;
 int body_counter = 0;
@@ -52,11 +58,22 @@ static void image_cb(const sensor_msgs::ImageConstPtr &msg) {
     capture_event = false;
     cam_counter++;
   }
+
+  if (cam0_first_ts == 0) {
+    cam0_first_ts = ts.toNSec();
+  }
+  cam0_last_ts = ts.toNSec();
 }
 
 static void body_pose_cb(const geometry_msgs::PoseStampedConstPtr &msg) {
   bag.write("/body0/pose", msg->header.stamp, msg);
   body_counter++;
+
+  const auto ts = msg->header.stamp;
+  if (body0_first_ts == 0) {
+    body0_first_ts = ts.toNSec();
+  }
+  body0_last_ts = ts.toNSec();
 }
 
 static void body_pose_covar_cb(
@@ -66,6 +83,12 @@ static void body_pose_covar_cb(
   pose.pose = msg->pose.pose;
   bag.write("/body0/pose", msg->header.stamp, pose);
   body_counter++;
+
+  const auto ts = msg->header.stamp;
+  if (body0_first_ts == 0) {
+    body0_first_ts = ts.toNSec();
+  }
+  body0_last_ts = ts.toNSec();
 }
 
 static void body_odom_cb(const nav_msgs::OdometryConstPtr &msg) {
@@ -74,11 +97,23 @@ static void body_odom_cb(const nav_msgs::OdometryConstPtr &msg) {
   pose.pose = msg->pose.pose;
   bag.write("/body0/pose", msg->header.stamp, pose);
   body_counter++;
+
+  const auto ts = msg->header.stamp;
+  if (body0_first_ts == 0) {
+    body0_first_ts = ts.toNSec();
+  }
+  body0_last_ts = ts.toNSec();
 }
 
 static void target_pose_cb(const geometry_msgs::PoseStampedConstPtr &msg) {
   bag.write("/target0/pose", msg->header.stamp, msg);
   target_counter++;
+
+  const auto ts = msg->header.stamp;
+  if (target0_first_ts == 0) {
+    target0_first_ts = ts.toNSec();
+  }
+  target0_last_ts = ts.toNSec();
 }
 
 static void target_pose_covar_cb(
@@ -88,6 +123,12 @@ static void target_pose_covar_cb(
   pose.pose = msg->pose.pose;
   bag.write("/target0/pose", msg->header.stamp, pose);
   target_counter++;
+
+  const auto ts = msg->header.stamp;
+  if (target0_first_ts == 0) {
+    target0_first_ts = ts.toNSec();
+  }
+  target0_last_ts = ts.toNSec();
 }
 
 static void target_odom_cb(const nav_msgs::OdometryConstPtr &msg) {
@@ -96,6 +137,12 @@ static void target_odom_cb(const nav_msgs::OdometryConstPtr &msg) {
   pose.pose = msg->pose.pose;
   bag.write("/target0/pose", msg->header.stamp, pose);
   target_counter++;
+
+  const auto ts = msg->header.stamp;
+  if (target0_first_ts == 0) {
+    target0_first_ts = ts.toNSec();
+  }
+  target0_last_ts = ts.toNSec();
 }
 
 int main(int argc, char *argv[]) {
@@ -118,9 +165,6 @@ int main(int argc, char *argv[]) {
   ROS_PARAM(nh, node_name + "/body0_topic_type", body0_topic_type);
   ROS_PARAM(nh, node_name + "/target0_topic", target0_topic);
   ROS_PARAM(nh, node_name + "/target0_topic_type", target0_topic_type);
-
-  // Setup ROS bag
-  bag.open(rosbag_path, rosbag::bagmode::Write);
 
   // Setup subscribers
   // -- Camera subscriber
@@ -147,6 +191,24 @@ int main(int argc, char *argv[]) {
   } else {
     FATAL("Unsupported target0_topic_type [%s]!", target0_topic_type.c_str());
   }
+
+  // -- Spin for 2 seconds then check if cam0_topic exists
+  for (int i = 0; i < 2; i++) {
+    sleep(1);
+    ros::spinOnce();
+  }
+  if (cam0_sub.getNumPublishers() == 0) {
+    FATAL("No data being published in ros topic [%s]!", cam0_topic.c_str());
+  }
+  if (body0_sub.getNumPublishers() == 0) {
+    FATAL("No data being published in ros topic [%s]!", body0_topic.c_str());
+  }
+  if (target0_sub.getNumPublishers() == 0) {
+    FATAL("No data being published in ros topic [%s]!", target0_topic.c_str());
+  }
+
+  // Setup ROS bag
+  bag.open(rosbag_path, rosbag::bagmode::Write);
 
   // Non-blocking keyboard handler
   struct termios term_config;
@@ -190,10 +252,38 @@ int main(int argc, char *argv[]) {
   // Clean up
   tcsetattr(0, TCSANOW, &term_config_orig);
   bag.close();
-  printf("ROS bag saved to [%s]\n", rosbag_path.c_str());
-  printf("- cam0 msgs recorded: %d\n", cam_counter);
-  printf("- body0 msgs recorded: %d\n", body_counter);
-  printf("- target0 msgs recorded: %d\n", target_counter);
+  LOG_INFO("ROS bag saved to [%s]", rosbag_path.c_str());
+  LOG_INFO("- cam0 msgs recorded: %d", cam_counter);
+  LOG_INFO("- body0 msgs recorded: %d", body_counter);
+  LOG_INFO("- target0 msgs recorded: %d", target_counter);
+
+  // Check data integrity
+  bool data_valid = true;
+  if (cam0_first_ts < body0_first_ts) {
+    LOG_ERROR("cam0 first timestamp < body0 first timestamp!");
+    data_valid = false;
+  }
+  if (cam0_first_ts < target0_first_ts) {
+    LOG_ERROR("cam0 first timestamp < target0 first timestamp!");
+    data_valid = false;
+  }
+  if (cam0_last_ts > body0_last_ts) {
+    LOG_ERROR("cam0 last timestamp > body0 last timestamp!");
+    data_valid = false;
+  }
+  if (cam0_last_ts > target0_last_ts) {
+    LOG_ERROR("cam0 last timestamp > target0 last timestamp!");
+    data_valid = false;
+  }
+  if (data_valid == false) {
+    LOG_ERROR("Are the computers time synchronized?");
+    LOG_ERROR("ROS bag is invalid for calibration, deleting...");
+    if (remove(rosbag_path.c_str()) == 0) {
+      LOG_ERROR("ROS bag [%s] deleted!", rosbag_path.c_str());
+    } else {
+      LOG_ERROR("Failed to delete ROS bag [%s]!", rosbag_path.c_str());
+    }
+  }
 
   return 0;
 }

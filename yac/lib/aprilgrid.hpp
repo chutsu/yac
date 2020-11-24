@@ -216,7 +216,8 @@ int aprilgrid_configure(aprilgrid_t &grid, const std::string &config_file);
 
 /** Filter tags detected */
 void aprilgrid_filter_tags(const cv::Mat &image,
-                           std::vector<AprilTags::TagDetection> &tags);
+                           std::vector<AprilTags::TagDetection> &tags,
+                           const bool verbose=false);
 
 /**
  * Compare two aprilgrids to see if they're equal.

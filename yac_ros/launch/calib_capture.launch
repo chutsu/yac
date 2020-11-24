@@ -1,8 +1,8 @@
 <launch>
-	<arg name="imshow" default="true" />
-	<arg name="show_detection" default="true" />
-	<arg name="rosbag_output_path" default="/tmp/calib_data.bag" />
-	<arg name="cam0_topic" default="/cam0/image_raw" />
+  <arg name="imshow" default="true" />
+  <arg name="show_detection" default="true" />
+  <arg name="rosbag_output_path" default="/tmp/calib_data.bag" />
+  <arg name="cam0_topic" default="/cam0/image_raw" />
 
   <node pkg="yac_ros" type="calib_capture_node" name="calib_capture_node" required="true" output="screen">
     <param name="imshow" value="$(arg imshow)" />

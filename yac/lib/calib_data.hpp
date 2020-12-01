@@ -256,37 +256,14 @@ int calib_target_load(calib_target_t &ct,
 
 /**
  * Preprocess camera image data and output AprilGrid detection data as
- * csv. The AprilGrid tag corners are estimated using the camera intrinsics
- * matrix `cam_K` and distortion vector `cam_D`. Once the data is preprocessed
- * the data is saved to `output_dir`.
+ * csv. Once the data is preprocessed the data is saved to `output_dir`.
  *
  * @returns 0 for Success, -1 for failure, and 1 where the output directory
  * contains data.
  */
 int preprocess_camera_data(const calib_target_t &target,
                            const std::string &image_dir,
-                           const mat3_t &cam_K,
-                           const vec4_t &cam_D,
                            const std::string &output_dir,
-                           const bool imshow = false,
-                           const bool show_progress = true);
-
-/**
- * Preprocess camera image data and output AprilGrid detection data as
- * csv. The data is initialized with `image_size` in pixels, the horizontal
- * lens fov `lens_hfov` and vertical lens fov `lens_vfov` in degrees. Once the
- * data is preprocessed the data is saved to `output_dir`.
- *
- * @returns 0 for Success, -1 for failure, and 1 where the output directory
- * contains data.
- */
-int preprocess_camera_data(const calib_target_t &target,
-                           const std::string &image_dir,
-                           const vec2_t &image_size,
-                           const real_t lens_hfov,
-                           const real_t lens_vfov,
-                           const std::string &output_dir,
-                           const bool imshow = false,
                            const bool show_progress = true);
 
 /**
@@ -300,34 +277,7 @@ int preprocess_camera_data(const calib_target_t &target,
  */
 int load_camera_calib_data(const std::string &data_dir,
                            aprilgrids_t &aprilgrids,
-                           timestamps_t &timestamps,
                            bool detected_only = true);
-
-/**
- * Preprocess stereo image data and output AprilGrid detection data as
- * csv. The data is initialized with `image_size` in pixels, the horizontal
- * lens fov `lens_hfov` and vertical lens fov `lens_vfov` in degrees.
- *
- * This function assumes:
- *
- * - Stereo camera images are synchronized
- * - Number of images observed by both cameras are the same
- *
- * @returns 0 for Success, -1 for failure, and 1 where the output directory
- * contains data.
- */
-int preprocess_stereo_data(const calib_target_t &target,
-                           const std::string &cam0_image_dir,
-                           const std::string &cam1_image_dir,
-                           const vec2_t &cam0_image_size,
-                           const vec2_t &cam1_image_size,
-                           const real_t cam0_lens_hfov,
-                           const real_t cam0_lens_vfov,
-                           const real_t cam1_lens_hfov,
-                           const real_t cam1_lens_vfov,
-                           const std::string &cam0_output_dir,
-                           const std::string &cam1_output_dir,
-                           const bool imshow = false);
 
 /**
  * Extract and only keep common aprilgrid corners between `grids0` and `grids1`.

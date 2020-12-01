@@ -84,11 +84,6 @@ struct aprilgrid_t {
   std::vector<int> ids;
   vec2s_t keypoints;
 
-  /// Estimation
-  bool estimated = false;
-  vec3s_t points_CF;
-  mat4_t T_CF = I(4);
-
   aprilgrid_t() {}
   aprilgrid_t(const timestamp_t &timestamp,
               const int tag_rows,
@@ -122,16 +117,7 @@ void aprilgrid_clear(aprilgrid_t &grid);
  * Get AprilTag measurements based on tag id.
  * @returns 0 or -1 for success or failure.
  */
-int aprilgrid_get(const aprilgrid_t &grid, const int id, vec2s_t &keypoints);
-
-/**
- * Get AprilTag measurements based on tag id.
- * @returns 0 or -1 for success or failure.
- */
-int aprilgrid_get(const aprilgrid_t &grid,
-                  const int id,
-                  vec2s_t &keypoints,
-                  vec3s_t &points_CF);
+int aprilgrid_keypoints(const aprilgrid_t &grid, const int id, vec2s_t &keypoints);
 
 /** Set AprilGrid properties */
 void aprilgrid_set_properties(aprilgrid_t &grid,
@@ -178,13 +164,22 @@ int aprilgrid_object_points(const aprilgrid_t &grid, vec3s_t &object_points);
 vec2_t aprilgrid_center(const int rows, const int cols,
                         const double tag_size, const double tag_spacing);
 
+// /**
+//  * Calculate relative position between AprilGrid and camera using solvepnp.
+//  * @returns 0 or -1 for success or failure.
+//  */
+// int aprilgrid_calc_relative_pose(aprilgrid_t &grid,
+//                                  const mat3_t &cam_K,
+//                                  const vec4_t &cam_D);
+
 /**
  * Calculate relative position between AprilGrid and camera using solvepnp.
  * @returns 0 or -1 for success or failure.
  */
-int aprilgrid_calc_relative_pose(aprilgrid_t &grid,
-                                 const mat3_t &cam_K,
-                                 const vec4_t &cam_D);
+int aprilgrid_calc_relative_pose(const aprilgrid_t &grid,
+                                 const vec4_t &proj_params,
+                                 const vec4_t &dist_params,
+                                 mat4_t &T_CF);
 
 /** Show detection. */
 void aprilgrid_imshow(const aprilgrid_t &grid,
@@ -240,9 +235,10 @@ int aprilgrid_detect(const aprilgrid_detector_t &detector,
  */
 int aprilgrid_detect(const aprilgrid_detector_t &detector,
                      const cv::Mat &image,
-                     const mat3_t &cam_K,
-                     const vec4_t &cam_D,
+                     const vec4_t &proj_params,
+                     const vec4_t &dist_params,
                      aprilgrid_t &grid,
+                     mat4_t &T_CF,
                      const bool use_v3=false);
 
 /**

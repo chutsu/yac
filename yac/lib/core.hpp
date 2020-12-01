@@ -1600,26 +1600,17 @@ real_t randf(const real_t ub, const real_t lb);
  */
 real_t sum(const std::vector<real_t> &x);
 
-/**
- * Calculate median given an array of numbers
- *
- * @param[in] v Array of numbers
- * @return Median of given array
- */
+/** Calculate median given an array of numbers */
 real_t median(const std::vector<real_t> &v);
 
-/**
- * Mean vector
- *
- * @param[in] x List of vectors
- * @return Mean vector
- */
+/** Mean */
 vec3_t mean(const vec3s_t &x);
 
-/**
- * Root Mean Squared Error.
- */
-real_t rmse(const std::vector<real_t> &residuals);
+/** Mean */
+real_t mean(const std::vector<real_t> &x);
+
+/** Root Mean Squared Error.  */
+real_t rmse(const std::vector<real_t> &x);
 
 /**
  * Shannon Entropy of a given covariance matrix `covar`.

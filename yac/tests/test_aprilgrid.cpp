@@ -67,10 +67,6 @@ int test_aprilgrid_constructor() {
   MU_CHECK(grid.ids.size() == 0);
   MU_CHECK(grid.keypoints.size() == 0);
 
-  MU_CHECK(grid.estimated == false);
-  MU_CHECK(grid.points_CF.size() == 0);
-  MU_CHECK((I(4) - grid.T_CF).norm() < 1e-5);
-
   return 0;
 }
 
@@ -95,7 +91,6 @@ int test_aprilgrid_add() {
   MU_CHECK_FLOAT(0.0, (grid.keypoints[1] - kp2).norm());
   MU_CHECK_FLOAT(0.0, (grid.keypoints[2] - kp3).norm());
   MU_CHECK_FLOAT(0.0, (grid.keypoints[3] - kp4).norm());
-  MU_CHECK(grid.points_CF.size() == 0);
 
   return 0;
 }
@@ -118,7 +113,6 @@ int test_aprilgrid_remove() {
     points_CF.emplace_back(i, i, i);
 
     aprilgrid_add(grid, i, keypoints);
-    extend(grid.points_CF, points_CF);
   }
 
   // Test remove
@@ -133,11 +127,6 @@ int test_aprilgrid_remove() {
     MU_CHECK((vec2_t(id, id) - grid.keypoints[i * 4 + 1]).norm() < 1e-8);
     MU_CHECK((vec2_t(id, id) - grid.keypoints[i * 4 + 2]).norm() < 1e-8);
     MU_CHECK((vec2_t(id, id) - grid.keypoints[i * 4 + 3]).norm() < 1e-8);
-
-    MU_CHECK((vec3_t(id, id, id) - grid.points_CF[i * 4]).norm() < 1e-8);
-    MU_CHECK((vec3_t(id, id, id) - grid.points_CF[i * 4 + 1]).norm() < 1e-8);
-    MU_CHECK((vec3_t(id, id, id) - grid.points_CF[i * 4 + 2]).norm() < 1e-8);
-    MU_CHECK((vec3_t(id, id, id) - grid.points_CF[i * 4 + 3]).norm() < 1e-8);
   }
 
   // Test remove everything
@@ -147,56 +136,7 @@ int test_aprilgrid_remove() {
   MU_CHECK(grid.nb_detections == 0);
   MU_CHECK(grid.ids.size() == 0);
   MU_CHECK(grid.keypoints.size() == 0);
-  MU_CHECK(grid.points_CF.size() == 0);
   std::cout << grid << std::endl;
-
-  return 0;
-}
-
-int test_aprilgrid_get() {
-  aprilgrid_t grid(0, 6, 6, 0.088, 0.3);
-
-  for (int i = 0; i < 10; i++) {
-    // Keypoints
-    const vec2_t kp1(i, i);
-    const vec2_t kp2(i, i);
-    const vec2_t kp3(i, i);
-    const vec2_t kp4(i, i);
-    std::vector<cv::Point2f> keypoints;
-    keypoints.emplace_back(kp1(0), kp1(1));
-    keypoints.emplace_back(kp2(0), kp2(1));
-    keypoints.emplace_back(kp3(0), kp3(1));
-    keypoints.emplace_back(kp4(0), kp4(1));
-
-    // Positions
-    const vec3_t pos1(i, i, i);
-    const vec3_t pos2(i, i, i);
-    const vec3_t pos3(i, i, i);
-    const vec3_t pos4(i, i, i);
-
-    // Add measurment
-    aprilgrid_add(grid, i, keypoints);
-    grid.estimated = true;
-    grid.points_CF.emplace_back(pos1);
-    grid.points_CF.emplace_back(pos2);
-    grid.points_CF.emplace_back(pos3);
-    grid.points_CF.emplace_back(pos4);
-
-    // Test get tag
-    vec2s_t keypoints_result;
-    vec3s_t positions_result;
-    aprilgrid_get(grid, i, keypoints_result, positions_result);
-
-    MU_CHECK((vec2_t(i, i) - keypoints_result[0]).norm() < 1e-4);
-    MU_CHECK((vec2_t(i, i) - keypoints_result[1]).norm() < 1e-4);
-    MU_CHECK((vec2_t(i, i) - keypoints_result[2]).norm() < 1e-4);
-    MU_CHECK((vec2_t(i, i) - keypoints_result[3]).norm() < 1e-4);
-
-    MU_CHECK((vec3_t(i, i, i) - positions_result[0]).norm() < 1e-4);
-    MU_CHECK((vec3_t(i, i, i) - positions_result[1]).norm() < 1e-4);
-    MU_CHECK((vec3_t(i, i, i) - positions_result[2]).norm() < 1e-4);
-    MU_CHECK((vec3_t(i, i, i) - positions_result[3]).norm() < 1e-4);
-  }
 
   return 0;
 }
@@ -240,7 +180,7 @@ int test_aprilgrid_calc_relative_pose() {
   auto tags = detector.det.extractTags(image);
 
   // Extract relative pose
-  const mat3_t K = pinhole_K(458.654, 457.296, 367.215, 248.375);
+  const vec4_t K{458.654, 457.296, 367.215, 248.375};
   const vec4_t D{-0.28340811, 0.07395907, 0.00019359, 1.76187114e-05};
   aprilgrid_t grid(0, rows, cols, size, spacing);
 
@@ -257,9 +197,10 @@ int test_aprilgrid_calc_relative_pose() {
 
   {
     auto t = yac::tic();
-    aprilgrid_calc_relative_pose(grid, K, D);
+    mat4_t T_CF;
+    aprilgrid_calc_relative_pose(grid, K, D, T_CF);
     printf("OpenCV solvePnP time elasped: %fs\n", yac::toc(&t));
-    print_matrix("T_CF", grid.T_CF);
+    print_matrix("T_CF", T_CF);
   }
 
   return 0;
@@ -289,9 +230,9 @@ int test_aprilgrid_save_and_load() {
   grid.ids.push_back(1);
   grid.keypoints = {kp1, kp2, kp3, kp4};
 
-  grid.estimated = true;
-  grid.points_CF = {pos1, pos2, pos3, pos4};
-  grid.T_CF = tf(I(3), vec3_t{1.0, 2.0, 3.0});
+  // grid.estimated = true;
+  // grid.points_CF = {pos1, pos2, pos3, pos4};
+  // grid.T_CF = tf(I(3), vec3_t{1.0, 2.0, 3.0});
   MU_CHECK(aprilgrid_save(grid, TEST_OUTPUT) == 0);
 
   // Test load
@@ -299,23 +240,21 @@ int test_aprilgrid_save_and_load() {
   MU_CHECK(aprilgrid_load(grid2, TEST_OUTPUT) == 0);
   std::cout << grid2 << std::endl;
 
+  MU_CHECK(grid2.detected == true);
+  MU_CHECK(grid2.nb_detections == 1);
+  MU_CHECK(grid2.timestamp == grid.timestamp);
   MU_CHECK(grid2.ids.size() == 1);
   MU_CHECK(grid2.keypoints.size() == 4);
-  MU_CHECK(grid2.points_CF.size() == 4);
-  MU_CHECK(grid.timestamp == grid2.timestamp);
   MU_CHECK_FLOAT(0.0, (grid2.keypoints[0] - kp1).norm());
   MU_CHECK_FLOAT(0.0, (grid2.keypoints[1] - kp2).norm());
   MU_CHECK_FLOAT(0.0, (grid2.keypoints[2] - kp3).norm());
   MU_CHECK_FLOAT(0.0, (grid2.keypoints[3] - kp4).norm());
-  MU_CHECK_FLOAT(0.0, (grid2.points_CF[0] - pos1).norm());
-  MU_CHECK_FLOAT(0.0, (grid2.points_CF[1] - pos2).norm());
-  MU_CHECK_FLOAT(0.0, (grid2.points_CF[2] - pos3).norm());
-  MU_CHECK_FLOAT(0.0, (grid2.points_CF[3] - pos4).norm());
 
-  // std::cout << grid2.T_CF.block(0, 3, 3, 1) << std::endl;
-  const vec3_t r_CF = tf_trans(grid2.T_CF);
-  const auto diff = r_CF - vec3_t{1.0, 2.0, 3.0};
-  MU_CHECK((diff).norm() < 1e-3);
+  // MU_CHECK(grid2.estimated == false);
+  // MU_CHECK(grid2.points_CF.size() == 0);
+  // const vec3_t r_CF = tf_trans(grid2.T_CF);
+  // const vec3_t diff = r_CF - vec3_t{0.0, 0.0, 0.0};
+  // MU_CHECK((diff).norm() < 1e-3);
 
   return 0;
 }
@@ -327,20 +266,12 @@ int test_aprilgrid_print() {
   const vec2_t kp2{3.0, 4.0};
   const vec2_t kp3{5.0, 6.0};
   const vec2_t kp4{7.0, 8.0};
-  const vec3_t pos1{1.0, 2.0, 3.0};
-  const vec3_t pos2{4.0, 5.0, 6.0};
-  const vec3_t pos3{7.0, 8.0, 9.0};
-  const vec3_t pos4{10.0, 11.0, 12.0};
 
   grid.ids.push_back(1);
   grid.keypoints.push_back(kp1);
   grid.keypoints.push_back(kp2);
   grid.keypoints.push_back(kp3);
   grid.keypoints.push_back(kp4);
-  grid.points_CF.push_back(pos1);
-  grid.points_CF.push_back(pos2);
-  grid.points_CF.push_back(pos3);
-  grid.points_CF.push_back(pos4);
 
   std::cout << grid << std::endl;
 
@@ -353,18 +284,13 @@ int test_aprilgrid_detect() {
 
   const auto detector = aprilgrid_detector_t(6, 6, 0.088, 0.3);
   const cv::Mat image = cv::imread(TEST_IMAGE);
-  const mat3_t K = pinhole_K(458.654, 457.296, 367.215, 248.375);
+  const vec4_t K{458.654, 457.296, 367.215, 248.375};
   const vec4_t D{-0.28340811, 0.07395907, 0.00019359, 1.76187114e-05};
-  aprilgrid_detect(detector, image, K, D, grid);
+  mat4_t T_CF;
+  aprilgrid_detect(detector, image, K, D, grid, T_CF);
 
-  for (const auto &corner : grid.points_CF) {
-    MU_CHECK(corner(0) < 1.0);
-    MU_CHECK(corner(0) > -1.0);
-    MU_CHECK(corner(1) < 1.0);
-    MU_CHECK(corner(1) > -1.0);
-    MU_CHECK(corner(2) < 2.0);
-    MU_CHECK(corner(2) > 0.5);
-  }
+  MU_CHECK(grid.nb_detections > 0);
+  MU_CHECK(grid.ids.size() > 0);
 
   return 0;
 }
@@ -372,7 +298,7 @@ int test_aprilgrid_detect() {
 int test_aprilgrid_detect2() {
   const auto detector = aprilgrid_detector_t(6, 6, 0.088, 0.3);
   const cv::Mat image = cv::imread(TEST_IMAGE);
-  const mat3_t K = pinhole_K(458.654, 457.296, 367.215, 248.375);
+  const vec4_t K{458.654, 457.296, 367.215, 248.375};
   const vec4_t D{-0.28340811, 0.07395907, 0.00019359, 1.76187114e-05};
 
   euroc_calib_t calib_data("/data/euroc_mav/imu_april");
@@ -382,7 +308,8 @@ int test_aprilgrid_detect2() {
     const auto image = cv::imread(image_path);
 
     aprilgrid_t grid;
-    aprilgrid_detect(detector, image, K, D, grid, true);
+    mat4_t T_CF;
+    aprilgrid_detect(detector, image, K, D, grid, T_CF, true);
     aprilgrid_imshow(grid, "AprilGrid detection", image);
 
     nb_detections += grid.nb_detections;
@@ -400,10 +327,12 @@ int test_aprilgrid_intersection() {
 
   const auto detector = aprilgrid_detector_t(6, 6, 0.088, 0.3);
   const cv::Mat image = cv::imread(TEST_IMAGE);
-  const mat3_t K = pinhole_K(458.654, 457.296, 367.215, 248.375);
+  const vec4_t K{458.654, 457.296, 367.215, 248.375};
   const vec4_t D{-0.28340811, 0.07395907, 0.00019359, 1.76187114e-05};
-  aprilgrid_detect(detector, image, K, D, grid0);
-  aprilgrid_detect(detector, image, K, D, grid1);
+  mat4_t T_C0F;
+  mat4_t T_C1F;
+  aprilgrid_detect(detector, image, K, D, grid0, T_C0F);
+  aprilgrid_detect(detector, image, K, D, grid1, T_C1F);
 
   // Remove tag id 2 from grid1
   aprilgrid_remove(grid1, 2);
@@ -434,11 +363,14 @@ int test_aprilgrid_intersection2() {
 
   const auto detector = aprilgrid_detector_t(6, 6, 0.088, 0.3);
   const cv::Mat image = cv::imread(TEST_IMAGE);
-  const mat3_t K = pinhole_K(458.654, 457.296, 367.215, 248.375);
+  const vec4_t K{458.654, 457.296, 367.215, 248.375};
   const vec4_t D{-0.28340811, 0.07395907, 0.00019359, 1.76187114e-05};
-  aprilgrid_detect(detector, image, K, D, grid0);
-  aprilgrid_detect(detector, image, K, D, grid1);
-  aprilgrid_detect(detector, image, K, D, grid2);
+  mat4_t T_C0F;
+  mat4_t T_C1F;
+  mat4_t T_C2F;
+  aprilgrid_detect(detector, image, K, D, grid0, T_C0F);
+  aprilgrid_detect(detector, image, K, D, grid1, T_C1F);
+  aprilgrid_detect(detector, image, K, D, grid2, T_C2F);
 
   // Randomly remove between 2 to 10 tags from grid0, grid1 and grid2
   for (int i = 0; i < randi(2, 10); i++) {
@@ -471,9 +403,10 @@ int test_aprilgrid_random_sample() {
 
   const auto detector = aprilgrid_detector_t(6, 6, 0.088, 0.3);
   const cv::Mat image = cv::imread(TEST_IMAGE);
-  const mat3_t K = pinhole_K(458.654, 457.296, 367.215, 248.375);
+  const vec4_t K{458.654, 457.296, 367.215, 248.375};
   const vec4_t D{-0.28340811, 0.07395907, 0.00019359, 1.76187114e-05};
-  aprilgrid_detect(detector, image, K, D, grid);
+  mat4_t T_CF;
+  aprilgrid_detect(detector, image, K, D, grid, T_CF);
 
   const size_t n = 5;
   std::vector<int> tag_ids;
@@ -501,7 +434,6 @@ void test_suite() {
   MU_ADD_TEST(test_aprilgrid_constructor);
   MU_ADD_TEST(test_aprilgrid_add);
   MU_ADD_TEST(test_aprilgrid_remove);
-  MU_ADD_TEST(test_aprilgrid_get);
   MU_ADD_TEST(test_aprilgrid_grid_index);
   MU_ADD_TEST(test_aprilgrid_calc_relative_pose);
   MU_ADD_TEST(test_aprilgrid_save_and_load);

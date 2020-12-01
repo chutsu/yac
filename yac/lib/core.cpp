@@ -2020,14 +2020,24 @@ vec3_t mean(const vec3s_t &x) {
   return x_hat;
 }
 
+real_t mean(const std::vector<real_t> &x) {
+  real_t sum = 0.0;
+  real_t N = x.size();
+  for (const auto i : x) {
+    sum += i;
+  }
+
+  return sum / N;
+}
+
 real_t rmse(const std::vector<real_t> &residuals) {
-  double sse = 0.0;
+  real_t sse = 0.0;
   for (const auto r : residuals) {
     sse += r * r;
   }
 
-  double n = residuals.size();
-  double mse = sse / n;
+  real_t n = residuals.size();
+  real_t mse = sse / n;
   return sqrt(mse);
 }
 

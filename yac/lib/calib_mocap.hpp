@@ -156,9 +156,6 @@ struct calib_mocap_data_t {
                                             calib_target.tag_cols,
                                             calib_target.tag_size,
                                             calib_target.tag_spacing);
-        const mat3_t cam_K = pinhole_K(this->cam0.proj_params());
-        const vec4_t cam_D = this->cam0.dist_params();
-
         std::vector<std::string> image_paths;
         if (list_dir(cam0_path, image_paths) != 0) {
           FATAL("Failed to traverse dir [%s]!", cam0_path.c_str());
@@ -171,17 +168,22 @@ struct calib_mocap_data_t {
           auto image = cv::imread(paths_join(cam0_path, image_path));
 
           aprilgrid_t grid;
-          aprilgrid_detect(detector, image, cam_K, cam_D, grid);
+          aprilgrid_detect(detector, image, grid);
+
+          const vecx_t proj_params = cam0.proj_params();
+          const vecx_t dist_params = cam0.dist_params();
+          mat4_t rel_pose;
+          aprilgrid_calc_relative_pose(grid, proj_params, dist_params, rel_pose);
 
           cam0_grids.push_back(grid);
-          T_CF.push_back(grid.T_CF);
+          T_CF.push_back(rel_pose);
         }
 
         int retval = 0;
         if (proj_model == "pinhole" && dist_model == "radtan4") {
-          calib_mono_solve<pinhole_radtan4_t>(cam0_grids, covar, &this->cam0, &T_CF);
+          calib_mono_solve<pinhole_radtan4_t>(cam0_grids, covar, this->cam0, T_CF);
         } else if (proj_model == "pinhole" && dist_model == "equi4") {
-          calib_mono_solve<pinhole_equi4_t>(cam0_grids, covar, &this->cam0, &T_CF);
+          calib_mono_solve<pinhole_equi4_t>(cam0_grids, covar, this->cam0, T_CF);
         } else {
           FATAL("Unsupported [%s-%s]!", proj_model.c_str(), dist_model.c_str());
         }
@@ -205,13 +207,7 @@ struct calib_mocap_data_t {
         }
 
         // Preprocess calibration data
-        int retval = preprocess_camera_data(calib_target,
-                                            cam0_path,
-                                            pinhole_K(cam0.proj_params()),
-                                            cam0.dist_params(),
-                                            grid0_path,
-                                            false);
-        if (retval != 0) {
+        if (preprocess_camera_data(calib_target, cam0_path, grid0_path) != 0) {
           FATAL("Failed to preprocess calibration data!");
         }
       }
@@ -229,6 +225,9 @@ struct calib_mocap_data_t {
                                    proj_model, dist_model,
                                    proj_params, dist_params};
     }
+
+    print_vector("cam0 proj params", this->cam0.proj_params());
+    print_vector("cam0 dist params", this->cam0.dist_params());
 
     // Load dataset
     // -- April Grid
@@ -325,7 +324,7 @@ struct calib_mocap_residual_t
     CAMERA_TYPE camera{cam_res_, cam0_params};
     int proj_status = camera.project(r_C0Fi, z_hat, Jh);
     if (proj_status != 0) {
-      // valid = false;
+      valid = false;
     }
     J_params = camera.J_params(p);
 
@@ -350,7 +349,11 @@ struct calib_mocap_residual_t
         }
 
         // Convert from minimial jacobians to local jacobian
-        lift_pose_jacobian(J_min[0], q_WF, jacobians[0]);
+        // lift_pose_jacobian(J_min[0], q_WF, jacobians[0]);
+
+        Eigen::Map<mat_t<2, 7, row_major_t>> J0(jacobians[0]);
+        J0.setZero();
+        J0.block(0, 0, 2, 6) = J_min[0];
       }
 
       // Jacobians w.r.t T_WM
@@ -362,7 +365,11 @@ struct calib_mocap_residual_t
         }
 
         // Convert from minimial jacobians to local jacobian
-        lift_pose_jacobian(J_min[1], q_WM, jacobians[1]);
+        // lift_pose_jacobian(J_min[1], q_WM, jacobians[1]);
+
+        Eigen::Map<mat_t<2, 7, row_major_t>> J1(jacobians[1]);
+        J1.setZero();
+        J1.block(0, 0, 2, 6) = J_min[1];
       }
 
       // Jacobians w.r.t T_MC0
@@ -374,7 +381,11 @@ struct calib_mocap_residual_t
         }
 
         // Convert from minimial jacobians to local jacobian
-        lift_pose_jacobian(J_min[2], q_MC0, jacobians[2]);
+        // lift_pose_jacobian(J_min[2], q_MC0, jacobians[2]);
+
+        Eigen::Map<mat_t<2, 7, row_major_t>> J2(jacobians[2]);
+        J2.setZero();
+        J2.block(0, 0, 2, 6) = J_min[2];
       }
 
       // Jacobians w.r.t camera params
@@ -404,7 +415,7 @@ static int process_aprilgrid(const size_t frame_idx,
   for (const auto &tag_id : grid.ids) {
     // Get keypoints
     vec2s_t keypoints;
-    if (aprilgrid_get(grid, tag_id, keypoints) != 0) {
+    if (aprilgrid_keypoints(grid, tag_id, keypoints) != 0) {
       LOG_ERROR("Failed to get AprilGrid keypoints!");
       return -1;
     }
@@ -435,11 +446,7 @@ static int process_aprilgrid(const size_t frame_idx,
 
 template <typename CAMERA_TYPE>
 static void show_results(const calib_mocap_data_t &data) {
-  printf("\n");
-  printf("Optimization Results:\n");
-  printf("---------------------\n");
-
-  // -- Calibration metrics
+  // Calibration metrics
   mat4s_t T_C0F;
   const mat4_t T_WF = data.T_WF.tf();
   const mat4_t T_C0M = data.T_MC0.tf().inverse();
@@ -447,26 +454,22 @@ static void show_results(const calib_mocap_data_t &data) {
     const mat4_t T_MW = data.T_WM[i].tf().inverse();
     T_C0F.push_back(T_C0M * T_MW * T_WF);
   }
-  std::vector<double> errs;
-  double err_rmse = 0.0;
-  double err_mean = 0.0;
-  calib_mono_stats<CAMERA_TYPE>(data.grids, data.cam0, T_C0F,
-                                &errs, &err_rmse, &err_mean);
-  double err_min = *std::min_element(errs.begin(), errs.end());
-  double err_max = *std::max_element(errs.begin(), errs.end());
-  double err_median = median(errs);
-  printf("cam0.rms_reproj_error:    %f  # [px]\n", err_rmse);
-  printf("cam0.mean_reproj_error:   %f  # [px]\n", err_mean);
-  printf("cam0.median_reproj_error: %f  # [px]\n", err_median);
-  printf("cam0.min_reproj_error:    %f  # [px]\n", err_min);
-  printf("cam0.max_reproj_error:    %f  # [px]\n", err_max);
-  printf("\n");
 
-  // -- Optimized Parameters
-  printf("cam0.proj_model: %s\n", data.cam0.proj_model.c_str());
-  printf("cam0.dist_model: %s\n", data.cam0.dist_model.c_str());
-  print_vector("cam0.proj_params", data.cam0.proj_params());
-  print_vector("cam0.dist_params", data.cam0.dist_params());
+  // Show results
+  std::vector<double> errs;
+  reproj_errors<CAMERA_TYPE>(data.grids, data.cam0, T_C0F, errs);
+
+  printf("\n");
+  printf("Optimization results:\n");
+  printf("---------------------\n");
+  printf("nb_points: %ld\n", errs.size());
+  printf("reproj_error [px]: ");
+  printf("[rmse: %f", rmse(errs));
+  printf(" mean: %f", mean(errs));
+  printf(" median: %f]\n", median(errs));
+  printf("\n");
+  print_vector("cam.proj_params", data.cam0.proj_params());
+  print_vector("cam.dist_params", data.cam0.dist_params());
   printf("\n");
   print_matrix("T_WF", data.T_WF.tf());
   print_matrix("T_WM", data.T_WM[0].tf());
@@ -493,153 +496,142 @@ static void save_results(const calib_mocap_data_t &data,
   const mat4_t T_MC0 = data.T_MC0.tf();
   const mat4_t T_C0M = T_MC0.inverse();
 
-  // -- Calibration metrics
-  mat4s_t T_C0F;
-  for (size_t i = 0; i < data.grids.size(); i++) {
-    const mat4_t T_MW = data.T_WM[i].tf().inverse();
-    T_C0F.push_back(T_C0M * T_MW * T_WF);
-  }
-  std::vector<double> errs;
-  double err_rmse = 0.0;
-  double err_mean = 0.0;
-  calib_mono_stats<CAMERA_TYPE>(data.grids, data.cam0, T_C0F,
-                                &errs, &err_rmse, &err_mean);
-  double err_min = *std::min_element(errs.begin(), errs.end());
-  double err_max = *std::max_element(errs.begin(), errs.end());
-  double err_median = median(errs);
+  // double err_min = *std::min_element(errs.begin(), errs.end());
+  // double err_max = *std::max_element(errs.begin(), errs.end());
+  // double err_median = median(errs);
 
-  // Save calibration results to yaml file
-  {
-    FILE *fp = fopen(output_path.c_str(), "w");
-
-    // Calibration metrics
-    fprintf(fp, "calib_results:\n");
-    fprintf(fp, "  cam0.rms_reproj_error:    %f  # [px]\n", err_rmse);
-    fprintf(fp, "  cam0.mean_reproj_error:   %f  # [px]\n", err_mean);
-    fprintf(fp, "  cam0.median_reproj_error: %f  # [px]\n", err_median);
-    fprintf(fp, "  cam0.min_reproj_error:    %f  # [px]\n", err_min);
-    fprintf(fp, "  cam0.max_reproj_error:    %f  # [px]\n", err_max);
-    fprintf(fp, "\n");
-
-    // Aprilgrid parameters
-    fprintf(fp, "calib_target:\n");
-    fprintf(fp, "  target_type: \"aprilgrid\"\n");
-    fprintf(fp, "  tag_rows: %d\n", grid.tag_rows);
-    fprintf(fp, "  tag_cols: %d\n", grid.tag_cols);
-    fprintf(fp, "  tag_size: %f\n", grid.tag_size);
-    fprintf(fp, "  tag_spacing: %f\n", grid.tag_spacing);
-    fprintf(fp, "\n");
-
-    // Camera parameters
-    fprintf(fp, "cam0:\n");
-    fprintf(fp, "  proj_model: \"%s\"\n", cam.proj_model.c_str());
-    fprintf(fp, "  dist_model: \"%s\"\n", cam.dist_model.c_str());
-    fprintf(fp, "  proj_params: ");
-    fprintf(fp, "[");
-    fprintf(fp, "%lf, ", cam.proj_params()(0));
-    fprintf(fp, "%lf, ", cam.proj_params()(1));
-    fprintf(fp, "%lf, ", cam.proj_params()(2));
-    fprintf(fp, "%lf", cam.proj_params()(3));
-    fprintf(fp, "]\n");
-    fprintf(fp, "  dist_params: ");
-    fprintf(fp, "[");
-    fprintf(fp, "%lf, ", cam.dist_params()(0));
-    fprintf(fp, "%lf, ", cam.dist_params()(1));
-    fprintf(fp, "%lf, ", cam.dist_params()(2));
-    fprintf(fp, "%lf", cam.dist_params()(3));
-    fprintf(fp, "]\n");
-    fprintf(fp, "\n");
-
-    // T_WF
-    fprintf(fp, "T_WF:\n");
-    fprintf(fp, "  rows: 4\n");
-    fprintf(fp, "  cols: 4\n");
-    fprintf(fp, "  data: [\n");
-    fprintf(fp, "    ");
-    fprintf(fp, "%lf, ", T_WF(0, 0));
-    fprintf(fp, "%lf, ", T_WF(0, 1));
-    fprintf(fp, "%lf, ", T_WF(0, 2));
-    fprintf(fp, "%lf,\n", T_WF(0, 3));
-    fprintf(fp, "    ");
-    fprintf(fp, "%lf, ", T_WF(1, 0));
-    fprintf(fp, "%lf, ", T_WF(1, 1));
-    fprintf(fp, "%lf, ", T_WF(1, 2));
-    fprintf(fp, "%lf,\n", T_WF(1, 3));
-    fprintf(fp, "    ");
-    fprintf(fp, "%lf, ", T_WF(2, 0));
-    fprintf(fp, "%lf, ", T_WF(2, 1));
-    fprintf(fp, "%lf, ", T_WF(2, 2));
-    fprintf(fp, "%lf,\n", T_WF(2, 3));
-    fprintf(fp, "    ");
-    fprintf(fp, "%lf, ", T_WF(3, 0));
-    fprintf(fp, "%lf, ", T_WF(3, 1));
-    fprintf(fp, "%lf, ", T_WF(3, 2));
-    fprintf(fp, "%lf\n", T_WF(3, 3));
-    fprintf(fp, "  ]\n");
-    fprintf(fp, "\n");
-
-    // T_MC0
-    fprintf(fp, "T_MC0:\n");
-    fprintf(fp, "  rows: 4\n");
-    fprintf(fp, "  cols: 4\n");
-    fprintf(fp, "  data: [\n");
-    fprintf(fp, "    ");
-    fprintf(fp, "%lf, ", T_MC0(0, 0));
-    fprintf(fp, "%lf, ", T_MC0(0, 1));
-    fprintf(fp, "%lf, ", T_MC0(0, 2));
-    fprintf(fp, "%lf,\n", T_MC0(0, 3));
-    fprintf(fp, "    ");
-    fprintf(fp, "%lf, ", T_MC0(1, 0));
-    fprintf(fp, "%lf, ", T_MC0(1, 1));
-    fprintf(fp, "%lf, ", T_MC0(1, 2));
-    fprintf(fp, "%lf,\n", T_MC0(1, 3));
-    fprintf(fp, "    ");
-    fprintf(fp, "%lf, ", T_MC0(2, 0));
-    fprintf(fp, "%lf, ", T_MC0(2, 1));
-    fprintf(fp, "%lf, ", T_MC0(2, 2));
-    fprintf(fp, "%lf,\n", T_MC0(2, 3));
-    fprintf(fp, "    ");
-    fprintf(fp, "%lf, ", T_MC0(3, 0));
-    fprintf(fp, "%lf, ", T_MC0(3, 1));
-    fprintf(fp, "%lf, ", T_MC0(3, 2));
-    fprintf(fp, "%lf\n", T_MC0(3, 3));
-    fprintf(fp, "  ]\n");
-    fprintf(fp, "\n");
-    fclose(fp);
-  }
-
-  // Record poses
-  {
-    FILE *fp = fopen("/tmp/T_WM.csv", "w");
-    for (const auto &pose : data.T_WM) {
-      const quat_t q = tf_quat(pose.tf());
-      const vec3_t r = tf_trans(pose.tf());
-      fprintf(fp, "%lf,%lf,%lf,%lf,", q.w(), q.x(), q.y(), q.z());
-      fprintf(fp, "%lf,%lf,%lf", r(0), r(1), r(2));
-      fprintf(fp, "\n");
-    }
-    fclose(fp);
-  }
-
-  {
-    FILE *fp = fopen("/tmp/T_WF.csv", "w");
-    const quat_t q = tf_quat(data.T_WF.tf());
-    const vec3_t r = tf_trans(data.T_WF.tf());
-    fprintf(fp, "%lf,%lf,%lf,%lf,", q.w(), q.x(), q.y(), q.z());
-    fprintf(fp, "%lf,%lf,%lf", r(0), r(1), r(2));
-    fprintf(fp, "\n");
-    fclose(fp);
-  }
-
-  {
-    FILE *fp = fopen("/tmp/T_MC0.csv", "w");
-    const quat_t q = tf_quat(data.T_MC0.tf());
-    const vec3_t r = tf_trans(data.T_MC0.tf());
-    fprintf(fp, "%lf,%lf,%lf,%lf,", q.w(), q.x(), q.y(), q.z());
-    fprintf(fp, "%lf,%lf,%lf", r(0), r(1), r(2));
-    fprintf(fp, "\n");
-    fclose(fp);
-  }
+  // // Save calibration results to yaml file
+  // {
+  //   FILE *fp = fopen(output_path.c_str(), "w");
+  //
+  //   // Calibration metrics
+  //   fprintf(fp, "calib_results:\n");
+  //   fprintf(fp, "  cam0.rms_reproj_error:    %f  # [px]\n", err_rmse);
+  //   fprintf(fp, "  cam0.mean_reproj_error:   %f  # [px]\n", err_mean);
+  //   fprintf(fp, "  cam0.median_reproj_error: %f  # [px]\n", err_median);
+  //   fprintf(fp, "  cam0.min_reproj_error:    %f  # [px]\n", err_min);
+  //   fprintf(fp, "  cam0.max_reproj_error:    %f  # [px]\n", err_max);
+  //   fprintf(fp, "\n");
+  //
+  //   // Aprilgrid parameters
+  //   fprintf(fp, "calib_target:\n");
+  //   fprintf(fp, "  target_type: \"aprilgrid\"\n");
+  //   fprintf(fp, "  tag_rows: %d\n", grid.tag_rows);
+  //   fprintf(fp, "  tag_cols: %d\n", grid.tag_cols);
+  //   fprintf(fp, "  tag_size: %f\n", grid.tag_size);
+  //   fprintf(fp, "  tag_spacing: %f\n", grid.tag_spacing);
+  //   fprintf(fp, "\n");
+  //
+  //   // Camera parameters
+  //   fprintf(fp, "cam0:\n");
+  //   fprintf(fp, "  proj_model: \"%s\"\n", cam.proj_model.c_str());
+  //   fprintf(fp, "  dist_model: \"%s\"\n", cam.dist_model.c_str());
+  //   fprintf(fp, "  proj_params: ");
+  //   fprintf(fp, "[");
+  //   fprintf(fp, "%lf, ", cam.proj_params()(0));
+  //   fprintf(fp, "%lf, ", cam.proj_params()(1));
+  //   fprintf(fp, "%lf, ", cam.proj_params()(2));
+  //   fprintf(fp, "%lf", cam.proj_params()(3));
+  //   fprintf(fp, "]\n");
+  //   fprintf(fp, "  dist_params: ");
+  //   fprintf(fp, "[");
+  //   fprintf(fp, "%lf, ", cam.dist_params()(0));
+  //   fprintf(fp, "%lf, ", cam.dist_params()(1));
+  //   fprintf(fp, "%lf, ", cam.dist_params()(2));
+  //   fprintf(fp, "%lf", cam.dist_params()(3));
+  //   fprintf(fp, "]\n");
+  //   fprintf(fp, "\n");
+  //
+  //   // T_WF
+  //   fprintf(fp, "T_WF:\n");
+  //   fprintf(fp, "  rows: 4\n");
+  //   fprintf(fp, "  cols: 4\n");
+  //   fprintf(fp, "  data: [\n");
+  //   fprintf(fp, "    ");
+  //   fprintf(fp, "%lf, ", T_WF(0, 0));
+  //   fprintf(fp, "%lf, ", T_WF(0, 1));
+  //   fprintf(fp, "%lf, ", T_WF(0, 2));
+  //   fprintf(fp, "%lf,\n", T_WF(0, 3));
+  //   fprintf(fp, "    ");
+  //   fprintf(fp, "%lf, ", T_WF(1, 0));
+  //   fprintf(fp, "%lf, ", T_WF(1, 1));
+  //   fprintf(fp, "%lf, ", T_WF(1, 2));
+  //   fprintf(fp, "%lf,\n", T_WF(1, 3));
+  //   fprintf(fp, "    ");
+  //   fprintf(fp, "%lf, ", T_WF(2, 0));
+  //   fprintf(fp, "%lf, ", T_WF(2, 1));
+  //   fprintf(fp, "%lf, ", T_WF(2, 2));
+  //   fprintf(fp, "%lf,\n", T_WF(2, 3));
+  //   fprintf(fp, "    ");
+  //   fprintf(fp, "%lf, ", T_WF(3, 0));
+  //   fprintf(fp, "%lf, ", T_WF(3, 1));
+  //   fprintf(fp, "%lf, ", T_WF(3, 2));
+  //   fprintf(fp, "%lf\n", T_WF(3, 3));
+  //   fprintf(fp, "  ]\n");
+  //   fprintf(fp, "\n");
+  //
+  //   // T_MC0
+  //   fprintf(fp, "T_MC0:\n");
+  //   fprintf(fp, "  rows: 4\n");
+  //   fprintf(fp, "  cols: 4\n");
+  //   fprintf(fp, "  data: [\n");
+  //   fprintf(fp, "    ");
+  //   fprintf(fp, "%lf, ", T_MC0(0, 0));
+  //   fprintf(fp, "%lf, ", T_MC0(0, 1));
+  //   fprintf(fp, "%lf, ", T_MC0(0, 2));
+  //   fprintf(fp, "%lf,\n", T_MC0(0, 3));
+  //   fprintf(fp, "    ");
+  //   fprintf(fp, "%lf, ", T_MC0(1, 0));
+  //   fprintf(fp, "%lf, ", T_MC0(1, 1));
+  //   fprintf(fp, "%lf, ", T_MC0(1, 2));
+  //   fprintf(fp, "%lf,\n", T_MC0(1, 3));
+  //   fprintf(fp, "    ");
+  //   fprintf(fp, "%lf, ", T_MC0(2, 0));
+  //   fprintf(fp, "%lf, ", T_MC0(2, 1));
+  //   fprintf(fp, "%lf, ", T_MC0(2, 2));
+  //   fprintf(fp, "%lf,\n", T_MC0(2, 3));
+  //   fprintf(fp, "    ");
+  //   fprintf(fp, "%lf, ", T_MC0(3, 0));
+  //   fprintf(fp, "%lf, ", T_MC0(3, 1));
+  //   fprintf(fp, "%lf, ", T_MC0(3, 2));
+  //   fprintf(fp, "%lf\n", T_MC0(3, 3));
+  //   fprintf(fp, "  ]\n");
+  //   fprintf(fp, "\n");
+  //   fclose(fp);
+  // }
+  //
+  // // Record poses
+  // {
+  //   FILE *fp = fopen("/tmp/T_WM.csv", "w");
+  //   for (const auto &pose : data.T_WM) {
+  //     const quat_t q = tf_quat(pose.tf());
+  //     const vec3_t r = tf_trans(pose.tf());
+  //     fprintf(fp, "%lf,%lf,%lf,%lf,", q.w(), q.x(), q.y(), q.z());
+  //     fprintf(fp, "%lf,%lf,%lf", r(0), r(1), r(2));
+  //     fprintf(fp, "\n");
+  //   }
+  //   fclose(fp);
+  // }
+  //
+  // {
+  //   FILE *fp = fopen("/tmp/T_WF.csv", "w");
+  //   const quat_t q = tf_quat(data.T_WF.tf());
+  //   const vec3_t r = tf_trans(data.T_WF.tf());
+  //   fprintf(fp, "%lf,%lf,%lf,%lf,", q.w(), q.x(), q.y(), q.z());
+  //   fprintf(fp, "%lf,%lf,%lf", r(0), r(1), r(2));
+  //   fprintf(fp, "\n");
+  //   fclose(fp);
+  // }
+  //
+  // {
+  //   FILE *fp = fopen("/tmp/T_MC0.csv", "w");
+  //   const quat_t q = tf_quat(data.T_MC0.tf());
+  //   const vec3_t r = tf_trans(data.T_MC0.tf());
+  //   fprintf(fp, "%lf,%lf,%lf,%lf,", q.w(), q.x(), q.y(), q.z());
+  //   fprintf(fp, "%lf,%lf,%lf", r(0), r(1), r(2));
+  //   fprintf(fp, "\n");
+  //   fclose(fp);
+  // }
 }
 
 /** Calibrate mocap marker to camera extrinsics */
@@ -707,7 +699,7 @@ int calib_mocap_solve(calib_mocap_data_t &data) {
 
   // Show results
   show_results<CAMERA_TYPE>(data);
-  save_results<CAMERA_TYPE>(data, data.results_fpath);
+  // save_results<CAMERA_TYPE>(data, data.results_fpath);
 
   return 0;
 }

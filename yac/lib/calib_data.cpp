@@ -40,11 +40,10 @@ static int get_camera_image_paths(const std::string &image_dir,
 
 int preprocess_camera_data(const calib_target_t &target,
                            const std::string &image_dir,
-                           const mat3_t &cam_K,
-                           const vec4_t &cam_D,
                            const std::string &output_dir,
-                           const bool imshow,
                            const bool show_progress) {
+  int retval = 0;
+
   // Get camera image paths
   std::vector<std::string> image_paths;
   if (get_camera_image_paths(image_dir, image_paths) != 0) {
@@ -52,14 +51,12 @@ int preprocess_camera_data(const calib_target_t &target,
   }
 
   // Detect AprilGrid
-  if (show_progress) {
-    LOG_INFO("Processing images ...");
-  }
   aprilgrid_detector_t detector{target.tag_rows,
                                 target.tag_cols,
                                 target.tag_size,
                                 target.tag_spacing};
 
+  #pragma omp parallel for
   for (size_t i = 0; i < image_paths.size(); i++) {
     // -- Print progress
     if (show_progress && i % 10 == 0) {
@@ -84,25 +81,17 @@ int preprocess_camera_data(const calib_target_t &target,
     // -- Skip if already preprocessed
     if (file_exists(save_path) && aprilgrid_load(grid, save_path) == 0) {
       continue;
-    } else {
-      // Reset AprilGrid
-      grid = aprilgrid_t{ts, tag_rows, tag_cols, tag_size, tag_spacing};
     }
 
     // -- Detect
     const auto image_path = paths_join(image_dir, image_paths[i]);
     const cv::Mat image = cv::imread(image_path);
-    aprilgrid_detect(detector, image, cam_K, cam_D, grid, false);
+    aprilgrid_detect(detector, image, grid, false);
     grid.timestamp = ts;
 
     // -- Save AprilGrid
     if (aprilgrid_save(grid, save_path) != 0) {
-      return -1;
-    }
-
-    // -- Image show
-    if (imshow) {
-      aprilgrid_imshow(grid, "AprilGrid Detection", image);
+      retval = -1;
     }
   }
 
@@ -111,42 +100,11 @@ int preprocess_camera_data(const calib_target_t &target,
     printf("\n");
   }
 
-  // Destroy all opencv windows
-  if (imshow) {
-    cv::destroyAllWindows();
-  }
-
-  return 0;
-}
-
-int preprocess_camera_data(const calib_target_t &target,
-                           const std::string &image_dir,
-                           const vec2_t &image_size,
-                           const real_t lens_hfov,
-                           const real_t lens_vfov,
-                           const std::string &output_dir,
-                           const bool imshow,
-                           const bool show_progress) {
-  // Get camera image paths
-  const real_t fx = pinhole_focal(image_size(0), lens_hfov);
-  const real_t fy = pinhole_focal(image_size(1), lens_vfov);
-  const real_t cx = image_size(0) / 2.0;
-  const real_t cy = image_size(1) / 2.0;
-  const mat3_t cam_K = pinhole_K(fx, fy, cx, cy);
-  const vec4_t cam_D = zeros(4, 1);
-
-  return preprocess_camera_data(target,
-                                image_dir,
-                                cam_K,
-                                cam_D,
-                                output_dir,
-                                imshow,
-                                show_progress);
+  return retval;
 }
 
 int load_camera_calib_data(const std::string &data_dir,
                            aprilgrids_t &aprilgrids,
-                           timestamps_t &timestamps,
                            bool detected_only) {
   // Check image dir
   if (dir_exists(data_dir) == false) {
@@ -161,18 +119,6 @@ int load_camera_calib_data(const std::string &data_dir,
     return -1;
   }
   std::sort(data_paths.begin(), data_paths.end());
-
-  // Get timestamps
-  for (size_t i = 0; i < data_paths.size(); i++) {
-    const auto ext = parse_fext(parse_fname(data_paths[i]));
-    const auto ts_str = strip_end(parse_fname(data_paths[i]), ext);
-    std::string str_format = "%" SCNu64;
-
-    timestamp_t ts;
-    sscanf(ts_str.c_str(), str_format.c_str(), &ts);
-
-    timestamps.emplace_back(ts);
-  }
 
   // Load AprilGrid data
   for (size_t i = 0; i < data_paths.size(); i++) {
@@ -191,40 +137,6 @@ int load_camera_calib_data(const std::string &data_dir,
   }
 
   return 0;
-}
-
-int preprocess_stereo_data(const calib_target_t &target,
-                           const std::string &cam0_image_dir,
-                           const std::string &cam1_image_dir,
-                           const vec2_t &cam0_image_size,
-                           const vec2_t &cam1_image_size,
-                           const real_t cam0_lens_hfov,
-                           const real_t cam0_lens_vfov,
-                           const real_t cam1_lens_hfov,
-                           const real_t cam1_lens_vfov,
-                           const std::string &cam0_output_dir,
-                           const std::string &cam1_output_dir,
-                           const bool imshow) {
-  std::vector<std::string> data_paths = {cam0_image_dir, cam1_image_dir};
-  std::vector<vec2_t> resolutions = {cam0_image_size, cam1_image_size};
-  std::vector<real_t> hfovs = {cam0_lens_hfov, cam1_lens_hfov};
-  std::vector<real_t> vfovs = {cam0_lens_vfov, cam1_lens_vfov};
-  std::vector<std::string> output_paths = {cam0_output_dir, cam1_output_dir};
-  int retvals[2] = {0, 0};
-
-  #pragma omp parallel for
-  for (size_t i = 0; i < 2; i++) {
-    retvals[i] = preprocess_camera_data(target,
-                                        data_paths[i],
-                                        resolutions[i],
-                                        hfovs[i],
-                                        vfovs[i],
-                                        output_paths[i],
-                                        (i == 0 && imshow) ? true : false,
-                                        (i == 0) ? true : false);
-  }
-
-  return (retvals[0] == 0 && retvals[1] == 0) ? 0 : -1;
 }
 
 void extract_common_calib_data(aprilgrids_t &grids0, aprilgrids_t &grids1) {
@@ -279,16 +191,14 @@ int load_stereo_calib_data(const std::string &cam0_data_dir,
 
   // Load cam0 calibration data
   aprilgrids_t grids0;
-  timestamps_t timestamps0;
-  retval = load_camera_calib_data(cam0_data_dir, grids0, timestamps0);
+  retval = load_camera_calib_data(cam0_data_dir, grids0);
   if (retval != 0) {
     return -1;
   }
 
   // Load cam1 calibration data
   aprilgrids_t grids1;
-  timestamps_t timestamps1;
-  retval = load_camera_calib_data(cam1_data_dir, grids1, timestamps1);
+  retval = load_camera_calib_data(cam1_data_dir, grids1);
   if (retval != 0) {
     return -1;
   }
@@ -347,8 +257,7 @@ int load_multicam_calib_data(const int nb_cams,
   size_t max_grids = 0;
   for (int cam_idx = 0; cam_idx < nb_cams; cam_idx++) {
     aprilgrids_t data;
-    timestamps_t ts;
-    const int retval = load_camera_calib_data(data_dirs[cam_idx], data, ts);
+    const int retval = load_camera_calib_data(data_dirs[cam_idx], data);
     if (retval != 0) {
       LOG_ERROR("Failed to load calib data [%s]!", data_dirs[cam_idx].c_str());
       return -1;

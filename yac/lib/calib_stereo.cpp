@@ -6,7 +6,8 @@ static int save_results(const std::string &save_path,
                         const camera_params_t &cam0,
                         const camera_params_t &cam1,
                         const mat4_t &T_C0C1,
-                        const calib_stereo_results_t &results) {
+                        const std::vector<double> &cam0_errs,
+                        const std::vector<double> &cam1_errs) {
   // Open results file
   FILE *outfile = fopen(save_path.c_str(), "w");
   if (outfile == NULL) {
@@ -16,10 +17,10 @@ static int save_results(const std::string &save_path,
   // Save results
   {
     fprintf(outfile, "calib_results:\n");
-    fprintf(outfile, "  cam0_rmse_reproj_error: %f\n", results.cam0_rmse_error);
-    fprintf(outfile, "  cam1_rmse_reproj_error: %f\n", results.cam1_rmse_error);
-    fprintf(outfile, "  cam0_mean_reproj_error: %f\n", results.cam0_mean_error);
-    fprintf(outfile, "  cam1_mean_reproj_error: %f\n", results.cam1_mean_error);
+    fprintf(outfile, "  cam0_rmse_reproj_error: %f\n", rmse(cam0_errs));
+    fprintf(outfile, "  cam1_rmse_reproj_error: %f\n", mean(cam1_errs));
+    fprintf(outfile, "  cam0_mean_reproj_error: %f\n", rmse(cam0_errs));
+    fprintf(outfile, "  cam1_mean_reproj_error: %f\n", mean(cam1_errs));
     fprintf(outfile, "\n");
   }
   {
@@ -65,6 +66,74 @@ static int save_results(const std::string &save_path,
   return 0;
 }
 
+// /* Estimate Monocular Camera Covariance */
+// int calib_stereo_covar(const camera_params_t &cam0,
+//                        const camera_params_t &cam1,
+//                        const extrinsic_params_t &extrinsic,
+//                        ceres::Problem &problem,
+//                        matx_t &covar) {
+//   std::vector<std::pair<const double *, const double *>> covar_blocks;
+//   auto cam0_data = cam0.param.data();
+//   auto cam1_data = cam1.param.data();
+//   auto extrinsic_data = extrinsic.param.data();
+//   covar_blocks.push_back({cam0_data, cam0_data});
+//   covar_blocks.push_back({cam0_data, cam1_data});
+//   covar_blocks.push_back({cam1_data, cam1_data});
+//
+//   ceres::Covariance::Options covar_opts;
+//   ceres::Covariance covar_est(covar_opts);
+//   if (covar_est.Compute(covar_blocks, &problem) == false) {
+//     return -1;
+//   }
+//
+//   // cam0-cam0 covar
+//   {
+//     const auto cam0_params_size = cam0.param.size();
+//     mat_t<Eigen::Dynamic, Eigen::Dynamic, row_major_t> covar_cam0_cam0;
+//     covar_cam0_cam0.resize(cam0_params_size, cam0_params_size);
+//     covar_est.GetCovarianceBlock(cam0_data, cam0_data, covar_cam0_cam0);
+//
+//     const long rs = 0;
+//     const long cs = 0;
+//     const long nb_rows = cam0_params_size;
+//     const long nb_cols = cam0_params_size;
+//     covar.block(rs, cs, nb_rows, nb_cols);
+//   }
+//
+//   // cam1-cam1 covar
+//   {
+//     const auto cam1_params_size = cam1.param.size();
+//     mat_t<Eigen::Dynamic, Eigen::Dynamic, row_major_t> covar_cam1_cam1;
+//     covar_cam1_cam1.resize(cam1_params_size, cam1_params_size);
+//     covar_est.GetCovarianceBlock(cam1_data, cam1_data, covar_cam1_cam1);
+//
+//     const long rs = cam0_params_size;
+//     const long cs = cam0_params_size;
+//     const long nb_rows = cam1_params_size;
+//     const long nb_cols = cam1_params_size;
+//     covar.block(rs, cs, nb_rows, nb_cols);
+//   }
+//
+//   // cam0-cam1 covar
+//   {
+//     const auto cam0_params_size = cam0.param.size();
+//     const auto cam1_params_size = cam1.param.size();
+//     mat_t<Eigen::Dynamic, Eigen::Dynamic, row_major_t> covar_cam0_cam1;
+//     covar_cam0_cam1.resize(cam0_params_size, cam1_params_size);
+//     covar_est.GetCovarianceBlock(cam0_data, cam1_data, covar_cam0_cam1);
+//
+//     const long rs = cam0_params_size;
+//     const long cs = cam0_params_size;
+//     const long nb_rows = cam0_params_size;
+//     const long nb_cols = cam1_params_size;
+//     covar.block(rs, cs, nb_rows, nb_cols);
+//   }
+//
+//   // cam0-T_C1C0 covar
+//
+//   return 0;
+// }
+
 int calib_stereo_solve(const std::string &config_file) {
   // Calibration settings
   std::string data_path;
@@ -101,53 +170,6 @@ int calib_stereo_solve(const std::string &config_file) {
   parse(config, "cam1.proj_model", cam1_proj_model);
   parse(config, "cam1.dist_model", cam1_dist_model);
 
-  // Load calibration target
-  calib_target_t calib_target;
-  if (calib_target_load(calib_target, config_file, "calib_target") != 0) {
-    LOG_ERROR("Failed to load calib target [%s]!", config_file.c_str());
-    return -1;
-  }
-
-  // Prepare aprilgrid data directory
-  const auto cam0_grid_path = data_path + "/grid0/cam0/data";
-  if (dir_exists(cam0_grid_path) == false) {
-    dir_create(cam0_grid_path);
-  }
-  const auto cam1_grid_path = data_path + "/grid0/cam1/data";
-  if (dir_exists(cam1_grid_path) == false) {
-    dir_create(cam1_grid_path);
-  }
-
-  // Preprocess calibration data
-  int retval = preprocess_stereo_data(calib_target,
-                                      data_path + "/cam0/data",
-                                      data_path + "/cam1/data",
-                                      vec2_t{cam0_res[0], cam0_res[1]},
-                                      vec2_t{cam1_res[0], cam1_res[1]},
-                                      cam0_lens_hfov,
-                                      cam0_lens_vfov,
-                                      cam1_lens_hfov,
-                                      cam1_lens_vfov,
-                                      cam0_grid_path,
-                                      cam1_grid_path,
-                                      imshow);
-  if (retval != 0) {
-    LOG_ERROR("Failed to preprocess calibration data!");
-    return -1;
-  }
-
-  // Load stereo calibration data
-  aprilgrids_t cam0_grids;
-  aprilgrids_t cam1_grids;
-  retval = load_stereo_calib_data(cam0_grid_path,
-                                  cam1_grid_path,
-                                  cam0_grids,
-                                  cam1_grids);
-  if (retval != 0) {
-    LOG_ERROR("Failed to load calibration data!");
-    return -1;
-  }
-
   // Setup camera intrinsics and distortion
   // -- cam0
   camera_params_t cam0;
@@ -180,41 +202,83 @@ int calib_stereo_solve(const std::string &config_file) {
                           proj_params, dist_params};
   }
 
+  // Load calibration target
+  calib_target_t target;
+  if (calib_target_load(target, config_file, "calib_target") != 0) {
+    LOG_ERROR("Failed to load calib target [%s]!", config_file.c_str());
+    return -1;
+  }
+
+  // Prepare aprilgrid data directory
+  const auto cam0_grid_path = data_path + "/grid0/cam0/data";
+  if (dir_exists(cam0_grid_path) == false) {
+    dir_create(cam0_grid_path);
+  }
+  const auto cam1_grid_path = data_path + "/grid0/cam1/data";
+  if (dir_exists(cam1_grid_path) == false) {
+    dir_create(cam1_grid_path);
+  }
+
+  // Preprocess data
+  auto cam0_data_path = data_path + "/cam0/data";
+  auto cam1_data_path = data_path + "/cam1/data";
+  if (preprocess_camera_data(target, cam0_data_path, cam0_grid_path, true) != 0) {
+    FATAL("Failed to preprocess cam0 data!");
+  }
+  if (preprocess_camera_data(target, cam0_data_path, cam1_grid_path, true) != 0) {
+    FATAL("Failed to preprocess cam1 data!");
+  }
+
+  // Load calibration data
+  const std::vector<std::string> data_dirs = {cam0_data_path, cam1_data_path};
+  std::map<int, aprilgrids_t> grids;
+  if (load_multicam_calib_data(2, data_dirs, grids) != 0) {
+    LOG_ERROR("Failed to local calibration data!");
+    return -1;
+  }
+
+  // Estimate initial guess for grid poses
+  // -- cam0
+  mat4s_t T_C0F;
+  for (auto &grid : grids[0]) {
+    mat4_t rel_pose;
+    const auto proj_params = cam0.proj_params();
+    const auto dist_params = cam0.dist_params();
+    aprilgrid_calc_relative_pose(grid, proj_params, dist_params, rel_pose);
+    T_C0F.push_back(rel_pose);
+  }
+  // -- cam1
+  mat4s_t T_C1F;
+  for (auto &grid : grids[1]) {
+    mat4_t rel_pose;
+    const auto proj_params = cam1.proj_params();
+    const auto dist_params = cam1.dist_params();
+    aprilgrid_calc_relative_pose(grid, proj_params, dist_params, rel_pose);
+    T_C1F.push_back(rel_pose);
+  }
+
   // Calibrate stereo
   LOG_INFO("Calibrating stereo camera!");
   mat4_t T_C0C1 = I(4);
-  mat4s_t T_C0F;
-  mat4s_t T_C1F;
   mat2_t covar = pow(sigma_vision, 2) * I(2);
-  calib_stereo_results_t results;
+  std::vector<double> cam0_errs;
+  std::vector<double> cam1_errs;
 
   // -- Pinhole-Radtan4
   if (cam0_proj_model == "pinhole" && cam0_dist_model == "radtan4") {
-    calib_stereo_solve<pinhole_radtan4_t>(cam0_grids, cam1_grids, covar,
-                                          &cam0, &cam1,
-                                          &T_C0C1, &T_C0F, &T_C1F);
-    calib_mono_stats<pinhole_radtan4_t>(cam0_grids, cam0, T_C0F,
-                                        &results.cam0_errors,
-                                        &results.cam0_rmse_error,
-                                        &results.cam0_mean_error);
-    calib_mono_stats<pinhole_radtan4_t>(cam1_grids, cam1, T_C1F,
-                                        &results.cam1_errors,
-                                        &results.cam1_rmse_error,
-                                        &results.cam1_mean_error);
+    calib_stereo_solve<pinhole_radtan4_t>(grids[0], grids[1], covar,
+                                          cam0, cam1,
+                                          T_C0C1, T_C0F, T_C1F);
+    reproj_errors<pinhole_radtan4_t>(grids[0], cam0, T_C0F, cam0_errs);
+    reproj_errors<pinhole_radtan4_t>(grids[1], cam1, T_C1F, cam1_errs);
 
   // -- Pinhole-Equi4
   } else if (cam0_proj_model == "pinhole" && cam0_dist_model == "equi4") {
-    calib_stereo_solve<pinhole_equi4_t>(cam0_grids, cam1_grids, covar,
-                                        &cam0, &cam1,
-                                        &T_C0C1, &T_C0F, &T_C1F);
-    calib_mono_stats<pinhole_equi4_t>(cam0_grids, cam0, T_C0F,
-                                      &results.cam0_errors,
-                                      &results.cam0_rmse_error,
-                                      &results.cam0_mean_error);
-    calib_mono_stats<pinhole_equi4_t>(cam1_grids, cam1, T_C1F,
-                                      &results.cam1_errors,
-                                      &results.cam1_rmse_error,
-                                      &results.cam1_mean_error);
+    calib_stereo_solve<pinhole_equi4_t>(grids[0], grids[1], covar,
+                                        cam0, cam1,
+                                        T_C0C1, T_C0F, T_C1F);
+    reproj_errors<pinhole_equi4_t>(grids[0], cam0, T_C0F, cam0_errs);
+    reproj_errors<pinhole_equi4_t>(grids[1], cam1, T_C1F, cam1_errs);
 
   // -- Unsupported
   } else {
@@ -228,8 +292,7 @@ int calib_stereo_solve(const std::string &config_file) {
   printf("\x1B[92m");
   printf("Saving optimization results to [%s]", results_fpath.c_str());
   printf("\033[0m\n");
-  retval = save_results(results_fpath, cam0, cam1, T_C0C1, results);
-  if (retval != 0) {
+  if (save_results(results_fpath, cam0, cam1, T_C0C1, cam0_errs, cam1_errs) != 0) {
     LOG_ERROR("Failed to save results to [%s]!", results_fpath.c_str());
     return -1;
   }

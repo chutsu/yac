@@ -1,9 +1,9 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8.3)
 PROJECT(yac)
 
-# Tell cmake where to find custom
-# - AprilTag3
+# Tell cmake where to find custom AprilTag3 and Ceres-Solver
 SET(apriltag3_DIR "../deps/share/apriltag3/cmake")
+SET(Ceres_DIR "../deps/lib/cmake/Ceres")
 
 # DEPENDENCIES
 FIND_PACKAGE(Ceres REQUIRED)
@@ -64,5 +64,5 @@ TARGET_LINK_LIBRARIES(test_calib_data yac ${DEPS})
 ADD_EXECUTABLE(test_calib_stereo tests/test_calib_stereo.cpp)
 TARGET_LINK_LIBRARIES(test_calib_stereo yac ${DEPS})
 
-ADD_EXECUTABLE(test_calib_vi tests/test_calib_vi.cpp)
-TARGET_LINK_LIBRARIES(test_calib_vi yac ${DEPS})
+# ADD_EXECUTABLE(test_calib_vi tests/test_calib_vi.cpp)
+# TARGET_LINK_LIBRARIES(test_calib_vi yac ${DEPS})

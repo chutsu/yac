@@ -59,14 +59,6 @@ void aprilgrid_remove(aprilgrid_t &grid, const int id) {
   kps.erase(kps.begin() + (index * 4));
   kps.shrink_to_fit();
 
-  // Remove points
-  auto &points_CF = grid.points_CF;
-  points_CF.erase(points_CF.begin() + (index * 4));
-  points_CF.erase(points_CF.begin() + (index * 4));
-  points_CF.erase(points_CF.begin() + (index * 4));
-  points_CF.erase(points_CF.begin() + (index * 4));
-  points_CF.shrink_to_fit();
-
   // Update nb_detections
   grid.nb_detections--;
 }
@@ -79,13 +71,9 @@ void aprilgrid_clear(aprilgrid_t &grid) {
   grid.timestamp = 0;
   grid.ids.clear();
   grid.keypoints.clear();
-
-  grid.estimated = false;
-  grid.points_CF.clear();
-  grid.T_CF = I(4);
 }
 
-int aprilgrid_get(const aprilgrid_t &grid, const int id, vec2s_t &keypoints) {
+int aprilgrid_keypoints(const aprilgrid_t &grid, const int id, vec2s_t &keypoints) {
   // Check if tag id was actually detected
   int index = -1;
   for (size_t i = 0; i < grid.ids.size(); i++) {
@@ -104,42 +92,6 @@ int aprilgrid_get(const aprilgrid_t &grid, const int id, vec2s_t &keypoints) {
   keypoints.emplace_back(grid.keypoints[(index * 4) + 1]);
   keypoints.emplace_back(grid.keypoints[(index * 4) + 2]);
   keypoints.emplace_back(grid.keypoints[(index * 4) + 3]);
-
-  return 0;
-}
-
-int aprilgrid_get(const aprilgrid_t &grid,
-                  const int id,
-                  vec2s_t &keypoints,
-                  vec3s_t &points_CF) {
-  // Check if tag id was actually detected
-  int index = -1;
-  for (size_t i = 0; i < grid.ids.size(); i++) {
-    if (grid.ids[i] == id) {
-      index = i;
-      break;
-    }
-  }
-  if (index == -1) {
-    LOG_ERROR("Failed to find tag id [%d] in AprilTagDetection!", id);
-    return -1;
-  }
-
-  // Set keypoints
-  keypoints.emplace_back(grid.keypoints[(index * 4)]);
-  keypoints.emplace_back(grid.keypoints[(index * 4) + 1]);
-  keypoints.emplace_back(grid.keypoints[(index * 4) + 2]);
-  keypoints.emplace_back(grid.keypoints[(index * 4) + 3]);
-
-  // Set points
-  if (grid.estimated) {
-    points_CF.emplace_back(grid.points_CF[(index * 4)]);
-    points_CF.emplace_back(grid.points_CF[(index * 4) + 1]);
-    points_CF.emplace_back(grid.points_CF[(index * 4) + 2]);
-    points_CF.emplace_back(grid.points_CF[(index * 4) + 3]);
-  } else {
-    aprilgrid_object_points(grid, id, points_CF);
-  }
 
   return 0;
 }
@@ -263,9 +215,10 @@ vec2_t aprilgrid_center(const int rows,
   return vec2_t{x, y};
 }
 
-int aprilgrid_calc_relative_pose(aprilgrid_t &grid,
-                                 const mat3_t &cam_K,
-                                 const vec4_t &cam_D) {
+int aprilgrid_calc_relative_pose(const aprilgrid_t &grid,
+                                 const vec4_t &proj_params,
+                                 const vec4_t &dist_params,
+                                 mat4_t &T_CF) {
   // Check if we actually have data to work with
   if (grid.ids.size() == 0) {
     return 0;
@@ -306,16 +259,16 @@ int aprilgrid_calc_relative_pose(aprilgrid_t &grid,
   }
 
   // Extract out camera intrinsics
-  const real_t fx = cam_K(0, 0);
-  const real_t fy = cam_K(1, 1);
-  const real_t cx = cam_K(0, 2);
-  const real_t cy = cam_K(1, 2);
+  const real_t fx = proj_params(0);
+  const real_t fy = proj_params(1);
+  const real_t cx = proj_params(2);
+  const real_t cy = proj_params(3);
 
   // Extract out camera distortion
-  const real_t k1 = cam_D(0);
-  const real_t k2 = cam_D(1);
-  const real_t p1 = cam_D(2);
-  const real_t p2 = cam_D(3);
+  const real_t k1 = dist_params(0);
+  const real_t k2 = dist_params(1);
+  const real_t p1 = dist_params(2);
+  const real_t p2 = dist_params(3);
 
   // Solve pnp
   cv::Vec4f distortion_params(k1, k2, p1, p2); // SolvPnP assumes radtan
@@ -342,37 +295,7 @@ int aprilgrid_calc_relative_pose(aprilgrid_t &grid,
   cv::Mat R;
   cv::Rodrigues(rvec, R);
   // -- Form full transformation matrix
-  grid.T_CF = tf(convert(R), convert(tvec));
-
-  // Calculate corner points
-  for (size_t idx = 0; idx < grid.ids.size(); idx++) {
-    // Get tag grid index
-    int i = 0;
-    int j = 0;
-    const auto id = grid.ids[idx];
-    if (aprilgrid_grid_index(grid, id, i, j) == -1) {
-      LOG_ERROR("Invalid id [%d]!", id);
-      return -1;
-    }
-
-    // Calculate the x and y of the tag origin (bottom left corner of tag)
-    // relative to grid origin (bottom left corner of entire grid)
-    const real_t x = j * (grid.tag_size + grid.tag_size * grid.tag_spacing);
-    const real_t y = i * (grid.tag_size + grid.tag_size * grid.tag_spacing);
-
-    // Calculate the x and y of each corner
-    const vec4_t bottom_left(x, y, 0, 1);
-    const vec4_t bottom_right(x + grid.tag_size, y, 0, 1);
-    const vec4_t top_right(x + grid.tag_size, y + grid.tag_size, 0, 1);
-    const vec4_t top_left(x, y + grid.tag_size, 0, 1);
-
-    // Transform object points to corner points expressed in camera frame
-    grid.points_CF.emplace_back((grid.T_CF * bottom_left).head(3));
-    grid.points_CF.emplace_back((grid.T_CF * bottom_right).head(3));
-    grid.points_CF.emplace_back((grid.T_CF * top_right).head(3));
-    grid.points_CF.emplace_back((grid.T_CF * top_left).head(3));
-  }
-  grid.estimated = true;
+  T_CF = tf(convert(R), convert(tvec));
 
   return 0;
 }
@@ -386,7 +309,7 @@ void aprilgrid_imshow(const aprilgrid_t &grid,
   for (size_t i = 0; i < grid.ids.size(); i++) {
     const size_t id = grid.ids[i];
     vec2s_t kps;
-    if (aprilgrid_get(grid, id, kps) != 0) {
+    if (aprilgrid_keypoints(grid, id, kps) != 0) {
       return;
     }
 
@@ -420,7 +343,7 @@ void aprilgrid_imshow(const aprilgrid_t &grid,
 
 int aprilgrid_save(const aprilgrid_t &grid, const std::string &save_path) {
   assert((grid.keypoints.size() % 4) == 0);
-  assert((grid.points_CF.size() % 4) == 0);
+  // assert((grid.points_CF.size() % 4) == 0);
 
   // Check save dir
   const std::string dir_path = dir_name(save_path);
@@ -438,23 +361,14 @@ int aprilgrid_save(const aprilgrid_t &grid, const std::string &save_path) {
 
   // Output header
   // -- Configuration
-  fprintf(fp, "configured,");
+  fprintf(fp, "# configured,");
   fprintf(fp, "tag_rows,");
   fprintf(fp, "tag_cols,");
   fprintf(fp, "tag_size,");
   fprintf(fp, "tag_spacing,");
   // -- Keypoints
-  fprintf(fp, "ts,id,kp_x,kp_y,");
-  // -- Estimation
-  fprintf(fp, "estimated,");
-  fprintf(fp, "p_x,p_y,p_z,");
-  fprintf(fp, "q_w,q_x,q_y,q_z,");
-  fprintf(fp, "t_x,t_y,t_z\n");
-
-  // Decompose relative pose into rotation (quaternion) and translation
-  const mat3_t R_CF = grid.T_CF.block(0, 0, 3, 3);
-  const quat_t q_CF{R_CF};
-  const vec3_t t_CF{grid.T_CF.block(0, 3, 3, 1)};
+  fprintf(fp, "ts,id,kp_x,kp_y");
+  fprintf(fp, "\n");
 
   // Output data
   for (size_t i = 0; i < grid.ids.size(); i++) {
@@ -471,24 +385,8 @@ int aprilgrid_save(const aprilgrid_t &grid, const std::string &save_path) {
       fprintf(fp, "%ld,", grid.timestamp);
       fprintf(fp, "%d,", tag_id);
       fprintf(fp, "%f,", keypoint(0));
-      fprintf(fp, "%f,", keypoint(1));
-
-      fprintf(fp, "%d,", grid.estimated);
-      if (grid.estimated) {
-        const vec3_t point_CF = grid.points_CF[(i * 4) + j];
-        fprintf(fp, "%f,", point_CF(0));
-        fprintf(fp, "%f,", point_CF(1));
-        fprintf(fp, "%f,", point_CF(2));
-        fprintf(fp, "%f,", q_CF.w());
-        fprintf(fp, "%f,", q_CF.x());
-        fprintf(fp, "%f,", q_CF.y());
-        fprintf(fp, "%f,", q_CF.z());
-        fprintf(fp, "%f,", t_CF(0));
-        fprintf(fp, "%f,", t_CF(1));
-        fprintf(fp, "%f\n", t_CF(2));
-      } else {
-        fprintf(fp, "0,0,0,0,0,0,0,0,0,0\n");
-      }
+      fprintf(fp, "%f", keypoint(1));
+      fprintf(fp, "\n");
     }
   }
 
@@ -513,14 +411,11 @@ int aprilgrid_load(aprilgrid_t &grid, const std::string &data_path) {
   // -- Timestamp, tag id and keypoint
   str_format += "%ld,%d,%lf,%lf,";
   // -- Corner point
-  str_format += "%d,%lf,%lf,%lf,";
-  // -- AprilGrid pose
-  str_format += "%lf,%lf,%lf,%lf,%lf,%lf,%lf";
+  str_format += "%d,%lf,%lf,%lf";
 
   // Parse file
   grid.ids.clear();
   grid.keypoints.clear();
-  grid.points_CF.clear();
 
   // Parse data
   for (int i = 0; i < nb_rows; i++) {
@@ -532,42 +427,26 @@ int aprilgrid_load(aprilgrid_t &grid, const std::string &data_path) {
 
     // Parse line
     int configured = 0;
-    int estimated = 0;
     int tag_id = 0;
     real_t kp_x, kp_y = 0.0;
-    real_t p_x, p_y, p_z = 0.0;
-    real_t q_w, q_x, q_y, q_z = 0.0;
-    real_t r_x, r_y, r_z = 0.0;
     int retval = fscanf(
-        // File pointer
-        fp,
-        // String format
-        str_format.c_str(),
-        // Configuration
-        &configured,
-        &grid.tag_rows,
-        &grid.tag_cols,
-        &grid.tag_size,
-        &grid.tag_spacing,
-        // Timestamp, tag id and keypoint
-        &grid.timestamp,
-        &tag_id,
-        &kp_x,
-        &kp_y,
-        // Corner point
-        &estimated,
-        &p_x,
-        &p_y,
-        &p_z,
-        // AprilGrid pose
-        &q_w,
-        &q_x,
-        &q_y,
-        &q_z,
-        &r_x,
-        &r_y,
-        &r_z);
-    if (retval != 20) {
+      // File pointer
+      fp,
+      // String format
+      str_format.c_str(),
+      // Configuration
+      &configured,
+      &grid.tag_rows,
+      &grid.tag_cols,
+      &grid.tag_size,
+      &grid.tag_spacing,
+      // Timestamp, tag id and keypoint
+      &grid.timestamp,
+      &tag_id,
+      &kp_x,
+      &kp_y
+    );
+    if (retval != 9) {
       LOG_INFO("Failed to parse line in [%s:%d]", data_path.c_str(), i);
       return -1;
     }
@@ -575,18 +454,11 @@ int aprilgrid_load(aprilgrid_t &grid, const std::string &data_path) {
     // Map variables back to AprilGrid
     // -- Grid configured, estimated
     grid.configured = configured;
-    grid.estimated = estimated;
     // -- AprilTag id and keypoint
     if (std::count(grid.ids.begin(), grid.ids.end(), tag_id) == 0) {
       grid.ids.emplace_back(tag_id);
     }
     grid.keypoints.emplace_back(kp_x, kp_y);
-    // -- Point
-    grid.points_CF.emplace_back(p_x, p_y, p_z);
-    // -- AprilGrid pose
-    const quat_t q_CF{q_w, q_x, q_y, q_z};
-    const vec3_t t_CF{r_x, r_y, r_z};
-    grid.T_CF = tf(q_CF.toRotationMatrix(), t_CF);
   }
 
   // Grid detected
@@ -652,7 +524,7 @@ void aprilgrid_filter_tags(const cv::Mat &image,
                            std::vector<apriltag_t> &tags,
                            const bool verbose) {
   const real_t min_border_dist = 4.0;
-  const real_t max_subpix_disp = 1.2;
+  const real_t max_subpix_disp = 1.0;
 
   const size_t nb_tags_before = tags.size();
   int removed = 0;
@@ -758,10 +630,6 @@ int aprilgrid_equal(const aprilgrid_t &grid0, const aprilgrid_t &grid1) {
   bool ids_ok = (grid0.ids == grid1.ids);
   bool keypoints_ok = (grid0.keypoints.size() == grid1.keypoints.size());
 
-  bool estimated_ok = (grid0.estimated == grid1.estimated);
-  bool points_ok = (grid0.points_CF.size() == grid1.points_CF.size());
-  bool T_CF_ok = ((grid0.T_CF - grid1.T_CF).norm() < 1e-3);
-
   std::vector<bool> checklist = {
     // Grid properties
     configured_ok,
@@ -774,11 +642,7 @@ int aprilgrid_equal(const aprilgrid_t &grid0, const aprilgrid_t &grid1) {
     nb_detections_ok,
     timestamp_ok,
     ids_ok,
-    keypoints_ok,
-    // Estimation
-    estimated_ok,
-    points_ok,
-    T_CF_ok
+    keypoints_ok
   };
 
   std::vector<std::string> checklist_str = {
@@ -793,11 +657,7 @@ int aprilgrid_equal(const aprilgrid_t &grid0, const aprilgrid_t &grid1) {
     "nb_detections",
     "timestamp",
     "ids",
-    "keypoints",
-    // Estimation
-    "estimated",
-    "points",
-    "T_CF"
+    "keypoints"
   };
 
   // Check
@@ -837,36 +697,6 @@ int aprilgrid_equal(const aprilgrid_t &grid0, const aprilgrid_t &grid1) {
       printf("kp0: (%f, %f)\n", kp0(0), kp0(1));
       printf("kp1: (%f, %f)\n", kp1(0), kp1(1));
       return 0;
-    }
-  }
-
-  // Double check object points
-  if (grid0.points_CF.size() != grid1.points_CF.size()) {
-    printf("grid0.points_CF.size() != grid1.points_CF.size()\n");
-    return 0;
-  }
-  for (size_t i = 0; i < grid0.points_CF.size(); i++) {
-    const vec3_t p0 = grid0.points_CF[i];
-    const vec3_t p1 = grid1.points_CF[i];
-
-    const bool x_ok = fabs(p0(0) - p1(0)) < 1e-4;
-    const bool y_ok = fabs(p0(1) - p1(1)) < 1e-4;
-    const bool z_ok = fabs(p0(2) - p1(2)) < 1e-4;
-
-    if (x_ok == false || y_ok == false || z_ok == false) {
-      printf("grid0.points_CF[%ld] != grid1.points_CF[%ld]\n", i, i);
-      printf("p0: (%f, %f, %f)\n", p0(0), p0(1), p0(2));
-      printf("p1: (%f, %f, %f)\n", p1(0), p1(1), p1(2));
-      return 0;
-    }
-  }
-
-  // Double check T_CF
-  for (int i = 0; i < 4; i++) {
-    for (int j = 0; j < 4; j++) {
-      if (fabs(grid0.T_CF(i, j) - grid1.T_CF(i, j)) > 1e-4) {
-        return 0;
-      }
     }
   }
 
@@ -947,15 +777,16 @@ int aprilgrid_detect(const aprilgrid_detector_t &detector,
 
 int aprilgrid_detect(const aprilgrid_detector_t &detector,
                      const cv::Mat &image,
-                     const mat3_t &cam_K,
-                     const vec4_t &cam_D,
+                     const vec4_t &proj_params,
+                     const vec4_t &dist_params,
                      aprilgrid_t &grid,
-                         const bool use_v3) {
+                     mat4_t &T_CF,
+                     const bool use_v3) {
   assert(detector.configured);
   if (aprilgrid_detect(detector, image, grid, use_v3) == 0) {
     return 0;
   }
-  aprilgrid_calc_relative_pose(grid, cam_K, cam_D);
+  aprilgrid_calc_relative_pose(grid, proj_params, dist_params, T_CF);
 
   return grid.nb_detections;
 }
@@ -1014,7 +845,8 @@ void aprilgrid_random_sample(const aprilgrid_t &grid, const size_t n,
 
     vec2s_t keypoints;
     vec3s_t object_points;
-    aprilgrid_get(grid, tag_id, keypoints, object_points);
+    aprilgrid_keypoints(grid, tag_id, keypoints);
+    aprilgrid_object_points(grid, tag_id, object_points);
     sample_tag_ids.push_back(tag_id);
     sample_keypoints.push_back(keypoints);
     sample_object_points.push_back(object_points);
@@ -1038,12 +870,6 @@ std::ostream &operator<<(std::ostream &os, const aprilgrid_t &grid) {
     os << std::endl;
   }
 
-  os << "estimated: " << grid.estimated << std::endl;
-  if (grid.estimated) {
-    os << "T_CF: " << grid.T_CF << std::endl;
-    os << std::endl;
-  }
-
   os << "tags: " << std::endl;
   for (size_t i = 0; i < grid.ids.size(); i++) {
     // Tag id
@@ -1054,10 +880,6 @@ std::ostream &operator<<(std::ostream &os, const aprilgrid_t &grid) {
     for (size_t j = 0; j < 4; j++) {
       os << "keypoint: " << grid.keypoints[(i * 4) + j].transpose();
       os << std::endl;
-      if (grid.estimated) {
-        os << "p_CF: " << grid.points_CF[(i * 4) + j].transpose();
-        os << std::endl;
-      }
     }
     os << std::endl;
   }

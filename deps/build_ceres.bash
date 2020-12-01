@@ -12,7 +12,7 @@ fi
 
 # Build
 cd src/ceres-solver
-git checkout 1.13.0
+git checkout 2.0.0
 rm -rf build
 mkdir -p build
 cd build

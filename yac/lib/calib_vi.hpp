@@ -574,7 +574,7 @@ struct vi_calibrator_t {
       aprilgrid_object_points(grid, tag_id, object_points);
 
       vec2s_t keypoints;
-      aprilgrid_get(grid, tag_id, keypoints);
+      aprilgrid_keypoints(grid, tag_id, keypoints);
 
       for (size_t j = 0; j < 4; j++) {
         const vec3_t r_FFi = object_points[j];

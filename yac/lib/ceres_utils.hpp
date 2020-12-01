@@ -64,18 +64,23 @@ public:
 
   // Jacobian of Plus(x, delta) w.r.t delta at delta = 0.
   virtual bool ComputeJacobian(const double *x, double *jacobian) const {
+    UNUSED(x);
     Eigen::Map<Eigen::Matrix<double, 7, 6, Eigen::RowMajor>> Jp(jacobian);
-    Jp.setZero();
-    Jp.topLeftCorner<3, 3>().setIdentity();
 
-    mat_t<4, 3> S = zeros(4, 3);
-    S(0, 0) = 0.5;
-    S(1, 1) = 0.5;
-    S(2, 2) = 0.5;
+    Jp.topRows<6>().setIdentity();
+    Jp.bottomRows<1>().setZero();
 
-    mat4_t T = tf(x);
-    quat_t q = tf_quat(T);
-    Jp.block<4, 3>(3, 3) = oplus(q) * S;
+    // Jp.setZero();
+    // Jp.topLeftCorner<3, 3>().setIdentity();
+    //
+    // mat_t<4, 3> S = zeros(4, 3);
+    // S(0, 0) = 0.5;
+    // S(1, 1) = 0.5;
+    // S(2, 2) = 0.5;
+    //
+    // mat4_t T = tf(x);
+    // quat_t q = tf_quat(T);
+    // Jp.block<4, 3>(3, 3) = oplus(q) * S;
 
     return true;
   }

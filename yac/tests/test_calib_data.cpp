@@ -27,75 +27,14 @@ int test_preprocess_and_load_camera_data() {
 
   // Test preprocess data
   const std::string image_dir = CAM0_IMAGE_DIR;
-  const vec2_t image_size{752, 480};
-  const double lens_hfov = 98.0;
-  const double lens_vfov = 73.0;
   const std::string output_dir = MONO_OUTPUT_DIR "/cam0";
-  preprocess_camera_data(target,
-                         image_dir,
-                         image_size,
-                         lens_hfov,
-                         lens_vfov,
-                         output_dir);
+  preprocess_camera_data(target, image_dir, output_dir);
 
   // Test load
   aprilgrids_t aprilgrids;
-  timestamps_t timestamps;
-  int retval = load_camera_calib_data(output_dir, aprilgrids, timestamps);
-  MU_CHECK(retval == 0);
+  MU_CHECK(load_camera_calib_data(output_dir, aprilgrids) == 0);
   MU_CHECK(aprilgrids.size() > 0);
   MU_CHECK(aprilgrids[0].ids.size() > 0);
-
-  return 0;
-}
-
-int test_preprocess_and_load_stereo_data() {
-  // Setup calibration target
-  calib_target_t target;
-  if (calib_target_load(target, APRILGRID_CONF) != 0) {
-    LOG_ERROR("Failed to load calib target [%s]!", APRILGRID_CONF);
-    return -1;
-  }
-
-  // Test preprocess data
-  // -- cam0 image size and lens properties
-  const vec2_t cam0_image_size{752, 480};
-  const double cam0_lens_hfov = 98.0;
-  const double cam0_lens_vfov = 73.0;
-  // -- cam1 image size and lens properties
-  const vec2_t cam1_image_size{752, 480};
-  const double cam1_lens_hfov = 98.0;
-  const double cam1_lens_vfov = 73.0;
-  // -- Output directory
-  const std::string cam0_output_dir = STEREO_OUTPUT_DIR "/cam0";
-  const std::string cam1_output_dir = STEREO_OUTPUT_DIR "/cam1";
-  preprocess_stereo_data(target,
-                         CAM0_IMAGE_DIR,
-                         CAM1_IMAGE_DIR,
-                         cam0_image_size,
-                         cam1_image_size,
-                         cam0_lens_hfov,
-                         cam0_lens_vfov,
-                         cam1_lens_hfov,
-                         cam1_lens_vfov,
-                         cam0_output_dir,
-                         cam1_output_dir);
-
-  // Test load
-  aprilgrids_t cam0_aprilgrids;
-  aprilgrids_t cam1_aprilgrids;
-  int retval = load_stereo_calib_data(cam0_output_dir,
-                                      cam1_output_dir,
-                                      cam0_aprilgrids,
-                                      cam1_aprilgrids);
-
-  // Assert
-  MU_CHECK(retval == 0);
-  MU_CHECK(cam0_aprilgrids.size() > 0);
-  MU_CHECK(cam0_aprilgrids[0].ids.size() > 0);
-  MU_CHECK(cam1_aprilgrids.size() > 0);
-  MU_CHECK(cam1_aprilgrids[0].ids.size() > 0);
-  MU_CHECK(cam0_aprilgrids.size() == cam1_aprilgrids.size());
 
   return 0;
 }
@@ -109,35 +48,17 @@ int test_load_multicam_calib_data() {
   }
 
   // Test preprocess data
-  // -- cam0 image size and lens properties
-  const vec2_t cam0_image_size{752, 480};
-  const double cam0_lens_hfov = 98.0;
-  const double cam0_lens_vfov = 73.0;
-  // -- cam1 image size and lens properties
-  const vec2_t cam1_image_size{752, 480};
-  const double cam1_lens_hfov = 98.0;
-  const double cam1_lens_vfov = 73.0;
-  // -- Output directory
+  LOG_INFO("Preprocessing images ...");
   const std::string cam0_output_dir = STEREO_OUTPUT_DIR "/cam0";
   const std::string cam1_output_dir = STEREO_OUTPUT_DIR "/cam1";
-  preprocess_stereo_data(target,
-                         CAM0_IMAGE_DIR,
-                         CAM1_IMAGE_DIR,
-                         cam0_image_size,
-                         cam1_image_size,
-                         cam0_lens_hfov,
-                         cam0_lens_vfov,
-                         cam1_lens_hfov,
-                         cam1_lens_vfov,
-                         cam0_output_dir,
-                         cam1_output_dir);
+  preprocess_camera_data(target, CAM0_IMAGE_DIR, cam0_output_dir);
+  preprocess_camera_data(target, CAM1_IMAGE_DIR, cam1_output_dir);
 
   // Test load
+  LOG_INFO("Loading calib data ...");
   std::map<int, aprilgrids_t> calib_data;
-  int retval = load_multicam_calib_data(2,
-                                        {cam0_output_dir, cam1_output_dir},
-                                        calib_data);
-  MU_CHECK(retval == 0);
+  std::vector<std::string> output_dirs = {cam0_output_dir, cam1_output_dir};
+  MU_CHECK(load_multicam_calib_data(2, output_dirs, calib_data) == 0);
 
   // Assert
   const auto grids0 = calib_data[0];
@@ -381,7 +302,6 @@ int test_load_multicam_calib_data() {
 
 void test_suite() {
   MU_ADD_TEST(test_preprocess_and_load_camera_data);
-  MU_ADD_TEST(test_preprocess_and_load_stereo_data);
   MU_ADD_TEST(test_load_multicam_calib_data);
   // MU_ADD_TEST(test_draw_calib_validation);
   // MU_ADD_TEST(test_validate_intrinsics);

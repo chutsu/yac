@@ -123,6 +123,21 @@ struct pose_t : param_t {
     param(6) = q.w();
   }
 
+  void set_tf(const mat3_t &C, const vec3_t &r) {
+    set_rot(C);
+    set_trans(r);
+  }
+
+  void set_tf(const quat_t &q, const vec3_t &r) {
+    set_rot(q);
+    set_trans(r);
+  }
+
+  void set_tf(const mat4_t &T) {
+    set_rot(tf_rot(T));
+    set_trans(tf_trans(T));
+  }
+
   void plus(const vecx_t &dx) {
     // Translation component
     param(0) += dx(0);

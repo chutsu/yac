@@ -1,5 +1,5 @@
-default: ceres apriltag3 apriltags
-.PHONY: ceres apriltag3 s apriltags suitesparse ceres
+default: apriltag3 apriltags
+.PHONY: apriltag3 s apriltags suitesparse ceres
 
 clean:
 	@rm -rf bin

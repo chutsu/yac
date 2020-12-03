@@ -100,7 +100,7 @@ int test_calib_stereo_residual() {
     const auto &cam1_kp = grids[1][i].keypoints[0];
 
     // Tag id and corner id
-    const auto tag_id = grids[0][i].ids[0];
+    const int tag_id = grids[0][i].ids[0];
     const int corner_id = 0;
 
     // Form residual and call the functor
@@ -111,7 +111,7 @@ int test_calib_stereo_residual() {
     }
     // -- Form residual
     const calib_stereo_residual_t<pinhole_radtan4_t> residual{
-      cam_res, r_FFi, cam0_kp, cam1_kp, covar};
+      cam_res, tag_id, corner_id, r_FFi, cam0_kp, cam1_kp, covar};
 
     // Calculate residual
     vec4_t r{0.0, 0.0, 0.0, 0.0};
@@ -194,6 +194,7 @@ int test_calib_stereo_solve() {
     LOG_ERROR("Failed to calibrate stereo cameras!");
     return -1;
   }
+
 
   // Compare estimation to ground truth
   // -- cam0
@@ -355,6 +356,15 @@ int test_calib_stereo_inc_solve() {
     return -1;
   }
 
+  const std::string results_fpath = "/tmp/calib_stereo.yaml";
+  printf("\x1B[92m");
+  printf("Saving optimization results to [%s]", results_fpath.c_str());
+  printf("\033[0m\n");
+  if (save_results(results_fpath, data.cam0, data.cam1, data.T_C1C0, data.cam0_errs, data.cam1_errs) != 0) {
+    LOG_ERROR("Failed to save results to [%s]!", results_fpath.c_str());
+    return -1;
+  }
+
   // Compare estimation to ground truth
   // -- cam0
   {
@@ -444,8 +454,8 @@ int test_calib_stereo_inc_solve() {
 void test_suite() {
   test_setup();
   // MU_ADD_TEST(test_calib_stereo_residual);
-  MU_ADD_TEST(test_calib_stereo_solve);
-  // MU_ADD_TEST(test_calib_stereo_inc_solve);
+  // MU_ADD_TEST(test_calib_stereo_solve);
+  MU_ADD_TEST(test_calib_stereo_inc_solve);
 }
 
 } // namespace yac

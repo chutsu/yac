@@ -35,7 +35,7 @@ set -e
 
 make
 # make debug
-make tests
+# make tests
 source ~/catkin_ws/devel/setup.bash
 # rm -rf /tmp/aprilgrid_test
 
@@ -43,9 +43,8 @@ source ~/catkin_ws/devel/setup.bash
 # rosrun yac test_aprilgrid
 # rosrun yac test_calib_data
 # rosrun yac test_calib_mocap
-# rosrun --prefix 'gdb -ex run' yac test_calib_mono
 # rosrun yac test_calib_mono
-# rosrun yac test_calib_stereo
+rosrun yac test_calib_stereo
 # rosrun yac test_calib_vi
 # rosrun yac test_calib_vi
 

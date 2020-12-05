@@ -35,16 +35,18 @@ set -e
 
 make
 # make debug
-# make tests
-source ~/catkin_ws/devel/setup.bash
+make tests
+# source ~/catkin_ws/devel/setup.bash
 # rm -rf /tmp/aprilgrid_test
+
+# python3 scripts/analyze_detections.py
 
 # --prefix 'gdb -ex run'
 # rosrun yac test_aprilgrid
 # rosrun yac test_calib_data
 # rosrun yac test_calib_mocap
 # rosrun yac test_calib_mono
-rosrun yac test_calib_stereo
+# rosrun yac test_calib_stereo
 # rosrun yac test_calib_vi
 # rosrun yac test_calib_vi
 

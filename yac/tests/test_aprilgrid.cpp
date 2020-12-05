@@ -319,6 +319,86 @@ int test_aprilgrid_detect2() {
   return 0;
 }
 
+int test_aprilgrid_detect3() {
+  const auto detector = aprilgrid_detector_t(6, 6, 0.088, 0.3);
+
+  std::vector<std::string> cam0_images;
+  std::vector<std::string> cam1_images;
+  list_dir("/data/grid_detection/data/cam0", cam0_images);
+  list_dir("/data/grid_detection/data/cam1", cam1_images);
+
+  std::sort(cam0_images.begin(), cam0_images.end());
+  std::sort(cam1_images.begin(), cam1_images.end());
+
+  for (std::string image_path : cam0_images) {
+    auto timestamp = strip_end(image_path, ".png");
+    const auto image = cv::imread("/data/grid_detection/data/cam0/" + image_path);
+    printf("processing [%s]\n", image_path.c_str());
+
+    aprilgrid_t grid;
+    aprilgrid_detect(detector, image, grid);
+    if (grid.nb_detections == 0) {
+      continue;
+    }
+
+    std::string csv_path = "/data/grid_detection/yac_cam0_grids/" + timestamp + ".csv";
+    FILE *csv = fopen(csv_path.c_str(), "w");
+    fprintf(csv, "kp_x,kp_y,pt_x,pt_y\n");
+
+    for (const int &tag_id : grid.ids) {
+      vec2s_t keypoints;
+      vec3s_t object_points;
+      aprilgrid_keypoints(grid, tag_id, keypoints);
+      aprilgrid_object_points(grid, tag_id, object_points);
+
+      for (int i = 0; i < 4; i++) {
+        fprintf(csv, "%f,%f", keypoints[i](0), keypoints[i](1));
+        fprintf(csv, ",");
+        fprintf(csv, "%f,%f\n", object_points[i](0), object_points[i](1));
+      }
+    }
+    fclose(csv);
+
+    // cv::imshow("Image", image);
+    // cv::waitKey(1);
+  }
+
+  for (std::string image_path : cam1_images) {
+    auto timestamp = strip_end(image_path, ".png");
+    const auto image = cv::imread("/data/grid_detection/data/cam1/" + image_path);
+    printf("processing [%s]\n", image_path.c_str());
+
+    aprilgrid_t grid;
+    aprilgrid_detect(detector, image, grid);
+    if (grid.nb_detections == 0) {
+      continue;
+    }
+
+    std::string csv_path = "/data/grid_detection/yac_cam1_grids/" + timestamp + ".csv";
+    FILE *csv = fopen(csv_path.c_str(), "w");
+    fprintf(csv, "kp_x,kp_y,pt_x,pt_y\n");
+
+    for (const int &tag_id : grid.ids) {
+      vec2s_t keypoints;
+      vec3s_t object_points;
+      aprilgrid_keypoints(grid, tag_id, keypoints);
+      aprilgrid_object_points(grid, tag_id, object_points);
+
+      for (int i = 0; i < 4; i++) {
+        fprintf(csv, "%f,%f", keypoints[i](0), keypoints[i](1));
+        fprintf(csv, ",");
+        fprintf(csv, "%f,%f\n", object_points[i](0), object_points[i](1));
+      }
+    }
+    fclose(csv);
+
+    // cv::imshow("Image", image);
+    // cv::waitKey(1);
+  }
+
+  return 0;
+}
+
 int test_aprilgrid_intersection() {
   aprilgrid_t grid0;
   aprilgrid_t grid1;
@@ -440,6 +520,7 @@ void test_suite() {
   MU_ADD_TEST(test_aprilgrid_print);
   MU_ADD_TEST(test_aprilgrid_detect);
   // MU_ADD_TEST(test_aprilgrid_detect2);
+  // MU_ADD_TEST(test_aprilgrid_detect3);
   MU_ADD_TEST(test_aprilgrid_intersection);
   MU_ADD_TEST(test_aprilgrid_intersection2);
   MU_ADD_TEST(test_aprilgrid_random_sample);

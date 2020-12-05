@@ -49,17 +49,17 @@ FILE(COPY tests/test_data DESTINATION ${TEST_BIN_PATH})
 FILE(COPY tests/test_data/mocap_data DESTINATION /tmp)
 ADD_DEFINITIONS(-DTEST_PATH="${TEST_BIN_PATH}")
 
-# ADD_EXECUTABLE(test_aprilgrid tests/test_aprilgrid.cpp)
-# TARGET_LINK_LIBRARIES(test_aprilgrid yac ${DEPS})
-#
-# ADD_EXECUTABLE(test_calib_mocap tests/test_calib_mocap.cpp)
-# TARGET_LINK_LIBRARIES(test_calib_mocap yac ${DEPS})
-#
-# ADD_EXECUTABLE(test_calib_mono tests/test_calib_mono.cpp)
-# TARGET_LINK_LIBRARIES(test_calib_mono yac ${DEPS})
-#
-# ADD_EXECUTABLE(test_calib_data tests/test_calib_data.cpp)
-# TARGET_LINK_LIBRARIES(test_calib_data yac ${DEPS})
+ADD_EXECUTABLE(test_aprilgrid tests/test_aprilgrid.cpp)
+TARGET_LINK_LIBRARIES(test_aprilgrid yac ${DEPS})
+
+ADD_EXECUTABLE(test_calib_mocap tests/test_calib_mocap.cpp)
+TARGET_LINK_LIBRARIES(test_calib_mocap yac ${DEPS})
+
+ADD_EXECUTABLE(test_calib_mono tests/test_calib_mono.cpp)
+TARGET_LINK_LIBRARIES(test_calib_mono yac ${DEPS})
+
+ADD_EXECUTABLE(test_calib_data tests/test_calib_data.cpp)
+TARGET_LINK_LIBRARIES(test_calib_data yac ${DEPS})
 
 ADD_EXECUTABLE(test_calib_stereo tests/test_calib_stereo.cpp)
 TARGET_LINK_LIBRARIES(test_calib_stereo yac ${DEPS})

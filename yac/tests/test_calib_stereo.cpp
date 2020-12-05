@@ -10,6 +10,8 @@ namespace yac {
 #define TARGET_CONFIG TEST_PATH "/test_data/calib/aprilgrid/target.yaml"
 #define CAM0_DATA "/data/euroc_mav/cam_april/mav0/cam0/data"
 #define CAM1_DATA "/data/euroc_mav/cam_april/mav0/cam1/data"
+// #define CAM0_DATA "/data/tum_vi/calib/dataset-calib-cam1_512_16/mav0/cam0/data"
+// #define CAM1_DATA "/data/tum_vi/calib/dataset-calib-cam1_512_16/mav0/cam1/data"
 #define CAM0_GRIDS "/tmp/aprilgrid_test/stereo/cam0"
 #define CAM1_GRIDS "/tmp/aprilgrid_test/stereo/cam1"
 
@@ -185,8 +187,8 @@ int test_calib_stereo_solve() {
   }
 
   // Test
-  const mat2_t covar = pow(0.5, 2) * I(2);
-  mat4_t T_C1C0;
+  const mat2_t covar = pow(1.0, 2) * I(2);
+  mat4_t T_C1C0 = I(4);
   int retval = calib_stereo_solve<pinhole_radtan4_t>(grids[0], grids[1],
                                                      covar, cam0, cam1,
                                                      T_C1C0, T_C0F, T_C1F);
@@ -195,6 +197,16 @@ int test_calib_stereo_solve() {
     return -1;
   }
 
+  const std::string results_fpath = "/tmp/calib_stereo.yaml";
+  printf("\x1B[92m");
+  printf("Saving optimization results to [%s]", results_fpath.c_str());
+  printf("\033[0m\n");
+  std::vector<double> cam0_errs;
+  std::vector<double> cam1_errs;
+  if (save_results(results_fpath, cam0, cam1, T_C1C0, cam0_errs, cam1_errs) != 0) {
+    LOG_ERROR("Failed to save results to [%s]!", results_fpath.c_str());
+    return -1;
+  }
 
   // Compare estimation to ground truth
   // -- cam0
@@ -257,6 +269,14 @@ int test_calib_stereo_solve() {
             -0.0253898008918, 0.0179005838253, 0.999517347078, 0.00786212447038,
             0.0, 0.0, 0.0, 1.0;
     const mat4_t T_C1C0_gnd = T_SC1.inverse() * T_SC0;
+
+    // mat4_t T_C1C0;
+    // T_C1C0 <<
+    //   0.9999974202424761, 0.002199344629743525, 0.000567795372244847, -0.11001351661213345,
+    //   -0.0022069639325529495, 0.99990252413431, 0.013786643537443936, 0.0004142099766208941,
+    //   -0.0005374184454731391, -0.01378786107515421, 0.999904798502527, -0.0006275221351493475,
+    //   0.0, 0.0, 0.0, 1.0;
+
     // clang-format on
     const vec3_t gnd_trans = tf_trans(T_C1C0_gnd);
     const vec3_t est_trans = tf_trans(T_C1C0);
@@ -344,7 +364,8 @@ int test_calib_stereo_inc_solve() {
   calib_stereo_data_t data;
   data.cam0_grids = cam0_grids;
   data.cam1_grids = cam1_grids;
-  data.covar = pow(0.5, 2) * I(2);
+  // data.covar = pow(0.5, 2) * I(2);
+  data.covar = I(2);
   data.cam0 = cam0;
   data.cam1 = cam1;
   data.T_C1C0 = I(4);
@@ -454,8 +475,8 @@ int test_calib_stereo_inc_solve() {
 void test_suite() {
   test_setup();
   // MU_ADD_TEST(test_calib_stereo_residual);
-  // MU_ADD_TEST(test_calib_stereo_solve);
-  MU_ADD_TEST(test_calib_stereo_inc_solve);
+  MU_ADD_TEST(test_calib_stereo_solve);
+  // MU_ADD_TEST(test_calib_stereo_inc_solve);
 }
 
 } // namespace yac

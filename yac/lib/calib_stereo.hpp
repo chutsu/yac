@@ -290,107 +290,6 @@ static void show_results(const aprilgrids_t &cam0_grids,
   printf("\n");
 }
 
-/**
- * Calibrate stereo camera extrinsics and relative pose between cameras. This
- * function assumes that the path to `config_file` is a yaml file of the form:
- */
-template <typename CAMERA_TYPE>
-int calib_stereo_solve(const aprilgrids_t &cam0_grids,
-                       const aprilgrids_t &cam1_grids,
-                       const mat2_t &covar,
-                       camera_params_t &cam0,
-                       camera_params_t &cam1,
-                       mat4_t &T_C1C0,
-                       mat4s_t &T_C0F,
-                       mat4s_t &T_C1F) {
-  // Pre-check
-  if (cam0_grids.size() != cam1_grids.size()) {
-    LOG_ERROR("cam0_grids.size() != cam1_grids.size()!");
-    return -1;
-  }
-  if (cam0_grids.size() != T_C0F.size()) {
-    LOG_ERROR("cam0_grids.size() != T_C0F.size()!");
-    return -1;
-  }
-  if (cam1_grids.size() != T_C1F.size()) {
-    LOG_ERROR("cam1_grids.size() != T_C1F.size()!");
-    return -1;
-  }
-
-  // -- Stereo camera extrinsics
-  T_C1C0 = I(4);
-  pose_t extrinsic_param{0, 0, T_C1C0};
-  // -- Relative pose between cam0 and fiducial target
-  std::vector<pose_t> rel_poses;
-  for (size_t i = 0; i < cam0_grids.size(); i++) {
-    rel_poses.emplace_back(i, i, T_C0F[i]);
-  }
-
-  // Setup optimization problem
-  ceres::Problem::Options prob_options;
-  prob_options.local_parameterization_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
-  prob_options.loss_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
-  ceres::Problem problem{prob_options};
-  // ceres::LossFunction *loss = new ceres::CauchyLoss(1);
-  ceres::LossFunction *loss = nullptr;
-  PoseLocalParameterization pose_parameterization;
-
-  // Process all aprilgrid data
-  std::vector<ceres::ResidualBlockId> res_ids;
-  std::vector<calib_stereo_residual_t<CAMERA_TYPE> *> cost_fns;
-  for (size_t i = 0; i < cam0_grids.size(); i++) {
-    int retval = process_grid<CAMERA_TYPE>(cam0_grids[i],
-                                           cam1_grids[i],
-                                           covar,
-                                           rel_poses[i],
-                                           extrinsic_param,
-                                           cam0,
-                                           cam1,
-                                           res_ids,
-                                           cost_fns,
-                                           problem,
-                                           pose_parameterization,
-                                           loss);
-    if (retval != 0) {
-      LOG_ERROR("Failed to add AprilGrid measurements to problem!");
-      return -1;
-    }
-  }
-
-  // Set solver options
-  ceres::Solver::Options options;
-  options.minimizer_progress_to_stdout = true;
-  options.max_num_iterations = 100;
-  options.check_gradients = true;
-
-  // Solve
-  ceres::Solver::Summary summary;
-  ceres::Solve(options, &problem, &summary);
-  std::cout << summary.FullReport() << std::endl;
-  // std::cout << summary.BriefReport() << std::endl;
-  std::cout << std::endl;
-
-  // Finish up
-  T_C1C0 = extrinsic_param.tf();
-  T_C0F.clear();
-  T_C1F.clear();
-  for (auto pose : rel_poses) {
-    T_C0F.emplace_back(pose.tf());
-    T_C1F.emplace_back(T_C1C0 * pose.tf());
-  }
-  if (loss) {
-    delete loss;
-  }
-
-  // Show results
-  show_results<CAMERA_TYPE>(cam0_grids, cam1_grids,
-                            cam0, cam1,
-                            T_C0F, T_C1F,
-                            T_C1C0);
-
-  return 0;
-}
-
 /* Initialize Stereo-Camera Intrinsics */
 template <typename CAMERA_TYPE>
 static void init_stereo_intrinsics(const aprilgrids_t &grids0,
@@ -437,6 +336,107 @@ static void init_stereo_extrinsics(const mat4s_t &T_C0F,
   const vec3_t rpy_C1C0{median(roll), median(pitch), median(yaw)};
   const mat3_t C_C1C0 = euler321(rpy_C1C0);
   T_C1C0 = tf(C_C1C0, r_C1C0);
+}
+
+/**
+ * Calibrate stereo camera extrinsics and relative pose between cameras. This
+ * function assumes that the path to `config_file` is a yaml file of the form:
+ */
+template <typename CAMERA_TYPE>
+int calib_stereo_solve(const aprilgrids_t &cam0_grids,
+                       const aprilgrids_t &cam1_grids,
+                       const mat2_t &covar,
+                       camera_params_t &cam0,
+                       camera_params_t &cam1,
+                       mat4_t &T_C1C0,
+                       mat4s_t &T_C0F,
+                       mat4s_t &T_C1F) {
+  // Pre-check
+  if (cam0_grids.size() != cam1_grids.size()) {
+    LOG_ERROR("cam0_grids.size() != cam1_grids.size()!");
+    return -1;
+  }
+  if (cam0_grids.size() != T_C0F.size()) {
+    LOG_ERROR("cam0_grids.size() != T_C0F.size()!");
+    return -1;
+  }
+  if (cam1_grids.size() != T_C1F.size()) {
+    LOG_ERROR("cam1_grids.size() != T_C1F.size()!");
+    return -1;
+  }
+
+  // -- Stereo camera extrinsics
+  T_C1C0 = I(4);
+  pose_t extrinsics{0, 0, T_C1C0};
+  // -- Relative pose between cam0 and fiducial target
+  std::vector<pose_t> rel_poses;
+  for (size_t i = 0; i < cam0_grids.size(); i++) {
+    rel_poses.emplace_back(i, i, T_C0F[i]);
+  }
+
+  // Setup optimization problem
+  ceres::Problem::Options prob_options;
+  prob_options.local_parameterization_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
+  prob_options.loss_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
+  ceres::Problem problem{prob_options};
+  ceres::LossFunction *loss = new ceres::CauchyLoss(1);
+  // ceres::LossFunction *loss = nullptr;
+  PoseLocalParameterization pose_parameterization;
+
+  // Process all aprilgrid data
+  std::vector<ceres::ResidualBlockId> res_ids;
+  std::vector<calib_stereo_residual_t<CAMERA_TYPE> *> cost_fns;
+  for (size_t i = 0; i < cam0_grids.size(); i++) {
+    int retval = process_grid<CAMERA_TYPE>(cam0_grids[i],
+                                           cam1_grids[i],
+                                           covar,
+                                           rel_poses[i],
+                                           extrinsics,
+                                           cam0,
+                                           cam1,
+                                           res_ids,
+                                           cost_fns,
+                                           problem,
+                                           pose_parameterization,
+                                           loss);
+    if (retval != 0) {
+      LOG_ERROR("Failed to add AprilGrid measurements to problem!");
+      return -1;
+    }
+  }
+
+  // Set solver options
+  ceres::Solver::Options options;
+  options.minimizer_progress_to_stdout = true;
+  options.max_num_iterations = 100;
+  // options.check_gradients = true;
+
+  // Solve
+  ceres::Solver::Summary summary;
+  ceres::Solve(options, &problem, &summary);
+  std::cout << summary.FullReport() << std::endl;
+  // std::cout << summary.BriefReport() << std::endl;
+  std::cout << std::endl;
+
+  // Finish up
+  T_C1C0 = extrinsics.tf();
+  T_C0F.clear();
+  T_C1F.clear();
+  for (auto pose : rel_poses) {
+    T_C0F.emplace_back(pose.tf());
+    T_C1F.emplace_back(T_C1C0 * pose.tf());
+  }
+  if (loss) {
+    delete loss;
+  }
+
+  // Show results
+  show_results<CAMERA_TYPE>(cam0_grids, cam1_grids,
+                            cam0, cam1,
+                            T_C0F, T_C1F,
+                            T_C1C0);
+
+  return 0;
 }
 
 /* Estimate relative poses */
@@ -624,6 +624,8 @@ int filter_views(ceres::Problem &problem,
         cost_fns_iter++;
       }
     }
+
+    break;
   }
 
   // printf("Removed %d outliers!\n", nb_outliers);
@@ -750,7 +752,7 @@ int calib_stereo_inc_solve(calib_stereo_data_t &data) {
     // std::cout << std::endl;
 
     // Filter views
-    nb_outliers = filter_views(problem, views);
+    // nb_outliers = filter_views(problem, views);
 
     // Evaluate current view
     matx_t covar;
@@ -800,7 +802,7 @@ int calib_stereo_inc_solve(calib_stereo_data_t &data) {
   std::cout << std::endl;
 
   // Finish up
-  // T_C1C0 = extrinsic->tf();
+  T_C1C0 = extrinsic->tf();
 
   print_vector("cam0.proj_params", cam0.proj_params());
   print_vector("cam0.dist_params", cam0.dist_params());

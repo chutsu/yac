@@ -206,7 +206,7 @@ void test_suite() {
 
   // MU_ADD_TEST(test_calib_mono_residual);
   MU_ADD_TEST(test_calib_mono_solve);
-  MU_ADD_TEST(test_calib_mono_inc_solve);
+  // MU_ADD_TEST(test_calib_mono_inc_solve);
 }
 
 } // namespace yac

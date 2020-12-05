@@ -524,7 +524,7 @@ void aprilgrid_filter_tags(const cv::Mat &image,
                            std::vector<apriltag_t> &tags,
                            const bool verbose) {
   const real_t min_border_dist = 4.0;
-  const real_t max_subpix_disp = 1.0;
+  const real_t max_subpix_disp = sqrt(1.5);
 
   const size_t nb_tags_before = tags.size();
   int removed = 0;

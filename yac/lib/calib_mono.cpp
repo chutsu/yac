@@ -129,7 +129,7 @@ int calib_mono_solve(const std::string &config_file) {
   mat4s_t T_CF;
   for (auto &grid : grids) {
     mat4_t rel_pose;
-    aprilgrid_calc_relative_pose(grid, proj_params, dist_params, rel_pose);
+    grid.estimate(proj_params, dist_params, rel_pose);
     T_CF.push_back(rel_pose);
   }
 

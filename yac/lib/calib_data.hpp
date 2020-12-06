@@ -320,9 +320,9 @@ int load_stereo_calib_data(const std::string &cam0_data_dir,
  *
  * @returns 0 or -1 for success or failure
  */
-int load_multicam_calib_data(const int nb_cams,
-                             const std::vector<std::string> &data_dirs,
-                             std::map<int, aprilgrids_t> &calib_data);
+// int load_multicam_calib_data(const int nb_cams,
+//                              const std::vector<std::string> &data_dirs,
+//                              std::map<int, aprilgrids_t> &calib_data);
 
 /**
  * Draw measured and projected pixel points.

@@ -29,14 +29,14 @@ struct timeline_event_t {
   std::string image_path;
 
   // Aprilgrid data
-  aprilgrid_t grid;
+  aprilgrid_t grid{0, -1, -1, -1, -1};
 
   // MOCAP data
   std::string object_name;
   vec3_t r_WM = zeros(3, 1);
   quat_t q_WM = quat_t{1.0, 0.0, 0.0, 0.0};
 
-  timeline_event_t() {}
+  // timeline_event_t() {}
 
   // IMU data constructor
   timeline_event_t(const timestamp_t ts_,

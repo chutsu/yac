@@ -35,14 +35,25 @@ set -e
 
 make
 # make debug
-make tests
-# source ~/catkin_ws/devel/setup.bash
+# make tests
+source ~/catkin_ws/devel/setup.bash
 # rm -rf /tmp/aprilgrid_test
 
 # python3 scripts/analyze_detections.py
 
 # --prefix 'gdb -ex run'
-# rosrun yac test_aprilgrid
+# rosrun yac test_aprilgrid --target test_aprilgrid_constructor
+# rosrun yac test_aprilgrid --target test_aprilgrid_grid_index
+# rosrun yac test_aprilgrid --target test_aprilgrid_object_point
+# rosrun yac test_aprilgrid --target test_aprilgrid_keypoint
+# rosrun yac test_aprilgrid --target test_aprilgrid_keypoints
+# rosrun yac test_aprilgrid --target test_aprilgrid_add
+# rosrun yac test_aprilgrid --target test_aprilgrid_remove
+# rosrun yac test_aprilgrid --target test_aprilgrid_estimate
+# rosrun yac test_aprilgrid --target test_aprilgrid_save_and_load
+# rosrun yac test_aprilgrid --target test_aprilgrid_print
+# rosrun yac test_aprilgrid --target test_aprilgrid_detect
+# rosrun yac test_aprilgrid --target test_aprilgrid_detect2
 # rosrun yac test_calib_data
 # rosrun yac test_calib_mocap
 # rosrun yac test_calib_mono

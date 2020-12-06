@@ -33,7 +33,7 @@ void test_setup() {
 //   int retval = load_camera_calib_data(CAM0_GRIDS, aprilgrids);
 //   MU_CHECK(retval == 0);
 //   MU_CHECK(aprilgrids.size() > 0);
-//   MU_CHECK(aprilgrids[0].ids.size() > 0);
+//   MU_CHECK(aprilgrids[0].nb_detections > 0);
 //
 //   // Setup camera intrinsics and distortion
 //   const id_t id = 0;
@@ -106,13 +106,13 @@ int test_calib_mono_solve() {
   std::vector<aprilgrid_t> grids;
   MU_CHECK(load_camera_calib_data(CAM0_GRIDS, grids) == 0);
   MU_CHECK(grids.size() > 0);
-  MU_CHECK(grids[0].ids.size() > 0);
+  MU_CHECK(grids[0].nb_detections > 0);
 
   // Estimate initial guess for grid poses
   mat4s_t T_CF;
   for (auto &grid : grids) {
     mat4_t rel_pose;
-    aprilgrid_calc_relative_pose(grid, proj_params, dist_params, rel_pose);
+    grid.estimate(proj_params, dist_params, rel_pose);
     T_CF.push_back(rel_pose);
   }
 
@@ -167,7 +167,7 @@ int test_calib_mono_inc_solve() {
   std::vector<aprilgrid_t> grids;
   MU_CHECK(load_camera_calib_data(CAM0_GRIDS, grids) == 0);
   MU_CHECK(grids.size() > 0);
-  MU_CHECK(grids[0].ids.size() > 0);
+  MU_CHECK(grids[0].nb_detections > 0);
 
   // Test
   calib_mono_data_t data;

@@ -139,7 +139,7 @@ using calib_mono_views_t = std::deque<calib_mono_view_t<CAMERA_TYPE>>;
 
 /* Process AprilGrid - Adding it to the calibration problem */
 template <typename T>
-static void process_grid(const aprilgrid_t &aprilgrid,
+static void process_grid(const aprilgrid_t &grid,
                          const mat2_t &covar,
                          camera_params_t &cam_params,
                          pose_t &pose,
@@ -148,32 +148,26 @@ static void process_grid(const aprilgrid_t &aprilgrid,
                          std::vector<calib_mono_residual_t<T> *> &cost_fns) {
   const int *cam_res = cam_params.resolution;
 
-  for (const int &tag_id : aprilgrid.ids) {
-    // Get keypoints
-    vec2s_t keypoints;
-    if (aprilgrid_keypoints(aprilgrid, tag_id, keypoints) != 0) {
-      FATAL("Failed to get AprilGrid keypoints!");
-    }
+  std::vector<int> tag_ids;
+  std::vector<int> corner_indicies;
+  vec2s_t keypoints;
+  vec3s_t object_points;
+  grid.get_measurements(tag_ids, corner_indicies, keypoints, object_points);
 
-    // Get object points
-    vec3s_t object_points;
-    if (aprilgrid_object_points(aprilgrid, tag_id, object_points) != 0) {
-      FATAL("Failed to calculate AprilGrid object points!");
-    }
+  for (size_t i = 0; i < tag_ids.size(); i++) {
+    const int tag_id = tag_ids[i];
+    const int corner_idx = corner_indicies[i];
+    const vec2_t z = keypoints[i];
+    const vec3_t r_FFi = object_points[i];
 
-    // Form residual block
-    for (int corner_id = 0; corner_id < 4; corner_id++) {
-      const vec2_t kp = keypoints[corner_id];
-      const vec3_t obj_pt = object_points[corner_id];
-      auto cost_fn = new calib_mono_residual_t<T>{cam_res, tag_id, corner_id,
-                                                  obj_pt, kp, covar};
-      auto res_id = problem.AddResidualBlock(cost_fn,
-                                             NULL,
-                                             pose.param.data(),
-                                             cam_params.param.data());
-      res_ids.push_back(res_id);
-      cost_fns.push_back(cost_fn);
-    }
+    auto cost_fn = new calib_mono_residual_t<T>{cam_res, tag_id, corner_idx,
+                                                r_FFi, z, covar};
+    auto res_id = problem.AddResidualBlock(cost_fn,
+                                           NULL,
+                                           pose.param.data(),
+                                           cam_params.param.data());
+    res_ids.push_back(res_id);
+    cost_fns.push_back(cost_fn);
   }
 }
 
@@ -184,38 +178,30 @@ void reproj_errors(const aprilgrid_t &grid,
                    const mat4_t &T_CF,
                    std::vector<double> &residuals,
                    std::vector<std::pair<int, int>> *tags_meta=nullptr) {
-  // Iterate over all tags in AprilGrid
-  for (const auto &tag_id : grid.ids) {
-    // Get keypoints
-    vec2s_t keypoints;
-    if (aprilgrid_keypoints(grid, tag_id, keypoints) != 0) {
-      FATAL("Failed to get AprilGrid keypoints!");
-    }
+  std::vector<int> tag_ids;
+  std::vector<int> corner_indicies;
+  vec2s_t keypoints;
+  vec3s_t object_points;
+  grid.get_measurements(tag_ids, corner_indicies, keypoints, object_points);
 
-    // Get object points
-    vec3s_t object_points;
-    if (aprilgrid_object_points(grid, tag_id, object_points) != 0) {
-      FATAL("Failed to calculate AprilGrid object points!");
-    }
+  for (size_t i = 0; i < tag_ids.size(); i++) {
+    const int tag_id = tag_ids[i];
+    const int corner_idx = corner_indicies[i];
+    const vec2_t z = keypoints[i];
+    const vec3_t r_FFi = object_points[i];
 
-    // Form residual and call the functor for four corners of the tag
-    for (size_t j = 0; j < 4; j++) {
-      const auto z = keypoints[j];
-      const auto r_FFi = object_points[j];
+    vec_t<8> params;
+    params << cam_params.proj_params(), cam_params.dist_params();
+    CAMERA_TYPE camera(cam_params.resolution, params);
 
-      vec_t<8> params;
-      params << cam_params.proj_params(), cam_params.dist_params();
-      CAMERA_TYPE camera(cam_params.resolution, params);
+    vec2_t z_hat;
+    const vec3_t r_CFi = tf_point(T_CF, r_FFi);
+    camera.project(r_CFi, z_hat);
+    const vec2_t r = z - z_hat;
 
-      vec2_t z_hat;
-      const vec3_t r_CFi = tf_point(T_CF, r_FFi);
-      camera.project(r_CFi, z_hat);
-      const vec2_t r = z - z_hat;
-
-      residuals.push_back(r.norm());
-      if (tags_meta) {
-        tags_meta->push_back({tag_id, j});
-      }
+    residuals.push_back(r.norm());
+    if (tags_meta) {
+      tags_meta->push_back({tag_id, corner_idx});
     }
   }
 }
@@ -379,7 +365,7 @@ int filter_views(ceres::Problem &problem, calib_mono_views_t<T> &views) {
         if (cost_fn->tag_id_ == tag_id) {
           // Remove residual from ceres::Problem and tag id from AprilGrid
           problem.RemoveResidualBlock(res_id);
-          aprilgrid_remove(grid, tag_id);
+          grid.remove(tag_id);
 
           // Erase res_id from view
           {
@@ -457,10 +443,7 @@ int calib_mono_inc_solve(calib_mono_data_t &data) {
 
     // Estimate T_CF at ts
     mat4_t rel_pose;
-    aprilgrid_calc_relative_pose(grid,
-                                 cam_params.proj_params(),
-                                 cam_params.dist_params(),
-                                 rel_pose);
+    grid.estimate(cam_params.proj_params(), cam_params.dist_params(), rel_pose);
 
     // Create new relative pose T_CF at ts
     auto pose = new pose_t{param_id++, ts, rel_pose};

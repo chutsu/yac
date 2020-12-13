@@ -345,29 +345,13 @@ int test_calib_stereo_inc_solve() {
                        "pinhole", "radtan4",
                        cam1_proj_params, cam1_dist_params};
 
-  // Load stereo calibration data
-  // const std::vector<std::string> data_dirs = {CAM0_GRIDS, CAM1_GRIDS};
-  // std::map<int, aprilgrids_t> grids;
-  // if (load_multicam_calib_data(2, data_dirs, grids) != 0) {
-  //   LOG_ERROR("Failed to local calibration data!");
-  //   return -1;
-  // }
-
+  // Load data
   aprilgrids_t cam0_grids;
   aprilgrids_t cam1_grids;
   load_stereo_calib_data(CAM0_GRIDS, CAM1_GRIDS, cam0_grids, cam1_grids);
 
   // Test
-  calib_stereo_data_t data;
-  data.cam0_grids = cam0_grids;
-  data.cam1_grids = cam1_grids;
-  data.covar = I(2);
-  data.cam0 = cam0;
-  data.cam1 = cam1;
-  data.T_C1C0 = I(4);
-  // data.T_C0F;
-  // data.T_C1F;
-
+  calib_stereo_data_t data{I(2), cam0_grids, cam1_grids, cam0, cam1};
   if (calib_stereo_inc_solve<pinhole_radtan4_t>(data) != 0) {
     LOG_ERROR("Failed to calibrate stereo cameras!");
     return -1;
@@ -472,7 +456,7 @@ void test_suite() {
   test_setup();
   // MU_ADD_TEST(test_calib_stereo_residual);
   MU_ADD_TEST(test_calib_stereo_solve);
-  MU_ADD_TEST(test_calib_stereo_inc_solve);
+  // MU_ADD_TEST(test_calib_stereo_inc_solve);
 }
 
 } // namespace yac

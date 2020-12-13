@@ -65,7 +65,12 @@ source ~/catkin_ws/devel/setup.bash
 
 # rosrun yac test_calib_stereo --target test_calib_stereo_solve
 # rosrun --prefix 'gdb -ex run -args' yac test_calib_stereo --target test_calib_stereo_inc_solve
+
+# make
 # rosrun yac test_calib_stereo --target test_calib_stereo_inc_solve
+
+# gnuplot -p scripts/plots/residuals.gpi
+# gnuplot -p scripts/plots/reprojection_errors.gpi
 
 # make
 # RUNS=(1 2 3 4 5 6 7 8 9 10)
@@ -73,7 +78,7 @@ source ~/catkin_ws/devel/setup.bash
 #   rosrun yac test_calib_stereo --target test_calib_stereo_inc_solve >> output.txt
 #   cp /tmp/calib_stereo.yaml ./calib_stereo-${RUN}.yaml
 # done
-python3 scripts/analyze_calibs.py
+# python3 scripts/analyze_calibs.py
 
 
 # rosrun yac test_calib_vi

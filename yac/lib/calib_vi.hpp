@@ -96,38 +96,41 @@ struct reproj_error_t
     if (jacobians != NULL) {
       // Jacobians w.r.t. T_WF
       if (jacobians[0] != NULL) {
-        J_min[0].block(0, 0, 2, 3) = weighted_Jh * -C_CW * -skew(C_WF * r_FFi_);
-        J_min[0].block(0, 3, 2, 3) = weighted_Jh * -C_CW * I(3);
+        J_min[0].block(0, 0, 2, 3) = weighted_Jh * -C_CW * I(3);
+        J_min[0].block(0, 3, 2, 3) = weighted_Jh * -C_CW * -skew(C_WF * r_FFi_);
         if (valid == false) {
           J_min[0].setZero();
         }
 
-        // Convert from minimial jacobians to local jacobian
-        lift_pose_jacobian(J_min[0], q_WF, jacobians[0]);
+        Eigen::Map<mat_t<2, 7, row_major_t>> J0(jacobians[0]);
+        J0.setZero();
+        J0.block(0, 0, 2, 6) = J_min[0];
       }
 
       // Jacobians w.r.t T_WS
       if (jacobians[1] != NULL) {
-        J_min[1].block(0, 0, 2, 3) = weighted_Jh * -C_CW * -skew(C_WS * r_CFi);
-        J_min[1].block(0, 3, 2, 3) = weighted_Jh * -C_CW * I(3);
+        J_min[1].block(0, 0, 2, 3) = weighted_Jh * -C_CW * I(3);
+        J_min[1].block(0, 3, 2, 3) = weighted_Jh * -C_CW * -skew(C_WS * r_CFi);
         if (valid == false) {
           J_min[1].setZero();
         }
 
-        // Convert from minimial jacobians to local jacobian
-        lift_pose_jacobian(J_min[1], q_WS, jacobians[1]);
+        Eigen::Map<mat_t<2, 7, row_major_t>> J1(jacobians[1]);
+        J1.setZero();
+        J1.block(0, 0, 2, 6) = J_min[1];
       }
 
       // Jacobians w.r.t T_SC
       if (jacobians[2] != NULL) {
-        J_min[2].block(0, 0, 2, 3) = weighted_Jh * C_CS * skew(C_SC * r_CFi);
-        J_min[2].block(0, 3, 2, 3) = weighted_Jh * -C_CS * I(3);
+        J_min[2].block(0, 0, 2, 3) = weighted_Jh * -C_CS * I(3);
+        J_min[2].block(0, 3, 2, 3) = weighted_Jh * C_CS * skew(C_SC * r_CFi);
         if (valid == false) {
           J_min[2].setZero();
         }
 
-        // Convert from minimial jacobians to local jacobian
-        lift_pose_jacobian(J_min[2], q_SC, jacobians[2]);
+        Eigen::Map<mat_t<2, 7, row_major_t>> J2(jacobians[2]);
+        J2.setZero();
+        J2.block(0, 0, 2, 6) = J_min[2];
       }
 
       // Jacobians w.r.t. camera parameters

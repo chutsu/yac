@@ -108,15 +108,8 @@ int test_calib_mono_solve() {
   MU_CHECK(grids.size() > 0);
   MU_CHECK(grids[0].nb_detections > 0);
 
-  // Estimate initial guess for grid poses
-  mat4s_t T_CF;
-  for (auto &grid : grids) {
-    mat4_t rel_pose;
-    grid.estimate(proj_params, dist_params, rel_pose);
-    T_CF.push_back(rel_pose);
-  }
-
   // Test
+  mat4s_t T_CF;
   const mat2_t covar = I(2) * pow(0.5, 2);
   int retval = calib_mono_solve<pinhole_radtan4_t>(grids, covar, cam, T_CF);
   MU_CHECK(retval == 0);

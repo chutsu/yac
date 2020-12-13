@@ -1609,6 +1609,12 @@ vec3_t mean(const vec3s_t &x);
 /** Mean */
 real_t mean(const std::vector<real_t> &x);
 
+/** Variance */
+real_t var(const std::vector<real_t> &x);
+
+/** Standard Deviation */
+real_t stddev(const std::vector<real_t> &x);
+
 /** Root Mean Squared Error.  */
 real_t rmse(const std::vector<real_t> &x);
 

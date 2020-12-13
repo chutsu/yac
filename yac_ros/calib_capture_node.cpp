@@ -38,10 +38,9 @@ static void image_cb(const sensor_msgs::ImageConstPtr &msg) {
     auto vis_image = gray2rgb(image);
 
     if (show_detection) {
-      aprilgrid_t grid;
-      aprilgrid_detect(detector, image, grid);
+      auto grid = detector.detect(ts.toNSec(), image);
       cv::Scalar color(0, 0, 255);
-      for (const auto &kp: grid.keypoints) {
+      for (const auto &kp: grid.keypoints()) {
         cv::circle(vis_image, cv::Point(kp(0), kp(1)), 1.0, color, 2, 8);
       }
     }

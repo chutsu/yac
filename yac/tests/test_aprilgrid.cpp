@@ -275,6 +275,92 @@ int test_aprilgrid_estimate() {
   return 0;
 }
 
+int test_aprilgrid_intersect() {
+  auto detector = aprilgrid_detector_t(6, 6, 0.088, 0.3);
+  const cv::Mat image = cv::imread(TEST_IMAGE);
+  const vec4_t K{458.654, 457.296, 367.215, 248.375};
+  const vec4_t D{-0.28340811, 0.07395907, 0.00019359, 1.76187114e-05};
+  mat4_t T_C0F;
+  mat4_t T_C1F;
+  auto grid0 = detector.detect(0, image);
+  auto grid1 = detector.detect(0, image);
+
+  // Remove tag id 2 from grid1
+  grid1.remove(2);
+  MU_CHECK(grid0.nb_detections == 36 * 4);
+  MU_CHECK(grid1.nb_detections == 35 * 4);
+  MU_CHECK(grid0.tag_ids().size() == 36);
+  MU_CHECK(grid1.tag_ids().size() == 35);
+
+  // Test intersect
+  grid0.intersect(grid1);
+  MU_CHECK(grid0.nb_detections == 35 * 4);
+  MU_CHECK(grid1.nb_detections == 35 * 4);
+  MU_CHECK(grid0.tag_ids().size() == 35);
+  MU_CHECK(grid1.tag_ids().size() == 35);
+
+  return 0;
+}
+
+int test_aprilgrid_intersect2() {
+  auto detector = aprilgrid_detector_t(6, 6, 0.088, 0.3);
+  const cv::Mat image = cv::imread(TEST_IMAGE);
+  const vec4_t K{458.654, 457.296, 367.215, 248.375};
+  const vec4_t D{-0.28340811, 0.07395907, 0.00019359, 1.76187114e-05};
+  auto grid0 = detector.detect(0, image);
+  auto grid1 = detector.detect(0, image);
+  auto grid2 = detector.detect(0, image);
+
+  // Randomly remove between 2 to 10 tags from grid0, grid1 and grid2
+  for (int i = 0; i < randi(2, 10); i++) {
+    grid0.remove(randi(0, 35));
+  }
+  for (int i = 0; i < randi(2, 10); i++) {
+    grid1.remove(randi(0, 35));
+  }
+  for (int i = 0; i < randi(2, 10); i++) {
+    grid2.remove(randi(0, 35));
+  }
+  MU_CHECK(grid0.nb_detections < (36 * 4));
+  MU_CHECK(grid1.nb_detections < (36 * 4));
+  MU_CHECK(grid2.nb_detections < (36 * 4));
+
+  // Test intersection
+  std::vector<aprilgrid_t *> data = {&grid0, &grid1, &grid2};
+  aprilgrid_t::intersect(data);
+  const int nb_detections = grid0.nb_detections;
+  MU_CHECK(grid0.nb_detections == nb_detections);
+  MU_CHECK(grid1.nb_detections == nb_detections);
+  MU_CHECK(grid2.nb_detections == nb_detections);
+
+  return 0;
+}
+
+int test_aprilgrid_sample() {
+  auto detector = aprilgrid_detector_t(6, 6, 0.088, 0.3);
+  const cv::Mat image = cv::imread(TEST_IMAGE);
+  const vec4_t K{458.654, 457.296, 367.215, 248.375};
+  const vec4_t D{-0.28340811, 0.07395907, 0.00019359, 1.76187114e-05};
+  mat4_t T_CF;
+  auto grid = detector.detect(0, image);
+
+  const size_t n = 144;
+  std::vector<int> tag_ids;
+	std::vector<int> corner_indicies;
+  vec2s_t keypoints;
+  vec3s_t object_points;
+  grid.sample(n, tag_ids, corner_indicies, keypoints, object_points);
+
+  MU_CHECK(tag_ids.size() == n);
+  for (size_t i = 0; i < 36; i++) {
+    MU_CHECK(std::count(tag_ids.begin(), tag_ids.end(), tag_ids[i]) == 4);
+  }
+  MU_CHECK(keypoints.size() == n);
+  MU_CHECK(object_points.size() == n);
+
+  return 0;
+}
+
 int test_aprilgrid_save_and_load() {
   aprilgrid_t grid(0, 6, 6, 0.088, 0.3);
 
@@ -377,187 +463,88 @@ int test_aprilgrid_detect2() {
   return 0;
 }
 
-// int test_aprilgrid_detect3() {
-//   const auto detector = aprilgrid_detector_t(6, 6, 0.088, 0.3);
-//
-//   std::vector<std::string> cam0_images;
-//   std::vector<std::string> cam1_images;
-//   list_dir("/data/grid_detection/data/cam0", cam0_images);
-//   list_dir("/data/grid_detection/data/cam1", cam1_images);
-//
-//   std::sort(cam0_images.begin(), cam0_images.end());
-//   std::sort(cam1_images.begin(), cam1_images.end());
-//
-//   for (std::string image_path : cam0_images) {
-//     auto timestamp = strip_end(image_path, ".png");
-//     const auto image = cv::imread("/data/grid_detection/data/cam0/" + image_path);
-//     printf("processing [%s]\n", image_path.c_str());
-//
-//     aprilgrid_t grid;
-//     aprilgrid_detect(detector, image, grid);
-//     if (grid.nb_detections == 0) {
-//       continue;
-//     }
-//
-//     std::string csv_path = "/data/grid_detection/yac_cam0_grids/" + timestamp + ".csv";
-//     FILE *csv = fopen(csv_path.c_str(), "w");
-//     fprintf(csv, "kp_x,kp_y,pt_x,pt_y\n");
-//
-//     for (const int &tag_id : grid.ids) {
-//       vec2s_t keypoints;
-//       vec3s_t object_points;
-//       aprilgrid_keypoints(grid, tag_id, keypoints);
-//       aprilgrid_object_points(grid, tag_id, object_points);
-//
-//       for (int i = 0; i < 4; i++) {
-//         fprintf(csv, "%f,%f", keypoints[i](0), keypoints[i](1));
-//         fprintf(csv, ",");
-//         fprintf(csv, "%f,%f\n", object_points[i](0), object_points[i](1));
-//       }
-//     }
-//     fclose(csv);
-//
-//     // cv::imshow("Image", image);
-//     // cv::waitKey(1);
-//   }
-//
-//   for (std::string image_path : cam1_images) {
-//     auto timestamp = strip_end(image_path, ".png");
-//     const auto image = cv::imread("/data/grid_detection/data/cam1/" + image_path);
-//     printf("processing [%s]\n", image_path.c_str());
-//
-//     aprilgrid_t grid;
-//     aprilgrid_detect(detector, image, grid);
-//     if (grid.nb_detections == 0) {
-//       continue;
-//     }
-//
-//     std::string csv_path = "/data/grid_detection/yac_cam1_grids/" + timestamp + ".csv";
-//     FILE *csv = fopen(csv_path.c_str(), "w");
-//     fprintf(csv, "kp_x,kp_y,pt_x,pt_y\n");
-//
-//     for (const int &tag_id : grid.ids) {
-//       vec2s_t keypoints;
-//       vec3s_t object_points;
-//       aprilgrid_keypoints(grid, tag_id, keypoints);
-//       aprilgrid_object_points(grid, tag_id, object_points);
-//
-//       for (int i = 0; i < 4; i++) {
-//         fprintf(csv, "%f,%f", keypoints[i](0), keypoints[i](1));
-//         fprintf(csv, ",");
-//         fprintf(csv, "%f,%f\n", object_points[i](0), object_points[i](1));
-//       }
-//     }
-//     fclose(csv);
-//
-//     // cv::imshow("Image", image);
-//     // cv::waitKey(1);
-//   }
-//
-//   return 0;
-// }
-//
-// int test_aprilgrid_intersection() {
-//   const auto detector = aprilgrid_detector_t(6, 6, 0.088, 0.3);
-//   const cv::Mat image = cv::imread(TEST_IMAGE);
-//   const vec4_t K{458.654, 457.296, 367.215, 248.375};
-//   const vec4_t D{-0.28340811, 0.07395907, 0.00019359, 1.76187114e-05};
-//   aprilgrid_t grid0;
-//   aprilgrid_t grid1;
-//   mat4_t T_C0F;
-//   mat4_t T_C1F;
-//   aprilgrid_detect(detector, image, K, D, grid0, T_C0F);
-//   aprilgrid_detect(detector, image, K, D, grid1, T_C1F);
-//
-//   // Remove tag id 2 from grid1
-//   aprilgrid_remove(grid1, 2);
-//   // std::cout << grid0 << std::endl;
-//   // std::cout << grid1 << std::endl;
-//   MU_CHECK(grid0.nb_detections == 36);
-//   MU_CHECK(grid1.nb_detections == 35);
-//   MU_CHECK(grid0.ids.size() == 36);
-//   MU_CHECK(grid1.ids.size() == 35);
-//
-//   // Test intersection
-//   aprilgrid_intersection(grid0, grid1);
-//   MU_CHECK(grid0.nb_detections == 35);
-//   MU_CHECK(grid1.nb_detections == 35);
-//   MU_CHECK(grid0.ids.size() == 35);
-//   MU_CHECK(grid1.ids.size() == 35);
-//
-//   return 0;
-// }
-//
-// int test_aprilgrid_intersection2() {
-//   const auto detector = aprilgrid_detector_t(6, 6, 0.088, 0.3);
-//   const cv::Mat image = cv::imread(TEST_IMAGE);
-//   const vec4_t K{458.654, 457.296, 367.215, 248.375};
-//   const vec4_t D{-0.28340811, 0.07395907, 0.00019359, 1.76187114e-05};
-//   aprilgrid_t grid0;
-//   aprilgrid_t grid1;
-//   aprilgrid_t grid2;
-//   mat4_t T_C0F;
-//   mat4_t T_C1F;
-//   mat4_t T_C2F;
-//   aprilgrid_detect(detector, image, K, D, grid0, T_C0F);
-//   aprilgrid_detect(detector, image, K, D, grid1, T_C1F);
-//   aprilgrid_detect(detector, image, K, D, grid2, T_C2F);
-//
-//   // Randomly remove between 2 to 10 tags from grid0, grid1 and grid2
-//   for (int i = 0; i < randi(2, 10); i++) {
-//     aprilgrid_remove(grid0, randi(0, 35));
-//   }
-//   for (int i = 0; i < randi(2, 10); i++) {
-//     aprilgrid_remove(grid1, randi(0, 35));
-//   }
-//   for (int i = 0; i < randi(2, 10); i++) {
-//     aprilgrid_remove(grid2, randi(0, 35));
-//   }
-//   MU_CHECK(grid0.nb_detections < 36);
-//   MU_CHECK(grid1.nb_detections < 36);
-//   MU_CHECK(grid2.nb_detections < 36);
-//
-//   // Test intersection
-//   std::vector<aprilgrid_t *> data = {&grid0, &grid1, &grid2};
-//   aprilgrid_intersection(data);
-//   const int nb_detections = grid0.nb_detections;
-//   MU_CHECK(grid0.nb_detections == nb_detections);
-//   MU_CHECK(grid1.nb_detections == nb_detections);
-//   MU_CHECK(grid2.nb_detections == nb_detections);
-//
-//   return 0;
-// }
-//
-// int test_aprilgrid_random_sample() {
-//   const auto detector = aprilgrid_detector_t(6, 6, 0.088, 0.3);
-//   const cv::Mat image = cv::imread(TEST_IMAGE);
-//   const vec4_t K{458.654, 457.296, 367.215, 248.375};
-//   const vec4_t D{-0.28340811, 0.07395907, 0.00019359, 1.76187114e-05};
-//   aprilgrid_t grid;
-//   mat4_t T_CF;
-//   aprilgrid_detect(detector, image, K, D, grid, T_CF);
-//
-//   const size_t n = 5;
-//   std::vector<int> tag_ids;
-//   std::vector<vec2s_t> keypoints;
-//   std::vector<vec3s_t> object_points;
-//   aprilgrid_random_sample(grid, n, tag_ids, keypoints, object_points);
-//
-//   MU_CHECK(tag_ids.size() == n);
-//   for (size_t i = 0; i < n; i++) {
-//     MU_CHECK(std::count(tag_ids.begin(), tag_ids.end(), tag_ids[i]) == 1);
-//   }
-//   MU_CHECK(keypoints.size() == n);
-//   for (size_t i = 0; i < n; i++) {
-//     MU_CHECK(keypoints[i].size() == 4);
-//   }
-//   MU_CHECK(object_points.size() == n);
-//   for (size_t i = 0; i < n; i++) {
-//     MU_CHECK(object_points[i].size() == 4);
-//   }
-//
-//   return 0;
-// }
+int test_aprilgrid_detect3() {
+  auto detector = aprilgrid_detector_t(6, 6, 0.088, 0.3);
+
+  std::vector<std::string> cam0_images;
+  std::vector<std::string> cam1_images;
+  list_dir("/data/grid_detection/data/cam0", cam0_images);
+  list_dir("/data/grid_detection/data/cam1", cam1_images);
+
+  std::sort(cam0_images.begin(), cam0_images.end());
+  std::sort(cam1_images.begin(), cam1_images.end());
+
+  for (std::string image_path : cam0_images) {
+    auto timestamp = strip_end(image_path, ".png");
+    const auto image = cv::imread("/data/grid_detection/data/cam0/" + image_path);
+    printf("processing [%s]\n", image_path.c_str());
+
+    auto grid = detector.detect(std::stoull(timestamp), image);
+    if (grid.nb_detections == 0) {
+      continue;
+    }
+
+    std::string csv_path = "/data/grid_detection/yac_cam0_grids/" + timestamp + ".csv";
+    FILE *csv = fopen(csv_path.c_str(), "w");
+    fprintf(csv, "kp_x,kp_y,pt_x,pt_y\n");
+
+    std::vector<int> tag_ids;
+    std::vector<int> corner_indicies;
+    vec2s_t keypoints;
+    vec3s_t object_points;
+    grid.get_measurements(tag_ids, corner_indicies, keypoints, object_points);
+
+    for (size_t i = 0; i < tag_ids.size(); i++) {
+      const vec2_t z = keypoints[i];
+      const vec3_t r_FFi = object_points[i];
+
+      fprintf(csv, "%f,%f", z(0), z(1));
+      fprintf(csv, ",");
+      fprintf(csv, "%f,%f\n", r_FFi(0), r_FFi(1));
+    }
+    fclose(csv);
+
+    // cv::imshow("Image", image);
+    // cv::waitKey(1);
+  }
+	exit(0);
+
+  // for (std::string image_path : cam1_images) {
+  //   auto timestamp = strip_end(image_path, ".png");
+  //   const auto image = cv::imread("/data/grid_detection/data/cam1/" + image_path);
+  //   printf("processing [%s]\n", image_path.c_str());
+  //
+  //   auto grid = detector.detect(std::stoull(timestamp), image);
+  //   if (grid.nb_detections == 0) {
+  //     continue;
+  //   }
+  //
+  //   std::string csv_path = "/data/grid_detection/yac_cam1_grids/" + timestamp + ".csv";
+  //   FILE *csv = fopen(csv_path.c_str(), "w");
+  //   fprintf(csv, "kp_x,kp_y,pt_x,pt_y\n");
+  //
+  //   std::vector<int> tag_ids;
+  //   std::vector<int> corner_indicies;
+  //   vec2s_t keypoints;
+  //   vec3s_t object_points;
+  //   grid.get_measurements(tag_ids, corner_indicies, keypoints, object_points);
+  //
+  //   for (size_t i = 0; i < tag_ids.size(); i++) {
+  //     const vec2_t z = keypoints[i];
+  //     const vec3_t r_FFi = object_points[i];
+  //
+  //     fprintf(csv, "%f,%f", z(0), z(1));
+  //     fprintf(csv, ",");
+  //     fprintf(csv, "%f,%f\n", r_FFi(0), r_FFi(1));
+  //   }
+  //   fclose(csv);
+  //
+  //   // cv::imshow("Image", image);
+  //   // cv::waitKey(1);
+  // }
+
+  return 0;
+}
 
 void test_suite() {
   MU_ADD_TEST(test_aprilgrid_constructor);
@@ -568,13 +555,13 @@ void test_suite() {
   MU_ADD_TEST(test_aprilgrid_add);
   MU_ADD_TEST(test_aprilgrid_remove);
   MU_ADD_TEST(test_aprilgrid_estimate);
+  MU_ADD_TEST(test_aprilgrid_intersect);
+  MU_ADD_TEST(test_aprilgrid_intersect2);
+  MU_ADD_TEST(test_aprilgrid_sample);
   MU_ADD_TEST(test_aprilgrid_save_and_load);
   MU_ADD_TEST(test_aprilgrid_print);
   MU_ADD_TEST(test_aprilgrid_detect);
-  MU_ADD_TEST(test_aprilgrid_detect2);
-  // MU_ADD_TEST(test_aprilgrid_intersection);
-  // MU_ADD_TEST(test_aprilgrid_intersection2);
-  // MU_ADD_TEST(test_aprilgrid_random_sample);
+  // MU_ADD_TEST(test_aprilgrid_detect2);
   // MU_ADD_TEST(test_aprilgrid_detect3);
 }
 

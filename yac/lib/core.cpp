@@ -2022,12 +2022,28 @@ vec3_t mean(const vec3s_t &x) {
 
 real_t mean(const std::vector<real_t> &x) {
   real_t sum = 0.0;
-  real_t N = x.size();
   for (const auto i : x) {
     sum += i;
   }
 
+  const real_t N = x.size();
   return sum / N;
+}
+
+real_t var(const std::vector<real_t> &x) {
+  const real_t mu = mean(x);
+  const real_t N = x.size();
+
+  real_t sum = 0.0;
+  for (const auto x_i : x) {
+    sum += pow(x_i - mu, 2);
+  }
+
+  return sum / (N - 1.0);
+}
+
+real_t stddev(const std::vector<real_t> &x) {
+  return sqrt(var(x));
 }
 
 real_t rmse(const std::vector<real_t> &residuals) {

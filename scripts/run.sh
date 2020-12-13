@@ -33,15 +33,15 @@ set -e
 # catkin build -DCMAKE_BUILD_TYPE=Release yac -j2
 # catkin build -DCMAKE_BUILD_TYPE=Release yac yac_ros -j2
 
-make
+# make
 # make debug
 # make tests
 source ~/catkin_ws/devel/setup.bash
 # rm -rf /tmp/aprilgrid_test
 
-# python3 scripts/analyze_detections.py
 
 # --prefix 'gdb -ex run'
+# --prefix 'gdb -ex run -args'
 # rosrun yac test_aprilgrid --target test_aprilgrid_constructor
 # rosrun yac test_aprilgrid --target test_aprilgrid_grid_index
 # rosrun yac test_aprilgrid --target test_aprilgrid_object_point
@@ -50,16 +50,35 @@ source ~/catkin_ws/devel/setup.bash
 # rosrun yac test_aprilgrid --target test_aprilgrid_add
 # rosrun yac test_aprilgrid --target test_aprilgrid_remove
 # rosrun yac test_aprilgrid --target test_aprilgrid_estimate
+# rosrun yac test_aprilgrid --target test_aprilgrid_intersect
+# rosrun yac test_aprilgrid --target test_aprilgrid_intersect2
+# rosrun yac test_aprilgrid --target test_aprilgrid_sample
 # rosrun yac test_aprilgrid --target test_aprilgrid_save_and_load
 # rosrun yac test_aprilgrid --target test_aprilgrid_print
 # rosrun yac test_aprilgrid --target test_aprilgrid_detect
 # rosrun yac test_aprilgrid --target test_aprilgrid_detect2
+# rosrun yac test_aprilgrid --target test_aprilgrid_detect3
+
 # rosrun yac test_calib_data
 # rosrun yac test_calib_mocap
 # rosrun yac test_calib_mono
-# rosrun yac test_calib_stereo
+
+# rosrun yac test_calib_stereo --target test_calib_stereo_solve
+# rosrun --prefix 'gdb -ex run -args' yac test_calib_stereo --target test_calib_stereo_inc_solve
+# rosrun yac test_calib_stereo --target test_calib_stereo_inc_solve
+
+# make
+# RUNS=(1 2 3 4 5 6 7 8 9 10)
+# for RUN in ${RUNS[@]}; do
+#   rosrun yac test_calib_stereo --target test_calib_stereo_inc_solve >> output.txt
+#   cp /tmp/calib_stereo.yaml ./calib_stereo-${RUN}.yaml
+# done
+python3 scripts/analyze_calibs.py
+
+
 # rosrun yac test_calib_vi
-# rosrun yac test_calib_vi
+
+# python3 scripts/analyze_detections.py
 
 # roslaunch yac_ros calib_capture.launch
 # roslaunch yac_ros calib_mono.launch

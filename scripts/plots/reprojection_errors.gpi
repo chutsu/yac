@@ -1,0 +1,14 @@
+set datafile separator ','
+set style data histograms
+set style fill solid 0.5
+
+data_file = '/tmp/cam0-views.csv'
+# stats data_file using 4 prefix "err"
+
+binwidth = 0.05
+bin(x, width) = width * floor(x / width)
+
+set title 'Reprojection Error Histogram'
+set xlabel 'Reprojection Error [px]'
+set ylabel 'Frequency'
+plot data_file using (bin($4, binwidth)):(1.0) smooth freq with boxes notitle

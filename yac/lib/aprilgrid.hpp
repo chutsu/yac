@@ -33,8 +33,8 @@ struct aprilgrid_t {
   timestamp_t timestamp = 0;
   int tag_rows = 0;
   int tag_cols = 0;
-  real_t tag_size = 0.0;
-  real_t tag_spacing = 0.0;
+  double tag_size = 0.0;
+  double tag_spacing = 0.0;
 
   // Grid data
   bool detected = false;
@@ -46,8 +46,8 @@ struct aprilgrid_t {
   aprilgrid_t(const timestamp_t &timestamp,
               const int tag_rows,
               const int tag_cols,
-              const real_t tag_size,
-              const real_t tag_spacing)
+              const double tag_size,
+              const double tag_spacing)
       : timestamp{timestamp},
         tag_rows{tag_rows}, tag_cols{tag_cols},
         tag_size{tag_size}, tag_spacing{tag_spacing},
@@ -99,8 +99,8 @@ struct aprilgrid_t {
 
     // Caculate the x and y of the tag origin (bottom left corner of tag)
     // relative to grid origin (bottom left corner of entire grid)
-    const real_t x = j * (tag_size + tag_size * tag_spacing);
-    const real_t y = i * (tag_size + tag_size * tag_spacing);
+    const double x = j * (tag_size + tag_size * tag_spacing);
+    const double y = i * (tag_size + tag_size * tag_spacing);
 
     // Calculate the x and y of each corner
     vec3_t object_point;
@@ -249,16 +249,16 @@ struct aprilgrid_t {
     }
 
     // Extract out camera intrinsics
-    const real_t fx = proj_params(0);
-    const real_t fy = proj_params(1);
-    const real_t cx = proj_params(2);
-    const real_t cy = proj_params(3);
+    const double fx = proj_params(0);
+    const double fy = proj_params(1);
+    const double cx = proj_params(2);
+    const double cy = proj_params(3);
 
     // Extract out camera distortion
-    const real_t k1 = dist_params(0);
-    const real_t k2 = dist_params(1);
-    const real_t p1 = dist_params(2);
-    const real_t p2 = dist_params(3);
+    const double k1 = dist_params(0);
+    const double k2 = dist_params(1);
+    const double p1 = dist_params(2);
+    const double p2 = dist_params(3);
 
     // Solve pnp
     cv::Vec4f distortion_params(k1, k2, p1, p2); // SolvPnP assumes radtan
@@ -394,8 +394,8 @@ struct aprilgrid_t {
       // Parse line
       int tag_id = 0;
       int corner_idx = 0;
-      real_t kp_x, kp_y = 0.0;
-      real_t p_x, p_y, p_z = 0.0;
+      double kp_x, kp_y = 0.0;
+      double p_x, p_y, p_z = 0.0;
       int retval = fscanf(
         // File pointer
         fp,
@@ -618,8 +618,8 @@ struct aprilgrid_detector_t {
   bool configured = true;
   int tag_rows = 0;
   int tag_cols = 0;
-  real_t tag_size = 0.0;
-  real_t tag_spacing = 0.0;
+  double tag_size = 0.0;
+  double tag_spacing = 0.0;
 
   // AprilTags by Michael Kaess
   AprilTags::AprilGridDetector det;
@@ -630,8 +630,8 @@ struct aprilgrid_detector_t {
 
   aprilgrid_detector_t(const int tag_rows_,
                        const int tag_cols_,
-                       const real_t tag_size_,
-                       const real_t tag_spacing_)
+                       const double tag_size_,
+                       const double tag_spacing_)
       : tag_rows{tag_rows_},
         tag_cols{tag_cols_},
         tag_size{tag_size_},
@@ -651,8 +651,8 @@ struct aprilgrid_detector_t {
   void filter_tags(const cv::Mat &image,
                    std::vector<AprilTags::TagDetection> &tags,
                    const bool verbose=false) {
-    const real_t min_border_dist = 4.0;
-    const real_t max_subpix_disp = sqrt(1.5);
+    const double min_border_dist = 4.0;
+    const double max_subpix_disp = sqrt(1.5);
 
     const size_t nb_tags_before = tags.size();
     int removed = 0;
@@ -752,7 +752,7 @@ struct aprilgrid_detector_t {
                            std::vector<int> &tag_ids,
                            std::vector<int> &corner_indicies,
                            vec2s_t &keypoints) {
-    const real_t max_subpix_disp = sqrt(1.5);
+    const double max_subpix_disp = sqrt(1.5);
     const size_t nb_measurements = tag_ids.size();
 
     std::vector<int> filtered_tag_ids;
@@ -840,7 +840,7 @@ struct aprilgrid_detector_t {
         return (a.id < b.id);
       });
       // -- Setup data
-			const real_t min_border_dist = 4.0;
+			const double min_border_dist = 4.0;
 			const float img_rows = image_gray.rows;
 			const float img_cols = image_gray.cols;
 

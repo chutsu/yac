@@ -24,6 +24,17 @@ struct calib_stereo_data_t {
 
   std::vector<double> cam0_errs;
   std::vector<double> cam1_errs;
+
+  calib_stereo_data_t(const mat2_t &covar_,
+                      const aprilgrids_t &cam0_grids_,
+                      const aprilgrids_t &cam1_grids_,
+                      const camera_params_t &cam0_,
+                      const camera_params_t &cam1_)
+    : covar{covar_},
+      cam0_grids{cam0_grids_},
+      cam1_grids{cam1_grids_},
+      cam0{cam0_},
+      cam1{cam1_} {}
 };
 
 /** Stereo camera calibration residual */
@@ -357,11 +368,47 @@ struct calib_view_t {
     //   delete cost_fn;
     // }
   }
+
 };
 
 /* Stereo-Camera Calibration Views */
 template <typename CAMERA_TYPE>
 using calib_views_t = std::deque<calib_view_t<CAMERA_TYPE>>;
+
+template <typename CAMERA_TYPE>
+void save_views(const std::string &save_dir,
+                const calib_views_t<CAMERA_TYPE> &views) {
+  auto cam_idx = views[0].camera_index;
+  auto save_path = save_dir + "/";
+  save_path += "cam" + std::to_string(cam_idx) + "-views.csv";
+
+  FILE *csv = fopen(save_path.c_str(), "w");
+  fprintf(csv, "#ts,err_x,err_y,reproj_error,tag_id,corner_idx\n");
+  for (const auto &view : views) {
+    auto ts = view.grid.timestamp;
+
+    std::vector<std::pair<double, double>> residuals;
+    std::vector<double> reprojection_errors;
+    std::vector<std::pair<int, int>> tags_meta;
+    calib_residuals(view, residuals, &tags_meta);
+    reproj_errors(view, reprojection_errors);
+
+    for (size_t i = 0; i < residuals.size(); i++) {
+      const auto err_x = residuals[i].first;
+      const auto err_y = residuals[i].second;
+      const auto reproj_err = reprojection_errors[i];
+      const auto tag_id = tags_meta[i].first;
+      const auto corner_idx = tags_meta[i].second;
+
+      fprintf(csv, "%ld,", ts);
+      fprintf(csv, "%f,%f,", err_x, err_y);
+      fprintf(csv, "%f,", reproj_err);
+      fprintf(csv, "%d,%d\n", tag_id, corner_idx);
+    }
+  }
+  fclose(csv);
+
+}
 
 /* Process AprilGrid - Adding it to the calibration problem */
 template <typename CAMERA_TYPE>
@@ -423,6 +470,48 @@ static pose_t estimate_relative_pose(const int cam_idx,
   }
 
   return pose_t{param_counter++, ts, rel_pose};
+}
+
+/* Calculate reprojection errors */
+template <typename CAMERA_TYPE>
+void calib_residuals(const calib_view_t<CAMERA_TYPE> &view,
+                     std::vector<std::pair<double, double>> &r,
+                     std::vector<std::pair<int, int>> *tags_meta=nullptr) {
+  const int camera_index = view.camera_index;
+  const auto grid = view.grid;
+  const auto cam = view.cam;
+  const mat4_t T_C0F = view.T_C0F.tf();
+  const mat4_t T_C1C0 = view.T_C1C0.tf();
+
+  std::vector<int> tag_ids;
+  std::vector<int> corner_indicies;
+  vec2s_t cam0_keypoints;
+  vec2s_t cam1_keypoints;
+  vec3s_t object_points;
+  grid.get_measurements(tag_ids, corner_indicies, cam0_keypoints, object_points);
+
+  for (size_t i = 0; i < tag_ids.size(); i++) {
+    const int tag_id = tag_ids[i];
+    const int corner_idx = corner_indicies[i];
+    const vec2_t z = cam0_keypoints[i];
+    const vec3_t r_FFi = object_points[i];
+
+    const CAMERA_TYPE cam_geometry(cam.resolution, cam.param);
+    const vec3_t r_C0Fi = tf_point(T_C0F, r_FFi);
+    vec2_t z_hat;
+    if (camera_index == 0) {
+      cam_geometry.project(r_C0Fi, z_hat);
+    } else if (camera_index == 1) {
+      cam_geometry.project(tf_point(T_C1C0, r_C0Fi), z_hat);
+    } else {
+      FATAL("Invalid camera index [%d]!", camera_index);
+    }
+    r.push_back({z(0) - z_hat(0), z(1) - z_hat(1)});
+
+    if (tags_meta) {
+      tags_meta->push_back({tag_id, corner_idx});
+    }
+  }
 }
 
 /* Calculate reprojection errors */
@@ -791,18 +880,25 @@ int calib_stereo_covar(camera_params_t &cam0,
                        ceres::Problem &problem,
                        matx_t &covar);
 
+/**
+ * Find random indicies.
+ *
+ * Aside from creating a set of random indicies to randomly sample the image
+ * frames, the goal is to find a set that yeilds the lowest reprojection error
+ * for the first 20 frames. The intuition is to start the incremental solver in
+ * a certain state, then add / remove frames that improve the calibration.
+ */
 template <typename CAMERA_TYPE>
-static std::vector<int> find_random_indicies(const mat2_t &covar,
+static std::vector<int> find_random_indicies(const int attempts,
+                                             const int min_views,
+                                             const mat2_t &covar,
                                              const aprilgrids_t &grids0,
                                              const aprilgrids_t &grids1,
                                              camera_params_t &cam0,
                                              camera_params_t &cam1,
                                              pose_t &extrinsics,
                                              bool verbose=false) {
-  int attempts = 1000;
-  int min_views = 20;
   id_t param_counter = 0;
-
   int best_idx = 0;
   double best_rmse = 0.0;
   std::vector<int> best_indicies;
@@ -879,6 +975,52 @@ static std::vector<int> find_random_indicies(const mat2_t &covar,
 /**
  * Calibrate stereo camera extrinsics and relative pose between cameras. This
  * function assumes that the path to `config_file` is a yaml file of the form:
+ *
+ *     settings:
+ *       data_path: "/data"
+ *       results_fpath: "/data/calib_results.yaml"
+ *       sigma_vision: 0.5
+ *
+ *     calib_target:
+ *       target_type: 'aprilgrid'  # Target type
+ *       tag_rows: 6               # Number of rows
+ *       tag_cols: 6               # Number of cols
+ *       tag_size: 0.088           # Size of apriltag, edge to edge [m]
+ *       tag_spacing: 0.3          # Ratio of space between tags to tagSize
+ *                                 # Example: tagSize=2m, spacing=0.5m
+ *                                 # --> tagSpacing=0.25[-]
+ *
+ *     cam0:
+ *       resolution: [752, 480]
+ *       lens_hfov: 98.0
+ *       lens_vfov: 73.0
+ *       proj_model: "pinhole"
+ *       dist_model: "radtan4"
+ *
+ *     cam1:
+ *       resolution: [752, 480]
+ *       lens_hfov: 98.0
+ *       lens_vfov: 73.0
+ *       proj_model: "pinhole"
+ *       dist_model: "radtan4"
+ *
+ * This stereo calibrator is a more elabroate version than the standard pipeline.
+ * The pipeline is as follows:
+ *
+ * - Initialize camera intrinsincs by solving standard BA on cam0 and cam1
+ *   independently.
+ * - Initialize camera extrinsics T_C1C0 using the median of T_C0F and T_C1F,
+ *   using the initialized cam0, cam1 intrinsics.
+ * - Find random indicies that yields the best `min_views` that yeilds lowest
+ *   reprojection error, where `min_views` is a hyper-parameter.
+ * - Incrementally solve the stereo-camera intrinsincs and extrinsics
+ *   - if views > min_views:
+ *     - filter current view whose residal block has a reproj error > threshold
+ *     - remove current if uncertainty is not improved by more than 2%
+ *   - Stop early if no new frames have been added for N iterations
+ * - Final filter all views whose residal block has reproj error > threshold
+ * - Final batch optimization
+ * - Done
  */
 template <typename CAMERA_TYPE>
 int calib_stereo_inc_solve(calib_stereo_data_t &data) {
@@ -886,6 +1028,7 @@ int calib_stereo_inc_solve(calib_stereo_data_t &data) {
   srand(time(NULL));
 
   // Options
+  int random_indicies_attempts = 1000;
   size_t filter_min_views = 20;
   double filter_stddev = 5.0;
 
@@ -907,9 +1050,6 @@ int calib_stereo_inc_solve(calib_stereo_data_t &data) {
 
   // Initialize stereo intrinsics and extrinsics
   initialize<CAMERA_TYPE>(grids0, grids1, covar, cam0, cam1, T_C1C0);
-  print_vector("cam0 params", cam0.param);
-  print_vector("cam1 params", cam1.param);
-  print_matrix("T_C1C0", T_C1C0);
 
   // Setup optimization problem
   ceres::Problem::Options prob_options;
@@ -930,7 +1070,9 @@ int calib_stereo_inc_solve(calib_stereo_data_t &data) {
   size_t nb_outliers = 0;
 
   // Find best indicies that have the best first 20 views
-  auto indicies = find_random_indicies<CAMERA_TYPE>(covar, grids0, grids1,
+  auto indicies = find_random_indicies<CAMERA_TYPE>(random_indicies_attempts,
+                                                    filter_min_views,
+                                                    covar, grids0, grids1,
                                                     cam0, cam1, extrinsics);
 
   // Incremental solve
@@ -1069,17 +1211,19 @@ int calib_stereo_inc_solve(calib_stereo_data_t &data) {
 
   // Update data
   T_C1C0 = extrinsics.tf();
-	T_C0F.clear();
-	T_C1F.clear();
+  T_C0F.clear();
+  T_C1F.clear();
   for (auto pose : rel_poses) {
     T_C0F.emplace_back(pose.tf());
     T_C1F.emplace_back(T_C1C0 * pose.tf());
   }
 
-	// Show reuslts
+  // Show reuslts
   show_results(cam0_views, cam1_views, T_C1C0);
+  save_views("/tmp", cam0_views);
+  save_views("/tmp", cam1_views);
 
-	// Clean up
+  // Clean up
   if (loss) {
     delete loss;
   }

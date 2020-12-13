@@ -203,7 +203,7 @@ struct aprilgrid_t {
     const int data_row = (tag_id * 4) + corner_idx;
     if (data(data_row, 0) > 0) {
       data.block(data_row, 0, 1, 6).setZero();
-      nb_detections = (nb_detections > 0) ? nb_detections - 1 : 0;
+      nb_detections = (nb_detections > 0) ? (nb_detections - 1) : 0;
       detected = (nb_detections == 0) ? false : true;
     }
   }
@@ -495,68 +495,104 @@ struct aprilgrid_t {
     return static_cast<const aprilgrid_t>(*this).equal(grid1);
   }
 
-  void intersection(aprilgrid_t &grid1) {
-    // Find the symmetric difference of AprilTag ids
-    std::vector<int> unique_ids = set_symmetric_diff(this->tag_ids(), grid1.tag_ids());
+  void intersect(aprilgrid_t &grid1) {
+		// Get rows in data that are detected
+		std::vector<int> grid0_rows;
+		std::vector<int> grid1_rows;
+		for (int i = 0; i < (tag_rows * tag_cols * 4); i++) {
+			if (data(i, 0)) grid0_rows.push_back(i);
+			if (grid1.data(i, 0)) grid1_rows.push_back(i);
+		}
 
-    // Remove AprilTag based on unique ids, since we want common ids not unique
-    for (const auto &tag_id : unique_ids) {
-      this->remove(tag_id);
-      grid1.remove(tag_id);
-    }
-    assert(this->tag_ids().size() == grid1.tag_ids().size());
+		// For rows that are different set to zero (remove)
+		for (auto i : set_symmetric_diff(grid0_rows, grid1_rows)) {
+			if (data(i, 0) > 0) {
+				data.block(i, 0, 1, 6).setZero();
+				nb_detections--;
+			}
+
+			if (grid1.data(i, 0) > 0) {
+				grid1.data.block(i, 0, 1, 6).setZero();
+				grid1.nb_detections--;
+			}
+		}
   }
 
-  // void intersection(std::vector<aprilgrid_t *> &grids) {
-  //   // Find the symmetric difference of AprilTag ids
-  //   std::list<std::vector<int>> grid_ids;
-  //   for (aprilgrid_t *grid : grids) {
-  //     grid_ids.push_back(grid->tag_ids());
-  //   }
-  //   const std::set<int> common_ids = yac::intersection(grid_ids);
-  //
-  //   // Remove AprilTag based on unique ids since we want common ids
-  //   for (size_t i = 0; i < grids.size(); i++) {
-  //     // Make a copy of ids while deleting them in-place, else std::vector would
-  //     // behave very weirdly
-  //     const auto tag_ids = grids[i]->tag_ids();
-  //
-  //     // Remove ids that are not common across all AprilGrids
-  //     for (auto &tag_id : tag_ids) {
-  //       if (common_ids.find(tag_id) == common_ids.end()) {
-  //         (*grids[i]).remove(tag_id);
-  //       }
-  //     }
-  //   }
-  // }
+  static void intersect(std::vector<aprilgrid_t *> &grids) {
+		const int nb_grids = grids.size();
+		std::map<int, int> row_counter;
 
-  // void sample(const size_t n,
-  //             std::vector<int> &sample_tag_ids,
-  //             std::vector<vec2s_t> &sample_keypoints,
-  //             std::vector<vec3s_t> &sample_object_points) {
-  //   if (nb_detections == 0) {
-  //     return;
-  //   }
-  //
-  //   auto tag_ids_ = tag_ids();
-  //   while (sample_tag_ids.size() < std::min((size_t) nb_detections, n)) {
-  //     const int index = randi(0, nb_detections);
-  //     const auto tag_id = tag_ids_[index];
-  //
-  //     // Skip this tag_id if we've already sampled it
-  //     if (std::count(sample_tag_ids.begin(), sample_tag_ids.end(), tag_id)) {
-  //       continue;
-  //     }
-  //
-  //     // vec2s_t keypoints;
-  //     // vec3s_t object_points;
-  //     // aprilgrid_keypoints(grid, tag_id, keypoints);
-  //     // aprilgrid_object_points(grid, tag_id, object_points);
-  //     sample_tag_ids.push_back(tag_id);
-  //     // sample_keypoints.push_back(keypoints);
-  //     // sample_object_points.push_back(object_points);
-  //   }
-  // }
+		// Initialize row_counter
+	  for (int i = 0; i < (grids[0]->tag_rows * grids[0]->tag_cols * 4); i++) {
+			row_counter[i] = 0;
+		}
+
+		// For all AprilGrids, book keep rows that are non-zero
+    for (aprilgrid_t *grid : grids) {
+			for (int i = 0; i < (grid->tag_rows * grid->tag_cols * 4); i++) {
+				if (grid->data(i, 0)) {
+					row_counter[i] = row_counter[i] + 1;
+				}
+			}
+    }
+
+		// Find which rows are not common amonst all AprilGrids
+		std::vector<int> rows_remove;
+		for (auto &kv : row_counter) {
+			const int row_index = kv.first;
+			const int count = kv.second;
+
+			if (count != nb_grids) {
+				rows_remove.push_back(row_index);
+			}
+		}
+
+		// Remove
+		for (aprilgrid_t *grid : grids) {
+			for (const int row_index : rows_remove) {
+				if (grid->data(row_index, 0)) {
+				  grid->data.block(row_index, 0, 1, 6).setZero();
+					grid->nb_detections--;
+				}
+			}
+		}
+  }
+
+  void sample(const size_t n,
+              std::vector<int> &sample_tag_ids,
+              std::vector<int> &sample_corner_indicies,
+              vec2s_t &sample_keypoints,
+              vec3s_t &sample_object_points) {
+    if (nb_detections == 0) {
+      return;
+    }
+
+    std::set<std::string> sample_list;
+    auto tag_ids_ = tag_ids();
+    while (sample_tag_ids.size() < std::min((size_t) nb_detections, n)) {
+      const auto tag_id = tag_ids_[randi(0, tag_ids_.size())];
+      const auto corner_idx = randi(0, 4);
+
+      // Skip this tag_id if we've already sampled it
+      const auto tag_id_str = std::to_string(tag_id);
+      const auto corner_idx_str = std::to_string(corner_idx);
+      const auto sample_id = tag_id_str + "-" + corner_idx_str;
+      if (std::count(sample_list.begin(), sample_list.end(), sample_id)) {
+        continue;
+      }
+			sample_list.insert(sample_id);
+
+      // Add to samples if detected
+      const int i = (tag_id * 4) + corner_idx;
+
+			if (data(i, 0)) {
+				sample_tag_ids.push_back(tag_id);
+				sample_corner_indicies.push_back(corner_idx);
+				sample_keypoints.emplace_back(data(i, 1), data(i, 2));
+				sample_object_points.emplace_back(data(i, 3), data(i, 4), data(i, 5));
+			}
+    }
+  }
 
   friend std::ostream &operator<<(std::ostream &os, const aprilgrid_t &grid) {
     os << "ts: " << grid.timestamp << std::endl;
@@ -712,6 +748,48 @@ struct aprilgrid_detector_t {
     }
   }
 
+  void filter_measurements(const cv::Mat &image,
+                           std::vector<int> &tag_ids,
+                           std::vector<int> &corner_indicies,
+                           vec2s_t &keypoints) {
+    const real_t max_subpix_disp = sqrt(1.5);
+    const size_t nb_measurements = tag_ids.size();
+
+    std::vector<int> filtered_tag_ids;
+    std::vector<int> filtered_corner_indicies;
+    vec2s_t filtered_keypoints;
+
+    std::vector<cv::Point2f> corners_before;
+    std::vector<cv::Point2f> corners_after;
+    for (size_t i = 0; i < nb_measurements; i++) {
+      const vec2_t kp = keypoints[i];
+      corners_before.emplace_back(kp(0), kp(1));
+      corners_after.emplace_back(kp(0), kp(1));
+    }
+
+    const cv::Size win_size(2, 2);
+    const cv::Size zero_zone(-1, -1);
+    const cv::TermCriteria criteria(CV_TERMCRIT_EPS + CV_TERMCRIT_ITER, 30, 0.1);
+    cv::cornerSubPix(image, corners_after, win_size, zero_zone, criteria);
+
+    for (size_t i = 0; i < nb_measurements; i++) {
+      const auto &p_before = corners_before[i];
+      const auto &p_after = corners_after[i];
+      const auto dx = p_before.x - p_after.x;
+      const auto dy = p_before.y - p_after.y;
+      const auto dist = sqrt(dx * dx + dy * dy);
+      if (dist < max_subpix_disp) {
+        filtered_tag_ids.push_back(tag_ids[i]);
+        filtered_corner_indicies.push_back(corner_indicies[i]);
+        filtered_keypoints.emplace_back(p_after.x, p_after.y);
+      }
+    }
+
+    tag_ids = filtered_tag_ids;
+    corner_indicies = filtered_corner_indicies;
+    keypoints = filtered_keypoints;
+  }
+
   aprilgrid_t detect(const timestamp_t ts,
                      const cv::Mat &image,
                      const bool use_v3=false) {
@@ -755,28 +833,51 @@ struct aprilgrid_detector_t {
       // Use AprilTags by Michael Kaess
       // -- Extract tags
       std::vector<AprilTags::TagDetection> tags = det.extractTags(image_gray);
-      // -- Filter tags
-      filter_tags(image_gray, tags);
       // -- Sort by tag_id (inorder)
       std::sort(tags.begin(), tags.end(),
                 [](const AprilTags::TagDetection &a,
                    const AprilTags::TagDetection &b) {
         return (a.id < b.id);
       });
+      // -- Setup data
+			const real_t min_border_dist = 4.0;
+			const float img_rows = image_gray.rows;
+			const float img_cols = image_gray.cols;
 
-      // Form results
+      std::vector<int> tag_ids;
+      std::vector<int> corner_indicies;
+      vec2s_t keypoints;
+
       for (const auto &tag : tags) {
-        if (tag.good == false) {
-          continue;
-        }
+        if (tag.good) {
+          for (int i = 0; i < 4; i++) {
+						bool remove = false;
+						remove |= tag.p[i].first < min_border_dist;
+						remove |= tag.p[i].first > img_cols - min_border_dist;
+						remove |= tag.p[i].second < min_border_dist;
+						remove |= tag.p[i].second > img_rows - min_border_dist;
+						if (remove) {
+							continue;
+						}
 
-        const auto kps = tag.p;
-        grid.add(tag.id, 0, vec2_t{kps[0].first, kps[0].second}); // Bottom left
-        grid.add(tag.id, 1, vec2_t{kps[1].first, kps[1].second}); // Top left
-        grid.add(tag.id, 2, vec2_t{kps[2].first, kps[2].second}); // Top right
-        grid.add(tag.id, 3, vec2_t{kps[3].first, kps[3].second}); // Bottom right
+            tag_ids.push_back(tag.id);
+            corner_indicies.push_back(i);
+            keypoints.emplace_back(tag.p[i].first, tag.p[i].second);
+          }
+        }
       }
-    }
+      // -- Check if too few measurements
+      int nb_measurements = tag_ids.size();
+      if (nb_measurements < (4 * 4)) {
+        return grid;
+      }
+      // -- Filter tags
+      filter_measurements(image_gray, tag_ids, corner_indicies, keypoints);
+      // -- Add filtered tags to grid
+      for (size_t i = 0; i < tag_ids.size(); i++) {
+        grid.add(tag_ids[i], corner_indicies[i], keypoints[i]);
+      }
+		}
 
     return grid;
   }

@@ -87,7 +87,7 @@ struct calib_mono_residual_t : public ceres::SizedCostFunction<2, 7, 8> {
     residuals[1] = r(1);
 
     // Jacobians
-    matx_t weighted_Jh = -1 * sqrt_info_ * Jh;
+    const matx_t weighted_Jh = -1 * sqrt_info_ * Jh;
 
     if (jacobians) {
       // Jacobians w.r.t T_CF
@@ -263,12 +263,6 @@ int calib_mono_solve(const aprilgrids_t &grids,
                      const mat2_t &covar,
                      camera_params_t &cam_params,
                      mat4s_t &T_CF) {
-  // Pre-check
-  if (T_CF.size() != grids.size()) {
-    LOG_ERROR("T_CF.size() != grids.size()!");
-    return -1;
-  }
-
   // Setup optimization problem
   ceres::Problem::Options prob_options;
   prob_options.local_parameterization_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
@@ -281,12 +275,19 @@ int calib_mono_solve(const aprilgrids_t &grids,
   std::vector<ceres::ResidualBlockId> res_ids;
   std::vector<calib_mono_residual_t<CAMERA_TYPE> *> cost_fns;
 
-  for (size_t i = 0; i < grids.size(); i++) {
-    const auto ts = grids[i].timestamp;
-    pose_t *pose = new pose_t{param_id++, ts, T_CF[i]};
+  for (const auto &grid : grids) {
+    const auto ts = grid.timestamp;
+
+    // Estimate relative pose
+    mat4_t rel_pose;
+    grid.estimate(cam_params.proj_params(), cam_params.dist_params(), rel_pose);
+
+    // Create new pose parameter
+    pose_t *pose = new pose_t{param_id++, ts, rel_pose};
     poses.emplace_back(pose);
 
-    process_grid<CAMERA_TYPE>(grids[i], covar, cam_params,
+    // Add reprojection factors to problem
+    process_grid<CAMERA_TYPE>(grid, covar, cam_params,
                               *pose, problem,
                               res_ids, cost_fns);
     problem.SetParameterization(pose->param.data(),
@@ -382,6 +383,7 @@ int filter_views(ceres::Problem &problem, calib_mono_views_t<T> &views) {
           }
 
           nb_outliers++;
+          break;
         }
 
         // Update iterators
@@ -434,7 +436,7 @@ int calib_mono_inc_solve(calib_mono_data_t &data) {
   std::deque<pose_t *> poses;
   calib_mono_views_t<CAMERA_TYPE> views;
   double info = -1;
-  size_t counter = 0;
+  size_t processed = 0;
   size_t nb_outliers = 0;
 
   for (const auto &i : indicies) {
@@ -469,33 +471,35 @@ int calib_mono_inc_solve(calib_mono_data_t &data) {
     ceres::Solve(options, &problem, &summary);
     // std::cout << summary.BriefReport() << std::endl;
 
-    // Filter views
-    nb_outliers += filter_views<CAMERA_TYPE>(problem, views);
+    if (views.size() > 20) {
+      // Filter views
+      nb_outliers += filter_views<CAMERA_TYPE>(problem, views);
 
-    // Evaluate current view
-    matx_t covar;
-    if (calib_mono_covar(cam_params, problem, covar) == 0) {
-      const double info_k = covar.trace();
-      const double diff = (info - info_k) / info;
+      // Evaluate current view
+      matx_t covar;
+      if (calib_mono_covar(cam_params, problem, covar) == 0) {
+        const double info_k = covar.trace();
+        const double diff = (info - info_k) / info;
 
-      if (info < 0) {
-        info = info_k;
+        if (info < 0) {
+          info = info_k;
 
-      } else if (diff > 0.02) {
-        info = info_k;
-      } else {
-        for (const auto &res_id : views.back().res_ids) {
-          problem.RemoveResidualBlock(res_id);
+        } else if (diff > 0.02) {
+          info = info_k;
+        } else {
+          for (const auto &res_id : views.back().res_ids) {
+            problem.RemoveResidualBlock(res_id);
+          }
+          poses.pop_back();
+          views.pop_back();
         }
-        poses.pop_back();
-        views.pop_back();
       }
     }
 
     // Show progress
     std::vector<double> errs;
     reproj_errors<CAMERA_TYPE>(views, cam_params, errs);
-    printf("Processed [%ld / %ld] ", counter++, indicies.size());
+    printf("Processed [%ld / %ld] ", processed++, indicies.size());
     printf("Reprojection Error: ");
     printf("[rmse: %.2f,", rmse(errs));
     printf(" mean: %.2f]", mean(errs));

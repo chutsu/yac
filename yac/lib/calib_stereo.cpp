@@ -230,31 +230,39 @@ int calib_stereo_solve(const std::string &config_file) {
     FATAL("Failed to preprocess cam1 data!");
   }
 
+  // // Load calibration data
+  // const std::vector<std::string> data_dirs = {cam0_data_path, cam1_data_path};
+  // std::map<int, aprilgrids_t> grids;
+  // if (load_multicam_calib_data(2, data_dirs, grids) != 0) {
+  //   LOG_ERROR("Failed to local calibration data!");
+  //   return -1;
+  // }
+
   // Load calibration data
-  const std::vector<std::string> data_dirs = {cam0_data_path, cam1_data_path};
-  std::map<int, aprilgrids_t> grids;
-  if (load_multicam_calib_data(2, data_dirs, grids) != 0) {
-    LOG_ERROR("Failed to local calibration data!");
-    return -1;
-  }
+	aprilgrids_t grids0;
+	aprilgrids_t grids1;
+	if (load_stereo_calib_data(cam0_data_path, cam1_data_path, grids0, grids1) != 0) {
+		LOG_ERROR("Failed to local calibration data!");
+		return -1;
+	}
 
   // Estimate initial guess for grid poses
   // -- cam0
   mat4s_t T_C0F;
-  for (auto &grid : grids[0]) {
+  for (auto &grid : grids0) {
     mat4_t rel_pose;
     const auto proj_params = cam0.proj_params();
     const auto dist_params = cam0.dist_params();
-    aprilgrid_calc_relative_pose(grid, proj_params, dist_params, rel_pose);
+    grid.estimate(proj_params, dist_params, rel_pose);
     T_C0F.push_back(rel_pose);
   }
   // -- cam1
   mat4s_t T_C1F;
-  for (auto &grid : grids[1]) {
+  for (auto &grid : grids1) {
     mat4_t rel_pose;
     const auto proj_params = cam1.proj_params();
     const auto dist_params = cam1.dist_params();
-    aprilgrid_calc_relative_pose(grid, proj_params, dist_params, rel_pose);
+    grid.estimate(proj_params, dist_params, rel_pose);
     T_C1F.push_back(rel_pose);
   }
 
@@ -267,19 +275,19 @@ int calib_stereo_solve(const std::string &config_file) {
 
   // -- Pinhole-Radtan4
   if (cam0_proj_model == "pinhole" && cam0_dist_model == "radtan4") {
-    calib_stereo_solve<pinhole_radtan4_t>(grids[0], grids[1], covar,
+    calib_stereo_solve<pinhole_radtan4_t>(grids0, grids1, covar,
                                           cam0, cam1,
-                                          T_C1C0, T_C0F, T_C1F);
-    reproj_errors<pinhole_radtan4_t>(grids[0], cam0, T_C0F, cam0_errs);
-    reproj_errors<pinhole_radtan4_t>(grids[1], cam1, T_C1F, cam1_errs);
+                                          T_C1C0);
+    reproj_errors<pinhole_radtan4_t>(grids0, cam0, T_C0F, cam0_errs);
+    reproj_errors<pinhole_radtan4_t>(grids1, cam1, T_C1F, cam1_errs);
 
   // -- Pinhole-Equi4
   } else if (cam0_proj_model == "pinhole" && cam0_dist_model == "equi4") {
-    calib_stereo_solve<pinhole_equi4_t>(grids[0], grids[1], covar,
+    calib_stereo_solve<pinhole_equi4_t>(grids0, grids1, covar,
                                         cam0, cam1,
-                                        T_C1C0, T_C0F, T_C1F);
-    reproj_errors<pinhole_equi4_t>(grids[0], cam0, T_C0F, cam0_errs);
-    reproj_errors<pinhole_equi4_t>(grids[1], cam1, T_C1F, cam1_errs);
+                                        T_C1C0);
+    reproj_errors<pinhole_equi4_t>(grids0, cam0, T_C0F, cam0_errs);
+    reproj_errors<pinhole_equi4_t>(grids1, cam1, T_C1F, cam1_errs);
 
   // -- Unsupported
   } else {

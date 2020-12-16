@@ -274,15 +274,21 @@ int calib_mono_solve(const aprilgrids_t &grids,
   std::vector<ceres::ResidualBlockId> res_ids;
   std::vector<calib_mono_residual_t<CAMERA_TYPE> *> cost_fns;
 
+  // Setup camera
+  const auto cam_res = cam_params.resolution;
+  const vecx_t proj_params = cam_params.proj_params();
+  const vecx_t dist_params = cam_params.dist_params();
+  const CAMERA_TYPE cam{cam_res, proj_params, dist_params};
+
   for (const auto &grid : grids) {
     const auto ts = grid.timestamp;
 
     // Estimate relative pose
-    mat4_t rel_pose;
-    grid.estimate(cam_params.proj_params(), cam_params.dist_params(), rel_pose);
+    mat4_t T_CF_k;
+    grid.estimate(cam, T_CF_k);
 
     // Create new pose parameter
-    pose_t *pose = new pose_t{param_id++, ts, rel_pose};
+    pose_t *pose = new pose_t{param_id++, ts, T_CF_k};
     poses.emplace_back(pose);
 
     // Add reprojection factors to problem
@@ -440,16 +446,23 @@ int calib_mono_inc_solve(calib_mono_data_t &data) {
   size_t processed = 0;
   size_t nb_outliers = 0;
 
+
   for (const auto &i : indicies) {
     const auto grid = grids[i];
     const auto ts = grid.timestamp;
 
+    // Setup camera
+    const auto cam_res = cam_params.resolution;
+    const vecx_t proj_params = cam_params.proj_params();
+    const vecx_t dist_params = cam_params.dist_params();
+    const CAMERA_TYPE cam{cam_res, proj_params, dist_params};
+
     // Estimate T_CF at ts
-    mat4_t rel_pose;
-    grid.estimate(cam_params.proj_params(), cam_params.dist_params(), rel_pose);
+    mat4_t T_CF_k;
+    grid.estimate(cam, T_CF_k);
 
     // Create new relative pose T_CF at ts
-    auto pose = new pose_t{param_id++, ts, rel_pose};
+    auto pose = new pose_t{param_id++, ts, T_CF_k};
     poses.emplace_back(pose);
 
     // Create view

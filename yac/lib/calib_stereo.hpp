@@ -453,22 +453,28 @@ static int process_grid(calib_view_t<CAMERA_TYPE> &view,
   return 0;
 }
 
-static pose_t estimate_relative_pose(const int cam_idx,
-                                     const aprilgrid_t &grid,
-                                     const camera_params_t &cam,
+template <typename CAMERA_TYPE>
+static pose_t estimate_relative_pose(const aprilgrid_t &grid,
+                                     const camera_params_t &cam_params,
                                      const mat4_t &T_C1C0,
                                      id_t &param_counter) {
+  const auto ts = grid.timestamp;
+  const int cam_idx = cam_params.cam_index;
+  const auto cam_res = cam_params.resolution;
+  const vecx_t proj_params = cam_params.proj_params();
+  const vecx_t dist_params = cam_params.dist_params();
+  const CAMERA_TYPE cam{cam_res, proj_params, dist_params};
+
   mat4_t rel_pose;
-  if (grid.estimate(cam.proj_params(), cam.dist_params(), rel_pose) != 0) {
+  if (grid.estimate(cam, rel_pose) != 0) {
     FATAL("Failed to estimate relative pose!");
   }
-  const auto ts = grid.timestamp;
 
+  // Return estimated T_C0F
   if (cam_idx != 0) {
-    mat4_t T_C0F = T_C1C0.inverse() * rel_pose;
+    const mat4_t T_C0F = T_C1C0.inverse() * rel_pose;
     return pose_t{param_counter++, ts, T_C0F};
   }
-
   return pose_t{param_counter++, ts, rel_pose};
 }
 
@@ -638,7 +644,7 @@ int calib_stereo_solve(const aprilgrids_t &cam0_grids,
   for (const auto &grid : cam0_grids) {
     // Estimate T_C0F and add to parameters to be estimated
     const auto ts = grid.timestamp;
-    rel_poses[ts] = estimate_relative_pose(0, grid, cam0, T_C1C0, param_id);
+    rel_poses[ts] = estimate_relative_pose<CAMERA_TYPE>(grid, cam0, T_C1C0, param_id);
 
     // Add reprojection factors to problem
     cam0_views.emplace_back(0, grid, covar, cam0, rel_poses[ts], extrinsics);
@@ -656,7 +662,7 @@ int calib_stereo_solve(const aprilgrids_t &cam0_grids,
     // Estimate T_C0F if it does not exist at ts
     const auto ts = grid.timestamp;
     if (rel_poses.count(ts) == 0) {
-      rel_poses[ts] = estimate_relative_pose(1, grid, cam1, T_C1C0, param_id);
+      rel_poses[ts] = estimate_relative_pose<CAMERA_TYPE>(grid, cam1, T_C1C0, param_id);
     }
 
     // Add reprojection factors to problem
@@ -786,12 +792,7 @@ static void initialize(const aprilgrids_t &grids0,
   // const mat3_t C_C1C0 = euler321(rpy_C1C0);
   // T_C1C0 = tf(C_C1C0, r_C1C0);
 
-  calib_stereo_solve<CAMERA_TYPE>(grids0,
-                                  grids1,
-                                  covar,
-                                  cam0,
-                                  cam1,
-                                  T_C1C0);
+  calib_stereo_solve<CAMERA_TYPE>(grids0, grids1, covar, cam0, cam1, T_C1C0);
 }
 
 template <typename CAMERA_TYPE>
@@ -903,6 +904,11 @@ static std::vector<int> find_random_indicies(const int attempts,
   double best_rmse = 0.0;
   std::vector<int> best_indicies;
 
+  const auto cam_res = cam0.resolution;
+  const vecx_t proj_params = cam0.proj_params();
+  const vecx_t dist_params = cam0.dist_params();
+  const CAMERA_TYPE cam0_geom{cam_res, proj_params, dist_params};
+
   for (int j = 0; j < attempts; j++) {
     // Create random index vector (same length as grids)
     std::vector<int> indicies;
@@ -926,9 +932,7 @@ static std::vector<int> find_random_indicies(const int attempts,
 
       // Estimate T_C0F
       mat4_t T_C0F_;
-      const vecx_t cam0_proj = cam0.proj_params();
-      const vecx_t cam0_dist = cam0.dist_params();
-      grid0.estimate(cam0_proj, cam0_dist, T_C0F_);
+      grid0.estimate(cam0_geom, T_C0F_);
       rel_poses.emplace_back(param_counter++, ts, T_C0F_);
 
       // Create view
@@ -1090,11 +1094,13 @@ int calib_stereo_inc_solve(calib_stereo_data_t &data) {
     }
 
     // Estimate T_C0F
-    mat4_t T_C0F_;
-    const vecx_t cam0_proj = cam0.proj_params();
-    const vecx_t cam0_dist = cam0.dist_params();
-    grid0.estimate(cam0_proj, cam0_dist, T_C0F_);
-    rel_poses.emplace_back(param_counter++, ts, T_C0F_);
+    const auto cam_res = cam0.resolution;
+    const vecx_t proj_params = cam0.proj_params();
+    const vecx_t dist_params = cam0.dist_params();
+    const CAMERA_TYPE cam0_geom{cam_res, proj_params, dist_params};
+    mat4_t T_C0F_k;
+    grid0.estimate(cam0_geom, T_C0F_k);
+    rel_poses.emplace_back(param_counter++, ts, T_C0F_k);
 
     // Create view
     cam0_views.emplace_back(0, grid0, covar, cam0, rel_poses.back(), extrinsics);

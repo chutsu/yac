@@ -170,6 +170,7 @@ struct calib_mocap_data_t {
       // Perform intrinsics calibration
       LOG_INFO("Calibrating camera intrinsics!");
       {
+        // Setup AprilGrid detector
         aprilgrid_detector_t detector(calib_target.tag_rows,
                                       calib_target.tag_cols,
                                       calib_target.tag_size,
@@ -180,23 +181,17 @@ struct calib_mocap_data_t {
         }
         std::sort(image_paths.begin(), image_paths.end());
 
+        // Esimate AprilGrids
         aprilgrids_t cam0_grids;
-        mat4s_t T_CF;
         for (const auto &image_path : image_paths) {
           const auto ts = std::stoull(parse_fname(image_path));
           const auto image = cv::imread(paths_join(cam0_path, image_path));
-          auto grid = detector.detect(ts, image);
-
-          const vecx_t proj_params = cam0.proj_params();
-          const vecx_t dist_params = cam0.dist_params();
-          mat4_t rel_pose;
-          grid.estimate(proj_params, dist_params, rel_pose);
-
+          const auto grid = detector.detect(ts, image);
           cam0_grids.push_back(grid);
-          T_CF.push_back(rel_pose);
         }
 
         int retval = 0;
+        mat4s_t T_CF;
         if (proj_model == "pinhole" && dist_model == "radtan4") {
           calib_mono_solve<pinhole_radtan4_t>(cam0_grids, covar, this->cam0, T_CF);
         } else if (proj_model == "pinhole" && dist_model == "equi4") {

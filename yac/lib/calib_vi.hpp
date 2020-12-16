@@ -542,6 +542,31 @@ struct calib_vi_t {
     return cam_params.size();
   }
 
+  int estimate_relative_pose(const aprilgrid_t &grid, mat4_t &T_C0F) {
+    assert(cam_params.count(0) == 1);
+
+    // Estimate relative pose
+    const int *cam_res = cam_params[0]->resolution;
+    const auto proj_model = cam_params[0]->proj_model;
+    const auto dist_model = cam_params[0]->dist_model;
+    const vec4_t proj_params = cam_params[0]->proj_params();
+    const vec4_t dist_params = cam_params[0]->dist_params();
+
+    int retval = 0;
+    if (proj_model == "pinhole" && dist_model == "radtan4") {
+      const pinhole_radtan4_t cam{cam_res, proj_params, dist_params};
+      retval = grid.estimate(cam, T_C0F);
+    } else if (proj_model == "pinhole" && dist_model == "equi4") {
+      const pinhole_equi4_t cam{cam_res, proj_params, dist_params};
+      retval = grid.estimate(cam, T_C0F);
+    } else {
+      FATAL("Unsupported projection-distorion type [%s-%s]!",
+            proj_model.c_str(), dist_model.c_str());
+    }
+
+    return retval;
+  }
+
   void trim_imu_data(imu_data_t &imu_data, const timestamp_t t1) {
     // Makesure the trim timestamp is after the first imu measurement
     if (t1 < imu_data.timestamps.front()) {
@@ -691,10 +716,10 @@ struct calib_vi_t {
       // -------------------------- Initialize T_WF ---------------------------
       if (sensor_init && fiducial_init == false && grids_buf[0].detected) {
         // Estimate relative pose
-        vec4_t proj_params = cam_params[0]->proj_params();
-        vec4_t dist_params = cam_params[0]->dist_params();
         mat4_t T_C0F = I(4);
-        grids_buf[0].estimate(proj_params, dist_params, T_C0F);
+        if (estimate_relative_pose(grids_buf[0], T_C0F) != 0) {
+          FATAL("Failed to estimate relative pose!");
+        }
 
         // Add T_WF
         const mat4_t T_SC0 = get_extrinsic(0);
@@ -724,10 +749,10 @@ struct calib_vi_t {
       }
 
       // Estimate relative pose
-      const vec4_t proj_params = cam_params[0]->proj_params();
-      const vec4_t dist_params = cam_params[0]->dist_params();
       mat4_t T_C0F = I(4);
-      grids_buf[0].estimate(proj_params, dist_params, T_C0F);
+      if (estimate_relative_pose(grids_buf[0], T_C0F) != 0) {
+        FATAL("Failed to estimate relative pose!");
+      }
 
       // Add states
       const mat4_t T_FC0 = T_C0F.inverse();

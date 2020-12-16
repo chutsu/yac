@@ -265,9 +265,13 @@ int test_aprilgrid_estimate() {
   }
 
   {
+    int cam_res[2] = {752, 480};
+    pinhole_radtan4_t cam{cam_res, K, D};
+
     auto t = yac::tic();
     mat4_t T_CF;
-    grid.estimate(K, D, T_CF);
+    grid.estimate(cam, T_CF);
+
     printf("OpenCV solvePnP time elasped: %fs\n", yac::toc(&t));
     print_matrix("T_CF", T_CF);
   }

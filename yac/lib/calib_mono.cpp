@@ -125,17 +125,10 @@ int calib_mono_solve(const std::string &config_file) {
     return -1;
   }
 
-  // Estimate initial guess for grid poses
-  mat4s_t T_CF;
-  for (auto &grid : grids) {
-    mat4_t rel_pose;
-    grid.estimate(proj_params, dist_params, rel_pose);
-    T_CF.push_back(rel_pose);
-  }
-
   // Calibrate camera
   LOG_INFO("Calibrating camera!");
   const mat2_t covar = I(2) * pow(sigma_vision, 2);
+  mat4s_t T_CF;
   std::vector<double> errs;
 
   if (proj_model == "pinhole" && dist_model == "radtan4") {

@@ -232,15 +232,16 @@ struct aprilgrid_t {
     static_cast<const aprilgrid_t>(*this).imshow(title, image);
   }
 
-  int estimate(const vec4_t &proj_params, const vec4_t &dist_params, mat4_t &T_CF) const {
+  template <typename CAMERA_TYPE>
+  int estimate(const CAMERA_TYPE &cam, mat4_t &T_CF) const {
     // Check if we actually have data to work with
     if (nb_detections == 0) {
       return -1;
     }
 
     // Create object points (counter-clockwise, from bottom left)
-    std::vector<cv::Point3f> obj_pts;
-    std::vector<cv::Point2f> img_pts;
+    vec2s_t img_pts;
+    vec3s_t obj_pts;
     for (int i = 0; i < (tag_rows * tag_cols * 4); i++) {
       if (data(i, 0) > 0) {
         img_pts.emplace_back(data(i, 1), data(i, 2));
@@ -248,50 +249,12 @@ struct aprilgrid_t {
       }
     }
 
-    // Extract out camera intrinsics
-    const double fx = proj_params(0);
-    const double fy = proj_params(1);
-    const double cx = proj_params(2);
-    const double cy = proj_params(3);
-
-    // Extract out camera distortion
-    const double k1 = dist_params(0);
-    const double k2 = dist_params(1);
-    const double p1 = dist_params(2);
-    const double p2 = dist_params(3);
-
-    // Solve pnp
-    cv::Vec4f distortion_params(k1, k2, p1, p2); // SolvPnP assumes radtan
-    cv::Mat camera_matrix(3, 3, CV_32FC1, 0.0f);
-    camera_matrix.at<float>(0, 0) = fx;
-    camera_matrix.at<float>(1, 1) = fy;
-    camera_matrix.at<float>(0, 2) = cx;
-    camera_matrix.at<float>(1, 2) = cy;
-    camera_matrix.at<float>(2, 2) = 1.0;
-
-    cv::Mat rvec;
-    cv::Mat tvec;
-    cv::solvePnP(obj_pts,
-                img_pts,
-                camera_matrix,
-                distortion_params,
-                rvec,
-                tvec,
-                false,
-                CV_ITERATIVE);
-
-    // Form relative tag pose as a 4x4 tfation matrix
-    // -- Convert Rodrigues rotation vector to rotation matrix
-    cv::Mat R;
-    cv::Rodrigues(rvec, R);
-    // -- Form full transformation matrix
-    T_CF = tf(convert(R), convert(tvec));
-
-    return 0;
+    return solvepnp(cam, img_pts, obj_pts, T_CF);
   }
 
-  int estimate(const vec4_t &proj_params, const vec4_t &dist_params, mat4_t &T_CF) {
-    return static_cast<const aprilgrid_t>(*this).estimate(proj_params, dist_params, T_CF);
+  template <typename CAMERA_TYPE>
+  int estimate(const CAMERA_TYPE &cam, mat4_t &T_CF) {
+    return static_cast<const aprilgrid_t>(*this).estimate(cam, T_CF);
   }
 
   int save(const std::string &save_path) const {

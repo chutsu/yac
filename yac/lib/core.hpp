@@ -3330,9 +3330,7 @@ struct equi4_t : distortion_t {
 
 std::ostream &operator<<(std::ostream &os, const equi4_t &equi4);
 
-/**
- * Projection model
- */
+/* Projection model */
 template <typename DM = nodist_t>
 struct projection_t {
   int resolution[2] = {0, 0};
@@ -3503,8 +3501,23 @@ struct pinhole_t : projection_t<DM> {
     return 0;
   }
 
-  vec2_t undistort(const vec2_t &z) {
-    return this->distortion.undistort(z);
+  vec2_t undistort_keypoint(const vec2_t &z) {
+    return static_cast<const pinhole_t &>(*this).undistort(z);
+  }
+
+  vec2_t undistort_keypoint(const vec2_t &z) const {
+    // Back-project and undistort
+    const real_t px = (z(0) - cx()) / fx();
+    const real_t py = (z(1) - cy()) / fy();
+    const vec2_t p{px, py};
+    const vec2_t p_undist = this->distortion.undistort(p);
+
+    // Project undistorted point to image plane
+    const real_t x = p_undist(0) * fx() + cx();
+    const real_t y = p_undist(1) * fy() + cy();
+    const vec2_t z_undist = {x, y};
+
+    return z_undist;
   }
 
   mat2_t J_point() {
@@ -3589,36 +3602,37 @@ mat3_t pinhole_K(const int img_w,
 
 template <typename CAMERA_TYPE>
 int solvepnp(const CAMERA_TYPE &cam,
-             const vec2s_t keypoints,
-             const vec3s_t object_points,
+             const vec2s_t &keypoints,
+             const vec3s_t &object_points,
              mat4_t &T_CF) {
   assert(keypoints.size() == object_points.size());
 
   // Create object points (counter-clockwise, from bottom left)
   size_t nb_points = keypoints.size();
-  std::vector<cv::Point3f> obj_pts;
   std::vector<cv::Point2f> img_pts;
+  std::vector<cv::Point3f> obj_pts;
   for (size_t i = 0; i < nb_points; i++) {
-    const vec2_t kp = cam.undistort(keypoints[i]);
+    const vec2_t kp = cam.undistort_keypoint(keypoints[i]);
     const vec3_t pt = object_points[i];
     img_pts.emplace_back(kp(0), kp(1));
     obj_pts.emplace_back(pt(0), pt(1), pt(2));
   }
 
   // Extract out camera intrinsics
-  const double fx = cam.proj_params()(0);
-  const double fy = cam.proj_params()(1);
-  const double cx = cam.proj_params()(2);
-  const double cy = cam.proj_params()(3);
+  const vecx_t proj_params = cam.proj_params();
+  const double fx = proj_params(0);
+  const double fy = proj_params(1);
+  const double cx = proj_params(2);
+  const double cy = proj_params(3);
 
   // Solve pnp
-  cv::Vec4f distortion_params(0, 0, 0, 0); // SolvPnP assumes radtan
   cv::Mat camera_matrix(3, 3, CV_32FC1, 0.0f);
   camera_matrix.at<float>(0, 0) = fx;
   camera_matrix.at<float>(1, 1) = fy;
   camera_matrix.at<float>(0, 2) = cx;
   camera_matrix.at<float>(1, 2) = cy;
   camera_matrix.at<float>(2, 2) = 1.0;
+  cv::Vec4f distortion_params(0, 0, 0, 0); // SolvPnP assumes radtan
 
   cv::Mat rvec;
   cv::Mat tvec;

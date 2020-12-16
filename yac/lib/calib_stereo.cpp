@@ -246,30 +246,12 @@ int calib_stereo_solve(const std::string &config_file) {
 		return -1;
 	}
 
-  // Estimate initial guess for grid poses
-  // -- cam0
-  mat4s_t T_C0F;
-  for (auto &grid : grids0) {
-    mat4_t rel_pose;
-    const auto proj_params = cam0.proj_params();
-    const auto dist_params = cam0.dist_params();
-    grid.estimate(proj_params, dist_params, rel_pose);
-    T_C0F.push_back(rel_pose);
-  }
-  // -- cam1
-  mat4s_t T_C1F;
-  for (auto &grid : grids1) {
-    mat4_t rel_pose;
-    const auto proj_params = cam1.proj_params();
-    const auto dist_params = cam1.dist_params();
-    grid.estimate(proj_params, dist_params, rel_pose);
-    T_C1F.push_back(rel_pose);
-  }
-
   // Calibrate stereo
   LOG_INFO("Calibrating stereo camera!");
   mat4_t T_C1C0 = I(4);
   mat2_t covar = pow(sigma_vision, 2) * I(2);
+  mat4s_t T_C0F;
+  mat4s_t T_C1F;
   std::vector<double> cam0_errs;
   std::vector<double> cam1_errs;
 

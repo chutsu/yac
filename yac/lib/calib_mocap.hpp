@@ -277,8 +277,7 @@ struct calib_mocap_data_t {
 
 /* MOCAP marker residual */
 template <typename CAMERA_TYPE>
-struct calib_mocap_residual_t
-    : public ceres::SizedCostFunction<2, 7, 7, 7, 8> {
+struct calib_mocap_residual_t : public ceres::SizedCostFunction<2, 7, 7, 7, 8> {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
   int cam_res_[2] = {0, 0};
@@ -288,7 +287,6 @@ struct calib_mocap_residual_t
   const mat2_t covar_;
   const mat2_t info_;
   const mat2_t sqrt_info_;
-  mutable matxs_t J_min;
 
   calib_mocap_residual_t(const int cam_res[2],
                          const vec3_t &r_FFi,
@@ -299,12 +297,7 @@ struct calib_mocap_residual_t
         z_{z},
         covar_{covar},
         info_{covar.inverse()},
-        sqrt_info_{info_.llt().matrixL().transpose()} {
-    J_min.push_back(zeros(2, 6));  // T_WF
-    J_min.push_back(zeros(2, 6));  // T_WM
-    J_min.push_back(zeros(2, 6));  // T_MC0
-    J_min.push_back(zeros(2, 8));  // cam0 params
-  }
+        sqrt_info_{info_.llt().matrixL().transpose()} {}
 
   ~calib_mocap_residual_t() {}
 
@@ -312,19 +305,9 @@ struct calib_mocap_residual_t
                 double *residuals,
                 double **jacobians) const {
     // Map optimization variables to Eigen
-    // -- Map fiducial pose
     const mat4_t T_WF = tf(params[0]);
-    const mat3_t C_WF = tf_rot(T_WF);
-    const quat_t q_WF{C_WF};
-    // -- Map marker pose
     const mat4_t T_WM = tf(params[1]);
-    const mat3_t C_WM = tf_rot(T_WM);
-    const quat_t q_WM{C_WM};
-    // -- Map marker-cam pose
     const mat4_t T_MC0 = tf(params[2]);
-    const mat3_t C_MC0 = tf_rot(T_MC0);
-    const quat_t q_MC0{C_MC0};
-    // -- Map camera params
     Eigen::Map<const vecx_t> cam0_params(params[3], 8);
 
     // Transform and project point to image plane
@@ -339,8 +322,7 @@ struct calib_mocap_residual_t
     bool valid = true;
 
     CAMERA_TYPE camera{cam_res_, cam0_params};
-    int proj_status = camera.project(r_C0Fi, z_hat, Jh);
-    if (proj_status != 0) {
+    if (camera.project(r_C0Fi, z_hat, Jh) != 0) {
       valid = false;
     }
     J_params = camera.J_params(p);
@@ -351,69 +333,56 @@ struct calib_mocap_residual_t
     residuals[1] = r(1);
 
     // Jacobians
-    matx_t weighted_Jh = -1 * sqrt_info_ * Jh;
+    const matx_t Jh_weighted = sqrt_info_ * Jh;
+    const mat3_t C_C0W = tf_rot(T_C0M * T_MW);
+    const mat3_t C_MC0 = tf_rot(T_MC0);
     const mat3_t C_C0M = C_MC0.transpose();
-    const mat3_t C_MW = C_WM.transpose();
-    const mat3_t C_C0W = C_C0M * C_MW;
 
     if (jacobians) {
       // Jacobians w.r.t T_WF
       if (jacobians[0]) {
-        J_min[0].block(0, 0, 2, 3) = weighted_Jh * C_C0W * I(3);
-        J_min[0].block(0, 3, 2, 3) = weighted_Jh * C_C0W * -skew(C_WF * r_FFi_);
+        const mat3_t C_WF = tf_rot(T_WF);
+
+        Eigen::Map<mat_t<2, 7, row_major_t>> J(jacobians[0]);
+        J.setZero();
+        J.block(0, 0, 2, 3) = -1 * Jh_weighted * C_C0W * I(3);
+        J.block(0, 3, 2, 3) = -1 * Jh_weighted * C_C0W * -skew(C_WF * r_FFi_);
         if (valid == false) {
-          J_min[0].setZero();
+          J.setZero();
         }
-
-        // Convert from minimial jacobians to local jacobian
-        // lift_pose_jacobian(J_min[0], q_WF, jacobians[0]);
-
-        Eigen::Map<mat_t<2, 7, row_major_t>> J0(jacobians[0]);
-        J0.setZero();
-        J0.block(0, 0, 2, 6) = J_min[0];
       }
 
       // Jacobians w.r.t T_WM
       if (jacobians[1]) {
-        J_min[1].block(0, 0, 2, 3) = weighted_Jh * -C_C0W * I(3);
-        J_min[1].block(0, 3, 2, 3) = weighted_Jh * -C_C0W * -skew(C_WM * r_MFi);
+        const mat3_t C_WM = tf_rot(T_WM);
+
+        Eigen::Map<mat_t<2, 7, row_major_t>> J(jacobians[1]);
+        J.setZero();
+        J.block(0, 0, 2, 3) = -1 * Jh_weighted * -C_C0W * I(3);
+        J.block(0, 3, 2, 3) = -1 * Jh_weighted * -C_C0W * -skew(C_WM * r_MFi);
         if (valid == false) {
-          J_min[1].setZero();
+          J.setZero();
         }
-
-        // Convert from minimial jacobians to local jacobian
-        // lift_pose_jacobian(J_min[1], q_WM, jacobians[1]);
-
-        Eigen::Map<mat_t<2, 7, row_major_t>> J1(jacobians[1]);
-        J1.setZero();
-        J1.block(0, 0, 2, 6) = J_min[1];
       }
 
       // Jacobians w.r.t T_MC0
       if (jacobians[2]) {
-        J_min[2].block(0, 0, 2, 3) = weighted_Jh * -C_C0M * I(3);
-        J_min[2].block(0, 3, 2, 3) = weighted_Jh * -C_C0M * -skew(C_MC0 * r_C0Fi);
+        Eigen::Map<mat_t<2, 7, row_major_t>> J(jacobians[2]);
+        J.setZero();
+        J.block(0, 0, 2, 3) = -1 * Jh_weighted * -C_C0M * I(3);
+        J.block(0, 3, 2, 3) = -1 * Jh_weighted * -C_C0M * -skew(C_MC0 * r_C0Fi);
         if (valid == false) {
-          J_min[2].setZero();
+          J.setZero();
         }
-
-        // Convert from minimial jacobians to local jacobian
-        // lift_pose_jacobian(J_min[2], q_MC0, jacobians[2]);
-
-        Eigen::Map<mat_t<2, 7, row_major_t>> J2(jacobians[2]);
-        J2.setZero();
-        J2.block(0, 0, 2, 6) = J_min[2];
       }
 
       // Jacobians w.r.t camera params
       if (jacobians[3]) {
-        J_min[3] = -1 * sqrt_info_ * J_params;
+        Eigen::Map<mat_t<2, 8, row_major_t>> J(jacobians[3]);
+        J = -1 * sqrt_info_ * J_params;
         if (valid == false) {
-          J_min[3].setZero();
+          J.setZero();
         }
-
-        Eigen::Map<mat_t<2, 8, row_major_t>> J1(jacobians[3]);
-        J1 = J_min[3];
       }
     }
 

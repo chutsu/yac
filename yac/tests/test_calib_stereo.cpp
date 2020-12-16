@@ -456,7 +456,7 @@ void test_suite() {
   test_setup();
   // MU_ADD_TEST(test_calib_stereo_residual);
   MU_ADD_TEST(test_calib_stereo_solve);
-  // MU_ADD_TEST(test_calib_stereo_inc_solve);
+  MU_ADD_TEST(test_calib_stereo_inc_solve);
 }
 
 } // namespace yac

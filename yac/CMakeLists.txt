@@ -38,6 +38,7 @@ ADD_LIBRARY(
   lib/calib_mocap.cpp
   lib/calib_mono.cpp
   lib/calib_stereo.cpp
+  lib/calib_vi.cpp
   lib/ceres_utils.cpp
   lib/core.cpp
 )
@@ -63,5 +64,5 @@ TARGET_LINK_LIBRARIES(test_calib_data yac ${DEPS})
 ADD_EXECUTABLE(test_calib_stereo tests/test_calib_stereo.cpp)
 TARGET_LINK_LIBRARIES(test_calib_stereo yac ${DEPS})
 
-# ADD_EXECUTABLE(test_calib_vi tests/test_calib_vi.cpp)
-# TARGET_LINK_LIBRARIES(test_calib_vi yac ${DEPS})
+ADD_EXECUTABLE(test_calib_vi tests/test_calib_vi.cpp)
+TARGET_LINK_LIBRARIES(test_calib_vi yac ${DEPS})

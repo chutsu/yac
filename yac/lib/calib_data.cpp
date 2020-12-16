@@ -56,32 +56,48 @@ int preprocess_camera_data(const calib_target_t &target,
                                 target.tag_size,
                                 target.tag_spacing};
 
+  // Equalizer
+  cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE();
+
   #pragma omp parallel for
   for (size_t i = 0; i < image_paths.size(); i++) {
-    // -- Print progress
+    // Print progress
     if (show_progress && i % 10 == 0) {
       printf(".");
       fflush(stdout);
     }
 
-    // -- Create output file path
+    // Create output file path
     auto output_file = parse_fname(image_paths[i]);
     const timestamp_t ts = std::stoull(output_file);
     output_file = remove_ext(output_file);
     output_file += ".csv";
     const auto save_path = paths_join(output_dir, output_file);
 
-    // -- Skip if already preprocessed
+    // Skip if already preprocessed
     if (file_exists(save_path)) {
       continue;
     }
 
-    // -- Detect
+    // Read image
     const auto image_path = paths_join(image_dir, image_paths[i]);
-    const cv::Mat image = cv::imread(image_path);
-    const auto grid = detector.detect(ts, image);
+    const cv::Mat frame = cv::imread(image_path, CV_LOAD_IMAGE_GRAYSCALE);
+
+		// cv::Mat image;
+		// clahe->setClipLimit(2);
+		// clahe->apply(frame, image);
+
+		// cv::Mat image;
+		// cv::GaussianBlur(frame, image, cv::Size(0, 0), 3);
+		// cv::addWeighted(frame, 1.5, image, -0.5, 0, image);
+
+		// cv::Mat image_compare;
+    // cv::hconcat(frame, image, image_compare);
+    // cv::imshow("Image", image_compare);
+    // cv::waitKey(1);
 
     // -- Save AprilGrid
+    const auto grid = detector.detect(ts, frame);
     if (grid.save(save_path) != 0) {
       retval = -1;
     }

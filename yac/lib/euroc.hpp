@@ -522,8 +522,6 @@ struct euroc_calib_t {
   euroc_target_t calib_target;
   cv::Size image_size;
 
-  euroc_calib_t() {}
-
   euroc_calib_t(const std::string &data_path)
       : data_path{strip_end(data_path, "/")} {
     // Load IMU data
@@ -564,29 +562,29 @@ struct euroc_calib_t {
 
   ~euroc_calib_t() {}
 
-  timeline_t get_timeline(const euroc_calib_t &calib_data) {
+  timeline_t timeline() {
     // Create timeline
     timeline_t timeline;
 
     // -- Add cam0 events
-    for (size_t i = 0; i < calib_data.cam0_data.timestamps.size(); i++) {
-      const auto ts = calib_data.cam0_data.timestamps[i];
-      const auto img_path = calib_data.cam0_data.image_paths[i];
+    for (size_t i = 0; i < cam0_data.timestamps.size(); i++) {
+      const auto ts = cam0_data.timestamps[i];
+      const auto img_path = cam0_data.image_paths[i];
       const timeline_event_t event{ts, 0, img_path};
       timeline.add(event);
     }
     // -- Add cam1 events
-    for (size_t i = 0; i < calib_data.cam1_data.timestamps.size(); i++) {
-      const auto ts = calib_data.cam1_data.timestamps[i];
-      const auto img_path = calib_data.cam1_data.image_paths[i];
-      const timeline_event_t event{ts, 0, img_path};
+    for (size_t i = 0; i < cam1_data.timestamps.size(); i++) {
+      const auto ts = cam1_data.timestamps[i];
+      const auto img_path = cam1_data.image_paths[i];
+      const timeline_event_t event{ts, 1, img_path};
       timeline.add(event);
     }
     // -- Add imu events
-    for (size_t i = 0; i < calib_data.imu_data.timestamps.size(); i++) {
-      const auto ts = calib_data.imu_data.timestamps[i];
-      const auto a_B = calib_data.imu_data.a_B[i];
-      const auto w_B = calib_data.imu_data.w_B[i];
+    for (size_t i = 0; i < imu_data.timestamps.size(); i++) {
+      const auto ts = imu_data.timestamps[i];
+      const auto a_B = imu_data.a_B[i];
+      const auto w_B = imu_data.w_B[i];
       const timeline_event_t event{ts, a_B, w_B};
       timeline.add(event);
     }

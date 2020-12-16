@@ -7,10 +7,20 @@
 
 namespace yac {
 
+// Plus matrix of a quaternion.
+// i.e. q_AB * q_BC = plus(q_AB) * q_BC.coeffs().
+Eigen::Matrix4d plus(const quat_t &q_AB);
+
 // Oplus matrix of a quaternion,
 // Right quaternion product matrix
 // i.e. q_AB * q_BC = oplus(q_BC) * q_AB.coeffs().
-mat4_t oplus(const quat_t & q_BC);
+mat4_t oplus(const quat_t &q_BC);
+
+// Right Jacobian, see Forster et al. RSS 2015 eqn. (8)
+mat3_t rightJacobian(const vec3_t &PhiVec);
+
+// Delta quaternion.
+quat_t deltaQ(const vec3_t &dAlpha);
 
 // Compute matrix to lift a quaternion.
 matx_t lift_quaternion(const quat_t &q);

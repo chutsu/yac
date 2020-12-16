@@ -265,9 +265,8 @@ int calib_mono_solve(const aprilgrids_t &grids,
                      mat4s_t &T_CF) {
   // Setup optimization problem
   ceres::Problem::Options prob_options;
-  prob_options.local_parameterization_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
   ceres::Problem problem(prob_options);
-  PoseLocalParameterization pose_parameterization;
+  PoseLocalParameterization *pose_plus = new PoseLocalParameterization();
 
   // Process all aprilgrid data
   id_t param_id = 0;
@@ -290,14 +289,16 @@ int calib_mono_solve(const aprilgrids_t &grids,
     process_grid<CAMERA_TYPE>(grid, covar, cam_params,
                               *pose, problem,
                               res_ids, cost_fns);
-    problem.SetParameterization(pose->param.data(),
-                                &pose_parameterization);
+    problem.SetParameterization(pose->param.data(), pose_plus);
   }
 
   // Set solver options
   ceres::Solver::Options options;
   options.minimizer_progress_to_stdout = true;
   options.max_num_iterations = 100;
+  options.function_tolerance = 1e-12;
+  options.gradient_tolerance = 1e-12;
+  options.parameter_tolerance = 1e-12;
   // options.check_gradients = true;
 
   // Solve
@@ -466,7 +467,7 @@ int calib_mono_inc_solve(calib_mono_data_t &data) {
 
     // Solve
     ceres::Solver::Options options;
-    options.max_num_iterations = 3;
+    options.max_num_iterations = 10;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
     // std::cout << summary.BriefReport() << std::endl;

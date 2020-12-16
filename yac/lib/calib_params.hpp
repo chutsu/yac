@@ -254,19 +254,19 @@ struct sb_params_t : param_t {
   sb_params_t() {}
 
   sb_params_t(const id_t id_,
-             const timestamp_t &ts_,
-             const vec3_t &v_,
-             const vec3_t &ba_,
-             const vec3_t &bg_,
-             const bool fixed_=false)
+              const timestamp_t &ts_,
+              const vec3_t &v_,
+              const vec3_t &ba_,
+              const vec3_t &bg_,
+              const bool fixed_=false)
     : param_t{"sb_params_t", id_, ts_, 9, 9, fixed_} {
     param << v_, ba_, bg_;
   }
 
   sb_params_t(const id_t id_,
-             const timestamp_t &ts_,
-             const vec_t<9> &sb_,
-             const bool fixed_=false)
+              const timestamp_t &ts_,
+              const vec_t<9> &sb_,
+              const bool fixed_=false)
     : param_t{"sb_params_t", id_, ts_, 9, 9, fixed_} {
     param = sb_;
   }
@@ -274,6 +274,56 @@ struct sb_params_t : param_t {
   void plus(const vecx_t &dx) { param += dx; }
   void perturb(const int i, const real_t step_size) { param(i) += step_size; }
 };
+
+struct td_params_t : param_t {
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
+
+  td_params_t() {}
+
+  td_params_t(const id_t id_,
+              const double td_,
+              const bool fixed_=false)
+    : param_t{"td_params_t", id_, 1, 1, fixed_} {
+    param(0) = td_;
+  }
+
+  void plus(const vecx_t &dx) { param += dx; }
+  void perturb(const int i, const real_t step_size) { param(i) += step_size; }
+};
+
+struct fiducial_params_t : param_t {
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
+
+  fiducial_params_t() {}
+
+  fiducial_params_t(const id_t id_,
+                    const timestamp_t &ts_,
+                    const vec2_t params_,
+                    const bool fixed_=false)
+    : param_t{"td_params_t", id_, ts_, 1, 1, fixed_} {
+    param = params_;
+  }
+
+  void plus(const vecx_t &dx) { param += dx; }
+  void perturb(const int i, const real_t step_size) { param(i) += step_size; }
+};
+
+// struct imu_params_t {
+//   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+//   mat4_t T_BS;         // Transformation from Body frame to IMU (sensor frame S).
+//   double a_max;        // Accelerometer saturation. [m/s^2]
+//   double g_max;        // Gyroscope saturation. [rad/s]
+//   double sigma_g_c;    // Gyroscope noise density.
+//   double sigma_bg;     // Initial gyroscope bias.
+//   double sigma_a_c;    // Accelerometer noise density.
+//   double sigma_ba;     // Initial accelerometer bias
+//   double sigma_gw_c;   // Gyroscope drift noise density.
+//   double sigma_aw_c;   // Accelerometer drift noise density.
+//   double tau;          // Reversion time constant of accerometer bias. [s]
+//   double g;            // Earth acceleration.
+//   vec3_t a0;           // Mean of the prior accelerometer bias.
+//   int rate;            // IMU rate in Hz.
+// };
 
 } // namespace yac
 #endif // YAC_CALIB_PARAMS_HPP

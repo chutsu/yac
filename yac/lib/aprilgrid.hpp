@@ -378,7 +378,7 @@ struct aprilgrid_t {
     // -- Object point
     str_format += "%lf,%lf,%lf,";
     // -- tag_id, corner_idx
-    str_format += "%ld,%ld";
+    str_format += "%d,%d";
 
     // Parse file
     clear();
@@ -392,10 +392,10 @@ struct aprilgrid_t {
       }
 
       // Parse line
-      int tag_id = 0;
-      int corner_idx = 0;
       double kp_x, kp_y = 0.0;
       double p_x, p_y, p_z = 0.0;
+      int tag_id = 0;
+      int corner_idx = 0;
       int retval = fscanf(
         // File pointer
         fp,

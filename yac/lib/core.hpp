@@ -3503,6 +3503,10 @@ struct pinhole_t : projection_t<DM> {
     return 0;
   }
 
+  vec2_t undistort(const vec2_t &z) {
+    return this->distortion.undistort(z);
+  }
+
   mat2_t J_point() {
     return static_cast<const pinhole_t &>(*this).J_point();
   }
@@ -3555,6 +3559,7 @@ struct pinhole_t : projection_t<DM> {
 
 typedef pinhole_t<radtan4_t> pinhole_radtan4_t;
 typedef pinhole_t<equi4_t> pinhole_equi4_t;
+typedef pinhole_t<nodist_t> pinhole_ideal_t;
 
 template <typename DM>
 std::ostream &operator<<(std::ostream &os, const pinhole_t<DM> &pinhole) {
@@ -3581,6 +3586,60 @@ mat3_t pinhole_K(const int img_w,
                  const int img_h,
                  const real_t lens_hfov,
                  const real_t lens_vfov);
+
+template <typename CAMERA_TYPE>
+int solvepnp(const CAMERA_TYPE &cam,
+             const vec2s_t keypoints,
+             const vec3s_t object_points,
+             mat4_t &T_CF) {
+  assert(keypoints.size() == object_points.size());
+
+  // Create object points (counter-clockwise, from bottom left)
+  size_t nb_points = keypoints.size();
+  std::vector<cv::Point3f> obj_pts;
+  std::vector<cv::Point2f> img_pts;
+  for (size_t i = 0; i < nb_points; i++) {
+    const vec2_t kp = cam.undistort(keypoints[i]);
+    const vec3_t pt = object_points[i];
+    img_pts.emplace_back(kp(0), kp(1));
+    obj_pts.emplace_back(pt(0), pt(1), pt(2));
+  }
+
+  // Extract out camera intrinsics
+  const double fx = cam.proj_params()(0);
+  const double fy = cam.proj_params()(1);
+  const double cx = cam.proj_params()(2);
+  const double cy = cam.proj_params()(3);
+
+  // Solve pnp
+  cv::Vec4f distortion_params(0, 0, 0, 0); // SolvPnP assumes radtan
+  cv::Mat camera_matrix(3, 3, CV_32FC1, 0.0f);
+  camera_matrix.at<float>(0, 0) = fx;
+  camera_matrix.at<float>(1, 1) = fy;
+  camera_matrix.at<float>(0, 2) = cx;
+  camera_matrix.at<float>(1, 2) = cy;
+  camera_matrix.at<float>(2, 2) = 1.0;
+
+  cv::Mat rvec;
+  cv::Mat tvec;
+  cv::solvePnP(obj_pts,
+              img_pts,
+              camera_matrix,
+              distortion_params,
+              rvec,
+              tvec,
+              false,
+              CV_ITERATIVE);
+
+  // Form relative tag pose as a 4x4 tfation matrix
+  // -- Convert Rodrigues rotation vector to rotation matrix
+  cv::Mat R;
+  cv::Rodrigues(rvec, R);
+  // -- Form full transformation matrix
+  T_CF = tf(convert(R), convert(tvec));
+
+  return 0;
+}
 
 /******************************************************************************
  *                               PARAMETERS

@@ -33,7 +33,9 @@ set -e
 # catkin build -DCMAKE_BUILD_TYPE=Release yac -j2
 # catkin build -DCMAKE_BUILD_TYPE=Release yac yac_ros -j2
 
-# make
+make
+# make lib
+# make lib_debug
 # make debug
 # make tests
 source ~/catkin_ws/devel/setup.bash
@@ -66,7 +68,6 @@ source ~/catkin_ws/devel/setup.bash
 # rosrun yac test_calib_stereo --target test_calib_stereo_solve
 # rosrun --prefix 'gdb -ex run -args' yac test_calib_stereo --target test_calib_stereo_inc_solve
 
-# make
 # rosrun yac test_calib_stereo --target test_calib_stereo_inc_solve
 
 # gnuplot -p scripts/plots/residuals.gpi
@@ -80,8 +81,9 @@ source ~/catkin_ws/devel/setup.bash
 # done
 # python3 scripts/analyze_calibs.py
 
-
-# rosrun yac test_calib_vi
+rosrun yac test_calib_vi
+# rosrun --prefix 'gdb -ex run -args' yac test_calib_vi
+# octave-cli scripts/octave/plot_calib_vi.m
 
 # python3 scripts/analyze_detections.py
 

@@ -127,16 +127,16 @@ struct calib_stereo_residual_t
     r.segment<2>(2) = sqrt_info_ * (z_C1_ - z_C1_hat);
 
     // Jacobians
-    matx_t cam0_weighted_Jh = -1 * sqrt_info_ * cam0_Jh;
-    matx_t cam1_weighted_Jh = -1 * sqrt_info_ * cam1_Jh;
+    matx_t cam0_Jh_weighted = -1 * sqrt_info_ * cam0_Jh;
+    matx_t cam1_Jh_weighted = -1 * sqrt_info_ * cam1_Jh;
 
     if (jacobians) {
       // Jacobians w.r.t T_C0F
       if (jacobians[0]) {
-        J_min[0].block(0, 0, 2, 3) = cam0_weighted_Jh * I(3);
-        J_min[0].block(0, 3, 2, 3) = cam0_weighted_Jh * -skew(C_C0F * r_FFi_);
-        J_min[0].block(2, 0, 2, 3) = cam1_weighted_Jh * I(3);
-        J_min[0].block(2, 3, 2, 3) = cam1_weighted_Jh * -skew(C_C1F * r_FFi_);
+        J_min[0].block(0, 0, 2, 3) = cam0_Jh_weighted * I(3);
+        J_min[0].block(0, 3, 2, 3) = cam0_Jh_weighted * -skew(C_C0F * r_FFi_);
+        J_min[0].block(2, 0, 2, 3) = cam1_Jh_weighted * I(3);
+        J_min[0].block(2, 3, 2, 3) = cam1_Jh_weighted * -skew(C_C1F * r_FFi_);
         if (valid == false) {
           J_min[0].setZero();
         }
@@ -161,8 +161,8 @@ struct calib_stereo_residual_t
       // Jacobians w.r.t T_C1C0
       if (jacobians[1]) {
         J_min[1].block(0, 0, 2, 6).setZero();
-        J_min[1].block(2, 0, 2, 3) = cam1_weighted_Jh * I(3);
-        J_min[1].block(2, 3, 2, 3) = cam1_weighted_Jh * -skew(C_C1C0 * r_C0Fi);
+        J_min[1].block(2, 0, 2, 3) = cam1_Jh_weighted * I(3);
+        J_min[1].block(2, 3, 2, 3) = cam1_Jh_weighted * -skew(C_C1C0 * r_C0Fi);
         if (valid == false) {
           J_min[1].setZero();
         }
@@ -281,14 +281,14 @@ struct reproj_error_with_extrinsics_t
     r = sqrt_info_ * (z_ - z_hat);
 
     // Jacobians
-    const matx_t weighted_Jh = -1 * sqrt_info_ * cam_Jh;
+    const matx_t Jh_weighted = -1 * sqrt_info_ * cam_Jh;
 
     if (jacobians) {
       // Jacobians w.r.t T_C0F
       if (jacobians[0]) {
         const mat3_t C_C0F = tf_rot(T_C0F);
-        J_min[0].block(0, 0, 2, 3) = weighted_Jh * I(3);
-        J_min[0].block(0, 3, 2, 3) = weighted_Jh * -skew(C_C0F * r_FFi_);
+        J_min[0].block(0, 0, 2, 3) = Jh_weighted * I(3);
+        J_min[0].block(0, 3, 2, 3) = Jh_weighted * -skew(C_C0F * r_FFi_);
         if (valid == false) {
           J_min[0].setZero();
         }
@@ -309,8 +309,8 @@ struct reproj_error_with_extrinsics_t
         } else {
           // cam-n
           const mat3_t C_CnC0 = tf_rot(T_CnC0);
-          J_min[1].block(0, 0, 2, 3) = weighted_Jh * I(3);
-          J_min[1].block(0, 3, 2, 3) = weighted_Jh * -skew(C_CnC0 * r_CnFi);
+          J_min[1].block(0, 0, 2, 3) = Jh_weighted * I(3);
+          J_min[1].block(0, 3, 2, 3) = Jh_weighted * -skew(C_CnC0 * r_CnFi);
           if (valid == false) {
             J_min[1].setZero();
           }

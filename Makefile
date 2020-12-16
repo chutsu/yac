@@ -16,6 +16,16 @@ deps:
 	@sudo bash ./scripts/deps/install.bash
 	@make -s -C deps
 
+lib: ${CATKIN_WS} ${YAC_PATH}
+	@cd ${CATKIN_WS} && \
+		. /opt/ros/melodic/setup.sh && \
+		catkin build yac -DCMAKE_BUILD_TYPE=RelWithDebInfo -j2
+
+lib_debug: ${CATKIN_WS} ${YAC_PATH}
+	@cd ${CATKIN_WS} && \
+		. /opt/ros/melodic/setup.sh && \
+		catkin build yac -DCMAKE_BUILD_TYPE=Debug -j2
+
 release: ${CATKIN_WS} ${YAC_PATH}
 	@cd ${CATKIN_WS} && \
 		. /opt/ros/melodic/setup.sh && \

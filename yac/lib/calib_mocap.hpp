@@ -186,6 +186,9 @@ struct calib_mocap_data_t {
           const auto ts = std::stoull(parse_fname(image_path));
           const auto image = cv::imread(paths_join(cam0_path, image_path));
           auto grid = detector.detect(ts, image);
+          if (grid.detected == false) {
+            continue;
+          }
 
           const vecx_t proj_params = cam0.proj_params();
           const vecx_t dist_params = cam0.dist_params();

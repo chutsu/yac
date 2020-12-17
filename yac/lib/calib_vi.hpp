@@ -441,6 +441,7 @@ struct calib_vi_t {
 
   // Data
   std::map<int, aprilgrid_t> grids_buf;
+  std::map<int, aprilgrids_t> cam_grids;
   imu_data_t imu_buf;
   bool sensor_init = false;
   bool fiducial_init = false;
@@ -588,14 +589,20 @@ struct calib_vi_t {
   }
 
   void add_imu_error() {
-    // double *pose_i = sensor_poses[sensor_poses.size() - 1].param.data();
-    // double *pose_j = sensor_poses[sensor_poses.size() - 2].param.data();
-    // double *sb_i = speed_biases[speed_biases.size() - 1].param.data();
-    // double *sb_j = speed_biases[speed_biases.size() - 2].param.data();
+    pose_t *pose_i = sensor_poses[sensor_poses.size() - 1];
+    pose_t *pose_j = sensor_poses[sensor_poses.size() - 2];
+    sb_params_t *sb_i = speed_biases[speed_biases.size() - 1];
+    sb_params_t *sb_j = speed_biases[speed_biases.size() - 2];
+    const auto t0 = pose_i->ts;
+    const auto t1 = pose_j->ts;
 
-    // const int imu_index = 0;
-    // auto error = new ImuError(imu_buf, imu_params);
-    // problem->AddResidualBlock(error, nullptr, pose_i, sb_i, pose_j, sb_j);
+    auto error = new ImuError(imu_buf, imu_params, t0, t1);
+    problem->AddResidualBlock(error,
+                              NULL,
+                              pose_i->param.data(),
+                              sb_i->param.data(),
+                              pose_j->param.data(),
+                              sb_j->param.data());
   }
 
   void add_reproj_errors(const int cam_index, const aprilgrid_t &grid) {
@@ -603,10 +610,10 @@ struct calib_vi_t {
     assert(extrinsics.count(cam_index) > 0);
     assert(sensor_poses.size() >= 1);
 
-    auto &T_WF = fiducial_pose;
-    auto &T_WS = sensor_poses.back();
-    auto &T_SC = extrinsics[cam_index];
-    auto &cam = cam_params[cam_index];
+    const auto &T_WF = fiducial_pose;
+    const auto &T_WS = sensor_poses.back();
+    const auto &T_SC = extrinsics[cam_index];
+    const auto &cam = cam_params[cam_index];
     const int *cam_res = cam->resolution;
     const mat2_t covar = pow(sigma_vision, 2) * I(2);
 
@@ -615,10 +622,6 @@ struct calib_vi_t {
     vec2s_t keypoints;
     vec3s_t object_points;
     grid.get_measurements(tag_ids, corner_indicies, keypoints, object_points);
-
-    // print_matrix("T_WF", fiducial_pose.tf());
-    // print_matrix("T_WS", sensor_poses.back().tf());
-    // print_matrix("T_SC", extrinsics[cam_index].tf());
 
     for (size_t i = 0; i < tag_ids.size(); i++) {
       const int tag_id = tag_ids[i];
@@ -648,33 +651,37 @@ struct calib_vi_t {
     for (int cam_index = 0; cam_index < nb_cams(); cam_index++) {
       add_reproj_errors(cam_index, grids_buf.at(cam_index));
     }
-    // std::cout << grids_buf[0] << std::endl;
-    // std::cout << grids_buf[1] << std::endl;
-    // exit(0);
   }
 
-  bool add_state(const timestamp_t &ts, const mat4_t &T_WS_k) {
-    // Propagate pose and speedAndBias
-    // const mat4_t T_WS = tf(sensor_poses.back().param);
-    // const vec_t<9> sb = speed_biases.back().param;
-    // imu_propagate(imu_data, T_WS, sb);
+  bool add_state(const timestamp_t &ts) {
+    // Estimate relative pose
+    mat4_t T_C0F = I(4);
+    if (estimate_relative_pose(grids_buf[0], T_C0F) != 0) {
+      FATAL("Failed to estimate relative pose!");
+    }
 
-    // // Infer velocity from two poses T_WS_k and T_WS_km1
-    // const mat4_t T_WS_km1 = tf(sensor_poses.back().param);
-    // const vec3_t r_WS_km1 = tf_trans(T_WS_km1);
-    // const vec3_t r_WS_k = tf_trans(T_WS_k);
-    // const vec3_t v_WS_k = r_WS_k - r_WS_km1;
-    //
-    // vec_t<9> sb_k;
-    // sb_k << v_WS_k, zeros(3, 1), zeros(3, 1);
+    // Infer current pose T_WS using T_C0F, T_SC0 and T_WF
+    const mat4_t T_FC0_k = T_C0F.inverse();
+    const mat4_t T_SC0 = get_extrinsic(0);
+    const mat4_t T_C0S = T_SC0.inverse();
+    const mat4_t T_WF = get_fiducial_pose();
+    const mat4_t T_WS_k = T_WF * T_FC0_k * T_C0S;
 
-    // Add updated sensor pose T_WS and speed and biases sb
+    // Infer velocity from two poses T_WS_k and T_WS_km1
+    const mat4_t T_WS_km1 = tf(sensor_poses.back()->param);
+    const vec3_t r_WS_km1 = tf_trans(T_WS_km1);
+    const vec3_t r_WS_k = tf_trans(T_WS_k);
+    const vec3_t v_WS_k = r_WS_k - r_WS_km1;
+    vec_t<9> sb_k;
+    sb_k << v_WS_k, zeros(3, 1), zeros(3, 1);
+
+    // Add updated sensor pose T_WS_k and speed and biases sb_k
     // Note: instead of using the propagated sensor pose `T_WS`, we are using
     // the provided `T_WS_`, this is because in the scenario where we are using
     // AprilGrid, as a fiducial target, we actually have a better estimation of
     // the sensor pose, as supposed to the imu propagated sensor pose.
     add_sensor_pose(ts, T_WS_k);
-    // add_speed_biases(ts, sb_k);
+    add_speed_biases(ts, sb_k);
 
     // Add error terms
     // add_imu_error();
@@ -685,6 +692,7 @@ struct calib_vi_t {
 
   void add_measurement(const int cam_index, const aprilgrid_t &grid) {
     grids_buf[cam_index] = grid;
+    cam_grids[cam_index].push_back(grid);
   }
 
   void add_measurement(const timestamp_t ts,
@@ -702,8 +710,7 @@ struct calib_vi_t {
         // Add initial sensor pose
         T_WS_init = tf(C_WS, zeros(3, 1));
         add_sensor_pose(ts, T_WS_init);
-        LOG_INFO("Initialized T_WS");
-        print_matrix("T_WS", T_WS_init);
+        add_speed_biases(ts, zeros(9, 1));
       }
 
       // Make sure imu data is streaming first
@@ -737,7 +744,7 @@ struct calib_vi_t {
         return;
       }
 
-      // -------------------------- Add new state - --------------------------
+      // -------------------------- Add new state -----------------------------
       // Make sure we have enough imu timestamps
       auto ts = grids_buf[0].timestamp;
       if (imu_buf.timestamps.back() < ts) {
@@ -747,20 +754,7 @@ struct calib_vi_t {
         grids_buf.clear();
         return;
       }
-
-      // Estimate relative pose
-      mat4_t T_C0F = I(4);
-      if (estimate_relative_pose(grids_buf[0], T_C0F) != 0) {
-        FATAL("Failed to estimate relative pose!");
-      }
-
-      // Add states
-      const mat4_t T_FC0 = T_C0F.inverse();
-      const mat4_t T_SC0 = get_extrinsic(0);
-      const mat4_t T_C0S = T_SC0.inverse();
-      const mat4_t T_WF = get_fiducial_pose();
-      const mat4_t T_WS = T_WF * T_FC0 * T_C0S;
-      add_state(ts, T_WS);
+      add_state(ts);
 
       // Drop oldest IMU measurements and clear aprilgrids
       trim_imu_data(imu_buf, ts);
@@ -808,27 +802,89 @@ struct calib_vi_t {
     }
   }
 
+  template <typename CAMERA_TYPE>
+  std::vector<double> calculate_reproj_errors(const int cam_idx) {
+    assert(cam_grids.size() > cam_idx);
+    assert(cam_params.size() > cam_idx);
+
+    const aprilgrids_t &grids0 = cam_grids[0];
+    const camera_params_t *cam = cam_params[cam_idx];
+    std::vector<double> errs;
+
+    // Form extrinsics between cam0 and cam_idx [T_CiC0]
+    matx_t T_CiC0 = I(4);
+    if (cam_idx != 0) {
+      const mat4_t T_SC0 = extrinsics[0]->tf();
+      const mat4_t T_SCi = extrinsics[cam_idx]->tf();
+      T_CiC0 = T_SCi.inverse() * T_SC0;
+    }
+
+    // Calculate reprojection error
+    size_t nb_grids = cam_grids[0].size();
+    for (size_t k = 0; k < nb_grids; k++) {
+      const auto grid_cam0 = cam_grids[0][k];
+      const auto grid_cami = cam_grids[cam_idx][k];
+      const vec2s_t kpsi = grid_cami.keypoints();
+      const vec3s_t pts = grid_cami.object_points();
+
+      for (size_t i = 0; i < pts.size(); i++) {
+        mat4_t T_C0F;
+        estimate_relative_pose(grid_cam0, T_C0F); // Function always returns T_C0F
+
+        const vec3_t r_FFi = pts[i];
+        const vec3_t r_CiFi = tf_point(T_CiC0 * T_C0F, r_FFi);
+
+        vec2_t z_hat;
+        const vec2_t z = kpsi[i];
+        const CAMERA_TYPE cam_geom(cam->resolution, cam->param);
+        cam_geom.project(r_CiFi, z_hat);
+        const vec2_t r = z - z_hat;
+        errs.push_back(r.norm());
+      }
+    }
+
+    return errs;
+  }
+
   void show_results() {
     // Show results
-    // std::vector<double> cam0_errs, cam1_errs;
-    // double cam0_rmse, cam1_rmse = 0.0;
-    // double cam0_mean, cam1_mean = 0.0;
-    // calib_mono_stats<CAMERA_TYPE>(cam0_grids, *cam0, *T_C0F, &cam0_errs, &cam0_rmse, &cam0_mean);
-    // calib_mono_stats<CAMERA_TYPE>(cam1_grids, *cam1, *T_C1F, &cam1_errs, &cam1_rmse, &cam1_mean);
+    const auto proj_model = cam_params[0]->proj_model;
+    const auto dist_model = cam_params[0]->dist_model;
 
-    // printf("Optimization results:\n");
-    // printf("---------------------\n");
-    // print_vector("cam0.proj_params", (*cam0).proj_params());
-    // print_vector("cam0.dist_params", (*cam0).dist_params());
-    // print_vector("cam1.proj_params", (*cam1).proj_params());
-    // print_vector("cam1.dist_params", (*cam1).dist_params());
-    // printf("\n");
-    // print_matrix("T_C1C0", *T_C1C0);
-    // printf("cam0 rms reproj error [px]: %f\n", cam0_rmse);
-    // printf("cam1 rms reproj error [px]: %f\n", cam1_rmse);
-    // printf("cam0 mean reproj error [px]: %f\n", cam0_mean);
-    // printf("cam1 mean reproj error [px]: %f\n", cam1_mean);
-    // printf("\n");
+    std::vector<double> cam0_errs;
+    std::vector<double> cam1_errs;
+    if (proj_model == "pinhole" && dist_model == "radtan4") {
+      cam0_errs = calculate_reproj_errors<pinhole_radtan4_t>(0);
+      cam1_errs = calculate_reproj_errors<pinhole_radtan4_t>(1);
+    } else if (proj_model == "pinhole" && dist_model == "equi4") {
+      cam0_errs = calculate_reproj_errors<pinhole_radtan4_t>(0);
+      cam1_errs = calculate_reproj_errors<pinhole_radtan4_t>(1);
+    } else {
+      FATAL("[%s-%s] unsupported!", proj_model.c_str(), dist_model.c_str());
+    }
+
+    printf("Optimization results:\n");
+    printf("---------------------\n");
+    printf("stats:\n");
+    printf("cam0 reprojection error [px]: ");
+    printf("[rmse: %f,", rmse(cam0_errs));
+    printf(" mean: %f,", mean(cam0_errs));
+    printf(" median: %f]\n", median(cam0_errs));
+    printf("cam1 reprojection error [px]: ");
+    printf("[rmse: %f,", rmse(cam1_errs));
+    printf(" mean: %f,", mean(cam1_errs));
+    printf(" median: %f]\n", median(cam1_errs));
+    printf("\n");
+    printf("cam0:\n");
+    print_vector("  proj_params", cam_params[0]->proj_params());
+    print_vector("  dist_params", cam_params[0]->dist_params());
+    printf("cam1:\n");
+    print_vector("  proj_params", cam_params[1]->proj_params());
+    print_vector("  dist_params", cam_params[1]->dist_params());
+    printf("\n");
+    print_matrix("T_SC0", extrinsics[0]->tf());
+    print_matrix("T_SC1", extrinsics[1]->tf());
+    printf("\n");
   }
 
   void solve(bool verbose=true) {
@@ -846,6 +902,7 @@ struct calib_vi_t {
     ceres::Solve(options, problem, &summary);
     if (verbose) {
       std::cout << summary.FullReport() << std::endl;
+      show_results();
     }
   }
 

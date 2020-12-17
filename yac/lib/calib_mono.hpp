@@ -176,7 +176,7 @@ template <typename CAMERA_TYPE>
 void reproj_errors(const aprilgrid_t &grid,
                    const camera_params_t &cam_params,
                    const mat4_t &T_CF,
-                   std::vector<double> &residuals,
+                   std::vector<double> &errs,
                    std::vector<std::pair<int, int>> *tags_meta=nullptr) {
   std::vector<int> tag_ids;
   std::vector<int> corner_indicies;
@@ -199,7 +199,7 @@ void reproj_errors(const aprilgrid_t &grid,
     camera.project(r_CFi, z_hat);
     const vec2_t r = z - z_hat;
 
-    residuals.push_back(r.norm());
+    errs.push_back(r.norm());
     if (tags_meta) {
       tags_meta->push_back({tag_id, corner_idx});
     }
@@ -211,9 +211,9 @@ template <typename CAMERA_TYPE>
 void reproj_errors(const aprilgrid_t &grid,
                    const camera_params_t &cam_params,
                    const pose_t &T_CF,
-                   std::vector<double> &residuals,
+                   std::vector<double> &errs,
                    std::vector<std::pair<int, int>> *tags_meta=nullptr) {
-  reproj_errors<CAMERA_TYPE>(grid, cam_params, T_CF.tf(), residuals, tags_meta);
+  reproj_errors<CAMERA_TYPE>(grid, cam_params, T_CF.tf(), errs, tags_meta);
 }
 
 /* Reprojection Errors */
@@ -221,9 +221,9 @@ template <typename CAMERA_TYPE>
 void reproj_errors(const aprilgrids_t &grids,
                    const camera_params_t &cam_params,
                    const std::deque<pose_t *> &T_CF,
-                   std::vector<double> &residuals) {
+                   std::vector<double> &errs) {
   for (size_t i = 0; i < grids.size(); i++) {
-    reproj_errors<CAMERA_TYPE>(grids[i], cam_params, *T_CF[i], residuals);
+    reproj_errors<CAMERA_TYPE>(grids[i], cam_params, *T_CF[i], errs);
   }
 }
 
@@ -232,9 +232,9 @@ template <typename CAMERA_TYPE>
 void reproj_errors(const aprilgrids_t &grids,
                    const camera_params_t &cam_params,
                    const mat4s_t &T_CF,
-                   std::vector<double> &residuals) {
+                   std::vector<double> &errs) {
   for (size_t i = 0; i < grids.size(); i++) {
-    reproj_errors<CAMERA_TYPE>(grids[i], cam_params, T_CF[i], residuals);
+    reproj_errors<CAMERA_TYPE>(grids[i], cam_params, T_CF[i], errs);
   }
 }
 
@@ -243,12 +243,12 @@ template <typename CAMERA_TYPE>
 void reproj_errors(const calib_mono_views_t<CAMERA_TYPE> &views,
                    const camera_params_t &cam_params,
                    // const std::deque<pose_t *> &T_CF,
-                   std::vector<double> &residuals) {
+                   std::vector<double> &errs) {
   // for (size_t i = 0; i < views.size(); i++) {
-  //   reproj_errors<CAMERA_TYPE>(views[i].grid, cam_params, *T_CF[i], residuals);
+  //   reproj_errors<CAMERA_TYPE>(views[i].grid, cam_params, *T_CF[i], errs);
   // }
   for (size_t i = 0; i < views.size(); i++) {
-    reproj_errors<CAMERA_TYPE>(views[i].grid, cam_params, *(views[i].T_CF), residuals);
+    reproj_errors<CAMERA_TYPE>(views[i].grid, cam_params, *(views[i].T_CF), errs);
   }
 }
 

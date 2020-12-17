@@ -127,6 +127,22 @@ struct aprilgrid_t {
     return static_cast<const aprilgrid_t>(*this).object_point(tag_id, corner_idx);
   }
 
+  vec3s_t object_points() const {
+    vec3s_t object_points_;
+
+    for (int i = 0; i < (tag_rows * tag_cols * 4); i++) {
+      if (data(i, 0) > 0) {
+        object_points_.push_back(data.block(i, 3, 1, 3).transpose());
+      }
+    }
+
+    return object_points_;
+  }
+
+  vec3s_t object_points() {
+    return static_cast<const aprilgrid_t>(*this).object_points();
+  }
+
   vec2_t keypoint(const int tag_id, const int corner_idx) const {
     const int data_row = (tag_id * 4) + corner_idx;
     if (data(data_row, 0) > 0) {

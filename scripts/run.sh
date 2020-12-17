@@ -80,7 +80,7 @@ source ~/catkin_ws/devel/setup.bash
 # done
 # python3 scripts/analyze_calibs.py
 
-# rosrun yac test_calib_vi
+rosrun yac test_calib_vi
 # rosrun --prefix 'gdb -ex run -args' yac test_calib_vi
 # octave-cli scripts/octave/plot_calib_vi.m
 

@@ -50,8 +50,8 @@ public:
 
   mutable mat4_t T_WS_0_last_;
   mutable mat4_t T_WS_1_last_;
-  mutable sb_params_t sb0_last_;
-  mutable sb_params_t sb1_last_;
+  mutable vec_t<9> sb0_last_;
+  mutable vec_t<9> sb1_last_;
   mutable double time_delay_last_ = 0.0;
 
   ///< The number of residuals
@@ -71,14 +71,14 @@ public:
   static int propagation(const imu_data_t &imu_data,
                          const imu_params_t &imu_params,
                          mat4_t &T_WS,
-                         sb_params_t &sb,
+                         vec_t<9> &sb,
                          const timestamp_t &t_start,
                          const timestamp_t &t_end,
                          covariance_t *covariance = 0,
                          jacobian_t *jacobian = 0);
 
   int redoPreintegration(const mat4_t &T_WS,
-                         const sb_params_t &sb,
+                         const vec_t<9> &sb,
                          timestamp_t time_start,
                          timestamp_t time_end) const;
 
@@ -120,7 +120,7 @@ protected:
   mutable Eigen::Matrix<double, 15, 15> P_delta_ = Eigen::Matrix<double, 15, 15>::Zero();
 
   ///< Reference biases that are updated when called redoPreintegration.
-  mutable sb_params_t sb_ref_;
+  mutable vec_t<9> sb_ref_;
 
   ///< Keeps track of whether redoPreintegration() needs to be called.
   mutable bool redo_ = true;
@@ -150,7 +150,7 @@ ImuError::~ImuError() {}
 // Propagates pose, speeds and biases with given IMU measurements.
 int ImuError::redoPreintegration(
     const mat4_t & /*T_WS*/,
-    const sb_params_t &sb,
+    const vec_t<9> &sb,
     timestamp_t time,
     timestamp_t end) const {
   // Ensure unique access
@@ -195,6 +195,9 @@ int ImuError::redoPreintegration(
     } else {
       nexttime = imu_data_.timestamps[k + 1];
 		}
+    if ((nexttime - time) < 0) {
+      continue;
+    }
     double dt = ns2sec(nexttime - time);
 
     // Interpolate IMU measurements that are beyond the image timestamp
@@ -248,7 +251,7 @@ int ImuError::redoPreintegration(
     // clang-format off
     // -- Orientation:
     quat_t dq;
-    const vec3_t omega_S_true = (0.5 * (omega_S_0 + omega_S_1) - sb.param.segment<3>(3));
+    const vec3_t omega_S_true = (0.5 * (omega_S_0 + omega_S_1) - sb.segment<3>(3));
     const double theta_half = omega_S_true.norm() * 0.5 * dt;
     const double sinc_theta_half = sinc(theta_half);
     const double cos_theta_half = cos(theta_half);
@@ -258,7 +261,7 @@ int ImuError::redoPreintegration(
     // -- Rotation matrix integral:
     const mat3_t C = Delta_q_.toRotationMatrix();
     const mat3_t C_1 = Delta_q_1.toRotationMatrix();
-    const vec3_t acc_S_true = (0.5 * (acc_S_0 + acc_S_1) - sb.param.segment<3>(6));
+    const vec3_t acc_S_true = (0.5 * (acc_S_0 + acc_S_1) - sb.segment<3>(6));
     const mat3_t C_integral_1 = C_integral_ + 0.5 * (C + C_1) * dt;
     const vec3_t acc_integral_1 = acc_integral_ + 0.5 * (C + C_1) * acc_S_true * dt;
     // -- Rotation matrix double integral:
@@ -353,22 +356,22 @@ int ImuError::redoPreintegration(
 int ImuError::propagation(const imu_data_t &imu_data,
                           const imu_params_t &imu_params,
                           mat4_t &T_WS,
-                          sb_params_t &sb,
+                          vec_t<9> &sb,
                           const timestamp_t &t_start,
                           const timestamp_t &t_end,
                           covariance_t *covariance,
                           jacobian_t *jacobian) {
   // now the propagation
-  timestamp_t time = t_start;
-  timestamp_t end = t_end;
+  // timestamp_t time = t_start;
+  // timestamp_t end = t_end;
   // printf("time_start: [%ld]\n", time.toNSec());
   // printf("time_end:   [%ld]\n", end.toNSec());
   // printf("imu front:  [%ld]\n", imu_data.front().timeStamp.toNSec());
   // printf("imu back:   [%ld]\n", imu_data.back().timeStamp.toNSec());
 
   // sanity check:
-  assert(imu_data.timestamps.front() <= time);
-  assert(imu_data.timestamps.back() >= end);
+  assert(imu_data.timestamps.front() <= t_start);
+  assert(imu_data.timestamps.back() >= t_end);
   // if (!(imu_data.back().timeStamp >= end))
   //   return -1; // nothing to do...
 
@@ -398,25 +401,39 @@ int ImuError::propagation(const imu_data_t &imu_data,
   double Delta_t = 0;
   bool hasStarted = false;
   int i = 0;
-	for (size_t k = 0; k < imu_data.size(); k++) {
+  timestamp_t ts_k = t_start;
+	for (size_t k = 0; k < (imu_data.size() - 1); k++) {
 		vec3_t omega_S_0 = imu_data.gyro[k];
 		vec3_t acc_S_0 = imu_data.accel[k];
 		vec3_t omega_S_1 = imu_data.gyro[k + 1];
 		vec3_t acc_S_1 = imu_data.accel[k + 1];
+		// print_vector("omega_S_0", omega_S_0);
+		// print_vector("omega_S_1", omega_S_1);
+		// print_vector("acc_S_0", acc_S_0);
+		// print_vector("acc_S_1", acc_S_1);
 
     // Time delta
-    timestamp_t nexttime;
+    timestamp_t ts_kp1;
     if ((k + 1) == imu_data.size()) {
-      nexttime = end;
+      ts_kp1 = t_end;
     } else {
-      nexttime = imu_data.timestamps[k + 1];
+      ts_kp1 = imu_data.timestamps[k + 1];
 		}
-    double dt = ns2sec(nexttime - time);
+    // printf("ts_kp1: %ld\n", ts_kp1);
+    // printf("ts_k:     %ld\n", ts_k);
+    // printf("diff:     %ld\n", ts_kp1 - ts_k);
+    if ((ts_kp1 - ts_k) < 0) {
+      continue;
+    }
+    double dt = ns2sec(ts_kp1 - ts_k);
+    // printf("dt: %f\n", dt);
 
-    if (end < nexttime) {
-      double interval = ns2sec(nexttime - imu_data.timestamps[k]);
-      nexttime = t_end;
-      dt = ns2sec(nexttime - time);
+    // If next imu measurement timestamp is after t_end, interpolate gyro and
+    // accel at t_end
+    if (ts_kp1 > t_end) {
+      double interval = ns2sec(ts_kp1 - imu_data.timestamps[k]);
+      ts_kp1 = t_end;
+      dt = ns2sec(ts_kp1 - ts_k);
       const double r = dt / interval;
       omega_S_1 = ((1.0 - r) * omega_S_0 + r * omega_S_1).eval();
       acc_S_1 = ((1.0 - r) * acc_S_0 + r * acc_S_1).eval();
@@ -426,10 +443,11 @@ int ImuError::propagation(const imu_data_t &imu_data,
       continue;
     }
     Delta_t += dt;
+    // printf("Delta_t: %f\n", Delta_t);
 
     if (!hasStarted) {
       hasStarted = true;
-      const double r = dt / ns2sec(nexttime - imu_data.timestamps[k]);
+      const double r = dt / ns2sec(ts_kp1 - ts_k);
       omega_S_0 = (r * omega_S_0 + (1.0 - r) * omega_S_1).eval();
       acc_S_0 = (r * acc_S_0 + (1.0 - r) * acc_S_1).eval();
     }
@@ -462,7 +480,7 @@ int ImuError::propagation(const imu_data_t &imu_data,
     // clang-format off
     // orientation:
     quat_t dq;
-    const vec3_t omega_S_true = (0.5 * (omega_S_0 + omega_S_1) - sb.param.segment<3>(3));
+    const vec3_t omega_S_true = (0.5 * (omega_S_0 + omega_S_1) - sb.segment<3>(3));
     const double theta_half = omega_S_true.norm() * 0.5 * dt;
     const double sinc_theta_half = sinc(theta_half);
     const double cos_theta_half = cos(theta_half);
@@ -472,7 +490,7 @@ int ImuError::propagation(const imu_data_t &imu_data,
     // rotation matrix integral:
     const mat3_t C = Delta_q.toRotationMatrix();
     const mat3_t C_1 = Delta_q_1.toRotationMatrix();
-    const vec3_t acc_S_true = (0.5 * (acc_S_0 + acc_S_1) - sb.param.segment<3>(6));
+    const vec3_t acc_S_true = (0.5 * (acc_S_0 + acc_S_1) - sb.segment<3>(6));
     const mat3_t C_integral_1 = C_integral + 0.5 * (C + C_1) * dt;
     const vec3_t acc_integral_1 = acc_integral + 0.5 * (C + C_1) * acc_S_true * dt;
     // rotation matrix double integral:
@@ -533,20 +551,22 @@ int ImuError::propagation(const imu_data_t &imu_data,
     acc_integral = acc_integral_1;
     cross = cross_1;
     dv_db_g = dv_db_g_1;
-    time = nexttime;
+    ts_k = ts_kp1;
 
     ++i;
 
-    if (nexttime == t_end)
+    if (ts_kp1 == t_end)
       break;
   }
+  // printf("Delta_t: %f\n", Delta_t);
+  // print_vector("acc_doubleintegral", acc_doubleintegral);
 
   // actual propagation output:
   const vec3_t g_W = imu_params.g * vec3_t(0, 0, 6371009).normalized();
-	const vec3_t trans_update = r_0 + sb.param.head<3>() * Delta_t + C_WS_0 * (acc_doubleintegral /*-C_doubleintegral*sb.segment<3>(6)*/) - 0.5 * g_W * Delta_t * Delta_t;
+	const vec3_t trans_update = r_0 + sb.head<3>() * Delta_t + C_WS_0 * (acc_doubleintegral /*-C_doubleintegral*sb.segment<3>(6)*/) - 0.5 * g_W * Delta_t * Delta_t;
 	const quat_t quat_update = q_WS_0 * Delta_q;
 	T_WS = tf(quat_update, trans_update);
-  sb.param.head<3>() += C_WS_0 * (acc_integral /*-C_integral*sb.segment<3>(6)*/) - g_W * Delta_t;
+  sb.head<3>() += C_WS_0 * (acc_integral /*-C_integral*sb.segment<3>(6)*/) - g_W * Delta_t;
 
   // assign Jacobian, if requested
   if (jacobian) {
@@ -605,11 +625,11 @@ bool ImuError::EvaluateWithMinimalJacobians(double const *const *params,
   const mat4_t T_WS_1 = tf(q_WS_1, r_WS_1);
 
   // Map speed and bias
-  sb_params_t sb0;
-  sb_params_t sb1;
+  vec_t<9> sb0;
+  vec_t<9> sb1;
   for (size_t i = 0; i < 9; ++i) {
-    sb0.param[i] = params[1][i];
-    sb1.param[i] = params[3][i];
+    sb0(i) = params[1][i];
+    sb1(i) = params[3][i];
   }
 
   // Time delay
@@ -656,7 +676,7 @@ bool ImuError::EvaluateWithMinimalJacobians(double const *const *params,
   // ensure unique access
   {
     std::lock_guard<std::mutex> lock(preintegrationMutex_);
-    Delta_b = sb0.param.tail<6>() - sb_ref_.param.tail<6>();
+    Delta_b = sb0.tail<6>() - sb_ref_.tail<6>();
   }
   redoPreintegration(T_WS_0, sb0, time_start, time_end);
   Delta_b.setZero();
@@ -689,8 +709,8 @@ bool ImuError::EvaluateWithMinimalJacobians(double const *const *params,
     // Assign Jacobian w.r.t. x0
     // clang-format off
     Eigen::Matrix<double, 15, 15> F0 = Eigen::Matrix<double, 15, 15>::Identity(); // holds for d/db_g, d/db_a
-    const vec3_t delta_p_est_W = tf_trans(T_WS_0) - tf_trans(T_WS_1) + sb0.param.head<3>() * Delta_t - 0.5 * g_W * Delta_t * Delta_t;
-    const vec3_t delta_v_est_W = sb0.param.head<3>() - sb1.param.head<3>() - g_W * Delta_t;
+    const vec3_t delta_p_est_W = tf_trans(T_WS_0) - tf_trans(T_WS_1) + sb0.head<3>() * Delta_t - 0.5 * g_W * Delta_t * Delta_t;
+    const vec3_t delta_v_est_W = sb0.head<3>() - sb1.head<3>() - g_W * Delta_t;
     const quat_t Dq = deltaQ(-dalpha_db_g_ * Delta_b.head<3>()) * Delta_q_;
     F0.block<3, 3>(0, 0) = C_S0_W;
     F0.block<3, 3>(0, 3) = C_S0_W * skew(delta_p_est_W);
@@ -723,7 +743,7 @@ bool ImuError::EvaluateWithMinimalJacobians(double const *const *params,
     // -- Velocity
     error.segment<3>(6) = C_S0_W * delta_v_est_W + acc_integral_ + F0.block<3, 6>(6, 9) * Delta_b;
     // -- Biases
-    error.tail<6>() = sb0.param.tail<6>() - sb1.param.tail<6>();
+    error.tail<6>() = sb0.tail<6>() - sb1.tail<6>();
     // clang-format on
 
     // FATAL("SOMETHING IS WRONG HERE!");
@@ -734,6 +754,7 @@ bool ImuError::EvaluateWithMinimalJacobians(double const *const *params,
     if (residuals) {
       Eigen::Map<Eigen::Matrix<double, 15, 1>> weighted_error(residuals);
       weighted_error = squareRootInformation_ * error;
+      // print_vector("err", error);
       // r = weighted_error;
       // print_matrix("sqrt_info", squareRootInformation_);
       // exit(0);
@@ -767,6 +788,7 @@ bool ImuError::EvaluateWithMinimalJacobians(double const *const *params,
         // J[0] = J0_minimal;
 
         Eigen::Map<Eigen::Matrix<double, 15, 7, Eigen::RowMajor>> J0(jacobians[0]);
+        J0.setZero();
 				J0.block(0, 0, 15, 6) = J0_minimal;
 
         // // pseudo inverse of the local parametrization Jacobian:
@@ -796,6 +818,7 @@ bool ImuError::EvaluateWithMinimalJacobians(double const *const *params,
       if (jacobians[1] != NULL) {
         // clang-format off
         Eigen::Map<Eigen::Matrix<double, 15, 9, Eigen::RowMajor>> J1(jacobians[1]);
+        J1.setZero();
         J1 = squareRootInformation_ * F0.block<15, 9>(0, 6);
         // J[1] = J1;
 
@@ -819,9 +842,9 @@ bool ImuError::EvaluateWithMinimalJacobians(double const *const *params,
       if (jacobians[2] != NULL) {
         // Jacobian w.r.t. minimal perturbance
         Eigen::Matrix<double, 15, 6> J2_minimal = squareRootInformation_ * F1.block<15, 6>(0, 0);
-        // J[2] = J2_minimal;
 
         Eigen::Map<Eigen::Matrix<double, 15, 7, Eigen::RowMajor>> J2(jacobians[2]);
+        J2.setZero();
 				J2.block(0, 0, 15, 6) = J2_minimal;
 
         // pseudo inverse of the local parametrization Jacobian:
@@ -849,10 +872,9 @@ bool ImuError::EvaluateWithMinimalJacobians(double const *const *params,
 
       // Speed and Bias 1
       if (jacobians[3] != NULL) {
-        Eigen::Map<Eigen::Matrix<double, 15, 9, Eigen::RowMajor>> J3(
-            jacobians[3]);
+        Eigen::Map<Eigen::Matrix<double, 15, 9, Eigen::RowMajor>> J3(jacobians[3]);
+        J3.setZero();
         J3 = squareRootInformation_ * F1.block<15, 9>(0, 6);
-        // J[3] = J3;
 
         if (debug_jacobians_) {
           std::cout << "J3:" << std::endl;
@@ -862,8 +884,7 @@ bool ImuError::EvaluateWithMinimalJacobians(double const *const *params,
         // if requested, provide minimal Jacobians
         if (jacobiansMinimal != NULL) {
           if (jacobiansMinimal[3] != NULL) {
-            Eigen::Map<Eigen::Matrix<double, 15, 9, Eigen::RowMajor>>
-                J3_minimal_mapped(jacobiansMinimal[3]);
+            Eigen::Map<Eigen::Matrix<double, 15, 9, Eigen::RowMajor>> J3_minimal_mapped(jacobiansMinimal[3]);
             J3_minimal_mapped = J3;
           }
         }
@@ -901,8 +922,8 @@ bool ImuError::EvaluateWithMinimalJacobians(double const *const *params,
                                  q_WS_1.x(), q_WS_1.y(), q_WS_1.z(), q_WS_1.w()};
 
         // ---- Speed and biases
-        double *speed_bias_0_data = sb0.param.data();
-        double *speed_bias_1_data = sb1.param.data();
+        double *speed_bias_0_data = sb0.data();
+        double *speed_bias_1_data = sb1.data();
 
         // ---- Time delays
         const double time_delay_0 = time_delay + delta;
@@ -935,7 +956,6 @@ bool ImuError::EvaluateWithMinimalJacobians(double const *const *params,
         // -- Set time delay jacobian
         Eigen::Map<Eigen::Matrix<double, 15, 1>> J4(jacobians[4]);
         J4 = -1 * J_time_delay;
-        // J[4] = J4;
 
         if (debug_jacobians_) {
           std::cout << "J4:" << std::endl;

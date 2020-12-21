@@ -174,11 +174,26 @@ struct fiducial_pose_t : pose_t {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 
   fiducial_pose_t() {}
-
   fiducial_pose_t(const id_t id_, const mat4_t &T, const bool fixed_=false)
     : pose_t{id_, 0, T, fixed_} {
     this->type = "fiducial_pose_t";
   }
+};
+
+struct fiducial_params_t : param_t {
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
+
+  fiducial_params_t() {}
+  fiducial_params_t(const id_t id_,
+                    const timestamp_t &ts_,
+                    const vec2_t params_,
+                    const bool fixed_=false)
+    : param_t{"fiducial_params_t", id_, ts_, 2, 2, fixed_} {
+    param = params_;
+  }
+
+  void plus(const vecx_t &dx) { param += dx; }
+  void perturb(const int i, const real_t step_size) { param(i) += step_size; }
 };
 
 struct extrinsic_t : pose_t {
@@ -275,33 +290,16 @@ struct sb_params_t : param_t {
   void perturb(const int i, const real_t step_size) { param(i) += step_size; }
 };
 
-struct td_params_t : param_t {
+struct time_delay_t : param_t {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 
-  td_params_t() {}
+  time_delay_t() {}
 
-  td_params_t(const id_t id_,
+  time_delay_t(const id_t id_,
               const double td_,
               const bool fixed_=false)
-    : param_t{"td_params_t", id_, 1, 1, fixed_} {
+    : param_t{"time_delay_t", id_, 1, 1, fixed_} {
     param(0) = td_;
-  }
-
-  void plus(const vecx_t &dx) { param += dx; }
-  void perturb(const int i, const real_t step_size) { param(i) += step_size; }
-};
-
-struct fiducial_params_t : param_t {
-  EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
-
-  fiducial_params_t() {}
-
-  fiducial_params_t(const id_t id_,
-                    const timestamp_t &ts_,
-                    const vec2_t params_,
-                    const bool fixed_=false)
-    : param_t{"td_params_t", id_, ts_, 1, 1, fixed_} {
-    param = params_;
   }
 
   void plus(const vecx_t &dx) { param += dx; }

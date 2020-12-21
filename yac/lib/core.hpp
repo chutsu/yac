@@ -2340,6 +2340,16 @@ struct imu_data_t {
     accel.clear();
     gyro.clear();
   }
+
+  friend std::ostream& operator<<(std::ostream &os, const imu_data_t &data) {
+    os << "nb_measurements: " << data.size() << std::endl;
+    for (size_t k = 0; k < data.timestamps.size(); k++) {
+      os << "ts: " << std::to_string(data.timestamps[k]) << " ";
+      os << "acc: " << vec2str(data.accel[k]) << " ";
+      os << "gyr: " << vec2str(data.gyro[k]) << std::endl;
+    }
+    return os;
+  }
 };
 
 // struct image_t : meas_t {

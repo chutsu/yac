@@ -209,7 +209,6 @@ int test_calib_vi() {
   // vec4_t cam0_dist_params{-0.286772, 0.077026, 0.000240, 0.000036};
   // vec4_t cam1_proj_params{457.212815, 455.865019, 378.604549, 255.328973};
   // vec4_t cam1_dist_params{-0.283342, 0.074053, -0.000056, 0.000052};
-
   vec4_t cam0_proj_params{458.654, 457.296, 367.215, 248.375};
   vec4_t cam0_dist_params{-0.28340811, 0.07395907, 0.00019359, 1.76187114e-05};
   vec4_t cam1_proj_params{457.587, 456.134, 379.999, 255.238};
@@ -247,46 +246,46 @@ int test_calib_vi() {
   // }
 
 	imu_params_t imu_params;
-  imu_params.rate = 0.0;
-  imu_params.tau_a = 0.0;
-  imu_params.tau_g = 0.0;
-  imu_params.sigma_g_c = 0.0;
-  imu_params.sigma_a_c = 0.0;
-  imu_params.sigma_gw_c = 0.0;
-  imu_params.sigma_aw_c = 0.0;
-  imu_params.g = 9.81;
+  imu_params.rate = 200.0;
+  imu_params.tau_a = 3600.0;      // Reversion time constant, currently not in use [s]
+  imu_params.tau_g = 3600.0;      // Reversion time constant, currently not in use [s]
+  imu_params.sigma_g_c = 12.0e-4; // Gyro noise density [rad/s/sqrt(Hz)]
+  imu_params.sigma_a_c = 8.0e-3;  // Accel noise density [m/s^2/sqrt(Hz)]
+  imu_params.sigma_gw_c = 4.0e-6; // Gyro drift noise density [rad/s^s/sqrt(Hz)]
+  imu_params.sigma_aw_c = 4.0e-5; // Accel drift noise density [m/s^2/sqrt(Hz)]
+  imu_params.g = 9.81007;         // Earth's acceleration due to gravity [m/s^2]
 
 	calib_vi_t calib;
-	// -- Add IMU
 	calib.add_imu(imu_params);
-	// -- Add camera
-  calib.add_camera(0, res, proj_model, dist_model, cam0_proj_params, cam0_dist_params);
-  calib.add_camera(1, res, proj_model, dist_model, cam1_proj_params, cam1_dist_params);
+  calib.add_camera(0, res, proj_model, dist_model, cam0_proj_params, cam0_dist_params, true);
+  calib.add_camera(1, res, proj_model, dist_model, cam1_proj_params, cam1_dist_params, true);
+  // calib.add_camera(0, res, proj_model, dist_model, proj_params, dist_params);
+  // calib.add_camera(1, res, proj_model, dist_model, proj_params, dist_params);
 	// -- Add sensor-camera extrinsics
 	// clang-format off
-	mat4_t T_SC0;
-  T_SC0 << 0.0, -1.0, 0.0, 0.0,
-           1.0, 0.0, 0.0, 0.0,
-           0.0, 0.0, 1.0, 0.0,
-           0.0, 0.0, 0.0, 1.0;
-  // T_SC0 << 0.0148655429818, -0.999880929698, 0.00414029679422, -0.0216401454975,
-  //         0.999557249008, 0.0149672133247, 0.025715529948, -0.064676986768,
-  //         -0.0257744366974, 0.00375618835797, 0.999660727178, 0.00981073058949,
-  //         0.0, 0.0, 0.0, 1.0;
+	// mat4_t T_SC0;
+  // T_SC0 << 0.0, -1.0, 0.0, 0.0,
+  //          1.0, 0.0, 0.0, 0.0,
+  //          0.0, 0.0, 1.0, 0.0,
+  //          0.0, 0.0, 0.0, 1.0;
+	// mat4_t T_SC1;
+  // T_SC1 << 0.0, -1.0, 0.0, 0.0,
+  //          1.0, 0.0, 0.0, 0.0,
+  //          0.0, 0.0, 1.0, 0.0,
+  //          0.0, 0.0, 0.0, 1.0;
+  mat4_t T_SC0;
+  T_SC0 << 0.0148655429818, -0.999880929698, 0.00414029679422, -0.0216401454975,
+          0.999557249008, 0.0149672133247, 0.025715529948, -0.064676986768,
+          -0.0257744366974, 0.00375618835797, 0.999660727178, 0.00981073058949,
+          0.0, 0.0, 0.0, 1.0;
+	mat4_t T_C1C0;
+  T_C1C0 << 0.999997256477881, 0.002312067192424, 0.000376008102415, -0.110073808127187,
+            -0.002317135723281, 0.999898048506644, 0.014089835846648, 0.000399121547014,
+            -0.000343393120525, -0.014090668452714, 0.999900662637729, -0.000853702503357,
+            0.0, 0.0, 0.0, 1.0;
+  mat4_t T_C0C1 = T_C1C0.inverse();
+	mat4_t T_SC1 = T_SC0 * T_C0C1;
 
-	// mat4_t T_C1C0;
-  // T_C1C0 << 0.999997256477881, 0.002312067192424, 0.000376008102415, -0.110073808127187,
-  //           -0.002317135723281, 0.999898048506644, 0.014089835846648, 0.000399121547014,
-  //           -0.000343393120525, -0.014090668452714, 0.999900662637729, -0.000853702503357,
-  //           0.0, 0.0, 0.0, 1.0;
-  // mat4_t T_C0C1 = T_C1C0.inverse();
-
-	// mat4_t T_SC1 = T_SC0 * T_C0C1;
-	mat4_t T_SC1;
-  T_SC1 << 0.0, -1.0, 0.0, 0.0,
-           1.0, 0.0, 0.0, 0.0,
-           0.0, 0.0, 1.0, 0.0,
-           0.0, 0.0, 0.0, 1.0;
   calib.add_extrinsics(0, T_SC0);
   calib.add_extrinsics(1, T_SC1);
 	// clang-format on
@@ -315,6 +314,7 @@ int test_calib_vi() {
 
 				aprilgrid_t grid{grid_fpath};
 				calib.add_measurement(cam_idx, grid);
+				printf("%ld grid[%d]\n", grid.timestamp, cam_idx);
 
 			} else if (event.type == IMU_EVENT) {
 				// printf("imu\n");
@@ -322,6 +322,7 @@ int test_calib_vi() {
 				const vec3_t a_m = event.a_m;
 				const vec3_t w_m = event.w_m;
 				calib.add_measurement(ts, a_m, w_m);
+				printf("%ld imu\n", ts);
 			}
 		}
 	}

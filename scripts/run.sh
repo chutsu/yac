@@ -33,8 +33,8 @@ set -e
 # catkin build -DCMAKE_BUILD_TYPE=Release yac -j2
 # catkin build -DCMAKE_BUILD_TYPE=Release yac yac_ros -j2
 
-make
-# make lib
+# make
+make lib
 # make lib_debug
 # make debug
 # make tests

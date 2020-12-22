@@ -1860,7 +1860,7 @@ real_t ts2sec(const timestamp_t &ts);
 /**
  * Convert nano-second to second.
  */
-real_t ns2sec(const uint64_t ns);
+real_t ns2sec(const int64_t ns);
 
 /**
  * Start timer.

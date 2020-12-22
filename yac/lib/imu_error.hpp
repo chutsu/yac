@@ -11,7 +11,7 @@
 
 namespace yac {
 
-#define EST_TIMEDELAY 1
+#define EST_TIMEDELAY 0
 
 /**
  * Implements a nonlinear IMU factor.
@@ -593,10 +593,6 @@ int ImuError::propagation(const imu_data_t &imu_data,
     T.block<3, 3>(6, 6) = C_WS_0;
     P = T * P_delta * T.transpose();
   }
-
-  // std::cout << "IMU T_WS:" << std::endl;
-  // std::cout << T_WS.T() << std::endl;
-  // exit(0);
 
   return i;
 }

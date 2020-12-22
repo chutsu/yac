@@ -182,28 +182,59 @@ struct fiducial_pose_t : pose_t {
 
 struct fiducial_params_t : param_t {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
+private:
+	mat4_t T_WF;
 
+public:
   fiducial_params_t() {}
   fiducial_params_t(const id_t id_,
-                    const timestamp_t &ts_,
-                    const vec2_t params_,
+			 	 	 	 	 	 	 	const mat4_t &T_WF_,
                     const bool fixed_=false)
-    : param_t{"fiducial_params_t", id_, ts_, 2, 2, fixed_} {
-    param = params_;
+    : param_t{"fiducial_params_t", id_, 0, 2, 2, fixed_} {
+    const vec3_t rpy = quat2euler(tf_quat(T_WF_));
+    param = vec2_t{rpy(0), rpy(1)};
+		T_WF = T_WF_;
   }
 
-  void plus(const vecx_t &dx) { param += dx; }
-  void perturb(const int i, const real_t step_size) { param(i) += step_size; }
+  void plus(const vecx_t &dx) {
+		param += dx;
+		update();
+	}
+
+  void perturb(const int i, const real_t step_size) {
+		param(i) += step_size;
+		update();
+	}
+
+	void update() {
+    const double yaw = quat2euler(tf_quat(T_WF))(2);
+    const vec3_t rpy{param(0), param(1), yaw};
+    const mat3_t C_WF = euler321(rpy);
+		const vec3_t r_WF(T_WF.block(0, 3, 3, 1));
+    T_WF = tf(C_WF, r_WF);
+	}
+
+	mat4_t estimate() const {
+    const double yaw = quat2euler(tf_quat(T_WF))(2);
+    const vec3_t rpy{param(0), param(1), yaw};
+    const mat3_t C_WF = euler321(rpy);
+		const vec3_t r_WF(T_WF.block(0, 3, 3, 1));
+    return tf(C_WF, r_WF);
+	}
+
+	mat4_t estimate() {
+		return static_cast<const fiducial_params_t &>(*this).estimate();
+	}
 };
 
-struct extrinsic_t : pose_t {
+struct extrinsics_t : pose_t {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 
-  extrinsic_t() {}
+  extrinsics_t() {}
 
-  extrinsic_t(const id_t id_, const mat4_t &T, const bool fixed_=false)
+  extrinsics_t(const id_t id_, const mat4_t &T, const bool fixed_=false)
     : pose_t{id_, 0, T, fixed_} {
-    this->type = "extrinsic_t";
+    this->type = "extrinsics_t";
   }
 };
 

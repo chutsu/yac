@@ -2500,7 +2500,7 @@ void timestamp_print(const timestamp_t &ts, const std::string &prefix) {
 
 real_t ts2sec(const timestamp_t &ts) { return ts * 1.0e-9; }
 
-real_t ns2sec(const uint64_t ns) { return ns * 1.0e-9; }
+real_t ns2sec(const int64_t ns) { return ns * 1.0e-9; }
 
 struct timespec tic() {
   struct timespec time_start;

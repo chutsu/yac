@@ -17,7 +17,7 @@
 namespace yac {
 
 template <typename CAMERA_TYPE>
-struct reproj_error_t : public ceres::SizedCostFunction<2, 7, 7, 7, 8> {
+struct reproj_error_t : public ceres::SizedCostFunction<2, 2, 7, 7, 8> {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 
   const int cam_res_[2] = {0, 0};
@@ -25,6 +25,7 @@ struct reproj_error_t : public ceres::SizedCostFunction<2, 7, 7, 7, 8> {
   const int corner_idx_ = -1;
   const vec3_t r_FFi_{0.0, 0.0, 0.0};
   const vec2_t z_{0.0, 0.0};
+  const mat4_t T_WF_ = I(4);
 
   const mat2_t covar_;
   const mat2_t info_;
@@ -35,10 +36,11 @@ struct reproj_error_t : public ceres::SizedCostFunction<2, 7, 7, 7, 8> {
                  const int corner_idx,
                  const vec3_t &r_FFi,
                  const vec2_t &z,
+                 const mat4_t &T_WF,
                  const mat2_t &covar)
       : cam_res_{cam_res[0], cam_res[1]},
         tag_id_{tag_id}, corner_idx_{corner_idx},
-        r_FFi_{r_FFi}, z_{z},
+        r_FFi_{r_FFi}, z_{z}, T_WF_{T_WF},
         covar_{covar},
         info_{covar.inverse()},
         sqrt_info_{info_.llt().matrixL().transpose()} {}
@@ -48,15 +50,21 @@ struct reproj_error_t : public ceres::SizedCostFunction<2, 7, 7, 7, 8> {
   bool Evaluate(double const * const *params,
                 double *residuals,
                 double **jacobians) const {
+    // Pose of fiducial target in world frame
+    const double pitch = params[0][1];
+    const double roll = params[0][0];
+    const double yaw = quat2euler(tf_quat(T_WF_))(2);
+    const vec3_t rpy{roll, pitch, yaw};
+
+		const vec3_t r_WF = tf_trans(T_WF_);
+    const mat3_t C_WF = euler321(rpy);
+    const mat4_t T_WF = tf(C_WF, r_WF);
+
     // Map optimization variables to Eigen
-    const mat4_t T_WF = tf(params[0]);
+    // const mat4_t T_WF = tf(params[0]);
     const mat4_t T_WS = tf(params[1]);
     const mat4_t T_SC = tf(params[2]);
     Eigen::Map<const vecx_t> cam_params(params[3], 8);
-
-    // print_matrix("T_WS", T_WS);
-    // print_matrix("T_SC", T_SC);
-    // exit(0);
 
     // Transform and project point to image plane
     const mat4_t T_SW = T_WS.inverse();
@@ -89,15 +97,51 @@ struct reproj_error_t : public ceres::SizedCostFunction<2, 7, 7, 7, 8> {
     if (jacobians) {
       // Jacobians w.r.t. T_WF
       if (jacobians[0]) {
-        const mat3_t C_WF = tf_rot(T_WF);
+        // const mat3_t C_WF = tf_rot(T_WF);
+        // Eigen::Map<mat_t<2, 7, row_major_t>> J(jacobians[0]);
+        // J.setZero();
+        // J.block(0, 0, 2, 3) = -1 * Jh_weighted * C_CW * I(3);
+        // J.block(0, 3, 2, 3) = -1 * Jh_weighted * C_CW * -skew(C_WF * r_FFi_);
+        // if (valid == false) {
+        //   J.setZero();
+        // }
 
-        Eigen::Map<mat_t<2, 7, row_major_t>> J(jacobians[0]);
-        J.setZero();
-        J.block(0, 0, 2, 3) = -1 * Jh_weighted * C_CW * I(3);
-        J.block(0, 3, 2, 3) = -1 * Jh_weighted * C_CW * -skew(C_WF * r_FFi_);
+				// Form jacobians
+        const double cphi = cos(roll);
+        const double sphi = sin(roll);
+        const double ctheta = cos(pitch);
+        const double stheta = sin(pitch);
+        const double cpsi = cos(yaw);
+        const double spsi = sin(yaw);
+
+        const double x = r_FFi_(0);
+        const double y = r_FFi_(1);
+        const double z = r_FFi_(2);
+
+        const vec3_t J_x{
+          y * (sphi * spsi + stheta * cphi * cpsi) + z * (-sphi * stheta * cpsi + spsi * cphi),
+          y * (-sphi * cpsi + spsi * stheta * cphi) + z * (-sphi * spsi * stheta - cphi * cpsi),
+          y * cphi * ctheta - z * sphi * ctheta
+        };
+        const vec3_t J_y{
+          -x * stheta * cpsi + y * sphi * cpsi * ctheta + z * cphi * cpsi * ctheta,
+          -x * spsi * stheta + y * sphi * spsi * ctheta + z * spsi * cphi * ctheta,
+          -x * ctheta - y * sphi * stheta - z * stheta * cphi
+        };
+        const vec3_t J_z{
+          -x * spsi * ctheta + y * (-sphi * spsi * stheta - cphi * cpsi) + z * (sphi * cpsi - spsi * stheta * cphi),
+          x * cpsi * ctheta + y * (sphi * stheta * cpsi - spsi * cphi) + z * (sphi * spsi + stheta * cphi * cpsi),
+          0
+        };
+
+				// Fill Jacobian
+        Eigen::Map<Eigen::Matrix<double, 2, 2, Eigen::RowMajor>> J(jacobians[0]);
+        J.block(0, 0, 2, 1) = -1 * Jh_weighted * C_CW * J_x;
+        J.block(0, 1, 2, 1) = -1 * Jh_weighted * C_CW * J_y;
         if (valid == false) {
           J.setZero();
         }
+
       }
 
       // Jacobians w.r.t T_WS
@@ -495,12 +539,12 @@ struct calib_vi_t {
   mat4_t T_WF_init = I(4);
 
   // Parameters to be optimized
-  fiducial_pose_t *fiducial_pose = nullptr;
+  fiducial_params_t *fiducial = nullptr;
   time_delay_t *time_delay = nullptr;
   std::vector<pose_t *> sensor_poses;
   std::vector<sb_params_t *> speed_biases;
   std::map<int, camera_params_t *> cam_params;
-  std::map<int, extrinsic_t *> extrinsics;
+  std::map<int, extrinsics_t *> extrinsics;
 
   // Optimization
   imu_params_t imu_params;
@@ -509,13 +553,79 @@ struct calib_vi_t {
   ceres::Problem *problem;
   PoseLocalParameterization pose_parameterization;
 
+	template <typename CAMERA_TYPE>
   struct calib_view_t {
-    pose_t *T_WS_k = nullptr;
-    pose_t *sb_k = nullptr;
-    int cam_idx = -1;
-    camera_params_t *cam_params;
-    extrinsic_t *T_SCi;
+		ceres::Problem *problem = nullptr;
+    const int cam_idx = -1;
+		const fiducial_params_t *fiducial = nullptr;
+    const pose_t *sensor_pose = nullptr;
+    const camera_params_t *cam_params = nullptr;
+    const extrinsics_t *extrinsics = nullptr;
+
+		std::vector<ceres::ResidualBlockId> reproj_error_ids;
+		std::vector<reproj_error_t<CAMERA_TYPE> *> reproj_errors;
+
+		calib_view_t(ceres::Problem *problem_,
+		 		 	 	 	 	 const int cam_idx_,
+				 	 	 	 	 const fiducial_params_t *fiducial_,
+				 	 	 	 	 const pose_t *sensor_pose_,
+				 	 	 	 	 const extrinsics_t *extrinsics_,
+				 	 	 	 	 const camera_params_t *cam_params_)
+			: problem{problem_},
+				cam_idx{cam_idx_},
+				fiducial{fiducial_},
+				sensor_pose{sensor_pose_},
+				extrinsics{extrinsics_},
+				cam_params{cam_params_} {}
+
+		void add(const ceres::ResidualBlockId &id,
+						 reproj_error_t<CAMERA_TYPE> *err) {
+			reproj_error_ids.push_back(id);
+			reproj_errors.push_back(err);
+		}
+
+		void calculate_reproj_errors(std::vector<double> &errs) {
+			const mat4_t T_WF = fiducial->estimate();
+			const mat4_t T_CiS = extrinsics->tf().inverse();
+			const mat4_t T_SW = sensor_pose->tf().inverse();
+
+			for (const auto reproj_error : reproj_errors) {
+				const vec2_t z = reproj_error->z_;
+				const vec3_t r_FFi = reproj_error->r_FFi_;
+				const vec3_t r_CiFi = tf_point(T_CiS * T_SW * T_WF, r_FFi);
+
+				vec2_t z_hat;
+				const CAMERA_TYPE cam_geom(cam_params->resolution, cam_params->param);
+				cam_geom.project(r_CiFi, z_hat);
+				const vec2_t r = z - z_hat;
+				errs.push_back(r.norm());
+			}
+		}
+
+		int filter(const double threshold) {
+		  std::vector<double> errs;
+      calculate_reproj_errors(errs);
+
+			auto id_iter = reproj_error_ids.begin();
+			auto err_iter = reproj_errors.begin();
+
+			int nb_outliers = 0;
+			for (size_t i = 0; i < errs.size(); i++) {
+				if (errs[i] > threshold) {
+					problem->RemoveResidualBlock(*id_iter);
+					id_iter = reproj_error_ids.erase(id_iter);
+					err_iter = reproj_errors.erase(err_iter);
+					nb_outliers++;
+				} else {
+					id_iter++;
+					err_iter++;
+				}
+			}
+
+			return nb_outliers;
+		}
   };
+	std::map<int, std::vector<calib_view_t<pinhole_radtan4_t>>> calib_views;
 
   calib_vi_t() {
     prob_options.local_parameterization_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
@@ -523,7 +633,7 @@ struct calib_vi_t {
   }
 
   ~calib_vi_t() {
-    if (fiducial_pose) delete fiducial_pose;
+    if (fiducial) delete fiducial;
     if (time_delay) delete time_delay;
     for (const auto &pose : sensor_poses) delete pose;
     for (const auto &sb : speed_biases) delete sb;
@@ -537,7 +647,7 @@ struct calib_vi_t {
     add_time_delay(td);
   }
 
-  void add_camera(const int cam_index,
+  void add_camera(const int cam_idx,
                   const int resolution[2],
                   const std::string &proj_model,
                   const std::string &dist_model,
@@ -545,10 +655,10 @@ struct calib_vi_t {
                   const vecx_t &dist_params,
                   const bool fix=false) {
     auto cam = new camera_params_t(new_param_id++,
-                                   cam_index, resolution,
+                                   cam_idx, resolution,
                                    proj_model, dist_model,
                                    proj_params, dist_params);
-    cam_params[cam_index] = cam;
+    cam_params[cam_idx] = cam;
     grids_buf.nb_cams++; // Very important!
 
     if (fix) {
@@ -557,11 +667,11 @@ struct calib_vi_t {
     }
   }
 
-  void add_extrinsics(const int cam_index,
+  void add_extrinsics(const int cam_idx,
                       const mat4_t &T_SC,
                       const bool fix=false) {
-    auto T_SC_ptr = new extrinsic_t(new_param_id++, T_SC);
-    extrinsics[cam_index] = T_SC_ptr;
+    auto T_SC_ptr = new extrinsics_t(new_param_id++, T_SC);
+    extrinsics[cam_idx] = T_SC_ptr;
 
     if (fix) {
       problem->SetParameterBlockConstant(T_SC_ptr->param.data());
@@ -569,7 +679,6 @@ struct calib_vi_t {
   }
 
   void add_sensor_pose(const timestamp_t ts, const mat4_t &T_WS) {
-    LOG_INFO("add sensor pose: %ld", ts);
     sensor_poses.push_back(new pose_t{new_param_id++, ts, T_WS});
     sensor_init = true;
   }
@@ -583,16 +692,16 @@ struct calib_vi_t {
   }
 
   void add_fiducial_pose(const mat4_t &T_WF) {
-    fiducial_pose = new fiducial_pose_t(new_param_id++, T_WF);
+		fiducial = new fiducial_params_t(new_param_id++, T_WF);
     fiducial_init = true;
   }
 
-  vecx_t get_camera(const int cam_index) {
-    return cam_params[cam_index]->param;
+  vecx_t get_camera(const int cam_idx) {
+    return cam_params[cam_idx]->param;
   }
 
-  mat4_t get_extrinsic(const int cam_index) {
-    return extrinsics[cam_index]->tf();
+  mat4_t get_extrinsic(const int cam_idx) {
+    return extrinsics[cam_idx]->tf();
   }
 
   mat4_t get_sensor_pose(const int pose_index) {
@@ -600,7 +709,8 @@ struct calib_vi_t {
   }
 
   mat4_t get_fiducial_pose() {
-    return fiducial_pose->tf();
+		fiducial->update();
+    return fiducial->estimate();
   }
 
   int nb_cams() {
@@ -666,23 +776,25 @@ struct calib_vi_t {
                               pose_i->param.data(),
                               sb_i->param.data(),
                               pose_j->param.data(),
-                              sb_j->param.data(),
-                              time_delay->param.data());
+                              sb_j->param.data());
+                              // time_delay->param.data());
     problem->SetParameterization(pose_i->param.data(), &pose_parameterization);
     problem->SetParameterization(pose_j->param.data(), &pose_parameterization);
   }
 
-  void add_reproj_errors(const int cam_index, const aprilgrid_t &grid) {
-    assert(cam_params.count(cam_index) > 0);
-    assert(extrinsics.count(cam_index) > 0);
+  void add_reproj_errors(const int cam_idx, const aprilgrid_t &grid) {
+    assert(cam_params.count(cam_idx) > 0);
+    assert(extrinsics.count(cam_idx) > 0);
     assert(sensor_poses.size() >= 1);
 
-    const auto &T_WF = fiducial_pose;
+    const auto &T_WF = fiducial;
     const auto &T_WS = sensor_poses.back();
-    const auto &T_SC = extrinsics[cam_index];
-    const auto &cam = cam_params[cam_index];
+    const auto &T_SC = extrinsics[cam_idx];
+    const auto &cam = cam_params[cam_idx];
     const int *cam_res = cam->resolution;
     const mat2_t covar = pow(sigma_vision, 2) * I(2);
+
+		calib_view_t<pinhole_radtan4_t> view{problem, cam_idx, T_WF, T_WS, T_SC, cam};
 
     std::vector<int> tag_ids;
     std::vector<int> corner_indicies;
@@ -701,17 +813,21 @@ struct calib_vi_t {
                                                          corner_idx,
                                                          r_FFi,
                                                          z,
+																												 fiducial->estimate(),
                                                          covar);
-      problem->AddResidualBlock(error,
-                                NULL,
-                                T_WF->param.data(),
-                                T_WS->param.data(),
-                                T_SC->param.data(),
-                                cam->param.data());
-      problem->SetParameterization(T_WF->param.data(), &pose_parameterization);
+      auto error_id = problem->AddResidualBlock(error,
+                                                NULL,
+                                                T_WF->param.data(),
+                                                T_WS->param.data(),
+                                                T_SC->param.data(),
+                                                cam->param.data());
+
       problem->SetParameterization(T_WS->param.data(), &pose_parameterization);
       problem->SetParameterization(T_SC->param.data(), &pose_parameterization);
+			view.add(error_id, error);
     }
+
+    calib_views[cam_idx].push_back(view);
   }
 
   bool add_state(const aprilgrids_t &grids) {
@@ -729,12 +845,12 @@ struct calib_vi_t {
     const mat4_t T_WF = get_fiducial_pose();
     const mat4_t T_WS_k = T_WF * T_FC0_k * T_C0S;
 
-    // Propagate imu measurements to obtain speed and biases
+    // // Propagate imu measurements to obtain speed and biases
     // const auto t0 = sensor_poses.back()->ts;
     // const auto t1 = ts;
     // mat4_t T_WS = sensor_poses.back()->tf();
-    // vec_t<9> sb = speed_biases.back()->param;
-    // ImuError::propagation(imu_buf, imu_params, T_WS, sb, t0, t1);
+    // vec_t<9> sb_k = speed_biases.back()->param;
+    // ImuError::propagation(imu_buf, imu_params, T_WS, sb_k, t0, t1);
 
     // Infer velocity from two poses T_WS_k and T_WS_km1
     const mat4_t T_WS_km1 = tf(sensor_poses.back()->param);
@@ -762,9 +878,9 @@ struct calib_vi_t {
     return true;
   }
 
-  void add_measurement(const int cam_index, const aprilgrid_t &grid) {
-    grids_buf.add(cam_index, grid);
-    cam_grids[cam_index].push_back(grid);
+  void add_measurement(const int cam_idx, const aprilgrid_t &grid) {
+    grids_buf.add(cam_idx, grid);
+    cam_grids[cam_idx].push_back(grid);
   }
 
   void add_measurement(const timestamp_t ts,
@@ -808,6 +924,9 @@ struct calib_vi_t {
         const mat4_t T_WF = T_WS_init * T_SC0 * T_C0F;
 
         add_fiducial_pose(T_WF);
+        for (int i = 0; i < nb_cams(); i++) {
+          add_reproj_errors(i, grids[i]);
+        }
         LOG_INFO("Fiducial initialized!");
         return;
       }
@@ -826,7 +945,6 @@ struct calib_vi_t {
       if (grids[0].detected == false || grids[1].timestamp != ts) {
         return;
       }
-      printf("add state!\n");
       add_state(grids);
 
       // Drop oldest IMU measurements and clear aprilgrids
@@ -839,12 +957,12 @@ struct calib_vi_t {
     // Create timeline
     // -- Add camera events
     for (const auto &kv : cam_grids) {
-      const auto cam_index = kv.first;
+      const auto cam_idx = kv.first;
       const auto &grids = kv.second;
 
       for (const auto &grid : grids) {
         const timestamp_t ts = grid.timestamp;
-        const timeline_event_t event{ts, cam_index, grid};
+        const timeline_event_t event{ts, cam_idx, grid};
         timeline.add(event);
       }
     }
@@ -885,7 +1003,7 @@ struct calib_vi_t {
     std::vector<double> errs;
 
     // Fiducial pose
-    const mat4_t T_WF = fiducial_pose->tf();
+    const mat4_t T_WF = get_fiducial_pose();
 
     // Sensor-camera extrinsics
     const mat4_t T_CiS = extrinsics[cam_idx]->tf().inverse();
@@ -925,63 +1043,122 @@ struct calib_vi_t {
     return errs;
   }
 
-  void show_results() {
-    // Show results
+  std::map<int, std::vector<double>> get_camera_errors() {
     const auto proj_model = cam_params[0]->proj_model;
     const auto dist_model = cam_params[0]->dist_model;
 
-    std::vector<double> cam0_errs;
-    std::vector<double> cam1_errs;
-    if (proj_model == "pinhole" && dist_model == "radtan4") {
-      cam0_errs = calculate_reproj_errors<pinhole_radtan4_t>(0);
-      cam1_errs = calculate_reproj_errors<pinhole_radtan4_t>(1);
-    } else if (proj_model == "pinhole" && dist_model == "equi4") {
-      cam0_errs = calculate_reproj_errors<pinhole_equi4_t>(0);
-      cam1_errs = calculate_reproj_errors<pinhole_equi4_t>(1);
-    } else {
-      FATAL("[%s-%s] unsupported!", proj_model.c_str(), dist_model.c_str());
+    std::map<int, std::vector<double>> cam_errs;
+    for (int cam_idx = 0; cam_idx < nb_cams(); cam_idx++) {
+      std::vector<double> errs;
+      if (proj_model == "pinhole" && dist_model == "radtan4") {
+        errs = calculate_reproj_errors<pinhole_radtan4_t>(cam_idx);
+      } else if (proj_model == "pinhole" && dist_model == "equi4") {
+        errs = calculate_reproj_errors<pinhole_equi4_t>(cam_idx);
+      } else {
+        FATAL("[%s-%s] unsupported!", proj_model.c_str(), dist_model.c_str());
+      }
+      cam_errs[cam_idx] = errs;
     }
+
+    return cam_errs;
+  }
+
+  void show_results() {
+    // Show results
+    std::map<int, std::vector<double>> cam_errs = get_camera_errors();
 
     printf("Optimization results:\n");
     printf("---------------------\n");
     printf("stats:\n");
     printf("cam0 reprojection error [px]: ");
-    printf("[rmse: %f,", rmse(cam0_errs));
-    printf(" mean: %f,", mean(cam0_errs));
-    printf(" median: %f]\n", median(cam0_errs));
+    printf("[rmse: %f,", rmse(cam_errs[0]));
+    printf(" mean: %f,", mean(cam_errs[0]));
+    printf(" median: %f]\n", median(cam_errs[0]));
     printf("cam1 reprojection error [px]: ");
-    printf("[rmse: %f,", rmse(cam1_errs));
-    printf(" mean: %f,", mean(cam1_errs));
-    printf(" median: %f]\n", median(cam1_errs));
+    printf("[rmse: %f,", rmse(cam_errs[1]));
+    printf(" mean: %f,", mean(cam_errs[1]));
+    printf(" median: %f]\n", median(cam_errs[1]));
     printf("\n");
     printf("cam0:\n");
-    print_vector("  proj_params", cam_params[0]->proj_params());
-    print_vector("  dist_params", cam_params[0]->dist_params());
-    printf("cam1:\n");
-    print_vector("  proj_params", cam_params[1]->proj_params());
-    print_vector("  dist_params", cam_params[1]->dist_params());
+    print_vector("proj_params", cam_params[0]->proj_params());
+    print_vector("dist_params", cam_params[0]->dist_params());
     printf("\n");
-    print_matrix("T_SC0", extrinsics[0]->tf());
-    print_matrix("T_SC1", extrinsics[1]->tf());
+    printf("cam1:\n");
+    print_vector("proj_params", cam_params[1]->proj_params());
+    print_vector("dist_params", cam_params[1]->dist_params());
+    printf("\n");
+    printf("time_delay: %f\n", time_delay->param(0));
+    printf("\n");
+    const mat4_t T_SC0 = extrinsics[0]->tf();
+    const mat4_t T_SC1 = extrinsics[1]->tf();
+    print_matrix("T_SC0", T_SC0);
+    print_matrix("T_SC1", T_SC1);
+    print_matrix("T_C1C0", T_SC1.inverse() * T_SC0);
     printf("\n");
   }
 
   void solve(bool verbose=true) {
-    // Solver options
-    ceres::Solver::Options options;
-    options.minimizer_progress_to_stdout = true;
-    options.max_num_iterations = 100;
-    // options.check_gradients = true;
+    // Optimize problem - first pass
+		{
+		  LOG_INFO("Optimize problem - first pass");
+		  ceres::Solver::Options options;
+		  options.minimizer_progress_to_stdout = true;
+		  options.max_num_iterations = 30;
+		  ceres::Solver::Summary summary;
+		  ceres::Solve(options, problem, &summary);
+		  fiducial->update(); // <- Very important!
 
-    printf("nb_residuals: %d\n", problem->NumResiduals());
-    printf("nb_parameters: %d\n", problem->NumParameterBlocks());
+      std::map<int, std::vector<double>> cam_errs = get_camera_errors();
+      printf("stats:\n");
+      printf("cam0 reprojection error [px]: ");
+      printf("[rmse: %f,", rmse(cam_errs[0]));
+      printf(" mean: %f,", mean(cam_errs[0]));
+      printf(" median: %f]\n", median(cam_errs[0]));
+      printf("cam1 reprojection error [px]: ");
+      printf("[rmse: %f,", rmse(cam_errs[1]));
+      printf(" mean: %f,", mean(cam_errs[1]));
+      printf(" median: %f]\n", median(cam_errs[1]));
+      printf("\n");
+		}
 
-    // Solve
-    ceres::Solver::Summary summary;
-    ceres::Solve(options, problem, &summary);
-    if (verbose) {
-      std::cout << summary.FullReport() << std::endl;
-      show_results();
+		// Filter outliers
+    LOG_INFO("Filter outliers");
+    int nb_outliers = 0;
+    int nb_inliers = 0;
+		for (int cam_idx = 0; cam_idx < nb_cams(); cam_idx++) {
+			// Obtain all reprojection errors from all views
+			std::vector<double> errs;
+			for (auto &view : calib_views[cam_idx]) {
+				view.calculate_reproj_errors(errs);
+			}
+
+			// Filter outliers from last view
+			const double threshold = 3.0 * stddev(errs);
+			for (auto &view : calib_views[cam_idx]) {
+				nb_outliers += view.filter(threshold);
+				nb_inliers += view.reproj_errors.size();
+			}
+		}
+    LOG_INFO("Removed %d outliers!", nb_outliers);
+    printf("\n");
+
+    // Optimize problem - second pass
+    {
+		  LOG_INFO("Optimize problem - second pass");
+      // Solver options
+      ceres::Solver::Options options;
+      options.minimizer_progress_to_stdout = true;
+      options.max_num_iterations = 100;
+      // options.check_gradients = true;
+
+      // Solve
+      ceres::Solver::Summary summary;
+      ceres::Solve(options, problem, &summary);
+      fiducial->update(); // <- Very important!
+      if (verbose) {
+        std::cout << summary.FullReport() << std::endl;
+        show_results();
+      }
     }
   }
 
@@ -1040,8 +1217,9 @@ struct calib_vi_t {
     {
       FILE *csv = fopen("/tmp/fiducial_pose.csv", "w");
       fprintf(csv, "#x,y,z,qw,qx,qy,qz\n");
-      const vec3_t r = fiducial_pose->trans();
-      const quat_t q = fiducial_pose->rot();
+			const mat4_t T_WF = get_fiducial_pose();
+      const vec3_t r = tf_trans(T_WF);
+      const quat_t q = tf_quat(T_WF);
       fprintf(csv, "%f,%f,%f,", r(0), r(1), r(2));
       fprintf(csv, "%f,%f,%f,%f\n", q.w(), q.x(), q.y(), q.z());
       fclose(csv);

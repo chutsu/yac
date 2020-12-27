@@ -644,7 +644,14 @@ struct calib_vi_t {
 
   void add_imu(const imu_params_t &imu_params_, const double td=0.0) {
     imu_params = imu_params_;
+#if EST_TIMEDELAY == 1
     add_time_delay(td);
+    // problem->AddParameterBlock(time_delay->param.data(), 1);
+    // problem->SetParameterLowerBound(time_delay->param.data(), 0, -0.02);
+    // problem->SetParameterUpperBound(time_delay->param.data(), 0,  0.02);
+#else
+    UNUSED(td);
+#endif
   }
 
   void add_camera(const int cam_idx,
@@ -771,13 +778,22 @@ struct calib_vi_t {
     const auto t1 = pose_j->ts;
 
     auto error = new ImuError(imu_buf, imu_params, t0, t1);
+#if EST_TIMEDELAY == 1
+    problem->AddResidualBlock(error,
+                              NULL,
+                              pose_i->param.data(),
+                              sb_i->param.data(),
+                              pose_j->param.data(),
+                              sb_j->param.data(),
+                              time_delay->param.data());
+#else
     problem->AddResidualBlock(error,
                               NULL,
                               pose_i->param.data(),
                               sb_i->param.data(),
                               pose_j->param.data(),
                               sb_j->param.data());
-                              // time_delay->param.data());
+#endif
     problem->SetParameterization(pose_i->param.data(), &pose_parameterization);
     problem->SetParameterization(pose_j->param.data(), &pose_parameterization);
   }
@@ -1087,8 +1103,10 @@ struct calib_vi_t {
     print_vector("proj_params", cam_params[1]->proj_params());
     print_vector("dist_params", cam_params[1]->dist_params());
     printf("\n");
-    printf("time_delay: %f\n", time_delay->param(0));
-    printf("\n");
+    if (time_delay) {
+      printf("time_delay: %f\n", time_delay->param(0));
+      printf("\n");
+    }
     const mat4_t T_SC0 = extrinsics[0]->tf();
     const mat4_t T_SC1 = extrinsics[1]->tf();
     print_matrix("T_SC0", T_SC0);
@@ -1103,7 +1121,7 @@ struct calib_vi_t {
 		  LOG_INFO("Optimize problem - first pass");
 		  ceres::Solver::Options options;
 		  options.minimizer_progress_to_stdout = true;
-		  options.max_num_iterations = 30;
+		  options.max_num_iterations = 10;
 		  ceres::Solver::Summary summary;
 		  ceres::Solve(options, problem, &summary);
 		  fiducial->update(); // <- Very important!
@@ -1162,7 +1180,120 @@ struct calib_vi_t {
     }
   }
 
+  int save_results(const std::string &save_path) {
+    // Open results file
+    FILE *outfile = fopen(save_path.c_str(), "w");
+    if (outfile == NULL) {
+      return -1;
+    }
+
+    // Calibration metrics
+    std::map<int, std::vector<double>> cam_errs = get_camera_errors();
+    fprintf(outfile, "# CALIBRATION METRICS \n");
+    fprintf(outfile, "calib_metrics:\n");
+    for (const auto &kv : cam_errs) {
+      const auto cam_idx = kv.first;
+      const auto cam_str = "cam" + std::to_string(cam_idx);
+      const auto cam_errs = kv.second;
+      fprintf(outfile, "  %s: ", cam_str.c_str());
+      fprintf(outfile, "[");
+      fprintf(outfile, "%f, ", rmse(cam_errs));
+      fprintf(outfile, "%f, ", mean(cam_errs));
+      fprintf(outfile, "%f, ", median(cam_errs));
+      fprintf(outfile, "%f", stddev(cam_errs));
+      fprintf(outfile, "]  # rmse, mean, median, stddev\n");
+    }
+    fprintf(outfile, "\n");
+    fprintf(outfile, "\n");
+
+    // Camera parameters
+    fprintf(outfile, "# CAMERA PARAMETERS\n");
+    for (int i = 0; i < nb_cams(); i++) {
+      const auto cam = cam_params[i];
+      const int *cam_res = cam->resolution;
+      const char *proj_model = cam->proj_model.c_str();
+      const char *dist_model = cam->dist_model.c_str();
+      const std::string proj_params = vec2str(cam->proj_params(), 4);
+      const std::string dist_params = vec2str(cam->dist_params(), 4);
+
+      fprintf(outfile, "cam%d\n", i);
+      fprintf(outfile, "  resolution: [%d, %d]\n", cam_res[0], cam_res[1]);
+      fprintf(outfile, "  proj_model: \"%s\"\n", proj_model);
+      fprintf(outfile, "  dist_model: \"%s\"\n", dist_model);
+      fprintf(outfile, "  proj_params: %s\n", proj_params.c_str());
+      fprintf(outfile, "  dist_params: %s\n", dist_params.c_str());
+      fprintf(outfile, "\n");
+    }
+    fprintf(outfile, "\n");
+
+    // IMU parameters
+    fprintf(outfile, "# IMU PARAMETERS\n");
+    fprintf(outfile, "imu0:\n");
+    fprintf(outfile, "  rate: %f\n", imu_params.rate);
+    fprintf(outfile, "  tau_a: %f\n", imu_params.tau_a);
+    fprintf(outfile, "  tau_g: %f\n", imu_params.tau_g);
+    fprintf(outfile, "  sigma_g_c: %f\n", imu_params.sigma_g_c);
+    fprintf(outfile, "  sigma_a_c: %f\n", imu_params.sigma_a_c);
+    fprintf(outfile, "  sigma_gw_c: %f\n", imu_params.sigma_gw_c);
+    fprintf(outfile, "  sigma_aw_c: %f\n", imu_params.sigma_aw_c);
+    fprintf(outfile, "  g: %f\n", imu_params.g);
+    fprintf(outfile, "\n");
+    fprintf(outfile, "\n");
+
+    // Sensor-Camera extrinsics
+    fprintf(outfile, "# SENSOR-CAMERA EXTRINSICS\n");
+    for (int i = 0; i < nb_cams(); i++) {
+      const mat4_t T_SCi = extrinsics[i]->tf();
+      fprintf(outfile, "T_SC%d:\n", i);
+      fprintf(outfile, "  rows: 4\n");
+      fprintf(outfile, "  cols: 4\n");
+      fprintf(outfile, "  data: [\n");
+      fprintf(outfile, "%s\n", mat2str(T_SCi, "    ").c_str());
+      fprintf(outfile, "  ]");
+      fprintf(outfile, "\n");
+      fprintf(outfile, "\n");
+    }
+    fprintf(outfile, "\n");
+
+    // Camera-Camera extrinsics
+    fprintf(outfile, "# CAMERA-CAMERA EXTRINSICS\n");
+    if (nb_cams() >= 2) {
+      for (int i = 1; i < nb_cams(); i++) {
+        const mat4_t T_SC0 = extrinsics[0]->tf();
+        const mat4_t T_SCi = extrinsics[i]->tf();
+        const mat4_t T_C0Ci = T_SC0.inverse() * T_SCi;
+        const mat4_t T_CiC0 = T_C0Ci.inverse();
+
+        fprintf(outfile, "T_C0C%d:\n", i);
+        fprintf(outfile, "  rows: 4\n");
+        fprintf(outfile, "  cols: 4\n");
+        fprintf(outfile, "  data: [\n");
+        fprintf(outfile, "%s\n", mat2str(T_C0Ci, "    ").c_str());
+        fprintf(outfile, "  ]");
+        fprintf(outfile, "\n");
+        fprintf(outfile, "\n");
+
+        fprintf(outfile, "T_C%dC0:\n", i);
+        fprintf(outfile, "  rows: 4\n");
+        fprintf(outfile, "  cols: 4\n");
+        fprintf(outfile, "  data: [\n");
+        fprintf(outfile, "%s\n", mat2str(T_CiC0, "    ").c_str());
+        fprintf(outfile, "  ]");
+        fprintf(outfile, "\n");
+        fprintf(outfile, "\n");
+      }
+    }
+
+    // Finsh up
+    fclose(outfile);
+
+    return 0;
+  }
+
   void save() {
+    LOG_INFO("Saved results to /tmp/calib_results.yaml");
+    save_results("/tmp/calib_results.yaml");
+
     // Save sensor poses
     {
       FILE *csv = fopen("/tmp/sensor_poses.csv", "w");

@@ -18,20 +18,9 @@ namespace yac {
  */
 class ImuError
 #if EST_TIMEDELAY == 1
-    : public ::ceres::SizedCostFunction<
-          15 /* number of residuals */,
-          7 /* size of first parameter (PoseParameterBlock k) */,
-          9 /* size of second parameter (SpeedAndBiasParameterBlock k) */,
-          7 /* size of third parameter (PoseParameterBlock k+1) */,
-          9 /* size of fourth parameter (SpeedAndBiasParameterBlock k+1) */,
-          1 /* size of fifth parameter (TimeDelayParameeterBlock) */> {
+    : public ::ceres::SizedCostFunction< 15, 7, 9, 7, 9, 1> {
 #else
-    : public ::ceres::SizedCostFunction<
-          15 /* number of residuals */,
-          7 /* size of first parameter (PoseParameterBlock k) */,
-          9 /* size of second parameter (SpeedAndBiasParameterBlock k) */,
-          7 /* size of third parameter (PoseParameterBlock k+1) */,
-          9 /* size of fourth parameter (SpeedAndBiasParameterBlock k+1) */> {
+    : public ::ceres::SizedCostFunction< 15, 7, 9, 7, 9> {
 #endif
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
@@ -674,7 +663,11 @@ bool ImuError::EvaluateWithMinimalJacobians(double const *const *params,
     std::lock_guard<std::mutex> lock(preintegrationMutex_);
     Delta_b = sb0.tail<6>() - sb_ref_.tail<6>();
   }
-  redoPreintegration(T_WS_0, sb0, time_start, time_end);
+  int nb_meas = redoPreintegration(T_WS_0, sb0, time_start, time_end);
+  bool valid = true;
+  if (nb_meas == 0) {
+    valid = false;
+  }
   Delta_b.setZero();
   // printf("nb imu measurements: %zu\n", imu_data_.size());
   // std::cout << "imu front ts: " << imu_data_.front().timeStamp.toNSec() << std::endl;
@@ -747,9 +740,8 @@ bool ImuError::EvaluateWithMinimalJacobians(double const *const *params,
 
     // Error weighting
     // clang-format off
-    if (residuals) {
-      Eigen::Map<Eigen::Matrix<double, 15, 1>> weighted_error(residuals);
-      weighted_error = squareRootInformation_ * error;
+    Eigen::Map<Eigen::Matrix<double, 15, 1>> weighted_error(residuals);
+    weighted_error = squareRootInformation_ * error;
       // print_vector("err", error);
       // r = weighted_error;
       // print_matrix("sqrt_info", squareRootInformation_);
@@ -770,9 +762,28 @@ bool ImuError::EvaluateWithMinimalJacobians(double const *const *params,
 
       // Eigen::Map<Eigen::Matrix<double, 15, 1>> weighted_error_debug(residuals_debug);
       // weighted_error_debug = squareRootInformation_ * error;
-    }
+
     // clang-format on
     // printf("residual norm: %f\n", (squareRootInformation_ * error).norm());
+    // if (nb_meas < 5) {
+    //   printf("nb_meas: %d\n", nb_meas);
+    //   printf("imu_data size: %ld\n", imu_data_.size());
+    //   printf("t0: %ld\n", t0_);
+    //   printf("t1: %ld\n", t1_);
+    //   print_vector("error", error);
+    //   print_vector("weighted_error", weighted_error);
+    //   printf("time_delay: %f\n", time_delay);
+    //   // exit(0);
+    // } else if (nb_meas == 0) {
+    //   printf("nb_meas: %d\n", nb_meas);
+    //   printf("imu_data size: %ld\n", imu_data_.size());
+    //   printf("t0: %ld\n", t0_);
+    //   printf("t1: %ld\n", t1_);
+    //   print_vector("error", error);
+    //   print_vector("weighted_error", weighted_error);
+    //   printf("time_delay: %f\n", time_delay);
+    //   // exit(0);
+    // }
 
     // Get the Jacobians
     if (jacobians != NULL) {
@@ -786,6 +797,9 @@ bool ImuError::EvaluateWithMinimalJacobians(double const *const *params,
         Eigen::Map<Eigen::Matrix<double, 15, 7, Eigen::RowMajor>> J0(jacobians[0]);
         J0.setZero();
 				J0.block(0, 0, 15, 6) = J0_minimal;
+				if (valid == false) {
+          J0.setZero();
+				}
 
         // // pseudo inverse of the local parametrization Jacobian:
         // Eigen::Matrix<double, 6, 7, Eigen::RowMajor> J_lift;
@@ -816,7 +830,9 @@ bool ImuError::EvaluateWithMinimalJacobians(double const *const *params,
         Eigen::Map<Eigen::Matrix<double, 15, 9, Eigen::RowMajor>> J1(jacobians[1]);
         J1.setZero();
         J1 = squareRootInformation_ * F0.block<15, 9>(0, 6);
-        // J[1] = J1;
+				if (valid == false) {
+          J1.setZero();
+				}
 
         if (debug_jacobians_) {
           std::cout << "J1:" << std::endl;
@@ -842,6 +858,9 @@ bool ImuError::EvaluateWithMinimalJacobians(double const *const *params,
         Eigen::Map<Eigen::Matrix<double, 15, 7, Eigen::RowMajor>> J2(jacobians[2]);
         J2.setZero();
 				J2.block(0, 0, 15, 6) = J2_minimal;
+				if (valid == false) {
+          J2.setZero();
+				}
 
         // pseudo inverse of the local parametrization Jacobian:
         // Eigen::Matrix<double, 6, 7, Eigen::RowMajor> J_lift;
@@ -871,6 +890,9 @@ bool ImuError::EvaluateWithMinimalJacobians(double const *const *params,
         Eigen::Map<Eigen::Matrix<double, 15, 9, Eigen::RowMajor>> J3(jacobians[3]);
         J3.setZero();
         J3 = squareRootInformation_ * F1.block<15, 9>(0, 6);
+				if (valid == false) {
+          J3.setZero();
+				}
 
         if (debug_jacobians_) {
           std::cout << "J3:" << std::endl;
@@ -922,8 +944,8 @@ bool ImuError::EvaluateWithMinimalJacobians(double const *const *params,
         double *speed_bias_1_data = sb1.data();
 
         // ---- Time delays
-        const double time_delay_0 = time_delay + delta;
-        const double time_delay_1 = time_delay - delta;
+        const double time_delay_0 = time_delay - 0.5 * delta;
+        const double time_delay_1 = time_delay + 0.5 * delta;
 
         // ---- Params
         // clang-format on
@@ -933,8 +955,8 @@ bool ImuError::EvaluateWithMinimalJacobians(double const *const *params,
         // -- Form IMU errors and evaluate jacobians
         double imu0_residuals[15] = {0};
         double imu1_residuals[15] = {0};
-        const ImuError imu0{imu_data_, imu_params_, t0_, t1_};
-        const ImuError imu1{imu_data_, imu_params_, t0_, t1_};
+        ImuError imu0{imu_data_, imu_params_, t0_, t1_};
+        ImuError imu1{imu_data_, imu_params_, t0_, t1_};
         if (imu0.Evaluate(imu0_params, imu0_residuals, nullptr) == false) {
           // eval = false;
           return false;
@@ -947,11 +969,14 @@ bool ImuError::EvaluateWithMinimalJacobians(double const *const *params,
         // -- Perform actual numerical differentiation
         Eigen::Map<Eigen::Matrix<double, 15, 1>> residuals_0(imu0_residuals);
         Eigen::Map<Eigen::Matrix<double, 15, 1>> residuals_1(imu1_residuals);
-        const auto J_time_delay = (residuals_1 - residuals_0) * (1 / (2.0 * delta));
+        const auto J_time_delay = (residuals_1 - residuals_0) / delta;
 
         // -- Set time delay jacobian
         Eigen::Map<Eigen::Matrix<double, 15, 1>> J4(jacobians[4]);
-        J4 = -1 * J_time_delay;
+        J4 = J_time_delay;
+				if (valid == false) {
+          J4.setZero();
+				}
 
         if (debug_jacobians_) {
           std::cout << "J4:" << std::endl;

@@ -533,10 +533,7 @@ struct calib_vi_t {
   aprilgrid_buffer_t grids_buf;
   std::map<int, aprilgrids_t> cam_grids;
   imu_data_t imu_buf;
-  bool sensor_init = false;
-  bool fiducial_init = false;
-  mat4_t T_WS_init = I(4);
-  mat4_t T_WF_init = I(4);
+  bool initialized = false;
 
   // Parameters to be optimized
   fiducial_params_t *fiducial = nullptr;
@@ -644,14 +641,7 @@ struct calib_vi_t {
 
   void add_imu(const imu_params_t &imu_params_, const double td=0.0) {
     imu_params = imu_params_;
-#if EST_TIMEDELAY == 1
     add_time_delay(td);
-    // problem->AddParameterBlock(time_delay->param.data(), 1);
-    // problem->SetParameterLowerBound(time_delay->param.data(), 0, -0.02);
-    // problem->SetParameterUpperBound(time_delay->param.data(), 0,  0.02);
-#else
-    UNUSED(td);
-#endif
   }
 
   void add_camera(const int cam_idx,
@@ -687,7 +677,6 @@ struct calib_vi_t {
 
   void add_sensor_pose(const timestamp_t ts, const mat4_t &T_WS) {
     sensor_poses.push_back(new pose_t{new_param_id++, ts, T_WS});
-    sensor_init = true;
   }
 
   void add_speed_biases(const timestamp_t ts, const vec_t<9> &sb) {
@@ -700,7 +689,6 @@ struct calib_vi_t {
 
   void add_fiducial_pose(const mat4_t &T_WF) {
 		fiducial = new fiducial_params_t(new_param_id++, T_WF);
-    fiducial_init = true;
   }
 
   vecx_t get_camera(const int cam_idx) {
@@ -759,7 +747,7 @@ struct calib_vi_t {
     imu_data_t trimmed_imu_data;
     for (size_t k = 0; k < imu_data.timestamps.size(); k++) {
       const timestamp_t ts = imu_data.timestamps[k];
-      if (ts > t1) {
+      if (ts >= t1) {
         const vec3_t acc = imu_data.accel[k];
         const vec3_t gyr = imu_data.gyro[k];
         trimmed_imu_data.add(ts, acc, gyr);
@@ -778,22 +766,12 @@ struct calib_vi_t {
     const auto t1 = pose_j->ts;
 
     auto error = new ImuError(imu_buf, imu_params, t0, t1);
-#if EST_TIMEDELAY == 1
-    problem->AddResidualBlock(error,
-                              NULL,
-                              pose_i->param.data(),
-                              sb_i->param.data(),
-                              pose_j->param.data(),
-                              sb_j->param.data(),
-                              time_delay->param.data());
-#else
     problem->AddResidualBlock(error,
                               NULL,
                               pose_i->param.data(),
                               sb_i->param.data(),
                               pose_j->param.data(),
                               sb_j->param.data());
-#endif
     problem->SetParameterization(pose_i->param.data(), &pose_parameterization);
     problem->SetParameterization(pose_j->param.data(), &pose_parameterization);
   }
@@ -846,21 +824,92 @@ struct calib_vi_t {
     calib_views[cam_idx].push_back(view);
   }
 
-  bool add_state(const aprilgrids_t &grids) {
+  bool fiducial_detected(const aprilgrids_t &grids) {
+    assert(grids.size() > 0);
+
+    bool detected = false;
+    for (int i = 0; i < nb_cams(); i++) {
+      if (grids[i].detected) {
+        detected = true;
+      }
+    }
+
+    return detected;
+  }
+
+  mat4_t estimate_sensor_pose(const aprilgrids_t &grids) {
+    assert(grids.size() > 0);
+    assert(initialized);
+
+    if (fiducial_detected(grids) == false) {
+      FATAL("No fiducials detected!");
+    }
+
+    for (int i = 0; i < nb_cams(); i++) {
+      // Skip if not detected
+      if (grids[i].detected == false) {
+        continue;
+      }
+
+      // Estimate relative pose
+      mat4_t T_CiF = I(4);
+      if (estimate_relative_pose(grids[i], T_CiF) != 0) {
+        FATAL("Failed to estimate relative pose!");
+      }
+
+      // Infer current pose T_WS using T_C0F, T_SC0 and T_WF
+      const mat4_t T_FCi_k = T_CiF.inverse();
+      const mat4_t T_SCi = get_extrinsic(i);
+      const mat4_t T_CiS = T_SCi.inverse();
+      const mat4_t T_WF = get_fiducial_pose();
+      const mat4_t T_WS_k = T_WF * T_FCi_k * T_CiS;
+
+      return T_WS_k;
+    }
+
+    // Should never reach here
+    return zeros(4, 4);
+  }
+
+  void initialize(const timestamp_t &ts,
+                  const aprilgrids_t &grids,
+                  imu_data_t &imu_buf) {
+    // Estimate initial IMU attitude
+    mat3_t C_WS;
+    imu_init_attitude(imu_buf.gyro, imu_buf.accel, C_WS, 5);
+
+    // Add sensor pose - T_WS
+    const mat4_t T_WS = tf(C_WS, zeros(3, 1));
+    add_sensor_pose(ts, T_WS);
+    add_speed_biases(ts, zeros(9, 1));
+    LOG_INFO("Sensor pose initialized!");
+    print_matrix("T_WS", T_WS);
+
     // Estimate relative pose
-    const timestamp_t ts = grids[0].timestamp;
+    assert(grids.size() > 0);
+    assert(grids[0].detected);
     mat4_t T_C0F = I(4);
     if (estimate_relative_pose(grids[0], T_C0F) != 0) {
       FATAL("Failed to estimate relative pose!");
+      return;
     }
 
-    // Infer current pose T_WS using T_C0F, T_SC0 and T_WF
-    const mat4_t T_FC0_k = T_C0F.inverse();
+    // Add fiducial pose - T_WF
     const mat4_t T_SC0 = get_extrinsic(0);
-    const mat4_t T_C0S = T_SC0.inverse();
-    const mat4_t T_WF = get_fiducial_pose();
-    const mat4_t T_WS_k = T_WF * T_FC0_k * T_C0S;
+    const mat4_t T_WF = T_WS * T_SC0 * T_C0F;
+    add_fiducial_pose(T_WF);
+    for (int i = 0; i < nb_cams(); i++) {
+      add_reproj_errors(i, grids[i]);
+    }
+    LOG_INFO("Fiducial initialized!");
+    print_matrix("T_WF", T_WF);
 
+    // Finish up
+    initialized = true;
+    trim_imu_data(imu_buf, ts);  // Remove imu measurements up to ts
+  }
+
+  void add_state(const timestamp_t &ts, const aprilgrids_t &grids) {
     // // Propagate imu measurements to obtain speed and biases
     // const auto t0 = sensor_poses.back()->ts;
     // const auto t1 = ts;
@@ -871,6 +920,7 @@ struct calib_vi_t {
     // Infer velocity from two poses T_WS_k and T_WS_km1
     const mat4_t T_WS_km1 = tf(sensor_poses.back()->param);
     const vec3_t r_WS_km1 = tf_trans(T_WS_km1);
+    const mat4_t T_WS_k = estimate_sensor_pose(grids);
     const vec3_t r_WS_k = tf_trans(T_WS_k);
     const vec3_t v_WS_k = r_WS_k - r_WS_km1;
     vec_t<9> sb_k;
@@ -891,7 +941,7 @@ struct calib_vi_t {
       add_reproj_errors(i, grids[i]);
     }
 
-    return true;
+    trim_imu_data(imu_buf, ts);
   }
 
   void add_measurement(const int cam_idx, const aprilgrid_t &grid) {
@@ -899,72 +949,35 @@ struct calib_vi_t {
     cam_grids[cam_idx].push_back(grid);
   }
 
-  void add_measurement(const timestamp_t ts,
+  void add_measurement(const timestamp_t imu_ts,
                        const vec3_t &a_m,
                        const vec3_t &w_m) {
-    imu_buf.add(ts, a_m, w_m);
+    imu_buf.add(imu_ts, a_m, w_m);
 
     if (grids_buf.ready()) {
-      auto grids = grids_buf.pop_front();
+      const auto grids = grids_buf.pop_front();
 
-      // -------------------------- Initialize T_WS ---------------------------
-      if (sensor_init == false && imu_buf.size() > 5) {
-        // Initialize initial IMU attitude
-        mat3_t C_WS;
-        imu_init_attitude(imu_buf.gyro, imu_buf.accel, C_WS, 5);
-
-        // Add initial sensor pose
-        T_WS_init = tf(C_WS, zeros(3, 1));
-        add_sensor_pose(ts, T_WS_init);
-        add_speed_biases(ts, zeros(9, 1));
-        LOG_INFO("Sensor pose initialized!");
-      }
-
-      // Make sure imu data is streaming first
-      if (sensor_init == false) {
-        LOG_WARN("IMU not initialized yet!");
-        return;
-      }
-
-      // -------------------------- Initialize T_WF ---------------------------
-      if (sensor_init && fiducial_init == false && grids[0].detected) {
-        // Estimate relative pose
-        mat4_t T_C0F = I(4);
-        if (estimate_relative_pose(grids[0], T_C0F) != 0) {
-          LOG_ERROR("Failed to estimate relative pose!");
-          return;
+      // Initialize T_WS and T_WF
+      if (initialized == false) {
+        if (grids[0].detected && imu_buf.size() > 5) {
+          const auto ts = imu_buf.timestamps.front();
+          initialize(ts, grids, imu_buf);
         }
+        return;
+      }
 
-        // Add T_WF
-        const mat4_t T_SC0 = get_extrinsic(0);
-        const mat4_t T_WF = T_WS_init * T_SC0 * T_C0F;
-
-        add_fiducial_pose(T_WF);
-        for (int i = 0; i < nb_cams(); i++) {
-          add_reproj_errors(i, grids[i]);
+      // Add new state
+      timestamp_t grid_ts = 0;
+      for (int i = 0; i < nb_cams(); i++) {
+        if (grids[i].detected) {
+          grid_ts = grids[i].timestamp;
+          break;
         }
-        LOG_INFO("Fiducial initialized!");
-        return;
       }
-
-      // Make sure fiducial target is initialized
-      if (fiducial_init == false) {
-        LOG_WARN("Fiducial not initialized yet!");
-        return;
+      if (fiducial_detected(grids) && imu_ts >= grid_ts) {
+        const auto ts = imu_buf.timestamps.back();
+        add_state(ts, grids);
       }
-
-      // -------------------------- Add new state -----------------------------
-      // Make sure we have enough imu timestamps
-      if (imu_buf.timestamps.back() < ts) {
-        return;
-      }
-      if (grids[0].detected == false || grids[1].timestamp != ts) {
-        return;
-      }
-      add_state(grids);
-
-      // Drop oldest IMU measurements and clear aprilgrids
-      trim_imu_data(imu_buf, ts);
     }
   }
 
@@ -1189,7 +1202,6 @@ struct calib_vi_t {
 
     // Calibration metrics
     std::map<int, std::vector<double>> cam_errs = get_camera_errors();
-    fprintf(outfile, "# CALIBRATION METRICS \n");
     fprintf(outfile, "calib_metrics:\n");
     for (const auto &kv : cam_errs) {
       const auto cam_idx = kv.first;
@@ -1207,7 +1219,6 @@ struct calib_vi_t {
     fprintf(outfile, "\n");
 
     // Camera parameters
-    fprintf(outfile, "# CAMERA PARAMETERS\n");
     for (int i = 0; i < nb_cams(); i++) {
       const auto cam = cam_params[i];
       const int *cam_res = cam->resolution;
@@ -1227,7 +1238,6 @@ struct calib_vi_t {
     fprintf(outfile, "\n");
 
     // IMU parameters
-    fprintf(outfile, "# IMU PARAMETERS\n");
     fprintf(outfile, "imu0:\n");
     fprintf(outfile, "  rate: %f\n", imu_params.rate);
     fprintf(outfile, "  tau_a: %f\n", imu_params.tau_a);
@@ -1241,7 +1251,6 @@ struct calib_vi_t {
     fprintf(outfile, "\n");
 
     // Sensor-Camera extrinsics
-    fprintf(outfile, "# SENSOR-CAMERA EXTRINSICS\n");
     for (int i = 0; i < nb_cams(); i++) {
       const mat4_t T_SCi = extrinsics[i]->tf();
       fprintf(outfile, "T_SC%d:\n", i);
@@ -1256,7 +1265,6 @@ struct calib_vi_t {
     fprintf(outfile, "\n");
 
     // Camera-Camera extrinsics
-    fprintf(outfile, "# CAMERA-CAMERA EXTRINSICS\n");
     if (nb_cams() >= 2) {
       for (int i = 1; i < nb_cams(); i++) {
         const mat4_t T_SC0 = extrinsics[0]->tf();

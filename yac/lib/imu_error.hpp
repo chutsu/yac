@@ -16,17 +16,9 @@ namespace yac {
 /**
  * Implements a nonlinear IMU factor.
  */
-class ImuError
-#if EST_TIMEDELAY == 1
-    : public ::ceres::SizedCostFunction< 15, 7, 9, 7, 9, 1> {
-#else
-    : public ::ceres::SizedCostFunction< 15, 7, 9, 7, 9> {
-#endif
+class ImuError : public ::ceres::SizedCostFunction< 15, 7, 9, 7, 9> {
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-
-  // For debugging
-  bool debug_jacobians_ = false;
 
   size_t state_id = 0;
   timestamp_t imu_t0 = 0;
@@ -41,7 +33,6 @@ public:
   mutable mat4_t T_WS_1_last_;
   mutable vec_t<9> sb0_last_;
   mutable vec_t<9> sb1_last_;
-  mutable double time_delay_last_ = 0.0;
 
   ///< The number of residuals
   typedef Eigen::Matrix<double, 15, 15> covariance_t;
@@ -617,39 +608,13 @@ bool ImuError::EvaluateWithMinimalJacobians(double const *const *params,
     sb1(i) = params[3][i];
   }
 
-  // Time delay
-#if EST_TIMEDELAY == 1
-  const double time_delay = params[4][0];
-  time_delay_last_ = time_delay;
-#endif
-
   // Keep track of evaulation values
   T_WS_0_last_ = T_WS_0;
   T_WS_1_last_ = T_WS_1;
   sb0_last_ = sb0;
   sb1_last_ = sb1;
-
-  // Modify time_start and time_end with timedelay if performing numdiff
-#if EST_TIMEDELAY == 1
   timestamp_t time_start = t0_;
   timestamp_t time_end = t1_;
-  // -- Modify t0 and t1
-  const timestamp_t delay_nsec = time_delay * 1e9;
-  const timestamp_t t_start_nsec = time_start;
-  const timestamp_t t_end_nsec = time_end;
-  time_start = t_start_nsec + delay_nsec;
-  time_end = t_end_nsec + delay_nsec;
-  // -- Bound times to prevent being before or after imu measurements
-  if (time_start < imu_data_.timestamps.front()) {
-    time_start = imu_data_.timestamps.front();
-  }
-  if (time_end > imu_data_.timestamps.back()) {
-    time_end = imu_data_.timestamps.back();
-  }
-#else
-  timestamp_t time_start = t0_;
-  timestamp_t time_end = t1_;
-#endif
 
   // this will NOT be changed:
   const mat3_t C_WS_0 = tf_rot(T_WS_0);
@@ -669,20 +634,6 @@ bool ImuError::EvaluateWithMinimalJacobians(double const *const *params,
     valid = false;
   }
   Delta_b.setZero();
-  // printf("nb imu measurements: %zu\n", imu_data_.size());
-  // std::cout << "imu front ts: " << imu_data_.front().timeStamp.toNSec() << std::endl;
-  // std::cout << "imu back ts:  " << imu_data_.back().timeStamp.toNSec() << std::endl;
-  // std::cout << "time_start:   " << time_start.toNSec() << std::endl;
-  // std::cout << "time_end:     " << time_end.toNSec() << std::endl;
-  // std::cout << "sb0: " << sb0.transpose() << std::endl;
-  // std::cout << "sb1: " << sb1.transpose() << std::endl;
-  // redo_ = redo_ || (Delta_b.head<3>().norm() * Delta_t > 0.0001);
-  // if (redo_) {
-  //   redoPreintegration(T_WS_0, sb0, time_start, time_end);
-  //   redoCounter_++;
-  //   Delta_b.setZero();
-  //   redo_ = false;
-  // }
 
   // Actual propagation output:
   {
@@ -735,55 +686,10 @@ bool ImuError::EvaluateWithMinimalJacobians(double const *const *params,
     error.tail<6>() = sb0.tail<6>() - sb1.tail<6>();
     // clang-format on
 
-    // FATAL("SOMETHING IS WRONG HERE!");
-    // squareRootInformation_  = I(15);
-
     // Error weighting
     // clang-format off
     Eigen::Map<Eigen::Matrix<double, 15, 1>> weighted_error(residuals);
     weighted_error = squareRootInformation_ * error;
-      // print_vector("err", error);
-      // r = weighted_error;
-      // print_matrix("sqrt_info", squareRootInformation_);
-      // exit(0);
-
-      // if (std::isnan(weighted_error(0))) {
-      //   printf("pose0_id: %zu\n", pose0_id);
-      //   printf("pose1_id: %zu\n", pose1_id);
-      //   printf("state0_id: %zu\n", state0_id);
-      //   printf("state1_id: %zu\n", state1_id);
-      //   printf("timedelay: %zu\n", timedelay_id);
-      //   for (const auto &data : imu_data_ ){
-      //     std::cout << "gyr: " << data.measurement.gyroscopes.transpose() << std::endl;
-      //     std::cout << "acc: " << data.measurement.accelerometers.transpose() << std::endl;
-      //   }
-      //   std::cout << "residual: " << weighted_error.transpose() << std::endl;
-      // }
-
-      // Eigen::Map<Eigen::Matrix<double, 15, 1>> weighted_error_debug(residuals_debug);
-      // weighted_error_debug = squareRootInformation_ * error;
-
-    // clang-format on
-    // printf("residual norm: %f\n", (squareRootInformation_ * error).norm());
-    // if (nb_meas < 5) {
-    //   printf("nb_meas: %d\n", nb_meas);
-    //   printf("imu_data size: %ld\n", imu_data_.size());
-    //   printf("t0: %ld\n", t0_);
-    //   printf("t1: %ld\n", t1_);
-    //   print_vector("error", error);
-    //   print_vector("weighted_error", weighted_error);
-    //   printf("time_delay: %f\n", time_delay);
-    //   // exit(0);
-    // } else if (nb_meas == 0) {
-    //   printf("nb_meas: %d\n", nb_meas);
-    //   printf("imu_data size: %ld\n", imu_data_.size());
-    //   printf("t0: %ld\n", t0_);
-    //   printf("t1: %ld\n", t1_);
-    //   print_vector("error", error);
-    //   print_vector("weighted_error", weighted_error);
-    //   printf("time_delay: %f\n", time_delay);
-    //   // exit(0);
-    // }
 
     // Get the Jacobians
     if (jacobians != NULL) {
@@ -792,7 +698,6 @@ bool ImuError::EvaluateWithMinimalJacobians(double const *const *params,
       if (jacobians[0] != NULL) {
         // Jacobian w.r.t. minimal perturbance
         Eigen::Matrix<double, 15, 6> J0_minimal = squareRootInformation_ * F0.block<15, 6>(0, 0);
-        // J[0] = J0_minimal;
 
         Eigen::Map<Eigen::Matrix<double, 15, 7, Eigen::RowMajor>> J0(jacobians[0]);
         J0.setZero();
@@ -800,19 +705,6 @@ bool ImuError::EvaluateWithMinimalJacobians(double const *const *params,
 				if (valid == false) {
           J0.setZero();
 				}
-
-        // // pseudo inverse of the local parametrization Jacobian:
-        // Eigen::Matrix<double, 6, 7, Eigen::RowMajor> J_lift;
-        // PoseLocalParameterization::liftJacobian(params[0], J_lift.data());
-        //
-        // // hallucinate Jacobian w.r.t. state
-        // Eigen::Map<Eigen::Matrix<double, 15, 7, Eigen::RowMajor>> J0(jacobians[0]);
-        // J0 = J0_minimal * J_lift;
-
-        if (debug_jacobians_) {
-          std::cout << "J0:" << std::endl;
-          std::cout << J0 << std::endl;
-        }
 
         // if requested, provide minimal Jacobians
         if (jacobiansMinimal != NULL) {
@@ -833,11 +725,6 @@ bool ImuError::EvaluateWithMinimalJacobians(double const *const *params,
 				if (valid == false) {
           J1.setZero();
 				}
-
-        if (debug_jacobians_) {
-          std::cout << "J1:" << std::endl;
-          std::cout << J1 << std::endl;
-        }
 
         // if requested, provide minimal Jacobians
         if (jacobiansMinimal != NULL) {
@@ -862,19 +749,6 @@ bool ImuError::EvaluateWithMinimalJacobians(double const *const *params,
           J2.setZero();
 				}
 
-        // pseudo inverse of the local parametrization Jacobian:
-        // Eigen::Matrix<double, 6, 7, Eigen::RowMajor> J_lift;
-        // PoseLocalParameterization::liftJacobian(params[2], J_lift.data());
-
-        // hallucinate Jacobian w.r.t. state
-        // Eigen::Map<Eigen::Matrix<double, 15, 7, Eigen::RowMajor>> J2(jacobians[2]);
-        // J2 = J2_minimal * J_lift;
-
-        if (debug_jacobians_) {
-          std::cout << "J2:" << std::endl;
-          std::cout << J2 << std::endl;
-        }
-
         // if requested, provide minimal Jacobians
         if (jacobiansMinimal != NULL) {
           if (jacobiansMinimal[2] != NULL) {
@@ -894,11 +768,6 @@ bool ImuError::EvaluateWithMinimalJacobians(double const *const *params,
           J3.setZero();
 				}
 
-        if (debug_jacobians_) {
-          std::cout << "J3:" << std::endl;
-          std::cout << J3 << std::endl;
-        }
-
         // if requested, provide minimal Jacobians
         if (jacobiansMinimal != NULL) {
           if (jacobiansMinimal[3] != NULL) {
@@ -907,93 +776,6 @@ bool ImuError::EvaluateWithMinimalJacobians(double const *const *params,
           }
         }
       }
-
-      // Time delay between imu and camera
-#if EST_TIMEDELAY == 1
-      if (jacobians[4] != NULL) {
-        // Calculate numerical differentiation: Basically we are going to
-        // resuse the ImuError class and find the jacobians for time_delay.
-        // We do this by performing a central difference numerical diff.
-        //
-        //   (f(time_delay + h) - f(time_delay - h)) / (2 * h)
-        //
-        // Where f(.) is the residual function, in this case the IMU error.
-        // time_delay is the input parameter and h is the num-diff step.
-        //
-        // In future obviously it would be nice to have a analytical diff, but
-        // for now this will have to do.
-
-        // -- Variable used to perturb time_delay (a.k.a num-diff step 'h')
-        // Same as the delta in Map::isJacobianCorrect()
-        const double delta = 1.0e-8;
-
-        // -- Form parameters
-        // clang-format off
-        // ---- Sensor poses
-        const vec3_t r_WS_0 = tf_trans(T_WS_0);
-        const quat_t q_WS_0 = tf_quat(T_WS_0);
-        double T_WS_0_data[7] = {r_WS_0(0), r_WS_0(1), r_WS_0(2),
-                                 q_WS_0.x(), q_WS_0.y(), q_WS_0.z(), q_WS_0.w()};
-        const vec3_t r_WS_1 = tf_trans(T_WS_1);
-        const quat_t q_WS_1 = tf_quat(T_WS_1);
-        double T_WS_1_data[7] = {r_WS_1(0), r_WS_1(1), r_WS_1(2),
-                                 q_WS_1.x(), q_WS_1.y(), q_WS_1.z(), q_WS_1.w()};
-
-        // ---- Speed and biases
-        double *speed_bias_0_data = sb0.data();
-        double *speed_bias_1_data = sb1.data();
-
-        // ---- Time delays
-        const double time_delay_0 = time_delay - 0.5 * delta;
-        const double time_delay_1 = time_delay + 0.5 * delta;
-
-        // ---- Params
-        // clang-format on
-        const double *imu0_params[5] = {T_WS_0_data, speed_bias_0_data, T_WS_1_data, speed_bias_1_data, &time_delay_0};
-        const double *imu1_params[5] = {T_WS_0_data, speed_bias_0_data, T_WS_1_data, speed_bias_1_data, &time_delay_1};
-
-        // -- Form IMU errors and evaluate jacobians
-        double imu0_residuals[15] = {0};
-        double imu1_residuals[15] = {0};
-        ImuError imu0{imu_data_, imu_params_, t0_, t1_};
-        ImuError imu1{imu_data_, imu_params_, t0_, t1_};
-        if (imu0.Evaluate(imu0_params, imu0_residuals, nullptr) == false) {
-          // eval = false;
-          return false;
-        }
-        if (imu1.Evaluate(imu1_params, imu1_residuals, nullptr) == false) {
-          // eval = false;
-          return false;
-        }
-
-        // -- Perform actual numerical differentiation
-        Eigen::Map<Eigen::Matrix<double, 15, 1>> residuals_0(imu0_residuals);
-        Eigen::Map<Eigen::Matrix<double, 15, 1>> residuals_1(imu1_residuals);
-        const auto J_time_delay = (residuals_1 - residuals_0) / delta;
-
-        // -- Set time delay jacobian
-        Eigen::Map<Eigen::Matrix<double, 15, 1>> J4(jacobians[4]);
-        J4 = J_time_delay;
-				if (valid == false) {
-          J4.setZero();
-				}
-
-        if (debug_jacobians_) {
-          std::cout << "J4:" << std::endl;
-          std::cout << J4 << std::endl;
-        }
-
-        // If requested, provide minimal Jacobians
-        if (jacobiansMinimal != NULL) {
-          if (jacobiansMinimal[4] != NULL) {
-            Eigen::Map<Eigen::Matrix<double, 15, 1>> J4_minimal_mapped(
-                jacobiansMinimal[4]);
-            J4_minimal_mapped = J4;
-          }
-        }
-
-      } // jacobian[4]
-#endif // if EST_TIMEDELAY == 1
 
     }   // jacobian
   }     // mutex

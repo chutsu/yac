@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <string>
+#include <glog/logging.h>
 
 /* GLOBAL VARIABLES */
 static int tests = 0;
@@ -105,6 +106,8 @@ static std::string test_target = "";
 
 #define MU_RUN_TESTS(TEST_SUITE)                                               \
   int main(int argc, char *argv[]) {                                           \
+    google::InitGoogleLogging(argv[0]);                                        \
+                                                                               \
     if (argc == 3 && strcmp(argv[1], "--target") == 0) {                       \
       test_target = std::string{argv[2]};                                      \
       printf("%sTEST TARGET [%s]%s\n", KYEL, test_target.c_str(), KNRM);       \

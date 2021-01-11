@@ -548,6 +548,33 @@ void save_poses(const std::string &path,
  */
 void save_poses(const std::string &path, const mat4s_t &poses);
 
+/**
+ * Save poses to csv file in `path`.
+ */
+void save_poses(const std::string &path,
+							  const timestamps_t &timestamps,
+								const mat4s_t &poses);
+
+/**
+ * Save pose to csv file in `path`.
+ */
+void save_pose(const std::string &path, const mat4_t &pose);
+
+/**
+ * Save pose to csv file in `path`.
+ */
+void save_pose(const std::string &path,
+               const timestamp_t &ts,
+               const mat4_t &pose);
+
+/**
+ * Save IMU measurements
+ */
+void save_imu_data(const std::string &path,
+							     const timestamps_t &imu_ts,
+								   const vec3s_t &imu_acc,
+								   const vec3s_t &imu_gyr);
+
 /** Load pose */
 mat4_t load_pose(const std::string &fpath);
 
@@ -1604,13 +1631,16 @@ real_t sum(const std::vector<real_t> &x);
 real_t median(const std::vector<real_t> &v);
 
 /** Mean */
-vec3_t mean(const vec3s_t &x);
+real_t mean(const std::vector<real_t> &x);
 
 /** Mean */
-real_t mean(const std::vector<real_t> &x);
+vec3_t mean(const vec3s_t &x);
 
 /** Variance */
 real_t var(const std::vector<real_t> &x);
+
+/** Variance */
+vec3_t var(const vec3s_t &vecs);
 
 /** Standard Deviation */
 real_t stddev(const std::vector<real_t> &x);
@@ -3485,7 +3515,8 @@ struct pinhole_t : projection_t<DM> {
     const real_t x = p_C(0);
     const real_t y = p_C(1);
     const real_t z = p_C(2);
-    mat_t<2, 3> J_proj = zeros(2, 3);
+    mat_t<2, 3> J_proj;
+    J_proj.setZero();
     J_proj(0, 0) = 1.0 / z;
     J_proj(1, 1) = 1.0 / z;
     J_proj(0, 2) = -x / (z * z);

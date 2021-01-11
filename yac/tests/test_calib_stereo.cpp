@@ -8,8 +8,8 @@ namespace yac {
 #endif
 
 #define TARGET_CONFIG TEST_PATH "/test_data/calib/aprilgrid/target.yaml"
-#define CAM0_DATA "/data/euroc_mav/cam_april/mav0/cam0/data"
-#define CAM1_DATA "/data/euroc_mav/cam_april/mav0/cam1/data"
+#define CAM0_DATA "/data/euroc/calib/cam_april/mav0/cam0/data"
+#define CAM1_DATA "/data/euroc/calib/cam_april/mav0/cam1/data"
 // #define CAM0_DATA "/data/tum_vi/calib/dataset-calib-cam1_512_16/mav0/cam0/data"
 // #define CAM1_DATA "/data/tum_vi/calib/dataset-calib-cam1_512_16/mav0/cam1/data"
 #define CAM0_GRIDS "/tmp/aprilgrid_test/stereo/cam0"

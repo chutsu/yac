@@ -128,211 +128,6 @@ ImuError::ImuError(const imu_data_t &imu_data,
 ImuError::~ImuError() {}
 
 // Propagates pose, speeds and biases with given IMU measurements.
-int ImuError::redoPreintegration(
-    const mat4_t & /*T_WS*/,
-    const vec_t<9> &sb,
-    timestamp_t time,
-    timestamp_t end) const {
-  // Ensure unique access
-  std::lock_guard<std::mutex> lock(preintegrationMutex_);
-
-  // Sanity check:
-  assert(imu_data_.timestamps.front() <= time);
-  if (!(imu_data_.timestamps.back() >= end))
-    return -1; // nothing to do...
-
-  // Increments (initialise with identity)
-  Delta_q_ = quat_t(1, 0, 0, 0);
-  C_integral_ = mat3_t::Zero();
-  C_doubleintegral_ = mat3_t::Zero();
-  acc_integral_ = vec3_t::Zero();
-  acc_doubleintegral_ = vec3_t::Zero();
-
-  // Cross matrix accumulatrion
-  cross_ = mat3_t::Zero();
-
-  // Sub-Jacobians
-  dalpha_db_g_ = mat3_t::Zero();
-  dv_db_g_ = mat3_t::Zero();
-  dp_db_g_ = mat3_t::Zero();
-
-  // Jacobian of the increment (w/o biases)
-  P_delta_ = Eigen::Matrix<double, 15, 15>::Zero();
-
-  double Delta_t = 0;
-  bool hasStarted = false;
-  int i = 0;
-	for (size_t k = 0; k < imu_data_.size(); k++) {
-		vec3_t omega_S_0 = imu_data_.gyro[k];
-		vec3_t acc_S_0 = imu_data_.accel[k];
-		vec3_t omega_S_1 = imu_data_.gyro[k + 1];
-		vec3_t acc_S_1 = imu_data_.accel[k + 1];
-
-    // Time delta
-    timestamp_t nexttime;
-    if ((k + 1) == imu_data_.size()) {
-      nexttime = end;
-    } else {
-      nexttime = imu_data_.timestamps[k + 1];
-		}
-    if ((nexttime - time) < 0) {
-      continue;
-    }
-    double dt = ns2sec(nexttime - time);
-
-    // Interpolate IMU measurements that are beyond the image timestamp
-    if (end < nexttime) {
-      double interval = ns2sec(nexttime - imu_data_.timestamps[k]);
-      nexttime = end;
-      dt = ns2sec(nexttime - time);
-      const double r = dt / interval;
-      omega_S_1 = ((1.0 - r) * omega_S_0 + r * omega_S_1).eval();
-      acc_S_1 = ((1.0 - r) * acc_S_0 + r * acc_S_1).eval();
-    }
-
-    // Check dt is larger than 0
-    if (dt <= 0.0) {
-      continue;
-    }
-    Delta_t += dt;
-
-    // Interpolate the first IMU measurements
-    if (!hasStarted) {
-      hasStarted = true;
-      const double r = dt / ns2sec(nexttime - imu_data_.timestamps[k]);
-      omega_S_0 = (r * omega_S_0 + (1.0 - r) * omega_S_1).eval();
-      acc_S_0 = (r * acc_S_0 + (1.0 - r) * acc_S_1).eval();
-    }
-    // std::cout << "-- " << i << " [" << it->timeStamp << "]" << std::endl;
-
-    // Ensure measurement integrity
-    double sigma_g_c = imu_params_.sigma_g_c;
-    double sigma_a_c = imu_params_.sigma_a_c;
-    // if (fabs(omega_S_0[0]) > imu_params_.g_max ||
-    //     fabs(omega_S_0[1]) > imu_params_.g_max ||
-    //     fabs(omega_S_0[2]) > imu_params_.g_max ||
-    //     fabs(omega_S_1[0]) > imu_params_.g_max ||
-    //     fabs(omega_S_1[1]) > imu_params_.g_max ||
-    //     fabs(omega_S_1[2]) > imu_params_.g_max) {
-    //   sigma_g_c *= 100;
-    //   LOG(WARNING) << "gyr saturation";
-    // }
-    // if (fabs(acc_S_0[0]) > imu_params_.a_max ||
-    //     fabs(acc_S_0[1]) > imu_params_.a_max ||
-    //     fabs(acc_S_0[2]) > imu_params_.a_max ||
-    //     fabs(acc_S_1[0]) > imu_params_.a_max ||
-    //     fabs(acc_S_1[1]) > imu_params_.a_max ||
-    //     fabs(acc_S_1[2]) > imu_params_.a_max) {
-    //   sigma_a_c *= 100;
-    //   LOG(WARNING) << "acc saturation";
-    // }
-
-    // Actual propagation
-    // clang-format off
-    // -- Orientation:
-    quat_t dq;
-    const vec3_t omega_S_true = (0.5 * (omega_S_0 + omega_S_1) - sb.segment<3>(3));
-    const double theta_half = omega_S_true.norm() * 0.5 * dt;
-    const double sinc_theta_half = sinc(theta_half);
-    const double cos_theta_half = cos(theta_half);
-    dq.vec() = sinc_theta_half * omega_S_true * 0.5 * dt;
-    dq.w() = cos_theta_half;
-    quat_t Delta_q_1 = Delta_q_ * dq;
-    // -- Rotation matrix integral:
-    const mat3_t C = Delta_q_.toRotationMatrix();
-    const mat3_t C_1 = Delta_q_1.toRotationMatrix();
-    const vec3_t acc_S_true = (0.5 * (acc_S_0 + acc_S_1) - sb.segment<3>(6));
-    const mat3_t C_integral_1 = C_integral_ + 0.5 * (C + C_1) * dt;
-    const vec3_t acc_integral_1 = acc_integral_ + 0.5 * (C + C_1) * acc_S_true * dt;
-    // -- Rotation matrix double integral:
-    C_doubleintegral_ += C_integral_ * dt + 0.25 * (C + C_1) * dt * dt;
-    acc_doubleintegral_ += acc_integral_ * dt + 0.25 * (C + C_1) * acc_S_true * dt * dt;
-    // clang-format on
-
-    // Jacobian parts
-    // clang-format off
-    dalpha_db_g_ += C_1 * rightJacobian(omega_S_true * dt) * dt;
-    const mat3_t cross_1 = dq.inverse().toRotationMatrix() * cross_ + rightJacobian(omega_S_true * dt) * dt;
-    const mat3_t acc_S_x = skew(acc_S_true);
-    mat3_t dv_db_g_1 = dv_db_g_ + 0.5 * dt * (C * acc_S_x * cross_ + C_1 * acc_S_x * cross_1);
-    dp_db_g_ += dt * dv_db_g_ + 0.25 * dt * dt * (C * acc_S_x * cross_ + C_1 * acc_S_x * cross_1);
-    // clang-format on
-
-    // Covariance propagation
-    // clang-format off
-    Eigen::Matrix<double, 15, 15> F_delta = Eigen::Matrix<double, 15, 15>::Identity();
-    // Transform
-    F_delta.block<3, 3>(0, 3) = -skew(acc_integral_ * dt + 0.25 * (C + C_1) * acc_S_true * dt * dt);
-    F_delta.block<3, 3>(0, 6) = I(3) * dt;
-    F_delta.block<3, 3>(0, 9) = dt * dv_db_g_ + 0.25 * dt * dt * (C * acc_S_x * cross_ + C_1 * acc_S_x * cross_1);
-    F_delta.block<3, 3>(0, 12) = -C_integral_ * dt + 0.25 * (C + C_1) * dt * dt;
-    F_delta.block<3, 3>(3, 9) = -dt * C_1;
-    F_delta.block<3, 3>(6, 3) = -skew(0.5 * (C + C_1) * acc_S_true * dt);
-    F_delta.block<3, 3>(6, 9) = 0.5 * dt * (C * acc_S_x * cross_ + C_1 * acc_S_x * cross_1);
-    F_delta.block<3, 3>(6, 12) = -0.5 * (C + C_1) * dt;
-    P_delta_ = F_delta * P_delta_ * F_delta.transpose();
-    // Add noise. Note that transformations with rotation matrices can be
-    // ignored, since the noise is isotropic.
-    // F_tot = F_delta*F_tot;
-    const double sigma2_dalpha = dt * sigma_g_c * sigma_g_c;
-    P_delta_(3, 3) += sigma2_dalpha;
-    P_delta_(4, 4) += sigma2_dalpha;
-    P_delta_(5, 5) += sigma2_dalpha;
-    const double sigma2_v = dt * sigma_a_c * sigma_a_c;
-    P_delta_(6, 6) += sigma2_v;
-    P_delta_(7, 7) += sigma2_v;
-    P_delta_(8, 8) += sigma2_v;
-    const double sigma2_p = 0.5 * dt * dt * sigma2_v;
-    P_delta_(0, 0) += sigma2_p;
-    P_delta_(1, 1) += sigma2_p;
-    P_delta_(2, 2) += sigma2_p;
-    const double sigma2_b_g = dt * imu_params_.sigma_gw_c * imu_params_.sigma_gw_c;
-    P_delta_(9, 9) += sigma2_b_g;
-    P_delta_(10, 10) += sigma2_b_g;
-    P_delta_(11, 11) += sigma2_b_g;
-    const double sigma2_b_a = dt * imu_params_.sigma_aw_c * imu_params_.sigma_aw_c;
-    P_delta_(12, 12) += sigma2_b_a;
-    P_delta_(13, 13) += sigma2_b_a;
-    P_delta_(14, 14) += sigma2_b_a;
-    // clang-format on
-
-    // memory shift
-    Delta_q_ = Delta_q_1;
-    C_integral_ = C_integral_1;
-    acc_integral_ = acc_integral_1;
-    cross_ = cross_1;
-    dv_db_g_ = dv_db_g_1;
-    time = nexttime;
-
-    ++i;
-
-    if (nexttime == end)
-      break;
-  }
-
-  // store the reference (linearisation) point
-  sb_ref_ = sb;
-
-  // get the weighting:
-  // enforce symmetric
-  P_delta_ = 0.5 * P_delta_ + 0.5 * P_delta_.transpose().eval();
-  // proto::print_matrix("P_delta", P_delta_);
-
-  // calculate inverse
-  information_ = P_delta_.inverse();
-  information_ = 0.5 * information_ + 0.5 * information_.transpose().eval();
-
-  // square root
-  Eigen::LLT<information_t> lltOfInformation(information_);
-  squareRootInformation_ = lltOfInformation.matrixL().transpose();
-
-  // std::cout << squareRootInformation_ << std::endl;
-  // exit(0);
-
-  return i;
-}
-
-// Propagates pose, speeds and biases with given IMU measurements.
 int ImuError::propagation(const imu_data_t &imu_data,
                           const imu_params_t &imu_params,
                           mat4_t &T_WS,
@@ -573,6 +368,213 @@ int ImuError::propagation(const imu_data_t &imu_data,
     T.block<3, 3>(6, 6) = C_WS_0;
     P = T * P_delta * T.transpose();
   }
+
+  return i;
+}
+
+// Propagates pose, speeds and biases with given IMU measurements.
+int ImuError::redoPreintegration(
+    const mat4_t & /*T_WS*/,
+    const vec_t<9> &sb,
+    timestamp_t time,
+    timestamp_t end) const {
+  // Ensure unique access
+  std::lock_guard<std::mutex> lock(preintegrationMutex_);
+
+  // Sanity check:
+  assert(imu_data_.timestamps.front() <= time);
+  if (!(imu_data_.timestamps.back() >= end))
+    return -1; // nothing to do...
+
+  // Increments (initialise with identity)
+  Delta_q_ = quat_t(1, 0, 0, 0);
+  C_integral_ = mat3_t::Zero();
+  C_doubleintegral_ = mat3_t::Zero();
+  acc_integral_ = vec3_t::Zero();
+  acc_doubleintegral_ = vec3_t::Zero();
+
+  // Cross matrix accumulatrion
+  cross_ = mat3_t::Zero();
+
+  // Sub-Jacobians
+  dalpha_db_g_ = mat3_t::Zero();
+  dv_db_g_ = mat3_t::Zero();
+  dp_db_g_ = mat3_t::Zero();
+
+  // Jacobian of the increment (w/o biases)
+  P_delta_ = Eigen::Matrix<double, 15, 15>::Zero();
+
+  double Delta_t = 0;
+  bool hasStarted = false;
+  int i = 0;
+	for (size_t k = 0; k < imu_data_.size(); k++) {
+		vec3_t omega_S_0 = imu_data_.gyro[k];
+		vec3_t acc_S_0 = imu_data_.accel[k];
+		vec3_t omega_S_1 = imu_data_.gyro[k + 1];
+		vec3_t acc_S_1 = imu_data_.accel[k + 1];
+
+    // Time delta
+    timestamp_t nexttime;
+    if ((k + 1) == imu_data_.size()) {
+      nexttime = end;
+    } else {
+      nexttime = imu_data_.timestamps[k + 1];
+		}
+    if ((nexttime - time) < 0) {
+      continue;
+    }
+    double dt = ns2sec(nexttime - time);
+		dt = 0.005;
+    // printf("dt: %f\n", dt);
+
+    // Interpolate IMU measurements that are beyond the image timestamp
+    if (end < nexttime) {
+      double interval = ns2sec(nexttime - imu_data_.timestamps[k]);
+      nexttime = end;
+      dt = ns2sec(nexttime - time);
+      const double r = dt / interval;
+      omega_S_1 = ((1.0 - r) * omega_S_0 + r * omega_S_1).eval();
+      acc_S_1 = ((1.0 - r) * acc_S_0 + r * acc_S_1).eval();
+    }
+
+    // Check dt is larger than 0
+    if (dt <= 0.0) {
+      continue;
+    }
+    Delta_t += dt;
+
+    // Interpolate the first IMU measurements
+    if (!hasStarted) {
+      hasStarted = true;
+      const double r = dt / ns2sec(nexttime - imu_data_.timestamps[k]);
+      omega_S_0 = (r * omega_S_0 + (1.0 - r) * omega_S_1).eval();
+      acc_S_0 = (r * acc_S_0 + (1.0 - r) * acc_S_1).eval();
+    }
+    // std::cout << "-- " << i << " [" << it->timeStamp << "]" << std::endl;
+
+    // Ensure measurement integrity
+    double sigma_g_c = imu_params_.sigma_g_c;
+    double sigma_a_c = imu_params_.sigma_a_c;
+    // if (fabs(omega_S_0[0]) > imu_params_.g_max ||
+    //     fabs(omega_S_0[1]) > imu_params_.g_max ||
+    //     fabs(omega_S_0[2]) > imu_params_.g_max ||
+    //     fabs(omega_S_1[0]) > imu_params_.g_max ||
+    //     fabs(omega_S_1[1]) > imu_params_.g_max ||
+    //     fabs(omega_S_1[2]) > imu_params_.g_max) {
+    //   sigma_g_c *= 100;
+    //   LOG(WARNING) << "gyr saturation";
+    // }
+    // if (fabs(acc_S_0[0]) > imu_params_.a_max ||
+    //     fabs(acc_S_0[1]) > imu_params_.a_max ||
+    //     fabs(acc_S_0[2]) > imu_params_.a_max ||
+    //     fabs(acc_S_1[0]) > imu_params_.a_max ||
+    //     fabs(acc_S_1[1]) > imu_params_.a_max ||
+    //     fabs(acc_S_1[2]) > imu_params_.a_max) {
+    //   sigma_a_c *= 100;
+    //   LOG(WARNING) << "acc saturation";
+    // }
+
+    // Actual propagation
+    // clang-format off
+    // -- Orientation:
+    quat_t dq;
+    const vec3_t omega_S_true = (0.5 * (omega_S_0 + omega_S_1) - sb.segment<3>(3));
+    const double theta_half = omega_S_true.norm() * 0.5 * dt;
+    const double sinc_theta_half = sinc(theta_half);
+    const double cos_theta_half = cos(theta_half);
+    dq.vec() = sinc_theta_half * omega_S_true * 0.5 * dt;
+    dq.w() = cos_theta_half;
+    quat_t Delta_q_1 = Delta_q_ * dq;
+    // -- Rotation matrix integral:
+    const mat3_t C = Delta_q_.toRotationMatrix();
+    const mat3_t C_1 = Delta_q_1.toRotationMatrix();
+    const vec3_t acc_S_true = (0.5 * (acc_S_0 + acc_S_1) - sb.segment<3>(6));
+    const mat3_t C_integral_1 = C_integral_ + 0.5 * (C + C_1) * dt;
+    const vec3_t acc_integral_1 = acc_integral_ + 0.5 * (C + C_1) * acc_S_true * dt;
+    // -- Rotation matrix double integral:
+    C_doubleintegral_ += C_integral_ * dt + 0.25 * (C + C_1) * dt * dt;
+    acc_doubleintegral_ += acc_integral_ * dt + 0.25 * (C + C_1) * acc_S_true * dt * dt;
+    // clang-format on
+
+    // Jacobian parts
+    // clang-format off
+    dalpha_db_g_ += C_1 * rightJacobian(omega_S_true * dt) * dt;
+    const mat3_t cross_1 = dq.inverse().toRotationMatrix() * cross_ + rightJacobian(omega_S_true * dt) * dt;
+    const mat3_t acc_S_x = skew(acc_S_true);
+    mat3_t dv_db_g_1 = dv_db_g_ + 0.5 * dt * (C * acc_S_x * cross_ + C_1 * acc_S_x * cross_1);
+    dp_db_g_ += dt * dv_db_g_ + 0.25 * dt * dt * (C * acc_S_x * cross_ + C_1 * acc_S_x * cross_1);
+    // clang-format on
+
+    // Covariance propagation
+    // clang-format off
+    Eigen::Matrix<double, 15, 15> F_delta = Eigen::Matrix<double, 15, 15>::Identity();
+    // Transform
+    F_delta.block<3, 3>(0, 3) = -skew(acc_integral_ * dt + 0.25 * (C + C_1) * acc_S_true * dt * dt);
+    F_delta.block<3, 3>(0, 6) = I(3) * dt;
+    F_delta.block<3, 3>(0, 9) = dt * dv_db_g_ + 0.25 * dt * dt * (C * acc_S_x * cross_ + C_1 * acc_S_x * cross_1);
+    F_delta.block<3, 3>(0, 12) = -C_integral_ * dt + 0.25 * (C + C_1) * dt * dt;
+    F_delta.block<3, 3>(3, 9) = -dt * C_1;
+    F_delta.block<3, 3>(6, 3) = -skew(0.5 * (C + C_1) * acc_S_true * dt);
+    F_delta.block<3, 3>(6, 9) = 0.5 * dt * (C * acc_S_x * cross_ + C_1 * acc_S_x * cross_1);
+    F_delta.block<3, 3>(6, 12) = -0.5 * (C + C_1) * dt;
+    P_delta_ = F_delta * P_delta_ * F_delta.transpose();
+    // Add noise. Note that transformations with rotation matrices can be
+    // ignored, since the noise is isotropic.
+    // F_tot = F_delta*F_tot;
+    const double sigma2_dalpha = dt * sigma_g_c * sigma_g_c;
+    P_delta_(3, 3) += sigma2_dalpha;
+    P_delta_(4, 4) += sigma2_dalpha;
+    P_delta_(5, 5) += sigma2_dalpha;
+    const double sigma2_v = dt * sigma_a_c * sigma_a_c;
+    P_delta_(6, 6) += sigma2_v;
+    P_delta_(7, 7) += sigma2_v;
+    P_delta_(8, 8) += sigma2_v;
+    const double sigma2_p = 0.5 * dt * dt * sigma2_v;
+    P_delta_(0, 0) += sigma2_p;
+    P_delta_(1, 1) += sigma2_p;
+    P_delta_(2, 2) += sigma2_p;
+    const double sigma2_b_g = dt * imu_params_.sigma_gw_c * imu_params_.sigma_gw_c;
+    P_delta_(9, 9) += sigma2_b_g;
+    P_delta_(10, 10) += sigma2_b_g;
+    P_delta_(11, 11) += sigma2_b_g;
+    const double sigma2_b_a = dt * imu_params_.sigma_aw_c * imu_params_.sigma_aw_c;
+    P_delta_(12, 12) += sigma2_b_a;
+    P_delta_(13, 13) += sigma2_b_a;
+    P_delta_(14, 14) += sigma2_b_a;
+    // clang-format on
+
+    // memory shift
+    Delta_q_ = Delta_q_1;
+    C_integral_ = C_integral_1;
+    acc_integral_ = acc_integral_1;
+    cross_ = cross_1;
+    dv_db_g_ = dv_db_g_1;
+    time = nexttime;
+
+    ++i;
+
+    if (nexttime == end)
+      break;
+  }
+
+  // store the reference (linearisation) point
+  sb_ref_ = sb;
+
+  // get the weighting:
+  // enforce symmetric
+  P_delta_ = 0.5 * P_delta_ + 0.5 * P_delta_.transpose().eval();
+  // proto::print_matrix("P_delta", P_delta_);
+
+  // calculate inverse
+  information_ = P_delta_.inverse();
+  information_ = 0.5 * information_ + 0.5 * information_.transpose().eval();
+
+  // square root
+  Eigen::LLT<information_t> lltOfInformation(information_);
+  squareRootInformation_ = lltOfInformation.matrixL().transpose();
+
+  // std::cout << squareRootInformation_ << std::endl;
+  // exit(0);
 
   return i;
 }

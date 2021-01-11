@@ -12,7 +12,7 @@ FIND_PACKAGE(Eigen3 REQUIRED)
 INCLUDE_DIRECTORIES(${EIGEN3_INCLUDE_DIR})
 INCLUDE_DIRECTORIES("../deps/include")
 LINK_DIRECTORIES("../deps/lib")
-SET(DEPS yaml-cpp ceres apriltag3 apriltags ${OpenCV_LIBS})
+SET(DEPS yaml-cpp glog ceres apriltag3 apriltags ${OpenCV_LIBS})
 
 FIND_PACKAGE(OpenMP REQUIRED)
 IF(OPENMP_FOUND)
@@ -37,6 +37,7 @@ ADD_LIBRARY(
   lib/calib_data.cpp
   lib/calib_mocap.cpp
   lib/calib_mono.cpp
+  lib/calib_params.cpp
   lib/calib_stereo.cpp
   lib/calib_vi.cpp
   lib/ceres_utils.cpp

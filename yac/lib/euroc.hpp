@@ -582,7 +582,7 @@ struct euroc_calib_t {
     }
     // -- Add imu events
     for (size_t i = 0; i < imu_data.timestamps.size(); i++) {
-      const auto ts = imu_data.timestamps[i];
+      const timestamp_t ts = imu_data.timestamps[i];
       const auto a_B = imu_data.a_B[i];
       const auto w_B = imu_data.w_B[i];
       const timeline_event_t event{ts, a_B, w_B};

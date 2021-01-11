@@ -526,6 +526,95 @@ void save_poses(const std::string &path, const mat4s_t &poses) {
   fclose(csv);
 }
 
+void save_poses(const std::string &path,
+								const timestamps_t &timestamps,
+								const mat4s_t &poses) {
+  FILE *csv = fopen(path.c_str(), "w");
+  for (size_t k = 0; k < timestamps.size(); k++) {
+		const auto ts = timestamps[k];
+    const auto &q = tf_quat(poses[k]);
+    const auto &r = tf_trans(poses[k]);
+
+    fprintf(csv, "%ld,", ts);
+
+    fprintf(csv, "%f,", q.w());
+    fprintf(csv, "%f,", q.x());
+    fprintf(csv, "%f,", q.y());
+    fprintf(csv, "%f,", q.z());
+
+    fprintf(csv, "%f,", r(0));
+    fprintf(csv, "%f,", r(1));
+    fprintf(csv, "%f\n", r(2));
+  }
+  fflush(csv);
+  fclose(csv);
+}
+
+void save_pose(const std::string &path, const mat4_t &pose) {
+  FILE *csv = fopen(path.c_str(), "w");
+  const auto &q = tf_quat(pose);
+  const auto &r = tf_trans(pose);
+
+  fprintf(csv, "%f,", q.w());
+  fprintf(csv, "%f,", q.x());
+  fprintf(csv, "%f,", q.y());
+  fprintf(csv, "%f,", q.z());
+
+  fprintf(csv, "%f,", r(0));
+  fprintf(csv, "%f,", r(1));
+  fprintf(csv, "%f\n", r(2));
+
+  fflush(csv);
+  fclose(csv);
+}
+
+void save_pose(const std::string &path,
+               const timestamp_t &ts,
+               const mat4_t &pose) {
+  FILE *csv = fopen(path.c_str(), "w");
+  const auto &q = tf_quat(pose);
+  const auto &r = tf_trans(pose);
+
+  fprintf(csv, "%ld,", ts);
+
+  fprintf(csv, "%f,", q.w());
+  fprintf(csv, "%f,", q.x());
+  fprintf(csv, "%f,", q.y());
+  fprintf(csv, "%f,", q.z());
+
+  fprintf(csv, "%f,", r(0));
+  fprintf(csv, "%f,", r(1));
+  fprintf(csv, "%f\n", r(2));
+
+  fflush(csv);
+  fclose(csv);
+}
+
+void save_imu_data(const std::string &path,
+							     const timestamps_t &imu_ts,
+								   const vec3s_t &imu_acc,
+								   const vec3s_t &imu_gyr) {
+  assert(imu_ts.size() == imu_acc.size());
+  assert(imu_ts.size() == imu_gyr.size());
+
+  FILE *csv = fopen(path.c_str(), "w");
+  for (size_t k = 0; k < imu_ts.size(); k++) {
+    fprintf(csv, "%ld,", imu_ts[k]);
+
+    fprintf(csv, "%f,", imu_acc[k].x());
+    fprintf(csv, "%f,", imu_acc[k].y());
+    fprintf(csv, "%f,", imu_acc[k].z());
+
+    fprintf(csv, "%f,", imu_gyr[k].x());
+    fprintf(csv, "%f,", imu_gyr[k].y());
+    fprintf(csv, "%f", imu_gyr[k].z());
+
+    fprintf(csv, "\n");
+  }
+  fflush(csv);
+  fclose(csv);
+}
+
 mat4_t load_pose(const std::string &fpath) {
   mat4_t T_WF;
 
@@ -2009,6 +2098,16 @@ real_t median(const std::vector<real_t> &v) {
   }
 }
 
+real_t mean(const std::vector<real_t> &x) {
+  real_t sum = 0.0;
+  for (const auto i : x) {
+    sum += i;
+  }
+
+  const real_t N = x.size();
+  return sum / N;
+}
+
 vec3_t mean(const vec3s_t &x) {
   vec3_t x_hat{0.0, 0.0, 0.0};
 
@@ -2020,26 +2119,30 @@ vec3_t mean(const vec3s_t &x) {
   return x_hat;
 }
 
-real_t mean(const std::vector<real_t> &x) {
-  real_t sum = 0.0;
-  for (const auto i : x) {
-    sum += i;
-  }
-
-  const real_t N = x.size();
-  return sum / N;
-}
-
 real_t var(const std::vector<real_t> &x) {
-  const real_t mu = mean(x);
-  const real_t N = x.size();
+  const double mu = mean(x);
+  const double N = x.size();
 
-  real_t sum = 0.0;
+  double sum = 0.0;
   for (const auto x_i : x) {
     sum += pow(x_i - mu, 2);
   }
 
   return sum / (N - 1.0);
+}
+
+vec3_t var(const vec3s_t &vecs) {
+  std::vector<double> x;
+  std::vector<double> y;
+  std::vector<double> z;
+
+  for (const vec3_t &v : vecs) {
+    x.push_back(v(0));
+    y.push_back(v(1));
+    z.push_back(v(2));
+  }
+
+  return vec3_t{var(x), var(y), var(z)};
 }
 
 real_t stddev(const std::vector<real_t> &x) {
@@ -2485,13 +2588,13 @@ void imu_init_attitude(const vec3s_t w_m,
   const vec3_t gravity{0.0, 0.0, -9.81};
   C_WS = vecs2rot(mean_accel, -gravity);
 
-  // Extract roll, pitch and set yaw to 0
-  const quat_t q_WS = quat_t(C_WS);
-  const vec3_t rpy = quat2euler(q_WS);
-  const real_t roll = rpy(0);
-  const real_t pitch = rpy(1);
-  const real_t yaw = 0.0;
-  C_WS = euler321(vec3_t{roll, pitch, yaw});
+  // // Extract roll, pitch and set yaw to 0
+  // const quat_t q_WS = quat_t(C_WS);
+  // const vec3_t rpy = quat2euler(q_WS);
+  // const real_t roll = rpy(0);
+  // const real_t pitch = rpy(1);
+  // const real_t yaw = 0.0;
+  // C_WS = euler321(vec3_t{roll, pitch, yaw});
 }
 
 /*****************************************************************************

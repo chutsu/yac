@@ -573,6 +573,30 @@ struct aprilgrid_t {
     }
   }
 
+  static void common_measurements(const aprilgrid_t &grid_i,
+                                  const aprilgrid_t &grid_j,
+                                  std::vector<int> &tag_ids,
+                                  std::vector<int> &corner_indicies,
+                                  vec2s_t &grid_i_keypoints,
+                                  vec2s_t &grid_j_keypoints,
+                                  vec3s_t &object_points) {
+    if (grid_i.detected == false || grid_j.detected == false) {
+      return;
+    }
+
+    assert(grid_i.data.rows() == grid_j.data.rows());
+    assert(grid_i.data.cols() == grid_j.data.cols());
+    for (long i = 0; i < grid_i.data.rows(); i++) {
+      if (grid_i.data(i, 0) && grid_j.data(i, 0)) {
+        tag_ids.push_back(int(i / 4));
+        corner_indicies.push_back(i % 4);
+        grid_i_keypoints.emplace_back(grid_i.data(i, 1), grid_i.data(i, 2));
+        grid_j_keypoints.emplace_back(grid_j.data(i, 1), grid_j.data(i, 2));
+        object_points.emplace_back(grid_i.data(i, 3), grid_i.data(i, 4), grid_i.data(i, 5));
+      }
+    }
+  }
+
   friend std::ostream &operator<<(std::ostream &os, const aprilgrid_t &grid) {
     os << "ts: " << grid.timestamp << std::endl;
     os << "tag_rows: " << grid.tag_rows << std::endl;

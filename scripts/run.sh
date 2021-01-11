@@ -23,6 +23,13 @@ set -e
 #   --network="host" \
 #   -it --rm yac_docker
 
+# tmux send-keys -t dev -R "\
+# cd ~/projects/yac &&
+# make lib_debug &&
+# source ~/catkin_ws/devel/setup.bash &&
+# rosrun --prefix 'gdb -ex run -ex bt -ex quit -args' yac test_calib_vi --target test_calib_vi_sim
+# " C-m
+# exit
 
 # Build YAC
 # cd yac
@@ -80,9 +87,14 @@ source ~/catkin_ws/devel/setup.bash
 # done
 # python3 scripts/analyze_calibs.py
 
-rosrun yac test_calib_vi
+# rosrun yac test_calib_vi --target test_reproj_error
+# rosrun yac test_calib_vi --target test_calib_vi_sim
+rosrun yac test_calib_vi --target test_calib_vi
+# rosrun --prefix 'valgrind' yac test_calib_vi
+# rosrun --prefix 'gdb -ex run -ex bt -ex quit -args' yac test_calib_vi --target test_calib_vi_sim
 # rosrun --prefix 'gdb -ex run -args' yac test_calib_vi
 # octave-cli scripts/octave/plot_calib_vi.m
+# octave-cli scripts/octave/plot_calib_vi_sim.m
 
 # python3 scripts/analyze_detections.py
 

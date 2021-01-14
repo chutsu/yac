@@ -42,6 +42,7 @@ struct param_t {
 
 struct pose_t : param_t {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
+  int fix = 0;
 
   pose_t();
   pose_t(const id_t id_,
@@ -71,33 +72,38 @@ struct pose_t : param_t {
   void perturb(const int i, const real_t step_size);
 };
 
-struct fiducial_pose_t : pose_t {
-  EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
+#define FIDUCIAL_PARAMS_SIZE 3
 
-  fiducial_pose_t() {}
-  fiducial_pose_t(const id_t id_, const mat4_t &T, const bool fixed_=false)
-    : pose_t{id_, 0, T, fixed_} {
-    this->type = "fiducial_pose_t";
-  }
-};
-
-struct fiducial_params_t : param_t {
-  EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
-private:
-	mat4_t T_WF;
-
+#if FIDUCIAL_PARAMS_SIZE == 2 || FIDUCIAL_PARAMS_SIZE == 3
+struct fiducial_t : param_t {
 public:
-  fiducial_params_t();
-  fiducial_params_t(const id_t id_,
-			 	 	 	 	 	 	 	const mat4_t &T_WF_,
-                    const bool fixed_=false);
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
+  fiducial_t();
+  fiducial_t(const id_t id_,
+			 	 	 	 const mat4_t &T_WF_,
+             const bool fixed_=false);
 
   void plus(const vecx_t &dx);
   void perturb(const int i, const real_t step_size);
 	void update();
-	mat4_t estimate() const;
+	mat4_t estimate();
+
+private:
+	mat4_t T_WF;
+};
+
+#elif FIDUCIAL_PARAMS_SIZE == 7
+struct fiducial_t : pose_t {
+public:
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
+  fiducial_t();
+  fiducial_t(const id_t id_,
+			 	 	 	 const mat4_t &T_WF_,
+             const bool fixed_=false);
+
 	mat4_t estimate();
 };
+#endif
 
 struct extrinsics_t : pose_t {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;

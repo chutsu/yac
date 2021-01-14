@@ -1,13 +1,13 @@
 #!/bin/bash
 set -e  # Exit on first error
 
-mkdir -p /data/euroc_mav/
+mkdir -p /data/euroc/calib
 
 BASE_URL="http://robotics.ethz.ch/~asl-datasets/ijrr_euroc_mav_dataset"
 CALIB_URL=${BASE_URL}"/calibration_datasets"
 
 # DOWNLOAD DATASET FLAT-FILES
-cd /data/euroc_mav
+cd /data/euroc/calib
 
 if [ ! -f cam_april.zip ]; then
   wget "${CALIB_URL}/cam_april/cam_april.zip"
@@ -26,7 +26,7 @@ unzip -oq imu_april.zip -d imu_april
 
 
 # DOWNLOAD ROSBAGS
-cd /data/euroc_mav
+cd /data/euroc/calib
 mkdir -p rosbags
 
 if [ ! -f cam_april.bag ]; then

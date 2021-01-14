@@ -135,7 +135,7 @@ int test_reproj_error() {
                                         covar);
 
   id_t param_counter = 0;
-  fiducial_params_t fiducial{param_counter++, T_WF};
+  fiducial_t fiducial{param_counter++, T_WF};
   pose_t sensor_pose{param_counter++, ts_i, T_WS};
   extrinsics_t extrinsics{param_counter++, T_SC};
   camera_params_t cam(param_counter++,
@@ -649,14 +649,14 @@ int test_calib_vi() {
   const int res[2] = {752, 480};
   const std::string proj_model = "pinhole";
   const std::string dist_model = "radtan4";
-  vec4_t cam0_proj_params{458.501070, 457.166661, 366.159110, 248.254996};
-  vec4_t cam0_dist_params{-0.287362, 0.078245, 0.000138, 0.000161};
-  vec4_t cam1_proj_params{457.001386, 455.589963, 378.700593, 255.177674};
-  vec4_t cam1_dist_params{-0.283609, 0.074904, -0.000109, 0.000191};
-  // vec4_t cam0_proj_params{458.654, 457.296, 367.215, 248.375};
-  // vec4_t cam0_dist_params{-0.28340811, 0.07395907, 0.00019359, 1.76187114e-05};
-  // vec4_t cam1_proj_params{457.587, 456.134, 379.999, 255.238};
-  // vec4_t cam1_dist_params{-0.28368365, 0.07451284, -0.00010473, -3.55590700e-05};
+  // vec4_t cam0_proj_params{458.501070, 457.166661, 366.159110, 248.254996};
+  // vec4_t cam0_dist_params{-0.287362, 0.078245, 0.000138, 0.000161};
+  // vec4_t cam1_proj_params{457.001386, 455.589963, 378.700593, 255.177674};
+  // vec4_t cam1_dist_params{-0.283609, 0.074904, -0.000109, 0.000191};
+  vec4_t cam0_proj_params{458.654, 457.296, 367.215, 248.375};
+  vec4_t cam0_dist_params{-0.28340811, 0.07395907, 0.00019359, 1.76187114e-05};
+  vec4_t cam1_proj_params{457.587, 456.134, 379.999, 255.238};
+  vec4_t cam1_dist_params{-0.28368365, 0.07451284, -0.00010473, -3.55590700e-05};
 
   // Imu parameters
 	imu_params_t imu_params;
@@ -681,11 +681,19 @@ int test_calib_vi() {
            1.0, 0.0, 0.0, 0.0,
            0.0, 0.0, 1.0, 0.0,
            0.0, 0.0, 0.0, 1.0;
-	mat4_t T_SC1;
-  T_SC1 << 0.0, -1.0, 0.0, 0.0,
-           1.0, 0.0, 0.0, 0.0,
-           0.0, 0.0, 1.0, 0.0,
-           0.0, 0.0, 0.0, 1.0;
+
+	mat4_t T_C1C0;
+  T_C1C0 << 0.999997, 0.002169, 0.001346, -0.109879,
+            -0.002187, 0.999904, 0.013663, 0.000449,
+            -0.001316, -0.013665, 0.999906, -0.000519,
+            0.000000, 0.000000, 0.000000, 1.000000;
+	mat4_t T_C0C1 = T_C1C0.inverse();
+
+	mat4_t T_SC1 = T_SC0 * T_C0C1;
+  // T_SC1 << 0.0, -1.0, 0.0, 0.0,
+  //          1.0, 0.0, 0.0, 0.0,
+  //          0.0, 0.0, 1.0, 0.0,
+  //          0.0, 0.0, 0.0, 1.0;
   calib.add_extrinsics(0, T_SC0);
   calib.add_extrinsics(1, T_SC1);
 	// clang-format on

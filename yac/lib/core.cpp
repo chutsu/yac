@@ -481,12 +481,14 @@ void save_pose(FILE *csv_file,
                const timestamp_t &ts,
                const quat_t &rot,
                const vec3_t &pos) {
+  fprintf(csv_file, "#ts,rx,ry,rz,qw,qx,qy,qz\n");
   fprintf(csv_file, "%ld,", ts);
   fprintf(csv_file, "%f,%f,%f,%f,", rot.w(), rot.x(), rot.y(), rot.z());
   fprintf(csv_file, "%f,%f,%f\n", pos(0), pos(1), pos(2));
 }
 
 void save_pose(FILE *csv_file, const timestamp_t &ts, const vecx_t &pose) {
+  fprintf(csv_file, "#ts,rx,ry,rz,qw,qx,qy,qz\n");
   fprintf(csv_file, "%ld,", ts);
   fprintf(csv_file, "%f,%f,%f,%f,", pose(0), pose(1), pose(2), pose(3));
   fprintf(csv_file, "%f,%f,%f\n", pose(4), pose(5), pose(6));

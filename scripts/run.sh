@@ -93,6 +93,7 @@ rosrun yac test_calib_vi --target test_calib_vi
 # rosrun --prefix 'valgrind' yac test_calib_vi
 # rosrun --prefix 'gdb -ex run -ex bt -ex quit -args' yac test_calib_vi --target test_calib_vi_sim
 # rosrun --prefix 'gdb -ex run -args' yac test_calib_vi
+# octave-cli scripts/octave/plot_biases.m
 # octave-cli scripts/octave/plot_calib_vi.m
 # octave-cli scripts/octave/plot_calib_vi_sim.m
 

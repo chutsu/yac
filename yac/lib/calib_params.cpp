@@ -155,47 +155,80 @@ void pose_t::perturb(const int i, const real_t step_size) {
   }
 }
 
-/*************************** fiducial_params_t ********************************/
+/****************************** fiducial_t **********************************/
 
-fiducial_params_t::fiducial_params_t() {}
+fiducial_t::fiducial_t() {}
 
-fiducial_params_t::fiducial_params_t(const id_t id_,
-                  const mat4_t &T_WF_,
-                  const bool fixed_)
-  : param_t{"fiducial_params_t", id_, 0, 2, 2, fixed_} {
+#if FIDUCIAL_PARAMS_SIZE == 2
+fiducial_t::fiducial_t(const id_t id_,
+                       const mat4_t &T_WF_,
+                       const bool fixed_)
+  : param_t{"fiducial_t", id_, 0, 2, 2, fixed_} {
   const vec3_t rpy = quat2euler(tf_quat(T_WF_));
   param = vec2_t{rpy(0), rpy(1)};
   T_WF = T_WF_;
 }
+#elif FIDUCIAL_PARAMS_SIZE == 3
+fiducial_t::fiducial_t(const id_t id_,
+                       const mat4_t &T_WF_,
+                       const bool fixed_)
+  : param_t{"fiducial_t", id_, 0, 3, 3, fixed_} {
+  param = quat2euler(tf_quat(T_WF_));
+  T_WF = T_WF_;
+}
+#elif FIDUCIAL_PARAMS_SIZE == 7
+fiducial_t::fiducial_t(const id_t id_,
+                       const mat4_t &T_WF_,
+                       const bool fixed_)
+  : pose_t{id_, 0, T_WF_, fixed_} {
+  this->type = "fiducial_t";
+}
+#endif
 
-void fiducial_params_t::plus(const vecx_t &dx) {
+#if FIDUCIAL_PARAMS_SIZE == 2 || FIDUCIAL_PARAMS_SIZE == 3
+void fiducial_t::plus(const vecx_t &dx) {
   param += dx;
   update();
 }
 
-void fiducial_params_t::perturb(const int i, const real_t step_size) {
+void fiducial_t::perturb(const int i, const real_t step_size) {
   param(i) += step_size;
   update();
 }
 
-void fiducial_params_t::update() {
+void fiducial_t::update() {
+#if FIDUCIAL_PARAMS_SIZE == 2
   const double yaw = quat2euler(tf_quat(T_WF))(2);
   const vec3_t rpy{param(0), param(1), yaw};
   const mat3_t C_WF = euler321(rpy);
   const vec3_t r_WF = tf_trans(T_WF);
   T_WF = tf(C_WF, r_WF);
+#elif FIDUCIAL_PARAMS_SIZE == 3
+  const vec3_t rpy{param(0), param(1), param(2)};
+  const mat3_t C_WF = euler321(rpy);
+  const vec3_t r_WF = tf_trans(T_WF);
+  T_WF = tf(C_WF, r_WF);
+#endif
 }
+#endif
 
-mat4_t fiducial_params_t::estimate() const {
+mat4_t fiducial_t::estimate() {
+#if FIDUCIAL_PARAMS_SIZE == 2
+  update();
   const double yaw = quat2euler(tf_quat(T_WF))(2);
   const vec3_t rpy{param(0), param(1), yaw};
   const mat3_t C_WF = euler321(rpy);
   const vec3_t r_WF = tf_trans(T_WF);
   return tf(C_WF, r_WF);
-}
-
-mat4_t fiducial_params_t::estimate() {
-  return static_cast<const fiducial_params_t &>(*this).estimate();
+#elif FIDUCIAL_PARAMS_SIZE == 3
+  update();
+  const vec3_t rpy{param(0), param(1), param(2)};
+  const mat3_t C_WF = euler321(rpy);
+  const vec3_t r_WF = tf_trans(T_WF);
+  return tf(C_WF, r_WF);
+#elif FIDUCIAL_PARAMS_SIZE == 7
+  return yac::tf(param);
+#endif
 }
 
 /**************************** camera_params_t *********************************/

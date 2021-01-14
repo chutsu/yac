@@ -385,7 +385,7 @@ void save_views(const std::string &save_dir,
   FILE *csv = fopen(save_path.c_str(), "w");
   fprintf(csv, "#ts,err_x,err_y,reproj_error,tag_id,corner_idx\n");
   for (const auto &view : views) {
-    auto ts = view.grid.timestamp;
+    const auto ts = view.grid.timestamp;
 
     std::vector<std::pair<double, double>> residuals;
     std::vector<double> reprojection_errors;
@@ -407,7 +407,6 @@ void save_views(const std::string &save_dir,
     }
   }
   fclose(csv);
-
 }
 
 /* Process AprilGrid - Adding it to the calibration problem */
@@ -1080,6 +1079,7 @@ int calib_stereo_inc_solve(calib_stereo_data_t &data) {
                                                     cam0, cam1, extrinsics);
 
   // Incremental solve
+  bool enable_early_stop = true;
   size_t stale_limit = 30;
   size_t stale_counter = 0;
 
@@ -1163,7 +1163,7 @@ int calib_stereo_inc_solve(calib_stereo_data_t &data) {
     }
 
     // Early stop
-    if (stale_counter >= stale_limit) {
+    if (enable_early_stop && stale_counter >= stale_limit) {
       LOG_INFO("stale_counter >= stale_limit");
       LOG_INFO("stopping early!");
       break;

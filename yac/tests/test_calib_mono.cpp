@@ -8,7 +8,7 @@ namespace yac {
 #endif
 
 #define TARGET_CONFIG TEST_PATH "/test_data/calib/aprilgrid/target.yaml"
-#define CAM0_DATA "/data/euroc_mav/cam_april/mav0/cam0/data"
+#define CAM0_DATA "/data/euroc/calib/cam_april/mav0/cam0/data"
 #define CAM0_GRIDS "/tmp/aprilgrid_test/mono/cam0"
 
 void test_setup() {

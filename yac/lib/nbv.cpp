@@ -148,56 +148,6 @@ mat4s_t generate_nbv_poses(const calib_target_t &target) {
   }
 
   return nbv_poses;
-
-  // // Trajectory parameters
-  // const double rho = (calib_width / 2.0) * 0.9;  // Sphere radius
-  // const double lat_min = deg2rad(0.0);
-  // const double lat_max = deg2rad(360.0);
-  // const double lon_min = deg2rad(0.0);
-  // const double lon_max = deg2rad(80.0);
-
-  // // Form Sphere offset (J) w.r.t. calibration origin (O)
-  // // The sphere origin is at the center of the sphere (duh), but we actually
-  // // want the north pole of the sphere to be the trajectory start point
-  // // therefore we need this offset.
-  // const mat3_t C_OJ = I(3);
-  // const vec3_t r_OJ{0.0, 0.0, -rho};
-  // const mat4_t T_OJ = tf(C_OJ, r_OJ);
-  //
-  // // // Create rotation matrix that converts z-forward to x-forward
-  // // const auto rpy = deg2rad(vec3_t{-90.0, 0.0, -90.0});
-  // // const auto C_BC = euler321(rpy);
-  // // const auto r_BC = zeros(3, 1);
-  // // const auto T_BC = tf(C_BC, r_BC);
-  // // const auto T_CB = T_BC.inverse();
-  //
-  // // Target center (Fc) w.r.t. Target origin (F)
-  // const vec3_t r_FFc{calib_width / 2.0, calib_height / 2.0, 0.0};
-  //
-  // // Orbit poses. Imagine a half sphere coming out from the calibration target
-  // // center. The trajectory would go from the pole of the sphere to the sides
-  // // of the sphere. While following the trajectory in a tangent manner the
-  // // camera view focuses on the target center.
-  // mat4s_t nbv_poses;
-  // for (const auto &lat : linspace(lat_min, lat_max, 9)) {
-  //   // Create sphere point and transform it into world frame
-  //   for (const auto &lon : linspace(lon_min, lon_max, 10)) {
-  //     const vec3_t p = sphere(rho, lon, lat);
-  //     const vec4_t hr_FJ = T_FO * T_OJ * p.homogeneous();
-  //     const vec3_t r_FJ = hr_FJ.head(3);
-  //     const mat4_t T_FC = lookat(r_FJ, r_FFc);
-  //
-  //     // Offset from camera (z-forward) to whatever imu frame is forward
-  //     vec3_t rpy{0.0, 0.0, - M_PI / 2.0};
-  //     mat3_t C = euler321(rpy);
-  //     mat4_t T_offset = tf(C, zeros(3, 1));
-  //
-  //     // Form nbv pose
-  //     nbv_poses.emplace_back(T_FC * T_offset);
-  //   }
-  // }
-
-  // return nbv_poses;
 }
 
 } // namespace yac

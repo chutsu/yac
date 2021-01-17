@@ -72,7 +72,7 @@ struct pose_t : param_t {
   void perturb(const int i, const real_t step_size);
 };
 
-#define FIDUCIAL_PARAMS_SIZE 3
+#define FIDUCIAL_PARAMS_SIZE 2
 
 #if FIDUCIAL_PARAMS_SIZE == 2 || FIDUCIAL_PARAMS_SIZE == 3
 struct fiducial_t : param_t {

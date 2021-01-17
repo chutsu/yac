@@ -11,8 +11,8 @@ namespace yac {
 #define APRILGRID_IMAGE TEST_PATH "/test_data/calib/aprilgrid/aprilgrid.png"
 #define CAM0_IMAGE TEST_PATH "/test_data/calib/stereo/cam0_1403709395937837056.png"
 #define CAM1_IMAGE TEST_PATH "/test_data/calib/stereo/cam1_1403709395937837056.png"
-#define CAM0_IMAGE_DIR "/data/euroc_mav/cam_april/mav0/cam0/data"
-#define CAM1_IMAGE_DIR "/data/euroc_mav/cam_april/mav0/cam1/data"
+#define CAM0_IMAGE_DIR "/data/euroc/calib/cam_april/mav0/cam0/data"
+#define CAM1_IMAGE_DIR "/data/euroc/calib/cam_april/mav0/cam1/data"
 
 #define MONO_OUTPUT_DIR "/tmp/aprilgrid_test/mono"
 #define STEREO_OUTPUT_DIR "/tmp/aprilgrid_test/stereo"

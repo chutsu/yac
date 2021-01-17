@@ -18,11 +18,11 @@ namespace yac {
 
 template <typename CAMERA_TYPE>
 #if FIDUCIAL_PARAMS_SIZE == 2
-struct reproj_error_t : public ceres::SizedCostFunction<2, 2, 7, 7, 8, 1> {
+struct reproj_error_t : public ceres::SizedCostFunction<2, 2, 7, 7, 7, 8, 1> {
 #elif FIDUCIAL_PARAMS_SIZE == 3
-struct reproj_error_t : public ceres::SizedCostFunction<2, 3, 7, 7, 8, 1> {
+struct reproj_error_t : public ceres::SizedCostFunction<2, 3, 7, 7, 7, 8, 1> {
 #elif FIDUCIAL_PARAMS_SIZE == 7
-struct reproj_error_t : public ceres::SizedCostFunction<2, 7, 7, 7, 8, 1> {
+struct reproj_error_t : public ceres::SizedCostFunction<2, 7, 7, 7, 7, 8, 1> {
 #endif
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 
@@ -94,16 +94,17 @@ struct reproj_error_t : public ceres::SizedCostFunction<2, 7, 7, 7, 8, 1> {
 
     // Sensor pose, sensor-camera extrinsics, camera parameters
     const mat4_t T_WS = tf(params[1]);
-    const mat4_t T_SC = tf(params[2]);
-    Eigen::Map<const vecx_t> cam_params(params[3], 8);
-    const double td = params[4][0];
+    const mat4_t T_BS = tf(params[2]);
+    const mat4_t T_BCi = tf(params[3]);
+    Eigen::Map<const vecx_t> cam_params(params[4], 8);
+    const double td = params[5][0];
 
     // Transform and project point to image plane
     bool valid = true;
     CAMERA_TYPE camera{cam_res_, cam_params};
-    const mat4_t T_CS = T_SC.inverse();
+    const mat4_t T_CiB = T_BCi.inverse();
     const mat4_t T_SW = T_WS.inverse();
-    const vec3_t r_CFi = tf_point(T_CS * T_SW * T_WF, r_FFi_);
+    const vec3_t r_CFi = tf_point(T_CiB * T_BS * T_SW * T_WF, r_FFi_);
     mat_t<2, 3> Jh;
     vec2_t z_hat;
     if (camera.project(r_CFi, z_hat, Jh) != 0) {
@@ -117,9 +118,6 @@ struct reproj_error_t : public ceres::SizedCostFunction<2, 7, 7, 7, 8, 1> {
 
     // Jacobians
     const matx_t Jh_weighted = sqrt_info_ * Jh;
-    const mat3_t C_CW = tf_rot(T_CS * T_SW);
-    const mat3_t C_SC = tf_rot(T_SC);
-    const mat3_t C_CS = C_SC.transpose();
 
     if (jacobians) {
       // Jacobians w.r.t. T_WF
@@ -155,22 +153,22 @@ struct reproj_error_t : public ceres::SizedCostFunction<2, 7, 7, 7, 8, 1> {
 #endif
 
 				// Fill Jacobian
-        const mat3_t C_CW = tf_rot(T_CS * T_SW);
+        const mat3_t C_CiW = tf_rot(T_CiB * T_BS * T_SW);
 #if FIDUCIAL_PARAMS_SIZE == 2
         Eigen::Map<mat_t<2, 2, row_major_t>> J(jacobians[0]);
-        J.block(0, 0, 2, 1) = -1 * Jh_weighted * C_CW * J_x;
-        J.block(0, 1, 2, 1) = -1 * Jh_weighted * C_CW * J_y;
+        J.block(0, 0, 2, 1) = -1 * Jh_weighted * C_CiW * J_x;
+        J.block(0, 1, 2, 1) = -1 * Jh_weighted * C_CiW * J_y;
 #elif FIDUCIAL_PARAMS_SIZE == 3
         Eigen::Map<mat_t<2, 3, row_major_t>> J(jacobians[0]);
-        J.block(0, 0, 2, 1) = -1 * Jh_weighted * C_CW * J_x;
-        J.block(0, 1, 2, 1) = -1 * Jh_weighted * C_CW * J_y;
-        J.block(0, 2, 2, 1) = -1 * Jh_weighted * C_CW * J_z;
+        J.block(0, 0, 2, 1) = -1 * Jh_weighted * C_CiW * J_x;
+        J.block(0, 1, 2, 1) = -1 * Jh_weighted * C_CiW * J_y;
+        J.block(0, 2, 2, 1) = -1 * Jh_weighted * C_CiW * J_z;
 #elif FIDUCIAL_PARAMS_SIZE == 7
         const mat3_t C_WF = tf_rot(T_WF);
         Eigen::Map<mat_t<2, 7, row_major_t>> J(jacobians[0]);
         J.setZero();
-        J.block(0, 0, 2, 3) = -1 * Jh_weighted * C_CW * I(3);
-        J.block(0, 3, 2, 3) = -1 * Jh_weighted * C_CW * -skew(C_WF * r_FFi_);
+        J.block(0, 0, 2, 3) = -1 * Jh_weighted * C_CiW * I(3);
+        J.block(0, 3, 2, 3) = -1 * Jh_weighted * C_CiW * -skew(C_WF * r_FFi_);
 #endif
         if (valid == false) {
           J.setZero();
@@ -179,34 +177,59 @@ struct reproj_error_t : public ceres::SizedCostFunction<2, 7, 7, 7, 8, 1> {
 
       // Jacobians w.r.t T_WS
       if (jacobians[1]) {
+        const mat3_t C_CiS = tf_rot(T_CiB * T_BS);
         const mat3_t C_WS = tf_rot(T_WS);
+        const mat3_t C_SW = C_WS.transpose();
+        const mat4_t T_SW = T_WS.inverse();
+
+        // const vec3_t r_WS = tf_trans(T_WS);
+        // const vec3_t r_WFi = tf_point(T_WF, r_FFi_);
         const vec3_t r_SFi = tf_point(T_SW * T_WF, r_FFi_);
 
         Eigen::Map<mat_t<2, 7, row_major_t>> J(jacobians[1]);
         J.setZero();
-        J.block(0, 0, 2, 3) = -1 * Jh_weighted * -C_CW * I(3);
-        J.block(0, 3, 2, 3) = -1 * Jh_weighted * -C_CW * -skew(C_WS * r_SFi);
+        J.block(0, 0, 2, 3) = -1 * Jh_weighted * -C_CiS * C_SW;
+        J.block(0, 3, 2, 3) = -1 * Jh_weighted * -C_CiS * C_SW * -skew(C_WS * r_SFi);
         if (valid == false) {
           J.setZero();
         }
       }
 
-      // Jacobians w.r.t T_SC
+      // Jacobians w.r.t T_BS
       if (jacobians[2]) {
+        const mat3_t C_CiB = tf_rot(T_CiB);
+        const mat3_t C_BS = tf_rot(T_BS);
+        const vec3_t r_SFi = tf_point(T_SW * T_WF, r_FFi_);
+
         Eigen::Map<mat_t<2, 7, row_major_t>> J(jacobians[2]);
         J.setZero();
-        J.block(0, 0, 2, 3) = -1 * Jh_weighted * -C_CS * I(3);
-        J.block(0, 3, 2, 3) = -1 * Jh_weighted * -C_CS * -skew(C_SC * r_CFi);
+        J.block(0, 0, 2, 3) = -1 * Jh_weighted * C_CiB * I(3);
+        J.block(0, 3, 2, 3) = -1 * Jh_weighted * C_CiB * -skew(C_BS * r_SFi);
+        if (valid == false) {
+          J.setZero();
+        }
+      }
+
+      // Jacobians w.r.t T_BCi
+      if (jacobians[3]) {
+        const mat3_t C_CiB = tf_rot(T_CiB);
+        const mat3_t C_BCi = C_CiB.transpose();
+        const vec3_t r_CiFi = tf_point(T_CiB * T_BS * T_SW * T_WF, r_FFi_);
+
+        Eigen::Map<mat_t<2, 7, row_major_t>> J(jacobians[3]);
+        J.setZero();
+        J.block(0, 0, 2, 3) = -1 * Jh_weighted * -C_CiB * I(3);
+        J.block(0, 3, 2, 3) = -1 * Jh_weighted * -C_CiB * -skew(C_BCi * r_CiFi);
         if (valid == false) {
           J.setZero();
         }
       }
 
       // Jacobians w.r.t. camera parameters
-      if (jacobians[3]) {
+      if (jacobians[4]) {
         const vec2_t p{r_CFi(0) / r_CFi(2), r_CFi(1) / r_CFi(2)};
 
-        Eigen::Map<mat_t<2, 8, row_major_t>> J(jacobians[3]);
+        Eigen::Map<mat_t<2, 8, row_major_t>> J(jacobians[4]);
         J.block(0, 0, 2, 8) = -1 * sqrt_info_ * camera.J_params(p);
         if (valid == false) {
           J.setZero();
@@ -214,202 +237,9 @@ struct reproj_error_t : public ceres::SizedCostFunction<2, 7, 7, 7, 8, 1> {
       }
 
       // Jacobians w.r.t. time delay
-      if (jacobians[4]) {
-        Eigen::Map<vec2_t> J(jacobians[4]);
+      if (jacobians[5]) {
+        Eigen::Map<vec2_t> J(jacobians[5]);
         J = sqrt_info_ * v_ij_;
-        if (valid == false) {
-          J.setZero();
-        }
-      }
-    }
-
-    return true;
-  }
-};
-
-template <typename CAMERA_TYPE>
-#if FIDUCIAL_PARAMS_SIZE == 2
-struct reproj_error2_t : public ceres::SizedCostFunction<2, 2, 7, 7, 8, 1> {
-#elif FIDUCIAL_PARAMS_SIZE == 3
-struct reproj_error2_t : public ceres::SizedCostFunction<2, 3, 7, 7, 8, 1> {
-#elif FIDUCIAL_PARAMS_SIZE == 7
-struct reproj_error2_t : public ceres::SizedCostFunction<2, 7, 7, 7, 8, 1> {
-#endif
-  EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
-
-  const timestamp_t ts_ = 0;
-  const int cam_res_[2] = {0, 0};
-  const int tag_id_ = -1;
-  const int corner_idx_ = -1;
-  const vec3_t r_FFi_{0.0, 0.0, 0.0};
-  const vec2_t z_{0.0, 0.0};
-  const mat4_t T_WF_ = I(4);
-
-  const mat2_t covar_;
-  const mat2_t info_;
-  const mat2_t sqrt_info_;
-
-  reproj_error2_t(const timestamp_t &ts,
-                  const int cam_res[2],
-                  const int tag_id,
-                  const int corner_idx,
-                  const vec3_t &r_FFi,
-                  const vec2_t &z,
-                  const mat4_t &T_WF,
-                  const mat2_t &covar)
-      : ts_{ts},
-        cam_res_{cam_res[0], cam_res[1]},
-        tag_id_{tag_id}, corner_idx_{corner_idx},
-        r_FFi_{r_FFi}, z_{z}, T_WF_{T_WF},
-        covar_{covar},
-        info_{covar.inverse()},
-        sqrt_info_{info_.llt().matrixL().transpose()} {
-    assert(cam_res[0] != 0 && cam_res[1] != 0);
-    assert(tag_id_ >= 0);
-    assert(corner_idx_ >= 0);
-  }
-
-  ~reproj_error2_t() {}
-
-  bool Evaluate(double const * const *params,
-                double *residuals,
-                double **jacobians) const {
-    // Pose of fiducial target in world frame
-#if FIDUCIAL_PARAMS_SIZE == 2
-    const double roll = params[0][0];
-    const double pitch = params[0][1];
-    const double yaw = quat2euler(tf_quat(T_WF_))(2);
-    const vec3_t rpy{roll, pitch, yaw};
-    const mat3_t C_WF = euler321(rpy);
-		const vec3_t r_WF = tf_trans(T_WF_);
-    const mat4_t T_WF = tf(C_WF, r_WF);
-#elif FIDUCIAL_PARAMS_SIZE == 3
-    const double roll = params[0][0];
-    const double pitch = params[0][1];
-    const double yaw = params[0][2];
-    const vec3_t rpy{roll, pitch, yaw};
-    const mat3_t C_WF = euler321(rpy);
-		const vec3_t r_WF = tf_trans(T_WF_);
-    const mat4_t T_WF = tf(C_WF, r_WF);
-#elif FIDUCIAL_PARAMS_SIZE == 7
-    const mat4_t T_WF = tf(params[0]);
-#endif
-
-    // Sensor pose, sensor-camera extrinsics, camera parameters
-    const mat4_t T_WS = tf(params[1]);
-    const mat4_t T_SC = tf(params[2]);
-    Eigen::Map<const vecx_t> cam_params(params[3], 8);
-
-    // Transform and project point to image plane
-    bool valid = true;
-    CAMERA_TYPE camera{cam_res_, cam_params};
-    const mat4_t T_CS = T_SC.inverse();
-    const mat4_t T_SW = T_WS.inverse();
-    const vec3_t r_CFi = tf_point(T_CS * T_SW * T_WF, r_FFi_);
-    mat_t<2, 3> Jh;
-    vec2_t z_hat;
-    if (camera.project(r_CFi, z_hat, Jh) != 0) {
-      valid = false;
-    }
-
-    // Residuals
-    const vec2_t r = sqrt_info_ * (z_ - z_hat);
-    residuals[0] = r(0);
-    residuals[1] = r(1);
-
-    // Jacobians
-    const matx_t Jh_weighted = sqrt_info_ * Jh;
-    const mat3_t C_CW = tf_rot(T_CS * T_SW);
-    const mat3_t C_SC = tf_rot(T_SC);
-    const mat3_t C_CS = C_SC.transpose();
-
-    if (jacobians) {
-      // Jacobians w.r.t. T_WF
-      if (jacobians[0]) {
-				// Form jacobians
-#if FIDUCIAL_PARAMS_SIZE == 2 || FIDUCIAL_PARAMS_SIZE == 3
-        const double cphi = cos(roll);
-        const double sphi = sin(roll);
-        const double ctheta = cos(pitch);
-        const double stheta = sin(pitch);
-        const double cpsi = cos(yaw);
-        const double spsi = sin(yaw);
-
-        const double x = r_FFi_(0);
-        const double y = r_FFi_(1);
-        const double z = r_FFi_(2);
-
-        const vec3_t J_x{
-          y * (sphi * spsi + stheta * cphi * cpsi) + z * (-sphi * stheta * cpsi + spsi * cphi),
-          y * (-sphi * cpsi + spsi * stheta * cphi) + z * (-sphi * spsi * stheta - cphi * cpsi),
-          y * cphi * ctheta - z * sphi * ctheta
-        };
-        const vec3_t J_y{
-          -x * stheta * cpsi + y * sphi * cpsi * ctheta + z * cphi * cpsi * ctheta,
-          -x * spsi * stheta + y * sphi * spsi * ctheta + z * spsi * cphi * ctheta,
-          -x * ctheta - y * sphi * stheta - z * stheta * cphi
-        };
-        const vec3_t J_z{
-          -x * spsi * ctheta + y * (-sphi * spsi * stheta - cphi * cpsi) + z * (sphi * cpsi - spsi * stheta * cphi),
-          x * cpsi * ctheta + y * (sphi * stheta * cpsi - spsi * cphi) + z * (sphi * spsi + stheta * cphi * cpsi),
-          0
-        };
-#endif
-
-				// Fill Jacobian
-        const mat3_t C_CW = tf_rot(T_CS * T_SW);
-#if FIDUCIAL_PARAMS_SIZE == 2
-        Eigen::Map<mat_t<2, 2, row_major_t>> J(jacobians[0]);
-        J.block(0, 0, 2, 1) = -1 * Jh_weighted * C_CW * J_x;
-        J.block(0, 1, 2, 1) = -1 * Jh_weighted * C_CW * J_y;
-#elif FIDUCIAL_PARAMS_SIZE == 3
-        Eigen::Map<mat_t<2, 3, row_major_t>> J(jacobians[0]);
-        J.block(0, 0, 2, 1) = -1 * Jh_weighted * C_CW * J_x;
-        J.block(0, 1, 2, 1) = -1 * Jh_weighted * C_CW * J_y;
-        J.block(0, 2, 2, 1) = -1 * Jh_weighted * C_CW * J_z;
-#elif FIDUCIAL_PARAMS_SIZE == 7
-        const mat3_t C_WF = tf_rot(T_WF);
-        Eigen::Map<mat_t<2, 7, row_major_t>> J(jacobians[0]);
-        J.setZero();
-        J.block(0, 0, 2, 3) = -1 * Jh_weighted * C_CW * I(3);
-        J.block(0, 3, 2, 3) = -1 * Jh_weighted * C_CW * -skew(C_WF * r_FFi_);
-#endif
-        if (valid == false) {
-          J.setZero();
-        }
-      }
-
-      // Jacobians w.r.t T_WS
-      if (jacobians[1]) {
-        const mat3_t C_WS = tf_rot(T_WS);
-        const vec3_t r_SFi = tf_point(T_SW * T_WF, r_FFi_);
-
-        Eigen::Map<mat_t<2, 7, row_major_t>> J(jacobians[1]);
-        J.setZero();
-        J.block(0, 0, 2, 3) = -1 * Jh_weighted * -C_CW * I(3);
-        J.block(0, 3, 2, 3) = -1 * Jh_weighted * -C_CW * -skew(C_WS * r_SFi);
-        if (valid == false) {
-          J.setZero();
-        }
-      }
-
-      // Jacobians w.r.t T_SC
-      if (jacobians[2]) {
-        Eigen::Map<mat_t<2, 7, row_major_t>> J(jacobians[2]);
-        J.setZero();
-        J.block(0, 0, 2, 3) = -1 * Jh_weighted * -C_CS * I(3);
-        J.block(0, 3, 2, 3) = -1 * Jh_weighted * -C_CS * -skew(C_SC * r_CFi);
-        if (valid == false) {
-          J.setZero();
-        }
-      }
-
-      // Jacobians w.r.t. camera parameters
-      if (jacobians[3]) {
-        const vec2_t p{r_CFi(0) / r_CFi(2), r_CFi(1) / r_CFi(2)};
-
-        Eigen::Map<mat_t<2, 8, row_major_t>> J(jacobians[3]);
-        J.block(0, 0, 2, 8) = -1 * sqrt_info_ * camera.J_params(p);
         if (valid == false) {
           J.setZero();
         }
@@ -783,7 +613,8 @@ struct calib_vi_t {
   std::vector<pose_t *> sensor_poses;
   std::vector<sb_params_t *> speed_biases;
   std::map<int, camera_params_t *> cam_params;
-  std::map<int, extrinsics_t *> extrinsics;
+  std::map<int, extrinsics_t *> cam_extrinsics;
+  extrinsics_t * imu_extrinsics;
 
   // Optimization
   imu_params_t imu_params;
@@ -798,39 +629,42 @@ struct calib_vi_t {
     const int cam_idx = -1;
 		fiducial_t *fiducial = nullptr;
     pose_t *sensor_pose = nullptr;
-    extrinsics_t *extrinsics = nullptr;
+    extrinsics_t *cam_extrinsics = nullptr;
+    extrinsics_t *imu_extrinsics = nullptr;
     camera_params_t *cam_params = nullptr;
     time_delay_t *time_delay = nullptr;
 
 		std::vector<ceres::ResidualBlockId> reproj_error_ids;
 		std::vector<reproj_error_t<CAMERA_TYPE> *> reproj_errors;
-		// std::vector<reproj_error2_t<CAMERA_TYPE> *> reproj_errors;
 
 		calib_view_t(ceres::Problem *problem_,
 		 		 	 	 	 	 const int cam_idx_,
 				 	 	 	 	 fiducial_t *fiducial_,
 				 	 	 	 	 pose_t *sensor_pose_,
-				 	 	 	 	 extrinsics_t *extrinsics_,
+				 	 	 	 	 extrinsics_t *cam_extrinsics_,
+				 	 	 	 	 extrinsics_t *imu_extrinsics_,
 				 	 	 	 	 camera_params_t *cam_params_,
 				 	 	 	 	 time_delay_t *time_delay_)
 			: problem{problem_},
 				cam_idx{cam_idx_},
 				fiducial{fiducial_},
 				sensor_pose{sensor_pose_},
-				extrinsics{extrinsics_},
+				cam_extrinsics{cam_extrinsics_},
+				imu_extrinsics{imu_extrinsics_},
 				cam_params{cam_params_},
 				time_delay{time_delay_} {}
 
 		void add(const ceres::ResidualBlockId &id,
 						 reproj_error_t<CAMERA_TYPE> *err) {
-						 // reproj_error2_t<CAMERA_TYPE> *err) {
 			reproj_error_ids.push_back(id);
 			reproj_errors.push_back(err);
 		}
 
 		void calculate_reproj_errors(std::vector<double> &errs) {
 			const mat4_t T_WF = fiducial->estimate();
-			const mat4_t T_CiS = extrinsics->tf().inverse();
+			const mat4_t T_CiB = cam_extrinsics->tf().inverse();
+			const mat4_t T_BS = imu_extrinsics->tf();
+			const mat4_t T_CiS = T_CiB * T_BS;
 			const mat4_t T_SW = sensor_pose->tf().inverse();
 		  const double td = time_delay->param(0);
 
@@ -887,7 +721,8 @@ struct calib_vi_t {
     for (const auto &pose : sensor_poses) delete pose;
     for (const auto &sb : speed_biases) delete sb;
     for (const auto &kv: cam_params) delete kv.second;
-    for (const auto &kv: extrinsics) delete kv.second;
+    for (const auto &kv: cam_extrinsics) delete kv.second;
+    if (imu_extrinsics) delete imu_extrinsics;
     if (problem) delete problem;
   }
 
@@ -916,16 +751,28 @@ struct calib_vi_t {
     }
   }
 
-  void add_extrinsics(const int cam_idx,
-                      const mat4_t &T_SC,
-                      const bool fix=false) {
-    auto T_SCi = new extrinsics_t(new_param_id++, T_SC);
-    extrinsics[cam_idx] = T_SCi;
-    problem->AddParameterBlock(T_SCi->param.data(), 7);
-    problem->SetParameterization(T_SCi->param.data(), &pose_parameterization);
+  void add_cam_extrinsics(const int cam_idx,
+                          const mat4_t &T_BCi,
+                          const bool fix=false) {
+    auto cam_ext = new extrinsics_t(new_param_id++, T_BCi);
+    cam_extrinsics[cam_idx] = cam_ext;
+    problem->AddParameterBlock(cam_ext->param.data(), 7);
+    problem->SetParameterization(cam_ext->param.data(), &pose_parameterization);
 
     if (fix) {
-      problem->SetParameterBlockConstant(T_SCi->param.data());
+      problem->SetParameterBlockConstant(cam_ext->param.data());
+    }
+  }
+
+  void add_imu_extrinsics(const mat4_t &T_BS,
+                          const bool fix=false) {
+    auto imu_ext = new extrinsics_t(new_param_id++, T_BS);
+    imu_extrinsics = imu_ext;
+    problem->AddParameterBlock(imu_ext->param.data(), 7);
+    problem->SetParameterization(imu_ext->param.data(), &pose_parameterization);
+
+    if (fix) {
+      problem->SetParameterBlockConstant(imu_ext->param.data());
     }
   }
 
@@ -944,7 +791,7 @@ struct calib_vi_t {
   void add_time_delay(const double td) {
     time_delay = new time_delay_t{new_param_id++, td};
     problem->AddParameterBlock(time_delay->param.data(), 1);
-    problem->SetParameterBlockConstant(time_delay->param.data());
+    // problem->SetParameterBlockConstant(time_delay->param.data());
   }
 
   void add_fiducial_pose(const mat4_t &T_WF) {
@@ -957,8 +804,12 @@ struct calib_vi_t {
     return cam_params[cam_idx]->param;
   }
 
-  mat4_t get_extrinsic(const int cam_idx) {
-    return extrinsics[cam_idx]->tf();
+  mat4_t get_cam_extrinsics(const int cam_idx) {
+    return cam_extrinsics[cam_idx]->tf();
+  }
+
+  mat4_t get_imu_extrinsics() {
+    return imu_extrinsics->tf();
   }
 
   mat4_t get_sensor_pose(const int pose_index) {
@@ -966,7 +817,6 @@ struct calib_vi_t {
   }
 
   mat4_t get_fiducial_pose() {
-    // return fiducial->estimate();
     return fiducial->estimate();
   }
 
@@ -1046,7 +896,8 @@ struct calib_vi_t {
 
   void add_reproj_errors(const int cam_idx, const aprilgrid_t &grid_j) {
     assert(cam_params.count(cam_idx) > 0);
-    assert(extrinsics.count(cam_idx) > 0);
+    assert(cam_extrinsics.count(cam_idx) > 0);
+    assert(imu_extrinsics != nullptr);
     assert(sensor_poses.size() >= 1);
 
     const aprilgrid_t &grid_i = grids_prev[cam_idx];
@@ -1054,14 +905,16 @@ struct calib_vi_t {
     const auto ts_j = grid_j.timestamp;
     const auto &T_WF = fiducial;
     const auto &T_WS_i = sensor_poses[sensor_poses.size() - 2];
-    const auto &T_SC = extrinsics[cam_idx];
+    const auto &T_BS = imu_extrinsics;
+    const auto &T_BCi = cam_extrinsics[cam_idx];
     const auto &cam = cam_params[cam_idx];
     const int *cam_res = cam->resolution;
     const mat2_t covar = pow(sigma_vision, 2) * I(2);
 
 		calib_view_t<pinhole_radtan4_t> view{problem,
 		                                     cam_idx,
-		                                     T_WF, T_WS_i, T_SC,
+		                                     T_WF, T_WS_i,
+		                                     T_BCi, T_BS,
 		                                     cam,
 		                                     time_delay};
 
@@ -1095,7 +948,8 @@ struct calib_vi_t {
                                                 NULL,
                                                 T_WF->param.data(),
                                                 T_WS_i->param.data(),
-                                                T_SC->param.data(),
+                                                T_BS->param.data(),
+                                                T_BCi->param.data(),
                                                 cam->param.data(),
                                                 time_delay->param.data());
 			view.add(error_id, error);
@@ -1103,59 +957,6 @@ struct calib_vi_t {
 
     calib_views[cam_idx].push_back(view);
   }
-
-  // void add_reproj_errors(const int cam_idx, const aprilgrid_t &grid) {
-  //   assert(cam_params.count(cam_idx) > 0);
-  //   assert(fiducial != nullptr);
-  //   assert(extrinsics.count(cam_idx) > 0);
-  //   assert(sensor_poses.size() >= 1);
-  //
-  //   const auto ts = grid.timestamp;
-  //   const auto &T_WF = fiducial;
-  //   const auto &T_WS = sensor_poses[sensor_poses.size() - 1];
-  //   const auto &T_SC = extrinsics[cam_idx];
-  //   const auto &cam = cam_params[cam_idx];
-  //   const int *cam_res = cam->resolution;
-  //   const mat2_t covar = pow(sigma_vision, 2) * I(2);
-  //
-	// 	calib_view_t<pinhole_radtan4_t> view{problem,
-	// 	                                     cam_idx,
-	// 	                                     T_WF, T_WS, T_SC,
-	// 	                                     cam,
-	// 	                                     time_delay};
-  //
-  //   std::vector<int> tag_ids;
-  //   std::vector<int> corner_indicies;
-  //   vec2s_t keypoints;
-  //   vec3s_t object_points;
-  //   grid.get_measurements(tag_ids, corner_indicies, keypoints, object_points);
-  //
-  //   for (size_t i = 0; i < tag_ids.size(); i++) {
-  //     const int tag_id = tag_ids[i];
-  //     const int corner_idx = corner_indicies[i];
-  //     const vec2_t z = keypoints[i];
-  //     const vec3_t r_FFi = object_points[i];
-  //
-  //     auto error = new reproj_error2_t<pinhole_radtan4_t>(ts,
-  //                                                         cam_res,
-  //                                                         tag_id,
-  //                                                         corner_idx,
-  //                                                         r_FFi,
-  //                                                         z,
-	// 																											  fiducial->estimate(),
-  //                                                         covar);
-  //     auto error_id = problem->AddResidualBlock(error,
-  //                                               NULL,
-  //                                               T_WF->param.data(),
-  //                                               T_WS->param.data(),
-  //                                               T_SC->param.data(),
-  //                                               cam->param.data(),
-  //                                               time_delay->param.data());
-	// 		view.add(error_id, error);
-  //   }
-  //
-  //   calib_views[cam_idx].push_back(view);
-  // }
 
   bool fiducial_detected(const aprilgrids_t &grids) {
     assert(grids.size() > 0);
@@ -1192,8 +993,9 @@ struct calib_vi_t {
 
       // Infer current pose T_WS using T_C0F, T_SC0 and T_WF
       const mat4_t T_FCi_k = T_CiF.inverse();
-      const mat4_t T_SCi = get_extrinsic(i);
-      const mat4_t T_CiS = T_SCi.inverse();
+      const mat4_t T_BCi = get_cam_extrinsics(i);
+      const mat4_t T_BS = get_imu_extrinsics();
+      const mat4_t T_CiS = T_BCi.inverse() * T_BS;
       const mat4_t T_WF = get_fiducial_pose();
       const mat4_t T_WS_k = T_WF * T_FCi_k * T_CiS;
 
@@ -1225,7 +1027,9 @@ struct calib_vi_t {
     mat4_t T_WS = tf(C_WS, zeros(3, 1));
 
     // Fiducial pose - T_WF
-    const mat4_t T_SC0 = get_extrinsic(0);
+    const mat4_t T_BC0 = get_cam_extrinsics(0);
+    const mat4_t T_BS = get_imu_extrinsics();
+    const mat4_t T_SC0 = T_BS.inverse() * T_BC0;
     mat4_t T_WF = T_WS * T_SC0 * T_C0F;
 
     // Set fiducial target as origin (with r_WF (0, 0, 0))
@@ -1374,14 +1178,22 @@ struct calib_vi_t {
       printf("\n");
     }
 
-    // Extrinsics
-    for (int cam_idx = 0; cam_idx < nb_cams(); cam_idx++) {
-      const auto key = "T_SC" + std::to_string(cam_idx);
-      print_matrix(key, extrinsics[cam_idx]->tf());
-    }
+    // Imu extrinsics
+    print_matrix("T_BS", get_imu_extrinsics());
+    print_matrix("T_SB", get_imu_extrinsics().inverse());
 
-    // Fiducial
-    print_matrix("T_WF", fiducial->estimate());
+    // Camera Extrinsics
+    for (int cam_idx = 1; cam_idx < nb_cams(); cam_idx++) {
+      const auto key = "T_C0C" + std::to_string(cam_idx);
+      const mat4_t T_C0Ci = get_cam_extrinsics(cam_idx);
+      print_matrix(key, T_C0Ci);
+
+      {
+        const auto key = "T_C" + std::to_string(cam_idx) + "C0";
+        const mat4_t T_CiC0 = T_C0Ci.inverse();
+        print_matrix(key, T_CiC0);
+      }
+    }
   }
 
   void solve(bool verbose=true) {
@@ -1398,44 +1210,44 @@ struct calib_vi_t {
       show_results();
 		}
 
-		// // Filter outliers
-    // LOG_INFO("Filter outliers");
-    // int nb_outliers = 0;
-    // int nb_inliers = 0;
-		// for (int cam_idx = 0; cam_idx < nb_cams(); cam_idx++) {
-		// 	// Obtain all reprojection errors from all views
-		// 	std::vector<double> errs;
-		// 	for (auto &view : calib_views[cam_idx]) {
-		// 		view.calculate_reproj_errors(errs);
-		// 	}
-    //
-		// 	// Filter outliers from last view
-		// 	const double threshold = 3.0 * stddev(errs);
-		// 	for (auto &view : calib_views[cam_idx]) {
-		// 		nb_outliers += view.filter(threshold);
-		// 		nb_inliers += view.reproj_errors.size();
-		// 	}
-		// }
-    // LOG_INFO("Removed %d outliers!", nb_outliers);
-    // printf("\n");
-    //
-    // // Optimize problem - second pass
-    // {
-		//   LOG_INFO("Optimize problem - second pass");
-    //   // Solver options
-    //   ceres::Solver::Options options;
-    //   options.minimizer_progress_to_stdout = true;
-    //   options.max_num_iterations = 100;
-    //   // options.check_gradients = true;
-    //
-    //   // Solve
-    //   ceres::Solver::Summary summary;
-    //   ceres::Solve(options, problem, &summary);
-    //   if (verbose) {
-    //     std::cout << summary.FullReport() << std::endl;
-    //     show_results();
-    //   }
-    // }
+		// Filter outliers
+    LOG_INFO("Filter outliers");
+    int nb_outliers = 0;
+    int nb_inliers = 0;
+		for (int cam_idx = 0; cam_idx < nb_cams(); cam_idx++) {
+			// Obtain all reprojection errors from all views
+			std::vector<double> errs;
+			for (auto &view : calib_views[cam_idx]) {
+				view.calculate_reproj_errors(errs);
+			}
+
+			// Filter outliers from last view
+			const double threshold = 3.0 * stddev(errs);
+			for (auto &view : calib_views[cam_idx]) {
+				nb_outliers += view.filter(threshold);
+				nb_inliers += view.reproj_errors.size();
+			}
+		}
+    LOG_INFO("Removed %d outliers!", nb_outliers);
+    printf("\n");
+
+    // Optimize problem - second pass
+    {
+		  LOG_INFO("Optimize problem - second pass");
+      // Solver options
+      ceres::Solver::Options options;
+      options.minimizer_progress_to_stdout = true;
+      options.max_num_iterations = 100;
+      // options.check_gradients = true;
+
+      // Solve
+      ceres::Solver::Summary summary;
+      ceres::Solve(options, problem, &summary);
+      if (verbose) {
+        std::cout << summary.FullReport() << std::endl;
+        show_results();
+      }
+    }
   }
 
   int save_results(const std::string &save_path) {
@@ -1509,7 +1321,11 @@ struct calib_vi_t {
 
     // Sensor-Camera extrinsics
     for (int i = 0; i < nb_cams(); i++) {
-      const mat4_t T_SCi = extrinsics[i]->tf();
+      const mat4_t T_BS = get_imu_extrinsics();
+      const mat4_t T_SB = T_BS.inverse();
+      const mat4_t T_BCi = get_cam_extrinsics(i);
+      const mat4_t T_SCi = T_SB * T_BCi;
+
       fprintf(outfile, "T_imu0_cam%d:\n", i);
       fprintf(outfile, "  rows: 4\n");
       fprintf(outfile, "  cols: 4\n");
@@ -1522,11 +1338,12 @@ struct calib_vi_t {
     fprintf(outfile, "\n");
 
     // Camera-Camera extrinsics
+    const mat4_t T_BC0 = get_cam_extrinsics(0);
+    const mat4_t T_C0B = T_BC0.inverse();
     if (nb_cams() >= 2) {
       for (int i = 1; i < nb_cams(); i++) {
-        const mat4_t T_SC0 = extrinsics[0]->tf();
-        const mat4_t T_SCi = extrinsics[i]->tf();
-        const mat4_t T_C0Ci = T_SC0.inverse() * T_SCi;
+        const mat4_t T_BCi = get_cam_extrinsics(i);
+        const mat4_t T_C0Ci = T_C0B * T_BCi;
         const mat4_t T_CiC0 = T_C0Ci.inverse();
 
         fprintf(outfile, "T_cam0_cam%d:\n", i);
@@ -1613,17 +1430,41 @@ struct calib_vi_t {
     fclose(csv);
   }
 
-  void save_extrinsics(const std::string &save_path,
-                       const std::map<int, extrinsics_t *> &extrinsics) {
+  void save_cam_extrinsics(const std::string &save_path) {
+    FILE *csv = fopen(save_path.c_str(), "w");
+    fprintf(csv, "#cam_idx,cam_idx,rx,ry,rz,qw,qx,qy,qz\n");
+
+    const mat4_t T_BC0 = get_cam_extrinsics(0);
+    const mat4_t T_C0B = T_BC0.inverse();
+
+    for (int i = 0; i < nb_cams(); i++) {
+      const mat4_t T_BCi = get_cam_extrinsics(i);
+      const mat4_t T_C0Ci = T_C0B * T_BCi;
+      const vec3_t r = tf_trans(T_C0Ci);
+      const quat_t q = tf_quat(T_C0Ci);
+      fprintf(csv, "0,");      // cam_idx
+      fprintf(csv, "%d,", i);  // cam_idx
+      fprintf(csv, "%f,%f,%f,", r(0), r(1), r(2));
+      fprintf(csv, "%f,%f,%f,%f\n", q.w(), q.x(), q.y(), q.z());
+    }
+    fclose(csv);
+  }
+
+  void save_imu_extrinsics(const std::string &save_path) {
     FILE *csv = fopen(save_path.c_str(), "w");
     fprintf(csv, "#imu_idx,cam_idx,rx,ry,rz,qw,qx,qy,qz\n");
-    for (const auto &kv : extrinsics) {
-      const auto cam_idx = kv.first;
-      const auto T_SC = kv.second;
-      const vec3_t r = T_SC->trans();
-      const quat_t q = T_SC->rot();
-      fprintf(csv, "0,"); // imu_idx
-      fprintf(csv, "%d,", cam_idx); // cam_idx
+
+    const mat4_t T_BS = get_imu_extrinsics();
+    const mat4_t T_SB = T_BS.inverse();
+
+    for (int i = 0; i < nb_cams(); i++) {
+      const mat4_t T_BCi = get_cam_extrinsics(i);
+      const mat4_t T_SCi = T_SB * T_BCi;
+
+      const vec3_t r = tf_trans(T_SCi);
+      const quat_t q = tf_quat(T_SCi);
+      fprintf(csv, "0,");      // imu_idx
+      fprintf(csv, "%d,", i);  // cam_idx
       fprintf(csv, "%f,%f,%f,", r(0), r(1), r(2));
       fprintf(csv, "%f,%f,%f,%f\n", q.w(), q.x(), q.y(), q.z());
     }
@@ -1635,7 +1476,8 @@ struct calib_vi_t {
     save_poses("/tmp/sensor_poses.csv", sensor_poses);
     save_speed_biases("/tmp/sensor_speed_biases.csv", speed_biases);
     save_cameras("/tmp/cameras.csv", cam_params);
-    save_extrinsics("/tmp/extrinsics.csv", extrinsics);
+    save_cam_extrinsics("/tmp/cam_extrinsics.csv");
+    save_imu_extrinsics("/tmp/imu_extrinsics.csv");
     save_pose("/tmp/fiducial_pose.csv", get_fiducial_pose());
   }
 };

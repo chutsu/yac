@@ -357,7 +357,7 @@ int test_calib_stereo_inc_solve() {
     return -1;
   }
 
-  const std::string results_fpath = "/tmp/calib_stereo.yaml";
+  const std::string results_fpath = "/tmp/calib-stereo.yaml";
   printf("\x1B[92m");
   printf("Saving optimization results to [%s]", results_fpath.c_str());
   printf("\033[0m\n");

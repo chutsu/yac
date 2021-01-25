@@ -75,8 +75,8 @@ public:
   // Jacobian of Plus(x, delta) w.r.t delta at delta = 0.
   virtual bool ComputeJacobian(const double *x, double *jacobian) const {
     Eigen::Map<Eigen::Matrix<double, 7, 6, Eigen::RowMajor>> Jp(jacobian);
-
     UNUSED(x);
+
     Jp.topRows<6>().setIdentity();
     Jp.bottomRows<1>().setZero();
 

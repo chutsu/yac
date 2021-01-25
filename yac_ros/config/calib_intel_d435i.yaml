@@ -1,9 +1,6 @@
 ros:
-  # bag: "/data/intel_d435i/imucam-1.bag"
-  # cam0_topic: "/stereo/camera0/image"
-  # cam1_topic: "/stereo/camera1/image"
   bag: "/data/calib_mono.bag"
-  cam0_topic: "/rs/rgb0/image"
+  cam0_topic: "/rs/ir0/image"
 
 settings:
   data_path: "/data/intel_d435i/calib_data"
@@ -23,7 +20,7 @@ cam0:
   dist_model: "radtan4"
   lens_hfov: 69.4
   lens_vfov: 42.5
-  resolution: [640.0, 480.0]
+  resolution: [640, 480]
   rate: 30.0
 
 cam1:
@@ -31,5 +28,5 @@ cam1:
   dist_model: "radtan4"
   lens_hfov: 69.4
   lens_vfov: 42.5
-  resolution: [640.0, 480.0]
+  resolution: [640, 480]
   rate: 30.0

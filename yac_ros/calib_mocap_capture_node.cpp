@@ -192,20 +192,10 @@ int main(int argc, char *argv[]) {
     FATAL("Unsupported target0_topic_type [%s]!", target0_topic_type.c_str());
   }
 
-  // -- Spin for 2 seconds then check if cam0_topic exists
-  for (int i = 0; i < 2; i++) {
-    sleep(1);
-    ros::spinOnce();
-  }
-  if (cam0_sub.getNumPublishers() == 0) {
-    FATAL("No data being published in ros topic [%s]!", cam0_topic.c_str());
-  }
-  if (body0_sub.getNumPublishers() == 0) {
-    FATAL("No data being published in ros topic [%s]!", body0_topic.c_str());
-  }
-  if (target0_sub.getNumPublishers() == 0) {
-    FATAL("No data being published in ros topic [%s]!", target0_topic.c_str());
-  }
+  // -- Double check subscribers are getting data
+  ros_topic_subscribed(cam0_sub, cam0_topic);
+  ros_topic_subscribed(body0_sub, body0_topic);
+  ros_topic_subscribed(target0_sub, target0_topic);
 
   // Setup ROS bag
   bag.open(rosbag_path, rosbag::bagmode::Write);

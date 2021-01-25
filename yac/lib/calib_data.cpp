@@ -57,7 +57,7 @@ int preprocess_camera_data(const calib_target_t &target,
                                 target.tag_spacing};
 
   // Equalizer
-  cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE();
+  // cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE();
 
   #pragma omp parallel for
   for (size_t i = 0; i < image_paths.size(); i++) {

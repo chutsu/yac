@@ -41,11 +41,13 @@ static int save_results(const std::string &save_path,
 int calib_mono_covar(const camera_params_t &cam_params,
                      ceres::Problem &problem,
                      matx_t &covar) {
+  const auto param_data = cam_params.param.data();
+
   std::vector<std::pair<const double *, const double *>> covar_blocks;
-  auto param_data = cam_params.param.data();
   covar_blocks.push_back({param_data, param_data});
 
   ceres::Covariance::Options covar_opts;
+  // covar_opts.algorithm_type = ceres::DENSE_SVD;
   ceres::Covariance covar_est(covar_opts);
   if (covar_est.Compute(covar_blocks, &problem) == false) {
     return -1;
@@ -127,16 +129,15 @@ int calib_mono_solve(const std::string &config_file) {
 
   // Calibrate camera
   LOG_INFO("Calibrating camera!");
-  const mat2_t covar = I(2) * pow(sigma_vision, 2);
-  mat4s_t T_CF;
   std::vector<double> errs;
 
+	calib_mono_data_t data{grids, cam, I(2) * pow(sigma_vision, 2)};
   if (proj_model == "pinhole" && dist_model == "radtan4") {
-    calib_mono_solve<pinhole_radtan4_t>(grids, covar, cam, T_CF);
-    reproj_errors<pinhole_radtan4_t>(grids, cam, T_CF, errs);
+    calib_mono_solve<pinhole_radtan4_t>(data);
+    reproj_errors<pinhole_radtan4_t>(data.grids, data.cam_params, data.poses, errs);
   } else if (proj_model == "pinhole" && dist_model == "equi4") {
-    calib_mono_solve<pinhole_equi4_t>(grids, covar, cam, T_CF);
-    reproj_errors<pinhole_equi4_t>(grids, cam, T_CF, errs);
+    calib_mono_solve<pinhole_equi4_t>(data);
+    reproj_errors<pinhole_equi4_t>(data.grids, data.cam_params, data.poses, errs);
   } else {
     LOG_ERROR("[%s-%s] unsupported!", proj_model.c_str(), dist_model.c_str());
     return -1;

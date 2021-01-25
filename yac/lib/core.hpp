@@ -3530,6 +3530,10 @@ struct pinhole_t : projection_t<DM> {
   }
 
   int back_project(const vec2_t &kp, vec3_t &ray) {
+    return static_cast<const pinhole_t &>(*this).back_project(kp, ray);
+	}
+
+  int back_project(const vec2_t &kp, vec3_t &ray) const {
     const real_t px = (kp(0) - cx()) / fx();
     const real_t py = (kp(1) - cy()) / fy();
     const vec2_t p{px, py};

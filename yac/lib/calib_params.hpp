@@ -68,8 +68,8 @@ struct pose_t : param_t {
   void set_tf(const mat3_t &C, const vec3_t &r);
   void set_tf(const quat_t &q, const vec3_t &r);
   void set_tf(const mat4_t &T);
-  void plus(const vecx_t &dx);
-  void perturb(const int i, const real_t step_size);
+  virtual void plus(const vecx_t &dx) override;
+  virtual void perturb(const int i, const real_t step_size) override;
 };
 
 #define FIDUCIAL_PARAMS_SIZE 2
@@ -113,6 +113,14 @@ struct extrinsics_t : pose_t {
     : pose_t{id_, 0, T, fixed_} {
     this->type = "extrinsics_t";
   }
+  extrinsics_t(const id_t id_, const vec_t<7> &pose, const bool fixed_=false)
+    : pose_t{id_, 0, pose, fixed_} {
+    this->type = "extrinsics_t";
+  }
+
+  mat4_t tf() { return pose_t::tf(); }
+  void plus(const vecx_t &dx) { pose_t::plus(dx); }
+  void perturb(const int i, const real_t step_size) { pose_t::perturb(i, step_size); }
 };
 
 struct landmark_t : param_t {

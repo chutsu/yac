@@ -39,182 +39,7 @@ struct calib_stereo_data_t {
 
 /** Stereo camera calibration residual */
 template <typename CAMERA_TYPE>
-struct calib_stereo_residual_t
-    : public ceres::SizedCostFunction<4, 7, 7, 8, 8> {
-  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-
-  int cam_res_[2] = {0, 0};
-  int tag_id_ = -1;
-  int corner_id = -1;
-  vec3_t r_FFi_{0.0, 0.0, 0.0};
-  vec2_t z_C0_{0.0, 0.0};
-  vec2_t z_C1_{0.0, 0.0};
-
-  const mat2_t covar_;
-  const mat2_t info_;
-  const mat2_t sqrt_info_;
-  mutable matxs_t J_min;
-
-  calib_stereo_residual_t(const int cam_res[2],
-                          const int tag_id,
-                          const int corner_id,
-                          const vec3_t &r_FFi,
-                          const vec2_t &z_C0,
-                          const vec2_t &z_C1,
-                          const mat2_t &covar)
-      : cam_res_{cam_res[0], cam_res[1]},
-        tag_id_{tag_id}, corner_id{corner_id},
-        r_FFi_{r_FFi}, z_C0_{z_C0}, z_C1_{z_C1},
-        covar_{covar},
-        info_{covar.inverse()},
-        sqrt_info_{info_.llt().matrixL().transpose()} {
-    J_min.push_back(zeros(4, 6));  // T_CF
-    J_min.push_back(zeros(4, 6));  // T_C0C1
-    J_min.push_back(zeros(4, 8));  // cam0 params
-    J_min.push_back(zeros(4, 8));  // cam1 params
-  }
-
-  ~calib_stereo_residual_t() {}
-
-  /**
-   * Calculate residual
-   */
-  bool Evaluate(double const * const *params,
-                double *residuals,
-                double **jacobians) const {
-    // Map parameters out
-    // -- Map camera-fiducial pose
-    const mat4_t T_C0F = tf(params[0]);
-    const mat3_t C_C0F = tf_rot(T_C0F);
-    const quat_t q_C0F{C_C0F};
-    // -- Map camera-camera pose
-    const mat4_t T_C1C0 = tf(params[1]);
-    const mat4_t T_C1F = T_C1C0 * T_C0F;
-    const mat3_t C_C1C0 = tf_rot(T_C1C0);
-    const mat3_t C_C1F = tf_rot(T_C1F);
-    const quat_t q_C1F{C_C1F};
-    const quat_t q_C1C0{C_C1C0};
-    // -- Map camera params
-    Eigen::Map<const vecx_t> cam0_params(params[2], 8);
-    Eigen::Map<const vecx_t> cam1_params(params[3], 8);
-
-    // Transform and project point to image plane
-    mat_t<2, 3> cam0_Jh, cam1_Jh;
-    matx_t cam0_J_params, cam1_J_params;
-    vec2_t z_C0_hat, z_C1_hat;
-    bool valid = true;
-    // -- Transform point from fiducial frame to cam0 and cam1
-    const vec3_t r_C0Fi = tf_point(T_C0F, r_FFi_);
-    const vec3_t r_C1Fi = tf_point(T_C1F, r_FFi_);
-    // -- Project point from cam0 frame to cam0 image plane
-    const CAMERA_TYPE cam0{cam_res_, cam0_params};
-    if (cam0.project(r_C0Fi, z_C0_hat, cam0_Jh) != 0) {
-      valid = false;
-    }
-    const vec2_t p_C0{r_C0Fi(0) / r_C0Fi(2), r_C0Fi(1) / r_C0Fi(2)};
-    cam0_J_params = cam0.J_params(p_C0);
-    // -- Project point from cam1 frame to cam1 image plane
-    const CAMERA_TYPE cam1{cam_res_, cam1_params};
-    if (cam1.project(r_C1Fi, z_C1_hat, cam1_Jh) != 0) {
-      valid = false;
-    }
-    const vec2_t p_C1{r_C1Fi(0) / r_C1Fi(2), r_C1Fi(1) / r_C1Fi(2)};
-    cam1_J_params = cam1.J_params(p_C1);
-
-    // Residual
-    Eigen::Map<vec4_t> r(residuals);
-    r.segment<2>(0) = sqrt_info_ * (z_C0_ - z_C0_hat);
-    r.segment<2>(2) = sqrt_info_ * (z_C1_ - z_C1_hat);
-
-    // Jacobians
-    matx_t cam0_Jh_weighted = -1 * sqrt_info_ * cam0_Jh;
-    matx_t cam1_Jh_weighted = -1 * sqrt_info_ * cam1_Jh;
-
-    if (jacobians) {
-      // Jacobians w.r.t T_C0F
-      if (jacobians[0]) {
-        J_min[0].block(0, 0, 2, 3) = cam0_Jh_weighted * I(3);
-        J_min[0].block(0, 3, 2, 3) = cam0_Jh_weighted * -skew(C_C0F * r_FFi_);
-        J_min[0].block(2, 0, 2, 3) = cam1_Jh_weighted * I(3);
-        J_min[0].block(2, 3, 2, 3) = cam1_Jh_weighted * -skew(C_C1F * r_FFi_);
-        if (valid == false) {
-          J_min[0].setZero();
-        }
-
-        // Convert from minimal 2x6 jacobian to full 2x7 jacobian
-        // mat_t<6, 7, row_major_t> J_lift_cam0;
-        // mat_t<6, 7, row_major_t> J_lift_cam1;
-        //
-        // lift_pose_jacobian(q_C0F, J_lift_cam0);
-        // lift_pose_jacobian(q_C1F, J_lift_cam1);
-        //
-        // Eigen::Map<mat_t<4, 7, row_major_t>> J0(jacobians[0]);
-        // J0.block(0, 0, 2, 7) = J_min[0].block(0, 0, 2, 6) * J_lift_cam0;
-        // J0.block(2, 0, 2, 7) = J_min[0].block(2, 0, 2, 6) * J_lift_cam1;
-
-        Eigen::Map<mat_t<4, 7, row_major_t>> J0(jacobians[0]);
-        J0.setZero();
-        J0.block(0, 0, 2, 6) = J_min[0].block(0, 0, 2, 6);
-        J0.block(2, 0, 2, 6) = J_min[0].block(2, 0, 2, 6);
-      }
-
-      // Jacobians w.r.t T_C1C0
-      if (jacobians[1]) {
-        J_min[1].block(0, 0, 2, 6).setZero();
-        J_min[1].block(2, 0, 2, 3) = cam1_Jh_weighted * I(3);
-        J_min[1].block(2, 3, 2, 3) = cam1_Jh_weighted * -skew(C_C1C0 * r_C0Fi);
-        if (valid == false) {
-          J_min[1].setZero();
-        }
-
-        // Convert from minimal 2x6 jacobian to full 2x7 jacobian
-        // mat_t<6, 7, row_major_t> J_lift_cam1;
-        // lift_pose_jacobian(q_C1F, J_lift_cam1);
-        // lift_pose_jacobian(q_C1C0, J_lift_cam1);
-        // Eigen::Map<mat_t<4, 7, row_major_t>> J1(jacobians[1]);
-        // J1.setZero();
-        // J1.block(0, 0, 2, 7).setZero();
-        // J1.block(2, 0, 2, 7) = J_min[1].block(2, 0, 2, 6) * J_lift_cam1;
-
-        Eigen::Map<mat_t<4, 7, row_major_t>> J1(jacobians[1]);
-        J1.setZero();
-        J1.block(0, 0, 2, 7).setZero();
-        J1.block(2, 0, 2, 6) = J_min[1].block(2, 0, 2, 6);
-      }
-
-      // Jacobians w.r.t cam0 params
-      if (jacobians[2]) {
-        J_min[2].block(0, 0, 2, 8) = -1 * sqrt_info_ * cam0_J_params;
-        J_min[2].block(2, 0, 2, 8) = zeros(2, 8);
-        if (valid == false) {
-          J_min[2].setZero();
-        }
-
-        Eigen::Map<mat_t<4, 8, row_major_t>> J2(jacobians[2]);
-        J2 = J_min[2];
-      }
-
-      // Jacobians w.r.t cam1 params
-      if (jacobians[3]) {
-        J_min[3].block(0, 0, 2, 8) = zeros(2, 8);
-        J_min[3].block(2, 0, 2, 8) = -1 * sqrt_info_ * cam1_J_params;
-        if (valid == false) {
-          J_min[3].setZero();
-        }
-
-        Eigen::Map<mat_t<4, 8, row_major_t>> J3(jacobians[3]);
-        J3 = J_min[3];
-      }
-    }
-
-    return true;
-  }
-};
-
-/** Stereo camera calibration residual */
-template <typename CAMERA_TYPE>
-struct reproj_error_with_extrinsics_t
-    : public ceres::SizedCostFunction<2, 7, 7, 8> {
+struct reproj_error_t : public ceres::SizedCostFunction<2, 7, 7, 8> {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
   int cam_index_ = -1;
@@ -227,54 +52,44 @@ struct reproj_error_with_extrinsics_t
   const mat2_t covar_;
   const mat2_t info_;
   const mat2_t sqrt_info_;
-  mutable matxs_t J_min;
 
-  reproj_error_with_extrinsics_t(const int cam_index,
-                                 const int cam_res[2],
-                                 const int tag_id,
-                                 const int corner_idx,
-                                 const vec3_t &r_FFi,
-                                 const vec2_t &z,
-                                 const mat2_t &covar)
+  reproj_error_t(const int cam_index,
+                  const int cam_res[2],
+                  const int tag_id,
+                  const int corner_idx,
+                  const vec3_t &r_FFi,
+                  const vec2_t &z,
+                  const mat2_t &covar)
       : cam_index_{cam_index},
         cam_res_{cam_res[0], cam_res[1]},
         tag_id_{tag_id}, corner_idx_{corner_idx},
         r_FFi_{r_FFi}, z_{z},
         covar_{covar},
         info_{covar.inverse()},
-        sqrt_info_{info_.llt().matrixL().transpose()} {
-    J_min.push_back(zeros(2, 6));  // T_C0F
-    J_min.push_back(zeros(2, 6));  // T_CnC0
-    J_min.push_back(zeros(2, 8));  // cam params
-  }
+        sqrt_info_{info_.llt().matrixL().transpose()} {}
 
   bool Evaluate(double const * const *params,
                 double *residuals,
                 double **jacobians) const {
     // Map parameters out
-    // -- Map camera-fiducial pose
-    const mat4_t T_C0F = tf(params[0]);
-    // -- Map camera-camera pose
-    mat4_t T_CnC0 = tf(params[1]);
-    if (cam_index_ == 0) {
-      T_CnC0 = I(4);
-    }
-    // -- Map camera params
+    const mat4_t T_BF = tf(params[0]);
+    const mat4_t T_BCi = tf(params[1]);
     Eigen::Map<const vecx_t> cam_params(params[2], 8);
 
     // Transform and project point to image plane
     bool valid = true;
     // -- Transform point from fiducial frame to camera-n
-    const vec3_t r_CnFi = tf_point(T_CnC0 * T_C0F, r_FFi_);
+    const mat4_t T_CiB = T_BCi.inverse();
+    const vec3_t r_CiFi = tf_point(T_CiB * T_BF, r_FFi_);
     // -- Project point from camera frame to image plane
     mat_t<2, 3> cam_Jh;
     vec2_t z_hat;
     const CAMERA_TYPE cam{cam_res_, cam_params};
-    if (cam.project(r_CnFi, z_hat, cam_Jh) != 0) {
+    if (cam.project(r_CiFi, z_hat, cam_Jh) != 0) {
       valid = false;
     }
-    const vec2_t p_CnFi{r_CnFi(0) / r_CnFi(2), r_CnFi(1) / r_CnFi(2)};
-    const matx_t cam_J_params = cam.J_params(p_CnFi);
+    const vec2_t p_CiFi{r_CiFi(0) / r_CiFi(2), r_CiFi(1) / r_CiFi(2)};
+    const matx_t cam_J_params = cam.J_params(p_CiFi);
 
     // Residual
     Eigen::Map<vec2_t> r(residuals);
@@ -284,52 +99,42 @@ struct reproj_error_with_extrinsics_t
     const matx_t Jh_weighted = -1 * sqrt_info_ * cam_Jh;
 
     if (jacobians) {
-      // Jacobians w.r.t T_C0F
+      // Jacobians w.r.t T_BF
       if (jacobians[0]) {
-        const mat3_t C_C0F = tf_rot(T_C0F);
-        J_min[0].block(0, 0, 2, 3) = Jh_weighted * I(3);
-        J_min[0].block(0, 3, 2, 3) = Jh_weighted * -skew(C_C0F * r_FFi_);
-        if (valid == false) {
-          J_min[0].setZero();
-        }
+        const mat3_t C_CiB = tf_rot(T_CiB);
+        const mat3_t C_BF = tf_rot(T_BF);
 
-        Eigen::Map<mat_t<2, 7, row_major_t>> J0(jacobians[0]);
-        J0.setZero();
-        J0.block(0, 0, 2, 6) = J_min[0];
+        Eigen::Map<mat_t<2, 7, row_major_t>> J(jacobians[0]);
+        J.setZero();
+        J.block(0, 0, 2, 3) = Jh_weighted * C_CiB * I(3);
+        J.block(0, 3, 2, 3) = Jh_weighted * C_CiB * -skew(C_BF * r_FFi_);
+        if (valid == false) {
+          J.setZero();
+        }
       }
 
-      // Jacobians w.r.t T_CnC0
+      // Jacobians w.r.t T_BCi
       if (jacobians[1]) {
-        if (cam_index_ == 0) {
-          // cam0
-          J_min[1].setZero();
-          Eigen::Map<mat_t<2, 7, row_major_t>> J1(jacobians[1]);
-          J1.setZero();
+        const mat3_t C_CiB = tf_rot(T_CiB);
+        const mat3_t C_BCi = C_CiB.transpose();
+        const vec3_t r_CiFi = tf_point(T_CiB * T_BF, r_FFi_);
 
-        } else {
-          // cam-n
-          const mat3_t C_CnC0 = tf_rot(T_CnC0);
-          J_min[1].block(0, 0, 2, 3) = Jh_weighted * I(3);
-          J_min[1].block(0, 3, 2, 3) = Jh_weighted * -skew(C_CnC0 * r_CnFi);
-          if (valid == false) {
-            J_min[1].setZero();
-          }
-
-          Eigen::Map<mat_t<2, 7, row_major_t>> J1(jacobians[1]);
-          J1.setZero();
-          J1.block(0, 0, 2, 6) = J_min[1];
+        Eigen::Map<mat_t<2, 7, row_major_t>> J(jacobians[1]);
+        J.setZero();
+        J.block(0, 0, 2, 3) = -1 * Jh_weighted * C_CiB * I(3);
+        J.block(0, 3, 2, 3) = -1 * Jh_weighted * C_CiB * -skew(C_BCi * r_CiFi);
+        if (valid == false) {
+          J.setZero();
         }
       }
 
       // Jacobians w.r.t cam params
       if (jacobians[2]) {
-        J_min[2].block(0, 0, 2, 8) = -1 * sqrt_info_ * cam_J_params;
+        Eigen::Map<mat_t<2, 8, row_major_t>> J(jacobians[2]);
+        J.block(0, 0, 2, 8) = -1 * sqrt_info_ * cam_J_params;
         if (valid == false) {
-          J_min[2].setZero();
+          J.setZero();
         }
-
-        Eigen::Map<mat_t<2, 8, row_major_t>> J2(jacobians[2]);
-        J2 = J_min[2];
       }
     }
 
@@ -343,25 +148,25 @@ struct calib_view_t {
   int camera_index = -1;
   aprilgrid_t grid;
   mat2_t covar;
-  pose_t &T_C0F;
-  pose_t &T_C1C0;
+  pose_t &T_BF;
+  pose_t &T_BCi;
   camera_params_t &cam;
 
   std::vector<ceres::ResidualBlockId> res_ids;
-  std::vector<reproj_error_with_extrinsics_t<CAMERA_TYPE> *> cost_fns;
+  std::vector<reproj_error_t<CAMERA_TYPE> *> cost_fns;
 
   calib_view_t(const int camera_index_,
                const aprilgrid_t &grid_,
                const mat2_t &covar_,
                camera_params_t &cam_,
-               pose_t &T_C0F_,
-               pose_t &T_C1C0_)
+               pose_t &T_BF_,
+               pose_t &T_BCi_)
     : camera_index{camera_index_},
       grid{grid_},
       covar{covar_},
       cam{cam_},
-      T_C0F{T_C0F_},
-      T_C1C0{T_C1C0_} {}
+      T_BF{T_BF_},
+      T_BCi{T_BCi_} {}
 
   ~calib_view_t() {
     // for (const auto &cost_fn : cost_fns) {
@@ -420,8 +225,8 @@ static int process_grid(calib_view_t<CAMERA_TYPE> &view,
   const int *cam_res = view.cam.resolution;
   const auto &grid = view.grid;
   auto &cam = view.cam;
-  auto &T_C0F = view.T_C0F;
-  auto &T_C1C0 = view.T_C1C0;
+  auto &T_BF = view.T_BF;
+  auto &T_BCi = view.T_BCi;
 
   std::vector<int> tag_ids;
   std::vector<int> corner_indicies;
@@ -435,19 +240,19 @@ static int process_grid(calib_view_t<CAMERA_TYPE> &view,
     const vec2_t z = keypoints[i];
     const vec3_t r_FFi = object_points[i];
 
-    const auto cost_fn = new reproj_error_with_extrinsics_t<CAMERA_TYPE>{
+    const auto cost_fn = new reproj_error_t<CAMERA_TYPE>{
       cam_idx, cam_res, tag_id, corner_idx, r_FFi, z, covar};
     const auto res_id = problem.AddResidualBlock(cost_fn, // Cost function
                                                  loss,    // Loss function
-                                                 T_C0F.param.data(),
-                                                 T_C1C0.param.data(),
+                                                 T_BF.param.data(),
+                                                 T_BCi.param.data(),
                                                  cam.param.data());
 
     view.res_ids.push_back(res_id);
     view.cost_fns.push_back(cost_fn);
   }
-  problem.SetParameterization(T_C0F.param.data(), &pose_plus);
-  problem.SetParameterization(T_C1C0.param.data(), &pose_plus);
+  problem.SetParameterization(T_BF.param.data(), &pose_plus);
+  problem.SetParameterization(T_BCi.param.data(), &pose_plus);
 
   return 0;
 }
@@ -455,26 +260,21 @@ static int process_grid(calib_view_t<CAMERA_TYPE> &view,
 template <typename CAMERA_TYPE>
 static pose_t estimate_relative_pose(const aprilgrid_t &grid,
                                      const camera_params_t &cam_params,
-                                     const mat4_t &T_C1C0,
+                                     const mat4_t &T_BCi,
                                      id_t &param_counter) {
   const auto ts = grid.timestamp;
-  const int cam_idx = cam_params.cam_index;
   const auto cam_res = cam_params.resolution;
   const vecx_t proj_params = cam_params.proj_params();
   const vecx_t dist_params = cam_params.dist_params();
   const CAMERA_TYPE cam{cam_res, proj_params, dist_params};
 
-  mat4_t rel_pose;
-  if (grid.estimate(cam, rel_pose) != 0) {
+  mat4_t T_CiF;
+  if (grid.estimate(cam, T_CiF) != 0) {
     FATAL("Failed to estimate relative pose!");
   }
 
-  // Return estimated T_C0F
-  if (cam_idx != 0) {
-    const mat4_t T_C0F = T_C1C0.inverse() * rel_pose;
-    return pose_t{param_counter++, ts, T_C0F};
-  }
-  return pose_t{param_counter++, ts, rel_pose};
+  const mat4_t T_BF = T_BCi * T_CiF;
+  return pose_t{param_counter++, ts, T_BF};
 }
 
 /* Calculate reprojection errors */
@@ -482,11 +282,11 @@ template <typename CAMERA_TYPE>
 void calib_residuals(const calib_view_t<CAMERA_TYPE> &view,
                      std::vector<std::pair<double, double>> &r,
                      std::vector<std::pair<int, int>> *tags_meta=nullptr) {
-  const int camera_index = view.camera_index;
   const auto grid = view.grid;
   const auto cam = view.cam;
-  const mat4_t T_C0F = view.T_C0F.tf();
-  const mat4_t T_C1C0 = view.T_C1C0.tf();
+  const mat4_t T_BCi = view.T_BCi.tf();
+  const mat4_t T_BF = view.T_BF.tf();
+  const mat4_t T_CiB = T_BCi.inverse();
 
   std::vector<int> tag_ids;
   std::vector<int> corner_indicies;
@@ -502,15 +302,9 @@ void calib_residuals(const calib_view_t<CAMERA_TYPE> &view,
     const vec3_t r_FFi = object_points[i];
 
     const CAMERA_TYPE cam_geometry(cam.resolution, cam.param);
-    const vec3_t r_C0Fi = tf_point(T_C0F, r_FFi);
+    const vec3_t r_CiFi = tf_point(T_CiB * T_BF, r_FFi);
     vec2_t z_hat;
-    if (camera_index == 0) {
-      cam_geometry.project(r_C0Fi, z_hat);
-    } else if (camera_index == 1) {
-      cam_geometry.project(tf_point(T_C1C0, r_C0Fi), z_hat);
-    } else {
-      FATAL("Invalid camera index [%d]!", camera_index);
-    }
+    cam_geometry.project(r_CiFi, z_hat);
     r.push_back({z(0) - z_hat(0), z(1) - z_hat(1)});
 
     if (tags_meta) {
@@ -524,11 +318,11 @@ template <typename CAMERA_TYPE>
 void reproj_errors(const calib_view_t<CAMERA_TYPE> &view,
                    std::vector<double> &errs,
                    std::vector<std::pair<int, int>> *tags_meta=nullptr) {
-  const int camera_index = view.camera_index;
   const auto grid = view.grid;
   const auto cam = view.cam;
-  const mat4_t T_C0F = view.T_C0F.tf();
-  const mat4_t T_C1C0 = view.T_C1C0.tf();
+  const mat4_t T_BCi = view.T_BCi.tf();
+  const mat4_t T_BF = view.T_BF.tf();
+  const mat4_t T_CiB = T_BCi.inverse();
 
   std::vector<int> tag_ids;
   std::vector<int> corner_indicies;
@@ -544,15 +338,9 @@ void reproj_errors(const calib_view_t<CAMERA_TYPE> &view,
     const vec3_t r_FFi = object_points[i];
 
     const CAMERA_TYPE cam_geometry(cam.resolution, cam.param);
-    const vec3_t r_C0Fi = tf_point(T_C0F, r_FFi);
+    const vec3_t r_CiFi = tf_point(T_CiB * T_BF, r_FFi);
     vec2_t z_hat;
-    if (camera_index == 0) {
-      cam_geometry.project(r_C0Fi, z_hat);
-    } else if (camera_index == 1) {
-      cam_geometry.project(tf_point(T_C1C0, r_C0Fi), z_hat);
-    } else {
-      FATAL("Invalid camera index [%d]!", camera_index);
-    }
+    cam_geometry.project(r_CiFi, z_hat);
 
     const vec2_t r{z - z_hat};
     errs.push_back(r.norm());
@@ -608,21 +396,19 @@ static void show_results(const calib_views_t<CAMERA_TYPE> &cam0_views,
  * Calibrate stereo camera extrinsics and relative pose between cameras. This
  * function assumes that the path to `config_file` is a yaml file of the form:
  */
-template <typename CAMERA_TYPE>
+template <typename T>
 int calib_stereo_solve(const aprilgrids_t &cam0_grids,
                        const aprilgrids_t &cam1_grids,
                        const mat2_t &covar,
                        camera_params_t &cam0,
                        camera_params_t &cam1,
                        mat4_t &T_C1C0) {
-  // Initialize stereo-camera intrinsics and extrinsics
-  // initialize<CAMERA_TYPE>(cam0_grids, cam1_grids, covar, cam0, cam1, T_C1C0);
-  // print_matrix("T_C1C0", T_C1C0);
-
   // Stereo camera calibration Setup
   id_t param_id = 0;
-  T_C1C0 = I(4);
-  pose_t extrinsics{param_id++, 0, T_C1C0};
+  mat4_t T_BC0 = I(4);
+  mat4_t T_BC1 = I(4);
+  pose_t cam0_exts{param_id++, 0, T_BC0};
+  pose_t cam1_exts{param_id++, 1, T_BC1};
   std::map<timestamp_t, pose_t> rel_poses;
 
   // Setup optimization problem
@@ -636,41 +422,35 @@ int calib_stereo_solve(const aprilgrids_t &cam0_grids,
   PoseLocalParameterization pose_plus;
 
   // Process all aprilgrid data
-  calib_views_t<CAMERA_TYPE> cam0_views;
-  calib_views_t<CAMERA_TYPE> cam1_views;
+  calib_views_t<T> views0;
+  calib_views_t<T> views1;
 
   // -- cam0
   for (const auto &grid : cam0_grids) {
-    // Estimate T_C0F and add to parameters to be estimated
+    // Estimate T_BF and add to parameters to be estimated
     const auto ts = grid.timestamp;
-    rel_poses[ts] = estimate_relative_pose<CAMERA_TYPE>(grid, cam0, T_C1C0, param_id);
+    const mat4_t T_BC0 = cam0_exts.tf();
+    rel_poses[ts] = estimate_relative_pose<T>(grid, cam0, T_BC0, param_id);
 
     // Add reprojection factors to problem
-    cam0_views.emplace_back(0, grid, covar, cam0, rel_poses[ts], extrinsics);
-    int retval = process_grid<CAMERA_TYPE>(cam0_views.back(),
-                                           problem,
-                                           pose_plus,
-                                           loss);
-    if (retval != 0) {
+    views0.emplace_back(0, grid, covar, cam0, rel_poses[ts], cam0_exts);
+    if (process_grid<T>(views0.back(), problem, pose_plus, loss) != 0) {
       LOG_ERROR("Failed to add AprilGrid measurements to problem!");
       return -1;
     }
   }
   // -- cam1
   for (const auto &grid : cam1_grids) {
-    // Estimate T_C0F if it does not exist at ts
+    // Estimate T_BF if it does not exist at ts
     const auto ts = grid.timestamp;
+    const mat4_t T_BC1 = cam1_exts.tf();
     if (rel_poses.count(ts) == 0) {
-      rel_poses[ts] = estimate_relative_pose<CAMERA_TYPE>(grid, cam1, T_C1C0, param_id);
+      rel_poses[ts] = estimate_relative_pose<T>(grid, cam1, T_BC1, param_id);
     }
 
     // Add reprojection factors to problem
-    cam1_views.emplace_back(1, grid, covar, cam1, rel_poses[ts], extrinsics);
-    int retval = process_grid<CAMERA_TYPE>(cam1_views.back(),
-                                           problem,
-                                           pose_plus,
-                                           loss);
-    if (retval != 0) {
+    views1.emplace_back(1, grid, covar, cam1, rel_poses[ts], cam1_exts);
+    if (process_grid<T>(views1.back(), problem, pose_plus, loss) != 0) {
       LOG_ERROR("Failed to add AprilGrid measurements to problem!");
       return -1;
     }
@@ -689,24 +469,18 @@ int calib_stereo_solve(const aprilgrids_t &cam0_grids,
   ceres::Solver::Summary summary;
   ceres::Solve(options, &problem, &summary);
   std::cout << summary.FullReport() << std::endl;
-  // std::cout << summary.BriefReport() << std::endl;
   std::cout << std::endl;
 
   // Finish up
-  T_C1C0 = extrinsics.tf();
-  mat4s_t T_C0F;
-  mat4s_t T_C1F;
-  for (auto kv : rel_poses) {
-    auto pose = kv.second;
-    T_C0F.emplace_back(pose.tf());
-    T_C1F.emplace_back(T_C1C0 * pose.tf());
-  }
+  T_BC0 = cam0_exts.tf();
+  T_BC1 = cam1_exts.tf();
+  T_C1C0 = T_BC1.inverse() * T_BC0;
   if (loss) {
     delete loss;
   }
 
   // Show results
-  show_results<CAMERA_TYPE>(cam0_views, cam1_views, T_C1C0);
+  show_results<T>(views0, views1, T_C1C0);
 
   return 0;
 }
@@ -721,79 +495,48 @@ static void initialize(const aprilgrids_t &grids0,
                        mat4_t &T_C1C0) {
   // Initialize camera intrinsics
   // -- cam0
-  LOG_INFO("Calibrating cam0 intrinsics ...");
-  mat4s_t T_C0F;
-  if (calib_mono_solve<CAMERA_TYPE>(grids0, covar, cam0, T_C0F) != 0) {
+  LOG_INFO("Initializing cam0 intrinsics ...");
+  calib_mono_data_t cam0_data{grids0, cam0};
+  if (calib_mono_solve<CAMERA_TYPE>(cam0_data) != 0) {
     FATAL("Failed to calibrate cam0 intrinsics!");
   }
-  // calib_mono_data_t cam0_data;
-  // cam0_data.covar = covar;
-  // cam0_data.grids = grids0;
-  // cam0_data.cam_params = cam0;
-  // if (calib_mono_inc_solve<CAMERA_TYPE>(cam0_data) != 0) {
-  //   FATAL("Failed to calibrate cam0 intrinsics!");
+  // {
+  //   calib_mono_data_t data;
+  //   data.covar = I(2);
+  //   data.cam_params = cam0;
+  //   data.grids = grids0;
+  //
+  //   if (calib_mono_inc_solve<CAMERA_TYPE>(data) != 0) {
+  //     FATAL("Failed to calibrate cam0 intrinsics!");
+  //   }
+  //   cam0 = data.cam_params;
   // }
-  // cam0 = cam0_data.cam_params;
-  // mat4s_t T_C0F = cam0_data.T_CF;
   // -- cam1
-  LOG_INFO("Calibrating cam1 intrinsics ...");
-  mat4s_t T_C1F;
-  if (calib_mono_solve<CAMERA_TYPE>(grids1, covar, cam1, T_C1F) != 0) {
+  LOG_INFO("Initializing cam1 intrinsics ...");
+  calib_mono_data_t cam1_data{grids1, cam1};
+  if (calib_mono_solve<CAMERA_TYPE>(cam1_data) != 0) {
     FATAL("Failed to calibrate cam1 intrinsics!");
   }
-  // calib_mono_data_t cam1_data;
-  // cam1_data.covar = covar;
-  // cam1_data.grids = grids1;
-  // cam1_data.cam_params = cam1;
-  // if (calib_mono_inc_solve<CAMERA_TYPE>(cam1_data) != 0) {
-  //   FATAL("Failed to calibrate cam0 intrinsics!");
-  // }
-  // cam1 = cam1_data.cam_params;
-  // mat4s_t T_C1F = cam1_data.T_CF;
-
-  // // Initialize stereo-camera extrinsics
-  // std::vector<double> rx, ry, rz;
-  // std::vector<double> roll, pitch, yaw;
-  // size_t cam0_idx = 0;
-  // size_t cam1_idx = 0;
-  // size_t k_end = std::min(T_C0F.size(), T_C1F.size());
+  // {
+  //   calib_mono_data_t data;
+  //   data.covar = I(2);
+  //   data.cam_params = cam1;
+  //   data.grids = grids1;
   //
-  // for (size_t k = 0; k < k_end; k++) {
-  //   const auto &grid0 = grids0[cam0_idx];
-  //   const auto &grid1 = grids1[cam1_idx];
-  //
-  //   if (grid0.timestamp == grid1.timestamp) {
-  //     const mat4_t T_C1C0_k = T_C1F[cam1_idx] * T_C0F[cam0_idx].inverse();
-  //     const vec3_t r_C1C0_k = tf_trans(T_C1C0_k);
-  //     const vec3_t rpy_C1C0_k = quat2euler(tf_quat(T_C1C0_k));
-  //
-  //     rx.push_back(r_C1C0_k(0));
-  //     ry.push_back(r_C1C0_k(1));
-  //     rz.push_back(r_C1C0_k(2));
-  //
-  //     roll.push_back(rpy_C1C0_k(0));
-  //     pitch.push_back(rpy_C1C0_k(1));
-  //     yaw.push_back(rpy_C1C0_k(2));
-  //
-  //     cam0_idx++;
-  //     cam1_idx++;
-  //
-  //   } else if (grid0.timestamp > grid1.timestamp) {
-  //     cam1_idx++;
-  //   } else if (grid0.timestamp < grid1.timestamp) {
-  //     cam0_idx++;
+  //   if (calib_mono_inc_solve<CAMERA_TYPE>(data) != 0) {
+  //     FATAL("Failed to calibrate cam0 intrinsics!");
   //   }
+  //   cam1 = data.cam_params;
   // }
-  //
-  // // Take the median and form T_C1C0
-  // const vec3_t r_C1C0{median(rx), median(ry), median(rz)};
-  // const vec3_t rpy_C1C0{median(roll), median(pitch), median(yaw)};
-  // const mat3_t C_C1C0 = euler321(rpy_C1C0);
-  // T_C1C0 = tf(C_C1C0, r_C1C0);
 
+  // Initialize stereo-pair extrinsics
+  LOG_INFO("Initializing cam0-cam1 extrinsics ...");
+	cam0 = cam0_data.cam_params;
+	cam1 = cam1_data.cam_params;
   calib_stereo_solve<CAMERA_TYPE>(grids0, grids1, covar, cam0, cam1, T_C1C0);
 }
 
+/* Filter view */
 template <typename CAMERA_TYPE>
 int filter_view(ceres::Problem &problem,
                 calib_view_t<CAMERA_TYPE> &view,
@@ -860,7 +603,7 @@ int filter_view(ceres::Problem &problem,
   return nb_outliers;
 }
 
-/* Calculate reprojection errors */
+/* Filter views */
 template <typename CAMERA_TYPE>
 int filter_views(ceres::Problem &problem,
                  calib_views_t<CAMERA_TYPE> &views,
@@ -876,7 +619,7 @@ int filter_views(ceres::Problem &problem,
 /* Estimate Stereo Camera Covariance */
 int calib_stereo_covar(camera_params_t &cam0,
                        camera_params_t &cam1,
-                       pose_t &extrinsic,
+                       pose_t &extrinsics,
                        ceres::Problem &problem,
                        matx_t &covar);
 
@@ -896,7 +639,8 @@ static std::vector<int> find_random_indicies(const int attempts,
                                              const aprilgrids_t &grids1,
                                              camera_params_t &cam0,
                                              camera_params_t &cam1,
-                                             pose_t &extrinsics,
+                                             pose_t &cam0_exts,
+                                             pose_t &cam1_exts,
                                              bool verbose=false) {
   id_t param_counter = 0;
   int best_idx = 0;
@@ -915,8 +659,8 @@ static std::vector<int> find_random_indicies(const int attempts,
     std::random_shuffle(std::begin(indicies), std::end(indicies));
 
     // Views
-    calib_views_t<CAMERA_TYPE> cam0_views;
-    calib_views_t<CAMERA_TYPE> cam1_views;
+    calib_views_t<CAMERA_TYPE> views0;
+    calib_views_t<CAMERA_TYPE> views1;
     std::deque<pose_t> rel_poses;
 
     // Evaluate indicies
@@ -935,18 +679,18 @@ static std::vector<int> find_random_indicies(const int attempts,
       rel_poses.emplace_back(param_counter++, ts, T_C0F_);
 
       // Create view
-      cam0_views.emplace_back(0, grid0, covar, cam0, rel_poses.back(), extrinsics);
-      cam1_views.emplace_back(1, grid1, covar, cam1, rel_poses.back(), extrinsics);
+      views0.emplace_back(0, grid0, covar, cam0, rel_poses.back(), cam0_exts);
+      views1.emplace_back(1, grid1, covar, cam1, rel_poses.back(), cam1_exts);
 
-      if (cam0_views.size() > min_views) {
+      if (views0.size() > min_views) {
         break;
       }
     }
 
     std::vector<double> cam0_errs;
     std::vector<double> cam1_errs;
-    reproj_errors(cam0_views, cam0_errs);
-    reproj_errors(cam1_views, cam1_errs);
+    reproj_errors(views0, cam0_errs);
+    reproj_errors(views1, cam1_errs);
 
     if (verbose) {
       printf("[%d]: ", j);
@@ -1033,7 +777,7 @@ int calib_stereo_inc_solve(calib_stereo_data_t &data) {
   // Options
   int random_indicies_attempts = 1000;
   size_t filter_min_views = 20;
-  double filter_stddev = 5.0;
+  double filter_stddev = 3.0;
 
   // Map out the calibration data
   mat2_t &covar = data.covar;
@@ -1062,10 +806,21 @@ int calib_stereo_inc_solve(calib_stereo_data_t &data) {
   ceres::LossFunction *loss = nullptr;
   PoseLocalParameterization pose_plus;
 
+  // // Lock camera intrinsics
+  // problem.AddParameterBlock(cam0.param.data(), 8);
+  // problem.AddParameterBlock(cam1.param.data(), 8);
+  // problem.SetParameterBlockConstant(cam0.param.data());
+  // problem.SetParameterBlockConstant(cam1.param.data());
+
   // Process all aprilgrid data
   id_t param_counter = 0;
   std::deque<pose_t> rel_poses;
-  pose_t extrinsics{param_counter++, 0, T_C1C0};
+  mat4_t T_BC0 = I(4);
+  mat4_t T_BC1 = T_BC0 * T_C1C0.inverse();
+  pose_t cam0_exts{param_counter++, 0, T_BC0};
+  pose_t cam1_exts{param_counter++, 1, T_BC1};
+  problem.AddParameterBlock(cam0_exts.param.data(), 7);
+  problem.SetParameterBlockConstant(cam0_exts.param.data());
   calib_views_t<CAMERA_TYPE> cam0_views;
   calib_views_t<CAMERA_TYPE> cam1_views;
   double info = -1;
@@ -1076,10 +831,12 @@ int calib_stereo_inc_solve(calib_stereo_data_t &data) {
   auto indicies = find_random_indicies<CAMERA_TYPE>(random_indicies_attempts,
                                                     filter_min_views,
                                                     covar, grids0, grids1,
-                                                    cam0, cam1, extrinsics);
+                                                    cam0, cam1,
+                                                    cam0_exts,
+                                                    cam1_exts);
 
   // Incremental solve
-  bool enable_early_stop = true;
+  bool enable_early_stop = false;
   size_t stale_limit = 30;
   size_t stale_counter = 0;
 
@@ -1103,8 +860,8 @@ int calib_stereo_inc_solve(calib_stereo_data_t &data) {
     rel_poses.emplace_back(param_counter++, ts, T_C0F_k);
 
     // Create view
-    cam0_views.emplace_back(0, grid0, covar, cam0, rel_poses.back(), extrinsics);
-    cam1_views.emplace_back(1, grid1, covar, cam1, rel_poses.back(), extrinsics);
+    cam0_views.emplace_back(0, grid0, covar, cam0, rel_poses.back(), cam0_exts);
+    cam1_views.emplace_back(1, grid1, covar, cam1, rel_poses.back(), cam1_exts);
 
     // Add view to problem
     process_grid<CAMERA_TYPE>(cam0_views.back(), problem, pose_plus, loss);
@@ -1137,14 +894,14 @@ int calib_stereo_inc_solve(calib_stereo_data_t &data) {
 
       // Evaluate current view
       matx_t covar;
-      if (calib_stereo_covar(cam0, cam1, extrinsics, problem, covar) == 0) {
+      if (calib_stereo_covar(cam0, cam1, cam1_exts, problem, covar) == 0) {
         const double info_k = covar.trace();
         const double diff = (info - info_k) / info;
 
         if (info < 0) {
           info = info_k;
 
-        } else if (diff > 0.02) {
+        } else if (diff > 0.01) {
           info = info_k;
           stale_counter = 0;
 
@@ -1190,6 +947,9 @@ int calib_stereo_inc_solve(calib_stereo_data_t &data) {
   ceres::Solver::Options options;
   options.minimizer_progress_to_stdout = true;
   options.max_num_iterations = 30;
+  options.function_tolerance = 1e-12;
+  options.gradient_tolerance = 1e-12;
+  options.parameter_tolerance = 1e-12;
   // options.check_gradients = true;
 
   // Final filter before last optimization
@@ -1216,7 +976,9 @@ int calib_stereo_inc_solve(calib_stereo_data_t &data) {
   std::cout << std::endl;
 
   // Update data
-  T_C1C0 = extrinsics.tf();
+  T_BC0 = cam0_exts.tf();
+  T_BC1 = cam1_exts.tf();
+  T_C1C0 = T_BC1.inverse() * T_BC0;
   T_C0F.clear();
   T_C1F.clear();
   for (auto pose : rel_poses) {

@@ -23,24 +23,17 @@ set -e
 #   --network="host" \
 #   -it --rm yac_docker
 
-# tmux send-keys -t dev -R "\
-# cd ~/projects/yac &&
-# make lib_debug &&
-# source ~/catkin_ws/devel/setup.bash &&
-# rosrun --prefix 'gdb -ex run -ex bt -ex quit -args' yac test_calib_vi --target test_calib_vi_sim
-# " C-m
-# exit
-
-# Build YAC
-# cd yac
-# mkdir -p build && cd build && cmake .. -DCMAKE_BUILD_TYPE=Release && make -j4
-
-# cd ~/catkin_ws
-# catkin build -DCMAKE_BUILD_TYPE=Debug yac -j2
-# catkin build -DCMAKE_BUILD_TYPE=Release yac -j2
-# catkin build -DCMAKE_BUILD_TYPE=Release yac yac_ros -j2
+tmux send-keys -t dev -R "\
+cd ~/sync/projects/yac \
+&& make lib \
+&& source ~/catkin_ws/devel/setup.bash \
+&& roslaunch yac_ros calib_mono_nbv.launch
+" C-m
+exit
+# && rosrun yac test_calib_mono --target test_calib_mono_solve
 
 # make
+# make release
 make lib
 # make lib_debug
 # make debug
@@ -51,6 +44,8 @@ source ~/catkin_ws/devel/setup.bash
 
 # --prefix 'gdb -ex run'
 # --prefix 'gdb -ex run -args'
+
+# -- APRILGRID
 # rosrun yac test_aprilgrid --target test_aprilgrid_constructor
 # rosrun yac test_aprilgrid --target test_aprilgrid_grid_index
 # rosrun yac test_aprilgrid --target test_aprilgrid_object_point
@@ -68,13 +63,39 @@ source ~/catkin_ws/devel/setup.bash
 # rosrun yac test_aprilgrid --target test_aprilgrid_detect2
 # rosrun yac test_aprilgrid --target test_aprilgrid_detect3
 
+# -- CALIBRATION DATA
 # rosrun yac test_calib_data
-# rosrun yac test_calib_mocap
-# rosrun yac test_calib_mono
-# rosrun yac test_calib_stereo
 
+# -- MOCAP CALIBRATION
+# rosrun yac test_calib_mocap
+
+# -- MONOCULAR-CAMERA CALIBRATION
+# rosrun yac test_calib_mono
+# rosrun yac test_calib_mono --target calib_mono_solve
+# rosrun yac test_calib_mono --target calib_mono_inc_solve
+
+# -- STEREO-CAMERA CALIBRATION
+# rosrun yac test_calib_stereo
+# rosrun yac test_calib_stereo --target test_reproj_error
 # rosrun yac test_calib_stereo --target test_calib_stereo_solve
 # rosrun yac test_calib_stereo --target test_calib_stereo_inc_solve
+
+# -- VISUAL-INERTIAL CALIBRATION
+# rosrun yac test_calib_vi --target test_reproj_error
+# rosrun yac test_calib_vi --target test_calib_vi_sim
+# rosrun yac test_calib_vi --target test_calib_vi
+
+# -- NBV
+# rosrun yac test_nbv --target test_nbv
+
+
+# -- ROS NODES
+# roslaunch yac_ros calib_capture.launch
+# roslaunch yac_ros calib_mono.launch
+# roslaunch yac_ros calib_stereo.launch
+# roslaunch yac_ros calib_mocap.launch
+# roslaunch yac_ros calib_mono_nbv.launch
+
 
 # gnuplot -p scripts/plots/residuals.gpi
 # gnuplot -p scripts/plots/reprojection_errors.gpi
@@ -87,27 +108,7 @@ source ~/catkin_ws/devel/setup.bash
 # done
 # python3 scripts/analyze_calibs.py
 
-# rosrun yac test_calib_vi --target test_reproj_error
-# rosrun yac test_calib_vi --target test_calib_vi_sim
-rosrun yac test_calib_vi --target test_calib_vi
-# rosrun --prefix 'valgrind' yac test_calib_vi
-# rosrun --prefix 'gdb -ex run -ex bt -ex quit -args' yac test_calib_vi --target test_calib_vi_sim
-# rosrun --prefix 'gdb -ex run -args' yac test_calib_vi
 # octave-cli scripts/octave/plot_biases.m
 # octave-cli scripts/octave/plot_calib_vi.m
 # octave-cli scripts/octave/plot_calib_vi_sim.m
-
 # python3 scripts/analyze_detections.py
-
-# roslaunch yac_ros calib_capture.launch
-# roslaunch yac_ros calib_mono.launch
-# roslaunch yac_ros calib_stereo.launch
-# roslaunch yac_ros calib_mocap.launch
-# rosrun yac_ros calib_mono
-
-# Build tests
-# cd tests
-# ./test_aprilgrid --target
-# ./test_calib_data
-# ./test_calib_mono
-# rosrun yac test_calib_stereo

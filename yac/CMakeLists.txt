@@ -37,6 +37,7 @@ ADD_LIBRARY(
   lib/calib_data.cpp
   lib/calib_mocap.cpp
   lib/calib_mono.cpp
+  lib/calib_nbv.cpp
   lib/calib_params.cpp
   lib/calib_stereo.cpp
   lib/calib_vi.cpp
@@ -67,3 +68,6 @@ TARGET_LINK_LIBRARIES(test_calib_stereo yac ${DEPS})
 
 ADD_EXECUTABLE(test_calib_vi tests/test_calib_vi.cpp)
 TARGET_LINK_LIBRARIES(test_calib_vi yac ${DEPS})
+
+ADD_EXECUTABLE(test_calib_nbv tests/test_calib_nbv.cpp)
+TARGET_LINK_LIBRARIES(test_calib_nbv yac ${DEPS})

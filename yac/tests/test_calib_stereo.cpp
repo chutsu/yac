@@ -1,4 +1,5 @@
 #include "munit.hpp"
+#include "euroc.hpp"
 #include "calib_stereo.hpp"
 
 namespace yac {
@@ -10,130 +11,192 @@ namespace yac {
 #define TARGET_CONFIG TEST_PATH "/test_data/calib/aprilgrid/target.yaml"
 #define CAM0_DATA "/data/euroc/calib/cam_april/mav0/cam0/data"
 #define CAM1_DATA "/data/euroc/calib/cam_april/mav0/cam1/data"
-// #define CAM0_DATA "/data/tum_vi/calib/dataset-calib-cam1_512_16/mav0/cam0/data"
-// #define CAM1_DATA "/data/tum_vi/calib/dataset-calib-cam1_512_16/mav0/cam1/data"
-#define CAM0_GRIDS "/tmp/aprilgrid_test/stereo/cam0"
-#define CAM1_GRIDS "/tmp/aprilgrid_test/stereo/cam1"
+#define CAM0_GRIDS "/data/euroc/calib/cam_april/grid0/cam0"
+#define CAM1_GRIDS "/data/euroc/calib/cam_april/grid0/cam1"
 
-void test_setup() {
-  // Setup calibration target
-  calib_target_t target;
-  if (calib_target_load(target, TARGET_CONFIG) != 0) {
-    FATAL("Failed to load calib target [%s]!", TARGET_CONFIG);
-  }
+struct test_data_t {
+	const std::string data_path = "/data/euroc/calib/cam_april";
+	const std::string grids0_path = data_path + "/grid0/cam0";
+	const std::string grids1_path = data_path + "/grid0/cam1";
+  euroc_calib_t data{data_path};
+  aprilgrids_t grids0;
+  aprilgrids_t grids1;
+};
 
-  // Test preprocess data
-  if (preprocess_camera_data(target, CAM0_DATA, CAM0_GRIDS) != 0) {
-    FATAL("Failed to preprocess cam0 data!");
-  }
-  if (preprocess_camera_data(target, CAM1_DATA, CAM1_GRIDS) != 0) {
-    FATAL("Failed to preprocess cam1 data!");
-  }
+test_data_t setup_test_data() {
+	test_data_t test_data;
+	LOG_INFO("Loading EuRoC data [%s]", test_data.data_path.c_str());
+
+	// preprocess aprilgrids
+	LOG_INFO("Preprocessing AprilGrid data ...");
+	aprilgrid_detector_t detector{6, 6, 0.088, 0.3};
+	const auto grids0_path = test_data.grids0_path;
+	const auto grids1_path = test_data.grids1_path;
+	if (system(("mkdir -p " + grids0_path).c_str()) != 0) {
+		FATAL("Failed to create dir [%s]", grids0_path.c_str());
+	}
+	if (system(("mkdir -p " + grids1_path).c_str()) != 0) {
+		FATAL("Failed to create dir [%s]", grids1_path.c_str());
+	}
+
+	auto timeline = test_data.data.timeline();
+	size_t i = 0;
+	for (const auto &ts : timeline.timestamps) {
+		if (i++ % 100 == 0) {
+			printf(".");
+			fflush(stdout);
+		}
+
+		const auto kv = timeline.data.equal_range(ts);
+		for (auto it = kv.first; it != kv.second; it++) {
+			const auto event = it->second;
+			if (event.type == CAMERA_EVENT) {
+				const auto ts = event.ts;
+				const int cam_idx = event.camera_index;
+				const cv::Mat image = cv::imread(event.image_path);
+				const auto grid_fname = std::to_string(ts) + ".csv";
+
+        std::string grid_file;
+				if (cam_idx == 0) {
+          grid_file = grids0_path + "/" + grid_fname;
+        } else if (cam_idx == 1) {
+          grid_file = grids1_path + "/" + grid_fname;
+        }
+
+        aprilgrid_t grid;
+        if (file_exists(grid_file) == false) {
+					grid = detector.detect(event.ts, image);
+					grid.save(grid_file);
+        } else {
+          grid.load(grid_file);
+        }
+
+        switch (cam_idx) {
+        case 0: test_data.grids0.push_back(grid); break;
+        case 1: test_data.grids1.push_back(grid); break;
+        }
+			}
+		}
+	}
+	printf("\n");
+
+	return test_data;
 }
 
-// int test_calib_stereo_residual() {
-//   // Setup intrinsic and distortion initialization
-//   const int img_w = 752;
-//   const int img_h = 480;
-//   const int cam_res[2] = {img_w, img_h};
-//   const double lens_hfov = 98.0;
-//   const double lens_vfov = 73.0;
-//   // -- cam0 intrinsics and distortion
-//   const double cam0_fx = pinhole_focal(img_w, lens_hfov);
-//   const double cam0_fy = pinhole_focal(img_h, lens_vfov);
-//   const double cam0_cx = img_w / 2.0;
-//   const double cam0_cy = img_h / 2.0;
-//   const vec4_t cam0_proj_params{cam0_fx, cam0_fy, cam0_cx, cam0_cy};
-//   const vec4_t cam0_dist_params{0.01, 0.0001, 0.0001, 0.0001};
-//   camera_params_t cam0{0, 0, cam_res,
-//                        "pinhole", "radtan4",
-//                        cam0_proj_params, cam0_dist_params};
-//   // -- cam1 intrinsics and distortion
-//   const double cam1_fx = pinhole_focal(img_w, lens_hfov);
-//   const double cam1_fy = pinhole_focal(img_h, lens_vfov);
-//   const double cam1_cx = img_w / 2.0;
-//   const double cam1_cy = img_h / 2.0;
-//   const vec4_t cam1_proj_params{cam1_fx, cam1_fy, cam1_cx, cam1_cy};
-//   const vec4_t cam1_dist_params{0.01, 0.0001, 0.0001, 0.0001};
-//   camera_params_t cam1{1, 1, cam_res,
-//                        "pinhole", "radtan4",
-//                        cam1_proj_params, cam1_dist_params};
-//
-//   // Setup cam0 cam1 extrinsics
-//   // clang-format off
-//   mat4_t T_C1C0;
-//   T_C1C0 << 0.999997256477881, 0.002312067192424, 0.000376008102415, -0.110073808127187,
-//             -0.002317135723281, 0.999898048506644, 0.014089835846648, 0.000399121547014,
-//             -0.000343393120525, -0.014090668452714, 0.999900662637729, -0.000853702503357,
-//             0.0, 0.0, 0.0, 1.0;
-//   const pose_t extrinsics{0, 0, T_C1C0};
-//   // clang-format on
-//
-//   // Test load
-//   const std::vector<std::string> data_dirs = {CAM0_GRIDS, CAM1_GRIDS};
-//   std::map<int, aprilgrids_t> grids;
-//   if (load_multicam_calib_data(2, data_dirs, grids) != 0) {
-//     LOG_ERROR("Failed to local calibration data!");
-//     return -1;
-//   }
-//   MU_CHECK(grids[0].size() > 0);
-//   MU_CHECK(grids[0][0].ids.size() > 0);
-//   MU_CHECK(grids.size() > 0);
-//   MU_CHECK(grids[1][0].ids.size() > 0);
-//   MU_CHECK(grids[0].size() == grids[1].size());
-//
-//   // Estimate initial guess for grid poses
-//   mat4s_t T_C0F;
-//   for (auto &grid : grids[0]) {
-//     mat4_t rel_pose;
-//     aprilgrid_calc_relative_pose(grid, cam0_proj_params, cam0_dist_params, rel_pose);
-//     T_C0F.push_back(rel_pose);
-//   }
-//
-//   // Measurement covariance matrix
-//   mat2_t covar = pow(1, 2) * I(2);
-//
-//   for (size_t i = 0; i < grids[0].size(); i++) {
-//     // AprilGrid, keypoint and relative pose observed in cam0
-//     const auto &cam0_kp = grids[0][i].keypoints[0];
-//     const pose_t rel_pose{0, 0, T_C0F[i]};
-//
-//     // AprilGrid, keypoint and relative pose observed in cam1
-//     const auto &cam1_kp = grids[1][i].keypoints[0];
-//
-//     // Tag id and corner id
-//     const int tag_id = grids[0][i].ids[0];
-//     const int corner_id = 0;
-//
-//     // Form residual and call the functor
-//     // -- Get the object point
-//     vec3_t r_FFi;
-//     if (aprilgrid_object_point(grids[0][i], tag_id, corner_id, r_FFi) != 0) {
-//       LOG_ERROR("Failed to calculate AprilGrid object point!");
-//     }
-//     // -- Form residual
-//     const calib_stereo_residual_t<pinhole_radtan4_t> residual{
-//       cam_res, tag_id, corner_id, r_FFi, cam0_kp, cam1_kp, covar};
-//
-//     // Calculate residual
-//     vec4_t r{0.0, 0.0, 0.0, 0.0};
-//     std::vector<const double *> params{rel_pose.param.data(),
-//                                        extrinsics.param.data(),
-//                                        cam0.param.data(),
-//                                        cam1.param.data()};
-//     residual.Evaluate(params.data(), r.data(), nullptr);
-//
-//     // Just some arbitrary test to make sure reprojection error is not larger
-//     // than 300pixels in x or y direction. But often this can be the case ...
-//     // print_vector("r", r);
-//     MU_CHECK(fabs(r(0)) > 0.0);
-//     MU_CHECK(fabs(r(1)) > 0.0);
-//     MU_CHECK(fabs(r(2)) > 0.0);
-//     MU_CHECK(fabs(r(3)) > 0.0);
-//   }
-//
-//   return 0;
-// }
+int test_reproj_error() {
+  test_data_t test_data = setup_test_data();
+
+  aprilgrid_t grid;
+  for (size_t i = 0; i < test_data.grids0.size(); i++) {
+    if (test_data.grids0[i].detected) {
+      grid = test_data.grids0[i];
+      break;
+    }
+  }
+
+  std::vector<int> tag_ids;
+  std::vector<int> corner_indicies;
+  vec2s_t keypoints;
+  vec3s_t object_points;
+  grid.get_measurements(tag_ids, corner_indicies, keypoints, object_points);
+
+  id_t param_id = 0;
+  const int cam0_idx = 0;
+  const int cam0_res[2] = {752, 480};
+  const std::string cam0_proj_model = "pinhole";
+  const std::string cam0_dist_model = "radtan4";
+  const vec4_t proj_params{458.654, 457.296, 367.215, 248.375};
+  const vec4_t dist_params{-0.28340811, 0.07395907, 0.00019359, 1.76187114e-05};
+  camera_params_t cam_params{param_id++, cam0_idx, cam0_res,
+                             cam0_proj_model, cam0_dist_model,
+                             proj_params, dist_params};
+  const pinhole_radtan4_t cam{cam0_res, proj_params, dist_params};
+
+  mat4_t T_CiF;
+  if (grid.estimate(cam, T_CiF) != 0) {
+    FATAL("Failed to estimate relative pose!");
+  }
+
+  mat4_t T_BCi = I(4);
+  mat4_t T_BF = T_BCi * T_CiF;
+  pose_t cam_extrinsics{param_id++, grid.timestamp, T_BCi};
+  pose_t rel_pose{param_id++, grid.timestamp, T_BF};
+
+  reproj_error_t<pinhole_radtan4_t> err(cam0_idx, cam0_res,
+                                        tag_ids[1],
+                                        corner_indicies[1],
+                                        object_points[1],
+                                        keypoints[1],
+                                        I(2));
+
+  std::vector<double *> params = {
+    rel_pose.param.data(),
+    cam_extrinsics.param.data(),
+    cam_params.param.data(),
+  };
+  vec2_t r;
+
+  Eigen::Matrix<double, 2, 7, Eigen::RowMajor> J0;
+  Eigen::Matrix<double, 2, 7, Eigen::RowMajor> J1;
+  Eigen::Matrix<double, 2, 8, Eigen::RowMajor> J2;
+  std::vector<double *> jacobians = {J0.data(), J1.data(), J2.data()};
+
+  // Baseline
+  err.Evaluate(params.data(), r.data(), jacobians.data());
+  print_vector("r", r);
+
+  double step = 1e-8;
+  double threshold = 1e-4;
+
+  // -- Test relative pose T_BF jacobian
+  {
+    mat_t<2, 6> fdiff;
+
+    for (int i = 0; i < 6; i++) {
+      vec2_t r_fd;
+      rel_pose.perturb(i, step);
+      err.Evaluate(params.data(), r_fd.data(), nullptr);
+      fdiff.col(i) = (r_fd - r) / step;
+      rel_pose.perturb(i, -step);
+    }
+
+    const mat_t<2, 6> J0_min = J0.block(0, 0, 2, 6);
+    MU_CHECK(check_jacobian("J0", fdiff, J0_min, threshold, true) == 0);
+  }
+
+  // -- Test cam extrinsics T_BCi jacobian
+  {
+    mat_t<2, 6> fdiff;
+
+    for (int i = 0; i < 6; i++) {
+      vec2_t r_fd;
+      cam_extrinsics.perturb(i, step);
+      err.Evaluate(params.data(), r_fd.data(), nullptr);
+      fdiff.col(i) = (r_fd - r) / step;
+      cam_extrinsics.perturb(i, -step);
+    }
+
+    const mat_t<2, 6> J1_min = J1.block(0, 0, 2, 6);
+    MU_CHECK(check_jacobian("J1", fdiff, J1_min, threshold, true) == 0);
+  }
+
+  // -- Test camera-parameters jacobian
+  {
+    mat_t<2, 8> fdiff;
+
+    for (int i = 0; i < 8; i++) {
+      vec2_t r_fd;
+      cam_params.perturb(i, step);
+      err.Evaluate(params.data(), r_fd.data(), nullptr);
+      fdiff.col(i) = (r_fd - r) / step;
+      cam_params.perturb(i, -step);
+    }
+
+    MU_CHECK(check_jacobian("J2", fdiff, J2, threshold, true) == 0);
+  }
+
+  return 0;
+}
 
 int test_calib_stereo_solve() {
   // Setup cameras
@@ -453,8 +516,7 @@ int test_calib_stereo_inc_solve() {
 }
 
 void test_suite() {
-  test_setup();
-  // MU_ADD_TEST(test_calib_stereo_residual);
+  MU_ADD_TEST(test_reproj_error);
   MU_ADD_TEST(test_calib_stereo_solve);
   MU_ADD_TEST(test_calib_stereo_inc_solve);
 }

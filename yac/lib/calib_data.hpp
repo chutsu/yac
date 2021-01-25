@@ -4,10 +4,13 @@
 #include <string>
 #include <thread>
 
+#include <ceres/ceres.h>
 #include <opencv2/calib3d/calib3d.hpp>
 
 #include "core.hpp"
 #include "aprilgrid.hpp"
+#include "ceres_utils.hpp"
+#include "calib_params.hpp"
 
 namespace yac {
 
@@ -22,6 +25,16 @@ struct calib_target_t {
   real_t tag_spacing = 0.0;
 
   calib_target_t() {}
+  calib_target_t(const std::string target_type_,
+                 const int tag_rows_,
+                 const int tag_cols_,
+                 const real_t tag_size_,
+                 const real_t tag_spacing_)
+    : target_type{target_type_},
+      tag_rows{tag_rows_},
+      tag_cols{tag_cols_},
+      tag_size{tag_size_},
+      tag_spacing{tag_spacing_} {}
   ~calib_target_t() {}
 };
 
@@ -32,6 +45,40 @@ struct calib_target_t {
 int calib_target_load(calib_target_t &ct,
                       const std::string &target_file,
                       const std::string &prefix = "");
+
+// /* Calib data */
+// struct calib_data_t {
+// 	ceres::Problem::Options prob_options;
+// 	ceres::Problem *problem;
+//   PoseLocalParameterization pose_plus;
+//
+//   aprilgrids_t grids;
+//   std::map<int, camera_params_t> cam_params;
+//   std::deque<pose_t> poses;
+//   mat2_t covar = I(2);
+//
+// 	calib_data_t() {}
+//
+// 	calib_data_t(const aprilgrids_t &grids_,
+// 							 const std::map<int, camera_params_t> &cam_params_,
+// 					 	 	 const mat2_t covar_=I(2))
+// 			: grids{grids_}, cam_params{cam_params_}, covar{covar_} {
+// 		prob_options.local_parameterization_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
+// 		prob_options.cost_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
+// 		prob_options.enable_fast_removal = true;
+// 		problem = new ceres::Problem(prob_options);
+// 	}
+//
+// 	~calib_data_t() {
+// 		delete problem;
+// 	}
+//
+// 	void reset() {
+//     delete problem;
+// 		problem = new ceres::Problem(prob_options);
+// 		poses.clear();
+// 	}
+// };
 
 /**
  * Preprocess camera image data and output AprilGrid detection data as

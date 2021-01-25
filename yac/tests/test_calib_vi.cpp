@@ -74,12 +74,11 @@ test_data_t setup_test_data() {
 	return test_data;
 }
 
-int test_reproj_error() {
+int test_reproj_error_td() {
   test_data_t test_data = setup_test_data();
 
   auto grid_i = test_data.grids0[1];
   auto grid_j = test_data.grids0[2];
-
 
   std::vector<int> tag_ids;
   std::vector<int> corner_indicies;
@@ -135,7 +134,7 @@ int test_reproj_error() {
   const vec4_t proj_params{458.654, 457.296, 367.215, 248.375};
   const vec4_t dist_params{-0.28340811, 0.07395907, 0.00019359, 1.76187114e-05};
 
-  reproj_error_t<pinhole_radtan4_t> err(ts_i, ts_j, res,
+  reproj_error_td_t<pinhole_radtan4_t> err(ts_i, ts_j, res,
                                         tag_id, corner_idx,
                                         r_FFi, z_i, z_j, T_WF,
                                         covar);
@@ -669,33 +668,27 @@ struct sim_data_t {
 int test_calib_vi() {
   test_data_t test_data = setup_test_data();
 
-  config_t config{"/tmp/calib-stereo.yaml"};
-
-  vec4_t cam0_proj_params;
-  vec4_t cam0_dist_params;
-  vec4_t cam1_proj_params;
-  vec4_t cam1_dist_params;
+  // vec4_t cam0_proj_params;
+  // vec4_t cam0_dist_params;
+  // vec4_t cam1_proj_params;
+  // vec4_t cam1_dist_params;
   mat4_t T_C1C0;
-  parse(config, "cam0.proj_params", cam0_proj_params);
-  parse(config, "cam0.dist_params", cam0_dist_params);
-  parse(config, "cam1.proj_params", cam1_proj_params);
-  parse(config, "cam1.dist_params", cam1_dist_params);
-  parse(config, "cam1.dist_params", cam1_dist_params);
-  parse(config, "cam1.dist_params", cam1_dist_params);
-  parse(config, "T_cam1_cam0", T_C1C0);
+  // config_t config{"/tmp/calib-stereo.yaml"};
+  // parse(config, "cam0.proj_params", cam0_proj_params);
+  // parse(config, "cam0.dist_params", cam0_dist_params);
+  // parse(config, "cam1.proj_params", cam1_proj_params);
+  // parse(config, "cam1.dist_params", cam1_dist_params);
+  // parse(config, "T_cam1_cam0", T_C1C0);
 
   // Camera parameters
   const int res[2] = {752, 480};
   const std::string proj_model = "pinhole";
   const std::string dist_model = "radtan4";
-  // vec4_t cam0_proj_params{458.501070, 457.166661, 366.159110, 248.254996};
-  // vec4_t cam0_dist_params{-0.287362, 0.078245, 0.000138, 0.000161};
-  // vec4_t cam1_proj_params{457.001386, 455.589963, 378.700593, 255.177674};
-  // vec4_t cam1_dist_params{-0.283609, 0.074904, -0.000109, 0.000191};
-  // vec4_t cam0_proj_params{458.654, 457.296, 367.215, 248.375};
-  // vec4_t cam0_dist_params{-0.28340811, 0.07395907, 0.00019359, 1.76187114e-05};
-  // vec4_t cam1_proj_params{457.587, 456.134, 379.999, 255.238};
-  // vec4_t cam1_dist_params{-0.28368365, 0.07451284, -0.00010473, -3.55590700e-05};
+  // -- Euroc Calibration values
+  vec4_t cam0_proj_params{458.654, 457.296, 367.215, 248.375};
+  vec4_t cam0_dist_params{-0.28340811, 0.07395907, 0.00019359, 1.76187114e-05};
+  vec4_t cam1_proj_params{457.587, 456.134, 379.999, 255.238};
+  vec4_t cam1_dist_params{-0.28368365, 0.07451284, -0.00010473, -3.55590700e-05};
 
   // Imu parameters
 	imu_params_t imu_params;
@@ -721,22 +714,19 @@ int test_calib_vi() {
           0.0, 0.0, 1.0, 0.0,
           0.0, 0.0, 0.0, 1.0;
 
-	// mat4_t T_C1C0;
-  // T_C1C0 << 0.999997, 0.002169, 0.001346, -0.109879,
-  //           -0.002187, 0.999904, 0.013663, 0.000449,
-  //           -0.001316, -0.013665, 0.999906, -0.000519,
-  //           0.000000, 0.000000, 0.000000, 1.000000;
-
-  // T_C1C0 <<
-  //   0.9999974701644498, 0.0021884139449403514, 0.0005201048918672039, -0.1100012566471072,
-  //   -0.0021954044924587, 0.9999017667868475, 0.013843300749753302, 0.0003982856283741581,
-  //   -0.0004897589278877378, -0.01384440756909514, 0.9999040416536209, -0.0006798947250089537,
-  //   0.0, 0.0, 0.0, 1.0;
-  // T_C1C0 <<
-  //   0.999997, 0.002255, 0.000232, -0.109904,
-  //   -0.002258, 0.999900, 0.013952, 0.000429,
-  //   -0.000200, -0.013952, 0.999903, -0.000324,
-  //   0.000000, 0.000000, 0.000000, 1.000000;
+  // -- Euroc Calibration values
+  mat4_t T_imu0_cam0;
+  T_imu0_cam0 << 0.0148655429818, -0.999880929698, 0.00414029679422, -0.0216401454975,
+                 0.999557249008, 0.0149672133247, 0.025715529948, -0.064676986768,
+                 -0.0257744366974, 0.00375618835797, 0.999660727178, 0.00981073058949,
+                 0.0, 0.0, 0.0, 1.0;
+  mat4_t T_imu0_cam1;
+  T_imu0_cam1 << 0.0125552670891, -0.999755099723, 0.0182237714554, -0.0198435579556,
+                 0.999598781151, 0.0130119051815, 0.0251588363115, 0.0453689425024,
+                 -0.0253898008918, 0.0179005838253, 0.999517347078, 0.00786212447038,
+                 0.0, 0.0, 0.0, 1.0;
+  T_C1C0 = T_imu0_cam1.inverse() * T_imu0_cam0;
+  print_matrix("T_C1C0", T_C1C0);
 
 	mat4_t T_BC1 = T_BC0 * T_C1C0.inverse();
 
@@ -774,7 +764,6 @@ int test_calib_vi() {
 				calib.add_measurement(cam_idx, grid);
 
 			} else if (event.type == IMU_EVENT) {
-				// printf("imu\n");
 				const auto ts = event.ts;
 				const vec3_t a_m = event.a_m;
 				const vec3_t w_m = event.w_m;
@@ -789,7 +778,7 @@ int test_calib_vi() {
 }
 
 void test_suite() {
-  MU_ADD_TEST(test_reproj_error);
+  MU_ADD_TEST(test_reproj_error_td);
   // MU_ADD_TEST(test_imu_propagate);
   // MU_ADD_TEST(test_calib_vi_sim);
   MU_ADD_TEST(test_calib_vi);

@@ -18,11 +18,11 @@ namespace yac {
 
 template <typename CAMERA_TYPE>
 #if FIDUCIAL_PARAMS_SIZE == 2
-struct reproj_error_t : public ceres::SizedCostFunction<2, 2, 7, 7, 7, 8, 1> {
+struct reproj_error_td_t : public ceres::SizedCostFunction<2, 2, 7, 7, 7, 8, 1> {
 #elif FIDUCIAL_PARAMS_SIZE == 3
-struct reproj_error_t : public ceres::SizedCostFunction<2, 3, 7, 7, 7, 8, 1> {
+struct reproj_error_td_t : public ceres::SizedCostFunction<2, 3, 7, 7, 7, 8, 1> {
 #elif FIDUCIAL_PARAMS_SIZE == 7
-struct reproj_error_t : public ceres::SizedCostFunction<2, 7, 7, 7, 7, 8, 1> {
+struct reproj_error_td_t : public ceres::SizedCostFunction<2, 7, 7, 7, 7, 8, 1> {
 #endif
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 
@@ -41,16 +41,16 @@ struct reproj_error_t : public ceres::SizedCostFunction<2, 7, 7, 7, 7, 8, 1> {
   const mat2_t info_;
   const mat2_t sqrt_info_;
 
-  reproj_error_t(const timestamp_t &ts_i,
-                 const timestamp_t &ts_j,
-                 const int cam_res[2],
-                 const int tag_id,
-                 const int corner_idx,
-                 const vec3_t &r_FFi,
-                 const vec2_t &z_i,
-                 const vec2_t &z_j,
-                 const mat4_t &T_WF,
-                 const mat2_t &covar)
+  reproj_error_td_t(const timestamp_t &ts_i,
+                    const timestamp_t &ts_j,
+                    const int cam_res[2],
+                    const int tag_id,
+                    const int corner_idx,
+                    const vec3_t &r_FFi,
+                    const vec2_t &z_i,
+                    const vec2_t &z_j,
+                    const mat4_t &T_WF,
+                    const mat2_t &covar)
       : ts_i_{ts_i}, ts_j_{ts_j},
         cam_res_{cam_res[0], cam_res[1]},
         tag_id_{tag_id}, corner_idx_{corner_idx},
@@ -66,7 +66,7 @@ struct reproj_error_t : public ceres::SizedCostFunction<2, 7, 7, 7, 7, 8, 1> {
     assert(corner_idx_ >= 0);
   }
 
-  ~reproj_error_t() {}
+  ~reproj_error_td_t() {}
 
   bool Evaluate(double const * const *params,
                 double *residuals,
@@ -180,16 +180,14 @@ struct reproj_error_t : public ceres::SizedCostFunction<2, 7, 7, 7, 7, 8, 1> {
         const mat3_t C_CiS = tf_rot(T_CiB * T_BS);
         const mat3_t C_WS = tf_rot(T_WS);
         const mat3_t C_SW = C_WS.transpose();
+        const mat3_t C_CiW = C_CiS * C_SW;
         const mat4_t T_SW = T_WS.inverse();
-
-        // const vec3_t r_WS = tf_trans(T_WS);
-        // const vec3_t r_WFi = tf_point(T_WF, r_FFi_);
         const vec3_t r_SFi = tf_point(T_SW * T_WF, r_FFi_);
 
         Eigen::Map<mat_t<2, 7, row_major_t>> J(jacobians[1]);
         J.setZero();
-        J.block(0, 0, 2, 3) = -1 * Jh_weighted * -C_CiS * C_SW;
-        J.block(0, 3, 2, 3) = -1 * Jh_weighted * -C_CiS * C_SW * -skew(C_WS * r_SFi);
+        J.block(0, 0, 2, 3) = -1 * Jh_weighted * -C_CiW * I(3);
+        J.block(0, 3, 2, 3) = -1 * Jh_weighted * -C_CiW * -skew(C_WS * r_SFi);
         if (valid == false) {
           J.setZero();
         }
@@ -635,7 +633,7 @@ struct calib_vi_t {
     time_delay_t *time_delay = nullptr;
 
 		std::vector<ceres::ResidualBlockId> reproj_error_ids;
-		std::vector<reproj_error_t<CAMERA_TYPE> *> reproj_errors;
+		std::vector<reproj_error_td_t<CAMERA_TYPE> *> reproj_errors;
 
 		calib_view_t(ceres::Problem *problem_,
 		 		 	 	 	 	 const int cam_idx_,
@@ -655,7 +653,7 @@ struct calib_vi_t {
 				time_delay{time_delay_} {}
 
 		void add(const ceres::ResidualBlockId &id,
-						 reproj_error_t<CAMERA_TYPE> *err) {
+						 reproj_error_td_t<CAMERA_TYPE> *err) {
 			reproj_error_ids.push_back(id);
 			reproj_errors.push_back(err);
 		}
@@ -784,7 +782,7 @@ struct calib_vi_t {
   }
 
   void add_speed_biases(const timestamp_t ts, const vec_t<9> &sb) {
-    speed_biases.push_back(new sb_params_t{new_param_id++, ts, sb});
+    speed_biases.push_back(new sb_params_t(new_param_id++, ts, sb));
     problem->AddParameterBlock(speed_biases.back()->param.data(), 9);
   }
 
@@ -936,7 +934,7 @@ struct calib_vi_t {
       const vec2_t z_j = grid_j_keypoints[i];
       const vec3_t r_FFi = object_points[i];
 
-      auto error = new reproj_error_t<pinhole_radtan4_t>(ts_i, ts_j,
+      auto error = new reproj_error_td_t<pinhole_radtan4_t>(ts_i, ts_j,
                                                          cam_res,
                                                          tag_id,
                                                          corner_idx,
@@ -1052,9 +1050,6 @@ struct calib_vi_t {
     initialized = true;
     trim_imu_data(imu_buf, ts);  // Remove imu measurements up to ts
     update_prev_grids(grids);
-    // for (int i = 0; i < nb_cams(); i++) {
-    //   add_reproj_errors(i, grids[i]);
-    // }
   }
 
   void add_state(const timestamp_t &ts, const aprilgrids_t &grids) {

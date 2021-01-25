@@ -1,5 +1,5 @@
 ros:
-  bag: "/data/euroc_mav/calib/cam_april.bag"
+  bag: "/data/euroc/rosbags/cam_april.bag"
   cam0_topic: "/cam0/image_raw"
   cam1_topic: "/cam1/image_raw"
 

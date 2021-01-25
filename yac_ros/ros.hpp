@@ -161,6 +161,27 @@ std::string ros_node_name(int argc, char *argv[]) {
   FATAL("Failed to find node name?");
 }
 
+void ros_topic_subscribed(const ros::Subscriber &sub,
+                          const std::string &topic) {
+  // First check if subscriber connected with any publishers.
+  if (sub.getNumPublishers() > 0) {
+    return;
+  }
+
+  // Spin for 2 seconds
+  for (int i = 0; i < 2; i++) {
+    sleep(1);
+    ros::spinOnce();
+  }
+
+  // Check again
+  if (sub.getNumPublishers() == 0) {
+    FATAL("No data detected in ros topic [%s]!", topic.c_str());
+  } else {
+    LOG_INFO("Subscribed to ros topic [%s]", topic.c_str());
+  }
+}
+
 struct ros_node_t {
   bool configured_ = false;
   bool debug_mode_ = false;

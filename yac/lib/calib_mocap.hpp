@@ -191,11 +191,11 @@ struct calib_mocap_data_t {
         }
 
         int retval = 0;
-        mat4s_t T_CF;
+        calib_mono_data_t data{cam0_grids, this->cam0};
         if (proj_model == "pinhole" && dist_model == "radtan4") {
-          calib_mono_solve<pinhole_radtan4_t>(cam0_grids, covar, this->cam0, T_CF);
+          calib_mono_solve<pinhole_radtan4_t>(data);
         } else if (proj_model == "pinhole" && dist_model == "equi4") {
-          calib_mono_solve<pinhole_equi4_t>(cam0_grids, covar, this->cam0, T_CF);
+          calib_mono_solve<pinhole_equi4_t>(data);
         } else {
           FATAL("Unsupported [%s-%s]!", proj_model.c_str(), dist_model.c_str());
         }
@@ -420,17 +420,18 @@ static int process_aprilgrid(const size_t frame_idx,
 template <typename CAMERA_TYPE>
 static void show_results(const calib_mocap_data_t &data) {
   // Calibration metrics
-  mat4s_t T_C0F;
+  std::deque<pose_t> poses;
   const mat4_t T_WF = data.T_WF.tf();
   const mat4_t T_C0M = data.T_MC0.tf().inverse();
   for (size_t i = 0; i < data.grids.size(); i++) {
     const mat4_t T_MW = data.T_WM[i].tf().inverse();
-    T_C0F.push_back(T_C0M * T_MW * T_WF);
+    const mat4_t T_C0F = T_C0M * T_MW * T_WF;
+    poses.emplace_back(0, 0, T_C0F);
   }
 
   // Show results
   std::vector<double> errs;
-  reproj_errors<CAMERA_TYPE>(data.grids, data.cam0, T_C0F, errs);
+  reproj_errors<CAMERA_TYPE>(data.grids, data.cam0, poses, errs);
 
   printf("\n");
   printf("Optimization results:\n");

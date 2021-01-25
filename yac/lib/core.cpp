@@ -515,14 +515,14 @@ void save_poses(const std::string &path, const mat4s_t &poses) {
     const auto &q = tf_quat(pose);
     const auto &r = tf_trans(pose);
 
+    fprintf(csv, "%f,", r(0));
+    fprintf(csv, "%f,", r(1));
+    fprintf(csv, "%f,", r(2));
+
     fprintf(csv, "%f,", q.w());
     fprintf(csv, "%f,", q.x());
     fprintf(csv, "%f,", q.y());
-    fprintf(csv, "%f,", q.z());
-
-    fprintf(csv, "%f,", r(0));
-    fprintf(csv, "%f,", r(1));
-    fprintf(csv, "%f\n", r(2));
+    fprintf(csv, "%f\n", q.z());
   }
   fflush(csv);
   fclose(csv);
@@ -539,14 +539,14 @@ void save_poses(const std::string &path,
 
     fprintf(csv, "%ld,", ts);
 
+    fprintf(csv, "%f,", r(0));
+    fprintf(csv, "%f,", r(1));
+    fprintf(csv, "%f,", r(2));
+
     fprintf(csv, "%f,", q.w());
     fprintf(csv, "%f,", q.x());
     fprintf(csv, "%f,", q.y());
-    fprintf(csv, "%f,", q.z());
-
-    fprintf(csv, "%f,", r(0));
-    fprintf(csv, "%f,", r(1));
-    fprintf(csv, "%f\n", r(2));
+    fprintf(csv, "%f\n", q.z());
   }
   fflush(csv);
   fclose(csv);
@@ -557,14 +557,14 @@ void save_pose(const std::string &path, const mat4_t &pose) {
   const auto &q = tf_quat(pose);
   const auto &r = tf_trans(pose);
 
+  fprintf(csv, "%f,", r(0));
+  fprintf(csv, "%f,", r(1));
+  fprintf(csv, "%f,", r(2));
+
   fprintf(csv, "%f,", q.w());
   fprintf(csv, "%f,", q.x());
   fprintf(csv, "%f,", q.y());
-  fprintf(csv, "%f,", q.z());
-
-  fprintf(csv, "%f,", r(0));
-  fprintf(csv, "%f,", r(1));
-  fprintf(csv, "%f\n", r(2));
+  fprintf(csv, "%f\n", q.z());
 
   fflush(csv);
   fclose(csv);
@@ -579,14 +579,14 @@ void save_pose(const std::string &path,
 
   fprintf(csv, "%ld,", ts);
 
+  fprintf(csv, "%f,", r(0));
+  fprintf(csv, "%f,", r(1));
+  fprintf(csv, "%f,", r(2));
+
   fprintf(csv, "%f,", q.w());
   fprintf(csv, "%f,", q.x());
   fprintf(csv, "%f,", q.y());
-  fprintf(csv, "%f,", q.z());
-
-  fprintf(csv, "%f,", r(0));
-  fprintf(csv, "%f,", r(1));
-  fprintf(csv, "%f\n", r(2));
+  fprintf(csv, "%f\n", q.z());
 
   fflush(csv);
   fclose(csv);
@@ -630,8 +630,8 @@ mat4_t load_pose(const std::string &fpath) {
   // Create format string
   std::string str_format;
   str_format = "%ld,";              // Timestamp[ns]
-  str_format += "%lf,%lf,%lf,%lf,"; // Quaternion
-  str_format += "%lf,%lf,%lf";      // Position
+  str_format += "%lf,%lf,%lf,";     // Position
+  str_format += "%lf,%lf,%lf,%lf";  // Quaternion
 
   // Parse file
   for (int i = 0; i < nb_rows; i++) {
@@ -673,8 +673,8 @@ void load_poses(const std::string &fpath,
   // Create format string
   std::string str_format;
   str_format = "%ld,";              // Timestamp[ns]
-  str_format += "%lf,%lf,%lf,%lf,"; // Quaternion
-  str_format += "%lf,%lf,%lf";      // Position
+  str_format += "%lf,%lf,%lf,";     // Position
+  str_format += "%lf,%lf,%lf,%lf";  // Quaternion
 
   // Parse file
   for (int i = 0; i < nb_rows; i++) {

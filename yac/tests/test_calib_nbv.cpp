@@ -76,32 +76,80 @@ test_data_t setup_test_data() {
 
 int test_calib_target_origin() {
   const calib_target_t target{"aprilgrid", 6, 6, 0.088, 0.3};
-  const vec2_t cam_res{752, 480};
-  const double hfov = 90.0;
 
-  const mat4_t origin = calib_target_origin(target, cam_res, hfov);
-  print_matrix("origin", origin);
+  const int cam_res[2] = {752, 480};
+  const std::string proj_model = "pinhole";
+  const std::string dist_model = "radtan4";
+  const double fx = pinhole_focal(cam_res[0], 98.0);
+  const double fy = pinhole_focal(cam_res[1], 73.0);
+  const double cx = cam_res[0] / 2.0;
+  const double cy = cam_res[1] / 2.0;
+  const vec4_t proj_params{fx, fy, cx, cy};
+  const vec4_t dist_params{0.0, 0.0, 0.0, 0.0};
+	camera_params_t cam_params{0, 0, cam_res,
+														 proj_model, dist_model,
+													   proj_params, dist_params};
+	const mat4_t T_FO = calib_target_origin<pinhole_radtan4_t>(target, cam_params);
+  // const mat4_t origin = calib_target_origin(target, cam_res, hfov);
+  print_matrix("T_FO", T_FO);
 
   return 0;
 }
 
 int test_calib_init_poses() {
   const calib_target_t target{"aprilgrid", 6, 6, 0.088, 0.3};
-  const mat4s_t poses = calib_init_poses(target);
+
+  const int cam_res[2] = {752, 480};
+  const std::string proj_model = "pinhole";
+  const std::string dist_model = "radtan4";
+  const double fx = pinhole_focal(cam_res[0], 98.0);
+  const double fy = pinhole_focal(cam_res[1], 73.0);
+  const double cx = cam_res[0] / 2.0;
+  const double cy = cam_res[1] / 2.0;
+  const vec4_t proj_params{fx, fy, cx, cy};
+  const vec4_t dist_params{0.0, 0.0, 0.0, 0.0};
+	camera_params_t cam_params{0, 0, cam_res,
+														 proj_model, dist_model,
+													   proj_params, dist_params};
+
+  const mat4s_t poses = calib_init_poses<pinhole_radtan4_t>(target, cam_params);
   const std::string save_path = "/tmp/calib_poses.csv";
   save_poses(save_path, poses);
 
   return 0;
 }
 
-
 int test_calib_nbv_poses() {
   const calib_target_t target{"aprilgrid", 6, 6, 0.088, 0.3};
-  const mat4s_t poses = calib_nbv_poses(target);
+
+  const int cam_res[2] = {752, 480};
+  const std::string proj_model = "pinhole";
+  const std::string dist_model = "radtan4";
+  const double fx = pinhole_focal(cam_res[0], 98.0);
+  const double fy = pinhole_focal(cam_res[1], 73.0);
+  const double cx = cam_res[0] / 2.0;
+  const double cy = cam_res[1] / 2.0;
+  const vec4_t proj_params{fx, fy, cx, cy};
+  const vec4_t dist_params{0.0, 0.0, 0.0, 0.0};
+	camera_params_t cam_params{0, 0, cam_res,
+														 proj_model, dist_model,
+													   proj_params, dist_params};
+
+  const mat4s_t poses = calib_nbv_poses<pinhole_radtan4_t>(target, cam_params);
   const std::string save_path = "/tmp/calib_poses.csv";
   save_poses(save_path, poses);
 
   return 0;
+}
+
+int test_calib_orbit_trajs() {
+
+	return 0;
+}
+
+int test_calib_pan_trajs() {
+
+	return 0;
 }
 
 int test_nbv_draw() {
@@ -127,7 +175,7 @@ int test_nbv_draw() {
 
   // Setup nbv poses
   const calib_target_t target{"aprilgrid", 6, 6, 0.088, 0.3};
-  const mat4s_t poses = calib_init_poses(target);
+  const mat4s_t poses = calib_init_poses<pinhole_radtan4_t>(target, cam_params);
   const std::string save_path = "/tmp/calib_poses.csv";
   save_poses(save_path, poses);
 
@@ -216,6 +264,7 @@ void test_suite() {
   MU_ADD_TEST(test_calib_target_origin);
   MU_ADD_TEST(test_calib_init_poses);
   MU_ADD_TEST(test_calib_nbv_poses);
+  MU_ADD_TEST(test_calib_orbit_trajs);
   MU_ADD_TEST(test_nbv_draw);
   MU_ADD_TEST(test_nbv_test_grid);
   MU_ADD_TEST(test_nbv_find);

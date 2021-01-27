@@ -2,42 +2,6 @@
 
 namespace yac {
 
-static int save_results(const std::string &save_path,
-                        const camera_params_t &params,
-                        const double rmse,
-                        const double mean) {
-  // Open results file
-  FILE *outfile = fopen(save_path.c_str(), "w");
-  if (outfile == NULL) {
-    return -1;
-  }
-
-  // Save results
-  const int img_w = params.resolution[0];
-  const int img_h = params.resolution[1];
-  const char *proj_model = params.proj_model.c_str();
-  const char *dist_model = params.dist_model.c_str();
-  const std::string intrinsics = arr2str(params.proj_params().data(), 4);
-  const std::string distortion = arr2str(params.dist_params().data(), 4);
-
-  fprintf(outfile, "calib_results:\n");
-  fprintf(outfile, "  rms_reproj_error:  %.2f  # [px]\n", rmse);
-  fprintf(outfile, "  mean_reproj_error: %.2f  # [px]\n", mean);
-  fprintf(outfile, "\n");
-
-  fprintf(outfile, "cam0:\n");
-  fprintf(outfile, "  resolution: [%d, %d]\n", img_w, img_h);
-  fprintf(outfile, "  proj_model: \"%s\"\n", proj_model);
-  fprintf(outfile, "  dist_model: \"%s\"\n", dist_model);
-  fprintf(outfile, "  proj_params: %s\n", intrinsics.c_str());
-  fprintf(outfile, "  dist_params: %s\n", distortion.c_str());
-
-  // Finsh up
-  fclose(outfile);
-
-  return 0;
-}
-
 int calib_mono_covar(const camera_params_t &cam_params,
                      ceres::Problem &problem,
                      matx_t &covar) {

@@ -8,16 +8,367 @@
 
 namespace yac {
 
+// Check number of apriltags observed by camera
+template <typename CAMERA>
+bool check_fully_observable(const calib_target_t &target,
+													  const camera_params_t &cam_params,
+														const mat4_t &T_FC) {
+	const int tag_rows = target.tag_rows;
+	const int tag_cols = target.tag_cols;
+	const double tag_size = target.tag_size;
+	const double tag_spacing = target.tag_spacing;
+  aprilgrid_t grid{0, tag_rows, tag_cols, tag_size, tag_spacing};
+
+	const auto cam_res = cam_params.resolution;
+	const auto proj_params = cam_params.proj_params();
+	const auto dist_params = cam_params.dist_params();
+	CAMERA camera{cam_res, proj_params, dist_params};
+
+	const mat4_t T_CF = T_FC.inverse();
+  const int nb_tags = (grid.tag_rows * grid.tag_cols);
+
+  for (int tag_id = 0; tag_id < nb_tags; tag_id++) {
+		for (int corner_idx = 0; corner_idx < 4; corner_idx++) {
+			const vec3_t r_FFi = grid.object_point(tag_id, corner_idx);
+			const vec3_t r_CFi = tf_point(T_CF, r_FFi);
+
+			vec2_t z_hat;
+			if (camera.project(r_CFi, z_hat) != 0) {
+				return false;
+			}
+		}
+  }
+
+  return true;
+}
+
+/** Calculate target origin (O) w.r.t. fiducial (F) T_FO **/
+template <typename CAMERA>
 mat4_t calib_target_origin(const calib_target_t &target,
-                           const vec2_t &cam_res,
-                           const double hfov);
+													 const camera_params_t &cam_params,
+												   const double target_scale=0.5) {
+  // Calculate target center
+  const double tag_rows = target.tag_rows;
+  const double tag_cols = target.tag_cols;
+  const double tag_size = target.tag_size;
+  const double tag_spacing = target.tag_spacing;
 
-mat4s_t calib_init_poses(const calib_target_t &target);
+  const double spacing_x = (tag_cols - 1) * tag_spacing * tag_size;
+  const double spacing_y = (tag_rows - 1) * tag_spacing * tag_size;
+  const double target_width = tag_cols * tag_size + spacing_x;
+  const double target_height = tag_rows * tag_size + spacing_y;
+  const vec2_t center{target_width / 2.0, target_height / 2.0};
 
+	double scale = target_scale;
+  int retry = 5;
+start:
+  // Calculate distance away from target center
+  const double image_width = cam_params.resolution[0];
+  const double target_half_width =  target_width / 2.0;
+  const double target_half_resolution_x = image_width / 2.0;
+  const auto fx = cam_params.proj_params()[0];
+  const auto z_FO = fx * target_half_width / (target_half_resolution_x * scale);
+
+  // Form transform of calibration origin (O) wrt fiducial target (F) T_FO
+  const mat3_t C_FO = I(3);
+  const vec3_t r_FO{center(0), center(1), z_FO};
+  const mat4_t T_FO = tf(C_FO, r_FO);
+
+  // Rotate the camera around to see if camera can actually observe the target
+  const vec3_t rpy = deg2rad(vec3_t{-180.0, 0.0, 0.0});
+  const mat3_t C_FC = euler321(rpy);
+  const mat4_t T_FC = tf(C_FC, r_FO);
+  if (check_fully_observable<CAMERA>(target, cam_params, T_FC) == false) {
+    scale -= 0.1;
+    retry--;
+
+    if (retry == 0) {
+      FATAL("Failed to find calibration origin! Check camera params?");
+    }
+    goto start;
+  }
+
+  return T_FO;
+}
+
+template <typename CAMERA>
+mat4s_t calib_init_poses(const calib_target_t &target,
+												 const camera_params_t &cam_params) {
+  // Target
+	const mat4_t T_FO = calib_target_origin<CAMERA>(target, cam_params, 0.5);
+	const vec3_t r_FO = tf_trans(T_FO);
+	const double target_width = r_FO(0) * 2;
+	const double target_height = r_FO(1) * 2;
+	const vec3_t target_center{target_width / 2.0, target_height / 2.0, 0.0};
+
+  // Pose settings
+  const double h_width = target_width / 2.0;
+  const double h_height = target_height / 2.0;
+  const double xy_scale = 1.2;
+  const double range_w[2] = {-h_width * xy_scale, h_width * xy_scale};
+  const double range_h[2] = {-h_height * xy_scale, h_height * xy_scale};
+  const auto x_range = linspace(range_w[0], range_w[1], 2);
+  const auto y_range = linspace(range_h[0], range_h[1], 2);
+	const double z = r_FO(2);
+  mat4s_t poses;
+
+  // Push first pose to be infront of target center
+  const vec3_t r_FC{target_center(0), target_center(1), z};
+  const mat4_t T_FC = lookat(r_FC, target_center);
+  poses.push_back(T_FC);
+
+  // Generate camera positions infront of the AprilGrid target in the fiducial
+  // frame, r_FC.
+  vec3s_t cam_pos;
+  cam_pos.emplace_back(vec3_t{range_w[0], range_h[1], z} + target_center);
+  cam_pos.emplace_back(vec3_t{range_w[0], range_h[0], z} + target_center);
+  cam_pos.emplace_back(vec3_t{range_w[1], range_h[0], z} + target_center);
+  cam_pos.emplace_back(vec3_t{range_w[1], range_h[1], z} + target_center);
+
+  // For each position create a camera pose that "looks at" the fiducial center
+  // in the fiducial frame, T_FC.
+  for (const auto &r_FC : cam_pos) {
+    mat4_t T_FC = lookat(r_FC, target_center);
+    poses.push_back(T_FC);
+  }
+
+  return poses;
+}
+
+template <typename CAMERA>
 mat4s_t calib_nbv_poses(const calib_target_t &target,
+                        const camera_params_t &cam_params,
                         const int range_x_size = 5,
                         const int range_y_size = 5,
-                        const int range_z_size = 3);
+                        const int range_z_size = 5) {
+  // Target
+	const mat4_t T_FO = calib_target_origin<CAMERA>(target, cam_params, 0.8);
+	const vec3_t r_FO = tf_trans(T_FO);
+	const double target_width = r_FO(0) * 2;
+	const double target_height = r_FO(1) * 2;
+	const vec3_t target_center{target_width / 2.0, target_height / 2.0, 0.0};
+
+  // Pose settings
+  const double xy_scale = 2.0;
+  const double d_start = r_FO(2);
+  const double d_end = d_start * 4.0;
+  const double h_width = target_width / 2.0;
+  const double h_height = target_height / 2.0;
+  const double range_w[2] = {-h_width * xy_scale, h_width * xy_scale};
+  const double range_h[2] = {-h_height * xy_scale, h_height * xy_scale};
+  const double range_d[2] = {d_start, d_end};
+  const auto x_range = linspace(range_w[0], range_w[1], range_x_size);
+  const auto y_range = linspace(range_h[0], range_h[1], range_y_size);
+  const auto z_range = linspace(range_d[0], range_d[1], range_z_size);
+
+  // Generate camera positions infront of the AprilGrid target in the fiducial
+  // frame, r_FC.
+  vec3s_t cam_positions;
+  for (const auto &x : x_range) {
+    for (const auto &y : y_range) {
+      for (const auto &z : z_range) {
+        const vec3_t r_FC = vec3_t{x, y, z} + target_center;
+        cam_positions.push_back(r_FC);
+      }
+    }
+  }
+
+  // For each position create a camera pose that "looks at" the fiducial center
+  // in the fiducial frame, T_FC.
+  mat4s_t poses;
+  for (const auto &cam_pos : cam_positions) {
+    mat4_t T_FC = lookat(cam_pos, target_center);
+    poses.push_back(T_FC);
+  }
+
+  return poses;
+}
+
+template <typename T>
+void calib_orbit_trajs(const calib_target_t &target,
+                       const T &cam0, const T &cam1,
+                       const mat4_t &T_C0C1,
+                       const mat4_t &T_WF,
+                       const mat4_t &T_FO,
+                       const timestamp_t &ts_start,
+                       const timestamp_t &ts_end,
+                       ctrajs_t &trajs) {
+  // Calculate target width and height
+  const double tag_rows = target.tag_rows;
+  const double tag_cols = target.tag_cols;
+  const double tag_spacing = target.tag_spacing;
+  const double tag_size = target.tag_size;
+  const double spacing_x = (tag_cols - 1) * tag_spacing * tag_size;
+  const double spacing_y = (tag_rows - 1) * tag_spacing * tag_size;
+  const double calib_width = tag_cols * tag_size + spacing_x;
+  const double calib_height = tag_rows * tag_size + spacing_y;
+
+  // Target center (Fc) w.r.t. Target origin (F)
+  const vec3_t r_FFc{calib_width / 2.0, calib_height / 2.0, 0.0};
+
+  // Trajectory parameters
+  double scale = 0.1;
+  const double lat_min = deg2rad(0.0);
+  const double lat_max = deg2rad(360.0);
+  const double lon_min = deg2rad(0.0);
+  const double lon_max = deg2rad(80.0);
+
+  int retry = 20;
+  ctrajs_t orbit_trajs;
+start:
+  double rho = (calib_width * scale);  // Sphere radius
+
+  // Adjust the calibration origin such that trajectories are valid
+  mat4_t calib_origin = T_FO;
+  calib_origin(2, 3) = rho;
+
+  // Orbit trajectories. Imagine a half sphere coming out from the
+  // calibration target center. The trajectory would go from the pole of the
+  // sphere to the sides of the sphere. While following the trajectory in a
+  // tangent manner the camera view focuses on the target center.
+	const auto nb_trajs = 8.0;
+	const auto dlat = lat_max / nb_trajs;
+	auto lat = lat_min;
+  for (int i = 0; i < nb_trajs; i++) {
+    vec3s_t positions;
+    quats_t attitudes;
+
+    // Create sphere point and transform it into world frame
+    for (const auto &lon : linspace(lon_min, lon_max, 10)) {
+      const vec3_t p = sphere(rho, lon, lat);
+      const vec3_t r_FJ = tf_point(calib_origin, p);
+      const mat4_t T_FC0 = lookat(r_FJ, r_FFc);
+      const mat4_t T_FC1 = T_FC0 * T_C0C1;
+      const mat4_t T_WC0 = T_WF * T_FC0;
+
+      if (check_aprilgrid_observable(target, cam0, T_FC0) == false) {
+        orbit_trajs.clear();
+        scale += 0.1;
+        retry--;
+        if (retry == 0){
+          FATAL("Failed to generate orbit trajectory!");
+        }
+        goto start;
+      }
+      if (check_aprilgrid_observable(target, cam1, T_FC1) == false) {
+        orbit_trajs.clear();
+        scale += 0.1;
+        retry--;
+        if (retry == 0){
+          FATAL("Failed to generate orbit trajectory!");
+        }
+        goto start;
+      }
+
+      positions.push_back(tf_trans(T_WC0));
+      attitudes.emplace_back(tf_rot(T_WC0));
+    }
+
+    // Update
+    const auto timestamps = linspace(ts_start, ts_end, 10);
+    orbit_trajs.emplace_back(timestamps, positions, attitudes);
+		lat += dlat;
+  }
+
+  // Append to results
+  for (const auto &traj : orbit_trajs) {
+    trajs.emplace_back(traj.timestamps, traj.positions, traj.orientations);
+  }
+}
+
+template <typename T>
+void calib_pan_trajs(const calib_target_t &target,
+                     const T &cam0,
+										 const T &cam1,
+                     const mat4_t &T_C0C1,
+                     const mat4_t &T_WF,
+                     const mat4_t &T_FO,
+                     const timestamp_t &ts_start,
+                     const timestamp_t &ts_end,
+                     ctrajs_t &trajs) {
+  // Tag width
+  const double tag_rows = target.tag_rows;
+  const double tag_cols = target.tag_cols;
+  const double tag_spacing = target.tag_spacing;
+  const double tag_size = target.tag_size;
+  const double spacing_x = (tag_cols - 1) * tag_spacing * tag_size;
+  const double spacing_y = (tag_rows - 1) * tag_spacing * tag_size;
+  const double calib_width = tag_cols * tag_size + spacing_x;
+  const double calib_height = tag_rows * tag_size + spacing_y;
+
+  // Target center (Fc) w.r.t. Target origin (F)
+  const vec3_t r_FFc{calib_width / 2.0, calib_height / 2.0, 0.0};
+
+  // Calibration origin
+  const mat4_t calib_origin = T_FO;
+
+  // Create rotation matrix that is z-forard (i.e. camera frame)
+  // const vec3_t rpy_WC{-90.0, 0.0, -90.0};
+  // const mat3_t C_WC = euler321(deg2rad(rpy_WC));
+  // const mat4_t T_WO = T_WF * T_FO;
+  // const mat4_t T_FW = T_WF.inverse();
+  // const mat3_t C_FW = tf_rot(T_FW);
+  // const mat3_t C_FC = C_FW * C_WC;
+
+  double scale = 1.0;
+  ctrajs_t pan_trajs;
+//   int retry = 20;
+// start:
+  // Trajectory parameters
+  const int nb_trajs = 4;
+  const int nb_control_points = 5;
+  const double pan_length = (calib_width / 2.0) * scale;
+  const double theta_min = deg2rad(0.0);
+  const double theta_max = deg2rad(270.0);
+
+  // Pan trajectories. Basically simple pan trajectories with the camera
+  // looking forwards. No attitude changes.
+  for (const auto &theta : linspace(theta_min, theta_max, nb_trajs)) {
+    vec3s_t positions;
+    quats_t attitudes;
+
+		for (const auto &r: linspace(0.0, pan_length, nb_control_points)) {
+			const vec2_t x = circle(r, theta);
+			const vec3_t p{x(0), x(1), 0.0};
+
+      const vec3_t r_FJ = tf_point(calib_origin, p);
+      const mat4_t T_FC0 = lookat(r_FJ, r_FFc);
+      // const mat4_t T_FC1 = T_FC0 * T_C0C1;
+      const mat4_t T_WC0 = T_WF * T_FC0;
+
+      // if (check_aprilgrid_observable(target, cam0, T_FC0) == false) {
+      //   pan_trajs.clear();
+      //   scale -= 0.05;
+      //   retry--;
+      //   if (retry == 0){
+      //     FATAL("Failed to generate orbit trajectory!");
+      //   }
+      //   goto start;
+      // }
+      // if (check_aprilgrid_observable(target, cam1, T_FC1) == false) {
+      //   pan_trajs.clear();
+      //   scale -= 0.05;
+      //   retry--;
+      //   if (retry == 0){
+      //     FATAL("Failed to generate orbit trajectory!");
+      //   }
+      //   goto start;
+      // }
+
+			positions.emplace_back(tf_trans(T_WC0));
+			attitudes.emplace_back(tf_rot(T_WC0));
+		}
+
+    // Add to trajectories
+    const auto timestamps = linspace(ts_start, ts_end, nb_control_points);
+    pan_trajs.emplace_back(timestamps, positions, attitudes);
+  }
+
+  // Append to results
+  for (const auto &traj : pan_trajs) {
+    trajs.emplace_back(traj.timestamps, traj.positions, traj.orientations);
+  }
+}
 
 template <typename CAMERA>
 void nbv_draw(const calib_target_t &target,
@@ -68,12 +419,19 @@ void nbv_draw(const calib_target_t &target,
   cv::line(image, pt1, pt2, color, thickness);
   cv::line(image, pt2, pt3, color, thickness);
   cv::line(image, pt3, pt0, color, thickness);
+
+  const auto corner_color = cv::Scalar(0, 0, 255);
+  cv::circle(image, pt0, 1.0, corner_color, 5, 8);
+  cv::circle(image, pt1, 1.0, corner_color, 5, 8);
+  cv::circle(image, pt2, 1.0, corner_color, 5, 8);
+  cv::circle(image, pt3, 1.0, corner_color, 5, 8);
 }
 
+
 template <typename CAMERA>
-aprilgrids_t calib_nbv_simulate(const calib_target_t &target,
-                                const mat4s_t &rel_poses,
-                                const camera_params_t &cam_params) {
+aprilgrids_t calib_simulate(const calib_target_t &target,
+                            const mat4s_t &rel_poses,
+                            const camera_params_t &cam_params) {
 	const auto cam_res = cam_params.resolution;
 	const auto proj_params = cam_params.proj_params();
 	const auto dist_params = cam_params.dist_params();
@@ -83,7 +441,7 @@ aprilgrids_t calib_nbv_simulate(const calib_target_t &target,
   const int tag_cols = target.tag_cols;
   const double tag_size = target.tag_size;
   const double tag_spacing = target.tag_spacing;
-  const mat4s_t nbv_poses = calib_nbv_poses(target);
+  const mat4s_t nbv_poses = calib_nbv_poses<CAMERA>(target, cam_params);
 
   aprilgrids_t grids;
   for (const mat4_t &T_FC : rel_poses) {
@@ -120,8 +478,8 @@ int nbv_find(const calib_target_t &target,
   PoseLocalParameterization pose_plus;
 
   // Create NBVs and simulate observations
-  const mat4s_t nbv_poses = calib_nbv_poses(target);
-  const auto grids = calib_nbv_simulate<CAMERA>(target, nbv_poses, cam_params);
+  const mat4s_t nbv_poses = calib_nbv_poses<CAMERA>(target, cam_params);
+  const auto grids = calib_simulate<CAMERA>(target, nbv_poses, cam_params);
 
   // Evaluate observations
   const auto cam_res = cam_params.resolution;

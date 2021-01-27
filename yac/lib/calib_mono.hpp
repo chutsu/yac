@@ -60,7 +60,7 @@ struct calib_mono_residual_t : public ceres::SizedCostFunction<2, 7, 8> {
 
   int cam_res_[2] = {0, 0};
   int tag_id_ = -1;
-  int corner_id = -1;
+  int corner_idx_ = -1;
   vec3_t r_FFi_{0.0, 0.0, 0.0};
   vec2_t z_{0.0, 0.0};
 
@@ -71,12 +71,12 @@ struct calib_mono_residual_t : public ceres::SizedCostFunction<2, 7, 8> {
 
   calib_mono_residual_t(const int cam_res[2],
                         const int tag_id,
-                        const int corner_id,
+                        const int corner_idx,
                         const vec3_t &r_FFi,
                         const vec2_t &z,
                         const mat2_t &covar)
       : cam_res_{cam_res[0], cam_res[1]},
-        tag_id_{tag_id}, corner_id{corner_id},
+        tag_id_{tag_id}, corner_idx_{corner_idx},
         r_FFi_{r_FFi}, z_{z},
         covar_{covar},
         info_{covar_.inverse()},
@@ -152,58 +152,6 @@ struct calib_mono_residual_t : public ceres::SizedCostFunction<2, 7, 8> {
   }
 };
 
-/* Monocular Camera Calibration View */
-template <typename CAMERA_TYPE>
-struct calib_mono_view_t {
-  aprilgrid_t grid;
-  camera_params_t *cam_params = nullptr;
-  pose_t *T_CF = nullptr;
-
-  std::vector<ceres::ResidualBlockId> res_ids;
-  std::vector<calib_mono_residual_t<CAMERA_TYPE> *> cost_fns;
-};
-
-/* Monocular Camera Calibration Views */
-template <typename CAMERA_TYPE>
-using calib_mono_views_t = std::deque<calib_mono_view_t<CAMERA_TYPE>>;
-
-/* Process AprilGrid - Adding it to the calibration problem */
-template <typename T>
-void process_grid(const aprilgrid_t &grid,
-                         const mat2_t &covar,
-                         camera_params_t &cam_params,
-                         pose_t &pose,
-                         ceres::Problem &problem,
-                         std::vector<ceres::ResidualBlockId> &res_ids,
-                         std::vector<calib_mono_residual_t<T> *> &cost_fns,
-                         PoseLocalParameterization &pose_plus) {
-  const int *cam_res = cam_params.resolution;
-
-  std::vector<int> tag_ids;
-  std::vector<int> corner_indicies;
-  vec2s_t keypoints;
-  vec3s_t object_points;
-  grid.get_measurements(tag_ids, corner_indicies, keypoints, object_points);
-
-  for (size_t i = 0; i < tag_ids.size(); i++) {
-    const int tag_id = tag_ids[i];
-    const int corner_idx = corner_indicies[i];
-    const vec2_t z = keypoints[i];
-    const vec3_t r_FFi = object_points[i];
-
-    auto cost_fn = new calib_mono_residual_t<T>{cam_res, tag_id, corner_idx,
-                                                r_FFi, z, covar};
-    auto res_id = problem.AddResidualBlock(cost_fn,
-                                           NULL,
-                                           pose.param.data(),
-                                           cam_params.param.data());
-    res_ids.push_back(res_id);
-    cost_fns.push_back(cost_fn);
-  }
-
-  problem.SetParameterization(pose.param.data(), &pose_plus);
-}
-
 /* Reprojection Errors */
 template <typename CAMERA_TYPE>
 void reproj_errors(const aprilgrid_t &grid,
@@ -254,12 +202,75 @@ void reproj_errors(const aprilgrids_t &grids,
 
 /* Reprojection Errors */
 template <typename CAMERA_TYPE>
-void reproj_errors(const calib_mono_views_t<CAMERA_TYPE> &views,
-                   const camera_params_t &cam_params,
-                   std::vector<double> &errs) {
-  for (size_t i = 0; i < views.size(); i++) {
-    reproj_errors<CAMERA_TYPE>(views[i].grid, cam_params, *(views[i].T_CF), errs);
+void reproj_errors(const calib_mono_data_t &data, std::vector<double> &errs) {
+  const auto cam_params = data.cam_params;
+  for (size_t i = 0; i < data.grids.size(); i++) {
+    const auto grid = data.grids[i];
+    const auto pose = data.poses[i];
+    reproj_errors<CAMERA_TYPE>(grid, cam_params, pose, errs);
   }
+}
+
+/* Monocular Camera Calibration View */
+template <typename CAMERA_TYPE>
+struct calib_mono_view_t {
+  aprilgrid_t grid;
+  camera_params_t *cam_params = nullptr;
+  pose_t *T_CF = nullptr;
+
+  std::vector<ceres::ResidualBlockId> res_ids;
+  std::vector<calib_mono_residual_t<CAMERA_TYPE> *> cost_fns;
+
+  void errors(std::vector<double> &errs,
+              std::vector<std::pair<int, int>> *tags_meta=nullptr) const {
+    reproj_errors<CAMERA_TYPE>(grid, *cam_params, *T_CF, errs, tags_meta);
+  }
+
+  void errors(std::vector<double> &errs,
+              std::vector<std::pair<int, int>> *tags_meta=nullptr) {
+    static_cast<const calib_mono_view_t>(*this).errors(errs, tags_meta);
+  }
+};
+
+/* Monocular Camera Calibration Views */
+template <typename CAMERA_TYPE>
+using calib_mono_views_t = std::deque<calib_mono_view_t<CAMERA_TYPE>>;
+
+/* Process AprilGrid - Adding it to the calibration problem */
+template <typename T>
+void process_grid(const aprilgrid_t &grid,
+                  const mat2_t &covar,
+                  camera_params_t &cam_params,
+                  pose_t &pose,
+                  ceres::Problem &problem,
+                  std::vector<ceres::ResidualBlockId> &res_ids,
+                  std::vector<calib_mono_residual_t<T> *> &cost_fns,
+                  PoseLocalParameterization &pose_plus) {
+  const int *cam_res = cam_params.resolution;
+
+  std::vector<int> tag_ids;
+  std::vector<int> corner_indicies;
+  vec2s_t keypoints;
+  vec3s_t object_points;
+  grid.get_measurements(tag_ids, corner_indicies, keypoints, object_points);
+
+  for (size_t i = 0; i < tag_ids.size(); i++) {
+    const int tag_id = tag_ids[i];
+    const int corner_idx = corner_indicies[i];
+    const vec2_t z = keypoints[i];
+    const vec3_t r_FFi = object_points[i];
+
+    auto cost_fn = new calib_mono_residual_t<T>{cam_res, tag_id, corner_idx,
+                                                r_FFi, z, covar};
+    auto res_id = problem.AddResidualBlock(cost_fn,
+                                           NULL,
+                                           pose.param.data(),
+                                           cam_params.param.data());
+    res_ids.push_back(res_id);
+    cost_fns.push_back(cost_fn);
+  }
+
+  problem.SetParameterization(pose.param.data(), &pose_plus);
 }
 
 /**
@@ -340,140 +351,80 @@ int calib_mono_solve(calib_mono_data_t &data) {
   return 0;
 }
 
-// /* Filter view */
-// template <typename CAMERA_TYPE>
-// int filter_view(ceres::Problem &problem,
-//                 calib_view_t<CAMERA_TYPE> &view,
-//                 double threshold=1.0) {
-//   auto &grid = view.grid;
-//   const auto cam = view.cam;
-//   int nb_outliers = 0;
-//
-//   // Evaluate reprojection errors
-//   std::vector<double> errs;
-//   std::vector<std::pair<int, int>> tags_meta;
-//   reproj_errors<CAMERA_TYPE>(view, errs, &tags_meta);
-//
-//   // Check which AprilGrid tag to remove
-//   std::set<std::pair<int, int>> outliers;
-//   for (size_t i = 0; i < tags_meta.size(); i++) {
-//     auto tag_id = tags_meta[i].first;
-//     auto corner_idx = tags_meta[i].second;
-//     if (errs[i] > threshold) {
-//       outliers.insert({tag_id, corner_idx});
-//     }
-//   }
-//
-//   // Remove residuals that are linked to the tag
-//   for (const auto &kv : outliers) {
-//     auto tag_id = kv.first;
-//     auto corner_idx = kv.second;
-//     auto res_ids_iter = view.res_ids.begin();
-//     auto cost_fns_iter = view.cost_fns.begin();
-//
-//     while (res_ids_iter != view.res_ids.end()) {
-//       auto res_id = *res_ids_iter;
-//       auto cost_fn = *cost_fns_iter;
-//
-//       if (cost_fn->tag_id_ == tag_id && cost_fn->corner_idx_ == corner_idx) {
-//         // Remove residual from ceres::Problem, tag id and corner_idx from AprilGrid
-//         problem.RemoveResidualBlock(res_id);
-//         grid.remove(tag_id, corner_idx);
-//
-//         // Erase res_id from view
-//         {
-//           auto begin = std::begin(view.res_ids);
-//           auto end = std::end(view.res_ids);
-//           view.res_ids.erase(std::remove(begin, end, res_id), end);
-//         }
-//
-//         // Erase cost_fn from view
-//         {
-//           auto begin = std::begin(view.cost_fns);
-//           auto end = std::end(view.cost_fns);
-//           view.cost_fns.erase(std::remove(begin, end, cost_fn), end);
-//         }
-//
-//         nb_outliers++;
-//         break;
-//       }
-//
-//       // Update iterators
-//       res_ids_iter++;
-//       cost_fns_iter++;
-//     }
-//   }
-// }
-
-/* Filter views */
-template <typename T>
-int filter_views(ceres::Problem &problem, calib_mono_views_t<T> &views) {
+/* Filter view */
+template <typename CAMERA_TYPE>
+int filter_view(ceres::Problem &problem,
+                calib_mono_view_t<CAMERA_TYPE> &view,
+                double threshold=1.0) {
+  auto &grid = view.grid;
+  const auto cam = view.cam_params;
   int nb_outliers = 0;
 
-  // Iterate over views
-  for (auto &view : views) {
-    auto &grid = view.grid;
-    const auto cam = view.cam_params;
-    const auto T_CF = view.T_CF;
+  // Evaluate reprojection errors
+  std::vector<double> errs;
+  std::vector<std::pair<int, int>> tags_meta;
+  view.errors(errs, &tags_meta);
 
-    // Evaluate reprojection errors
-    std::vector<double> errs;
-    std::vector<std::pair<int, int>> tags_meta;
-    reproj_errors<T>(grid, *cam, *T_CF, errs, &tags_meta);
-
-    // Check which AprilGrid tag to remove
-    std::set<int> remove_tag_ids;
-    for (size_t i = 0; i < tags_meta.size(); i++) {
-      auto tag_id = tags_meta[i].first;
-      if (errs[i] > 1.0) {
-        remove_tag_ids.insert(tag_id);
-      }
-    }
-
-    // Remove residuals that are linked to the tag
-    for (auto tag_id : remove_tag_ids) {
-      auto res_ids_iter = view.res_ids.begin();
-      auto cost_fns_iter = view.cost_fns.begin();
-
-      while (res_ids_iter != view.res_ids.end()) {
-        auto res_id = *res_ids_iter;
-        auto cost_fn = *cost_fns_iter;
-
-        if (cost_fn->tag_id_ == tag_id) {
-          // Remove residual from ceres::Problem and tag id from AprilGrid
-          problem.RemoveResidualBlock(res_id);
-          grid.remove(tag_id);
-
-          // Erase res_id from view
-          {
-            auto begin = std::begin(view.res_ids);
-            auto end = std::end(view.res_ids);
-            view.res_ids.erase(std::remove(begin, end, res_id), end);
-          }
-
-          // Erase cost_fn from view
-          {
-            auto begin = std::begin(view.cost_fns);
-            auto end = std::end(view.cost_fns);
-            view.cost_fns.erase(std::remove(begin, end, cost_fn), end);
-          }
-
-          nb_outliers++;
-          break;
-        }
-
-        // Update iterators
-        res_ids_iter++;
-        cost_fns_iter++;
-      }
-    }
-
-    if (view.cost_fns.size() == 0) {
-      problem.RemoveParameterBlock(view.T_CF->param.data());
+  // Check which AprilGrid tag to remove
+  std::set<std::pair<int, int>> outliers;
+  for (size_t i = 0; i < tags_meta.size(); i++) {
+    auto tag_id = tags_meta[i].first;
+    auto corner_idx = tags_meta[i].second;
+    if (errs[i] > threshold) {
+      outliers.insert({tag_id, corner_idx});
     }
   }
 
-  // printf("Removed %d outliers!\n", nb_outliers);
+  // Remove residuals that are linked to the tag
+  for (const auto &kv : outliers) {
+    auto tag_id = kv.first;
+    auto corner_idx = kv.second;
+    auto res_ids_iter = view.res_ids.begin();
+    auto cost_fns_iter = view.cost_fns.begin();
+
+    while (res_ids_iter != view.res_ids.end()) {
+      auto res_id = *res_ids_iter;
+      auto cost_fn = *cost_fns_iter;
+
+      if (cost_fn->tag_id_ == tag_id && cost_fn->corner_idx_ == corner_idx) {
+        // Remove residual from ceres::Problem, tag id and corner_idx from AprilGrid
+        problem.RemoveResidualBlock(res_id);
+        grid.remove(tag_id, corner_idx);
+
+        // Erase res_id from view
+        {
+          auto begin = std::begin(view.res_ids);
+          auto end = std::end(view.res_ids);
+          view.res_ids.erase(std::remove(begin, end, res_id), end);
+        }
+
+        // Erase cost_fn from view
+        {
+          auto begin = std::begin(view.cost_fns);
+          auto end = std::end(view.cost_fns);
+          view.cost_fns.erase(std::remove(begin, end, cost_fn), end);
+        }
+
+        nb_outliers++;
+        break;
+      }
+
+      // Update iterators
+      res_ids_iter++;
+      cost_fns_iter++;
+    }
+  }
+}
+
+/* Filter views */
+template <typename T>
+int filter_views(ceres::Problem &problem,
+                 calib_mono_views_t<T> &views,
+                 const double threshold=1.0) {
+  int nb_outliers = 0;
+  for (auto &view : views) {
+    nb_outliers += filter_view(problem, view, threshold);
+  }
   return nb_outliers;
 }
 
@@ -481,6 +432,43 @@ int filter_views(ceres::Problem &problem, calib_mono_views_t<T> &views) {
 int calib_mono_covar(const camera_params_t &cam_params,
                      ceres::Problem &problem,
                      matx_t &covar);
+
+/* Save Camera Parameters */
+static int save_results(const std::string &save_path,
+                        const camera_params_t &params,
+                        const double rmse,
+                        const double mean) {
+  // Open results file
+  FILE *outfile = fopen(save_path.c_str(), "w");
+  if (outfile == NULL) {
+    return -1;
+  }
+
+  // Save results
+  const int img_w = params.resolution[0];
+  const int img_h = params.resolution[1];
+  const char *proj_model = params.proj_model.c_str();
+  const char *dist_model = params.dist_model.c_str();
+  const std::string intrinsics = arr2str(params.proj_params().data(), 4);
+  const std::string distortion = arr2str(params.dist_params().data(), 4);
+
+  fprintf(outfile, "calib_results:\n");
+  fprintf(outfile, "  rms_reproj_error:  %.2f  # [px]\n", rmse);
+  fprintf(outfile, "  mean_reproj_error: %.2f  # [px]\n", mean);
+  fprintf(outfile, "\n");
+
+  fprintf(outfile, "cam0:\n");
+  fprintf(outfile, "  resolution: [%d, %d]\n", img_w, img_h);
+  fprintf(outfile, "  proj_model: \"%s\"\n", proj_model);
+  fprintf(outfile, "  dist_model: \"%s\"\n", dist_model);
+  fprintf(outfile, "  proj_params: %s\n", intrinsics.c_str());
+  fprintf(outfile, "  dist_params: %s\n", distortion.c_str());
+
+  // Finsh up
+  fclose(outfile);
+
+  return 0;
+}
 
 /**
  * Calibrate camera intrinsics and relative pose between camera and fiducial
@@ -578,7 +566,10 @@ int calib_mono_inc_solve(calib_mono_data_t &data) {
 
     // Show progress
     std::vector<double> errs;
-    reproj_errors<CAMERA_TYPE>(views, cam_params, errs);
+    for (const auto &view : views) {
+      view.errors(errs);
+    }
+
     printf("Processed [%ld / %ld] ", processed++, indicies.size());
     printf("Reprojection Error: ");
     printf("[rmse: %.2f,", rmse(errs));
@@ -600,7 +591,9 @@ int calib_mono_inc_solve(calib_mono_data_t &data) {
 
   // Show results
   std::vector<double> errs;
-  reproj_errors<CAMERA_TYPE>(views, cam_params, errs);
+  for (const auto &view : views) {
+    view.errors(errs);
+  }
 
   printf("Optimization results:\n");
   printf("---------------------\n");

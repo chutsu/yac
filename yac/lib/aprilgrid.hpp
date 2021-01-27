@@ -91,7 +91,7 @@ struct aprilgrid_t {
     static_cast<const aprilgrid_t>(*this).grid_index(tag_id, i, j);
   }
 
-  vec3_t object_point(const int tag_id, const int corner_id) const {
+  vec3_t object_point(const int tag_id, const int corner_idx) const {
     // Calculate the AprilGrid index using tag id
     int i = 0;
     int j = 0;
@@ -104,7 +104,7 @@ struct aprilgrid_t {
 
     // Calculate the x and y of each corner
     vec3_t object_point;
-    switch (corner_id) {
+    switch (corner_idx) {
     case 0: // Bottom left
       object_point = vec3_t(x, y, 0);
       break;
@@ -117,7 +117,7 @@ struct aprilgrid_t {
     case 3: // Top left
       object_point = vec3_t(x, y + tag_size, 0);
       break;
-    default: FATAL("Incorrect corner id [%d]!", corner_id); break;
+    default: FATAL("Incorrect corner id [%d]!", corner_idx); break;
     }
 
     return object_point;

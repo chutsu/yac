@@ -11,7 +11,7 @@ struct calib_mono_nbv_t {
   enum CALIB_STATE {
     INITIALIZE = 0,
     NBV = 1,
-    DONE = 2
+    BATCH = 2
   };
 
   // ROS
@@ -23,7 +23,8 @@ struct calib_mono_nbv_t {
   int state = INITIALIZE;
   bool keep_running = true;
   bool capture_event = false;
-  bool optimize_nbv = false;
+  bool nbv_event = false;
+  bool batch_event = false;
   struct termios term_config_orig;
 
   // Calibration
@@ -43,7 +44,7 @@ struct calib_mono_nbv_t {
     std::string config_file;
     ROS_PARAM(ros_nh, node_name + "/config_file", config_file);
 
-    // Setup calibration target, aprilgrid detector and initial poses
+    // Setup calibration target, aprilgrid detector
     if (calib_target_load(target, config_file, "calib_target") != 0) {
       FATAL("Failed to load calib target [%s]!", config_file.c_str());
     }
@@ -51,7 +52,6 @@ struct calib_mono_nbv_t {
                                         target.tag_cols,
                                         target.tag_size,
                                         target.tag_spacing};
-    poses_init = calib_init_poses(target);
 
     // Setup camera params
     const int cam_idx = 0;
@@ -74,6 +74,13 @@ struct calib_mono_nbv_t {
     data.cam_params = camera_params_t{0, cam_idx, cam_res.data(),
                                       proj_model, dist_model,
                                       proj_params, dist_params};
+
+		// Setup initial calibration poses
+		if (proj_model == "pinhole" && dist_model == "radtan4") {
+			poses_init = calib_init_poses<pinhole_radtan4_t>(target, data.cam_params);
+		} else if (proj_model == "pinhole" && dist_model == "equi4") {
+			poses_init = calib_init_poses<pinhole_equi4_t>(target, data.cam_params);
+		}
 
     // Setup Non-blocking keyboard handler
     struct termios term_config;
@@ -105,13 +112,16 @@ struct calib_mono_nbv_t {
     if (key != EOF) {
       switch (key) {
       case 113: // 'q' key
-        ROS_INFO("User requested program termination!");
-        ROS_INFO("Exiting ...");
+        LOG_INFO("User requested program termination!");
+        LOG_INFO("Exiting ...");
         keep_running = false;
         break;
       case 126: // Presentation clicker up / down key
       case 99:  // 'c' key
         capture_event = true;
+        break;
+      case 66:  // 'b' key
+        batch_event = true;
         break;
       }
     }
@@ -201,7 +211,7 @@ struct calib_mono_nbv_t {
       const mat4_t T_FC0 = poses_init[frames.size()];
       draw_nbv(T_FC0, image_rgb);
     } else if (state == NBV) {
-      if (optimize_nbv == false) {
+      if (nbv_event == false) {
         draw_nbv(nbv_pose, image_rgb);
       } else {
         draw_nbv_status(image_rgb);
@@ -230,8 +240,8 @@ struct calib_mono_nbv_t {
     // Handle capture event
     if (capture_event) {
       if (grid.detected) {
-        if (optimize_nbv == false) {
-          ROS_INFO("Adding image frame [%ld]!", frames.size());
+        if (nbv_event == false) {
+          LOG_INFO("Adding image frame [%ld]!", frames.size());
           frames.push_back(frame_k);
           data.grids.push_back(grid);
         } else {
@@ -242,8 +252,8 @@ struct calib_mono_nbv_t {
         ROS_WARN("AprilGrid not detected!");
       }
 
-      if (state == NBV && optimize_nbv == false) {
-        optimize_nbv = true;
+      if (state == NBV && nbv_event == false) {
+        nbv_event = true;
       }
 
       capture_event = false;
@@ -252,18 +262,20 @@ struct calib_mono_nbv_t {
 
   void mode_init() {
     if (frames.size() == poses_init.size()) {
-      ROS_INFO("Collected enough init camera frames!");
-      ROS_INFO("Transitioning to NBV mode!");
+      LOG_INFO("Collected enough init camera frames!");
+      LOG_INFO("Transitioning to NBV mode!");
+      calib_mono_solve<pinhole_radtan4_t>(data);
       state = NBV;
+      nbv_event = true;
     }
   }
 
   void mode_nbv() {
-    if (optimize_nbv == false) {
+    if (nbv_event == false) {
       return;
     }
 
-    ROS_INFO("Find NBV!");
+    LOG_INFO("Find NBV!");
     print_vector("cam_params", data.cam_params.param);
     printf("nb_grids: %ld\n", data.grids.size());
     data.reset();
@@ -277,13 +289,34 @@ struct calib_mono_nbv_t {
         nbv_find<pinhole_equi4_t>(target, data, nbv_pose);
       }
     }
-    optimize_nbv = false;
+    nbv_event = false;
+  }
+
+  void mode_batch() {
+    LOG_INFO("Final Optimization!");
+    std::vector<double> errs;
+
+    if (data.cam_params.proj_model == "pinhole") {
+      if (data.cam_params.dist_model == "radtan4") {
+        calib_mono_inc_solve<pinhole_radtan4_t>(data);
+        reproj_errors<pinhole_radtan4_t>(data);
+      } else if (data.cam_params.dist_model == "equi4") {
+        calib_mono_inc_solve<pinhole_equi4_t>(data);
+        reproj_errors<pinhole_equi4_t>(data);
+      }
+    }
+
+    const std::string results_fpath = "/tmp/calib-mono.csv";
+    if (save_results(results_fpath, data.cam_params, rmse(errs), mean(errs)) != 0) {
+      LOG_ERROR("Failed to save results to [%s]!", results_fpath.c_str());
+    }
   }
 
   void loop() {
     // Terminal capture thread
     std::thread keyboard_thread([&](){
       LOG_INFO("Press 'c' to capture, 'q' to stop!\n");
+      LOG_INFO("Starting calibration initialization mode!");
       while (keep_running) {
         int key = getchar();
         event_handler(key);
@@ -291,6 +324,7 @@ struct calib_mono_nbv_t {
         switch (state) {
           case INITIALIZE: mode_init(); break;
           case NBV: mode_nbv(); break;
+          case BATCH: mode_batch(); break;
         }
       }
     });

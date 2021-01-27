@@ -27,20 +27,19 @@ tmux send-keys -t dev -R "\
 cd ~/sync/projects/yac \
 && make lib \
 && source ~/catkin_ws/devel/setup.bash \
-&& roslaunch yac_ros calib_mono_nbv.launch
+&& rosrun yac test_calib_nbv --target test_nbv_draw
 " C-m
 exit
-# && rosrun yac test_calib_mono --target test_calib_mono_solve
+# && roslaunch yac_ros calib_mono_nbv.launch
 
 # make
-# make release
-make lib
+# make lib
 # make lib_debug
+make release
 # make debug
 # make tests
 source ~/catkin_ws/devel/setup.bash
 # rm -rf /tmp/aprilgrid_test
-
 
 # --prefix 'gdb -ex run'
 # --prefix 'gdb -ex run -args'
@@ -86,8 +85,12 @@ source ~/catkin_ws/devel/setup.bash
 # rosrun yac test_calib_vi --target test_calib_vi
 
 # -- NBV
-# rosrun yac test_nbv --target test_nbv
-
+# rosrun yac test_calib_nbv --target test_calib_target_origin
+# rosrun yac test_calib_nbv --target test_calib_init_poses
+# rosrun yac test_calib_nbv --target test_calib_nbv_poses
+# rosrun yac test_calib_nbv --target test_nbv_draw
+# rosrun yac test_calib_nbv --target test_nbv_test_grid
+# rosrun yac test_calib_nbv --target test_nbv_find
 
 # -- ROS NODES
 # roslaunch yac_ros calib_capture.launch
@@ -95,7 +98,6 @@ source ~/catkin_ws/devel/setup.bash
 # roslaunch yac_ros calib_stereo.launch
 # roslaunch yac_ros calib_mocap.launch
 # roslaunch yac_ros calib_mono_nbv.launch
-
 
 # gnuplot -p scripts/plots/residuals.gpi
 # gnuplot -p scripts/plots/reprojection_errors.gpi
@@ -108,6 +110,7 @@ source ~/catkin_ws/devel/setup.bash
 # done
 # python3 scripts/analyze_calibs.py
 
+# octave-cli scripts/octave/plot_calib_poses.m
 # octave-cli scripts/octave/plot_biases.m
 # octave-cli scripts/octave/plot_calib_vi.m
 # octave-cli scripts/octave/plot_calib_vi_sim.m

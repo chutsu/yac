@@ -186,7 +186,8 @@ mat4s_t calib_nbv_poses(const calib_target_t &target,
 
 template <typename T>
 void calib_orbit_trajs(const calib_target_t &target,
-                       const T &cam0, const T &cam1,
+                       const camera_params_t &cam0,
+                       const camera_params_t &cam1,
                        const mat4_t &T_C0C1,
                        const mat4_t &T_WF,
                        const mat4_t &T_FO,
@@ -241,7 +242,7 @@ start:
       const mat4_t T_FC1 = T_FC0 * T_C0C1;
       const mat4_t T_WC0 = T_WF * T_FC0;
 
-      if (check_aprilgrid_observable(target, cam0, T_FC0) == false) {
+      if (check_fully_observable<T>(target, cam0, T_FC0) == false) {
         orbit_trajs.clear();
         scale += 0.1;
         retry--;
@@ -250,7 +251,7 @@ start:
         }
         goto start;
       }
-      if (check_aprilgrid_observable(target, cam1, T_FC1) == false) {
+      if (check_fully_observable<T>(target, cam1, T_FC1) == false) {
         orbit_trajs.clear();
         scale += 0.1;
         retry--;
@@ -278,8 +279,8 @@ start:
 
 template <typename T>
 void calib_pan_trajs(const calib_target_t &target,
-                     const T &cam0,
-										 const T &cam1,
+                     const camera_params_t &cam0,
+										 const camera_params_t &cam1,
                      const mat4_t &T_C0C1,
                      const mat4_t &T_WF,
                      const mat4_t &T_FO,
@@ -336,7 +337,7 @@ void calib_pan_trajs(const calib_target_t &target,
       // const mat4_t T_FC1 = T_FC0 * T_C0C1;
       const mat4_t T_WC0 = T_WF * T_FC0;
 
-      // if (check_aprilgrid_observable(target, cam0, T_FC0) == false) {
+      // if (check_fully_observable<T>(target, cam0, T_FC0) == false) {
       //   pan_trajs.clear();
       //   scale -= 0.05;
       //   retry--;
@@ -345,7 +346,7 @@ void calib_pan_trajs(const calib_target_t &target,
       //   }
       //   goto start;
       // }
-      // if (check_aprilgrid_observable(target, cam1, T_FC1) == false) {
+      // if (check_fully_observable<T>(target, cam1, T_FC1) == false) {
       //   pan_trajs.clear();
       //   scale -= 0.05;
       //   retry--;

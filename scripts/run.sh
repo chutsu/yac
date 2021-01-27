@@ -27,9 +27,10 @@ tmux send-keys -t dev -R "\
 cd ~/sync/projects/yac \
 && make lib \
 && source ~/catkin_ws/devel/setup.bash \
-&& rosrun yac test_calib_nbv --target test_nbv_draw
+&& rosrun yac test_calib_nbv --target test_calib_orbit_trajs
 " C-m
 exit
+# && rosrun yac test_calib_nbv --target test_nbv_draw
 # && roslaunch yac_ros calib_mono_nbv.launch
 
 # make

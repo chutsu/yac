@@ -236,13 +236,13 @@ mat4_t fiducial_t::estimate() {
 camera_params_t::camera_params_t() {}
 
 camera_params_t::camera_params_t(const id_t id_,
-                  const int cam_index_,
-                  const int resolution_[2],
-                  const std::string proj_model_,
-                  const std::string dist_model_,
-                  const vecx_t &proj_params_,
-                  const vecx_t &dist_params_,
-                  const bool fixed_)
+                                 const int cam_index_,
+                                 const int resolution_[2],
+                                 const std::string proj_model_,
+                                 const std::string dist_model_,
+                                 const vecx_t &proj_params_,
+                                 const vecx_t &dist_params_,
+                                 const bool fixed_)
     : param_t{"camera_params_t", id_,
               proj_params_.size() + dist_params_.size(),
               proj_params_.size() + dist_params_.size(),

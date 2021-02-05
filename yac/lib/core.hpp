@@ -110,6 +110,7 @@ typedef Eigen::Matrix<real_t, 2, 2> mat2_t;
 typedef Eigen::Matrix<real_t, 3, 3> mat3_t;
 typedef Eigen::Matrix<real_t, 4, 4> mat4_t;
 typedef Eigen::Matrix<real_t, Eigen::Dynamic, Eigen::Dynamic> matx_t;
+typedef Eigen::Matrix<real_t, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> matx_row_major_t;
 typedef Eigen::Matrix<real_t, 3, 4> mat34_t;
 typedef Eigen::Quaternion<real_t> quat_t;
 typedef Eigen::AngleAxis<real_t> angle_axis_t;

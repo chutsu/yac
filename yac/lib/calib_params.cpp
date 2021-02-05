@@ -38,6 +38,10 @@ void param_t::plus(const vecx_t &dx) {
   param += dx;
 }
 
+void param_t::minus(const vecx_t &dx) {
+  param -= dx;
+}
+
 void param_t::perturb(const int i, const real_t step_size) {
   param(i) += step_size;
 }
@@ -141,6 +145,20 @@ void pose_t::plus(const vecx_t &dx) {
   param(6) = q_updated.w();
 }
 
+void pose_t::minus(const vecx_t &dx) {
+  plus(-dx);
+  // const vec3_t dr = param.head<3>() - dx.head<3>();
+  // const quat_t q_i(param(6), param(3), param(4), param(5));
+  // const quat_t q_j(dx(6), dx(3), dx(4), dx(5));
+  // const quat_t dq = q_j.inverse() * q_i;
+  //
+  // param.segment<3>(0) = dr;
+  // param.segment<3>(3) = 2.0 * dq.vec();
+  // if (!(dq.w() >= 0)) {
+  //   param.segment<3>(3) = 2.0 * -dq.vec();
+  // }
+}
+
 void pose_t::perturb(const int i, const real_t step_size) {
   if (i >= 0 && i < 3) {
     const auto T_WS_diff = tf_perturb_trans(this->tf(), step_size, i);
@@ -188,6 +206,11 @@ fiducial_t::fiducial_t(const id_t id_,
 #if FIDUCIAL_PARAMS_SIZE == 2 || FIDUCIAL_PARAMS_SIZE == 3
 void fiducial_t::plus(const vecx_t &dx) {
   param += dx;
+  update();
+}
+
+void fiducial_t::minus(const vecx_t &dx) {
+  param -= dx;
   update();
 }
 
@@ -278,6 +301,10 @@ void camera_params_t::plus(const vecx_t &dx) {
   param += dx;
 }
 
+void camera_params_t::minus(const vecx_t &dx) {
+  param -= dx;
+}
+
 void camera_params_t::perturb(const int i, const real_t step_size) {
   param(i) += step_size;
 }
@@ -308,6 +335,10 @@ void sb_params_t::plus(const vecx_t &dx) {
   param += dx;
 }
 
+void sb_params_t::minus(const vecx_t &dx) {
+  param -= dx;
+}
+
 void sb_params_t::perturb(const int i, const real_t step_size) {
   param(i) += step_size;
 }
@@ -325,6 +356,10 @@ time_delay_t::time_delay_t(const id_t id_,
 
 void time_delay_t::plus(const vecx_t &dx) {
   param += dx;
+}
+
+void time_delay_t::minus(const vecx_t &dx) {
+  param -= dx;
 }
 
 void time_delay_t::perturb(const int i, const real_t step_size) {

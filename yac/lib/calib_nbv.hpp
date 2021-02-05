@@ -428,7 +428,6 @@ void nbv_draw(const calib_target_t &target,
   cv::circle(image, pt3, 1.0, corner_color, 5, 8);
 }
 
-
 template <typename CAMERA>
 aprilgrids_t calib_simulate(const calib_target_t &target,
                             const mat4s_t &rel_poses,

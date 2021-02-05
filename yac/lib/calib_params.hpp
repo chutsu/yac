@@ -37,6 +37,7 @@ struct param_t {
 
   void mark_marginalize();
   virtual void plus(const vecx_t &) = 0;
+  virtual void minus(const vecx_t &) = 0;
   virtual void perturb(const int i, const real_t step_size) = 0;
 };
 
@@ -69,6 +70,7 @@ struct pose_t : param_t {
   void set_tf(const quat_t &q, const vec3_t &r);
   void set_tf(const mat4_t &T);
   virtual void plus(const vecx_t &dx) override;
+  virtual void minus(const vecx_t &dx) override;
   virtual void perturb(const int i, const real_t step_size) override;
 };
 
@@ -84,6 +86,7 @@ public:
              const bool fixed_=false);
 
   void plus(const vecx_t &dx);
+  void minus(const vecx_t &dx);
   void perturb(const int i, const real_t step_size);
 	void update();
 	mat4_t estimate();
@@ -119,6 +122,7 @@ struct extrinsics_t : pose_t {
   }
 
   mat4_t tf() { return pose_t::tf(); }
+  mat4_t tf() const { return pose_t::tf(); }
   void plus(const vecx_t &dx) { pose_t::plus(dx); }
   void perturb(const int i, const real_t step_size) { pose_t::perturb(i, step_size); }
 };
@@ -133,6 +137,7 @@ struct landmark_t : param_t {
   }
 
   void plus(const vecx_t &dx);
+  void minus(const vecx_t &dx);
   void perturb(const int i, const real_t step_size);
 };
 
@@ -162,6 +167,7 @@ struct camera_params_t : param_t {
   vecx_t dist_params() const;
 
   void plus(const vecx_t &dx);
+  void minus(const vecx_t &dx);
   void perturb(const int i, const real_t step_size);
 };
 
@@ -181,6 +187,7 @@ struct sb_params_t : param_t {
               const bool fixed_=false);
 
   void plus(const vecx_t &dx);
+  void minus(const vecx_t &dx);
   void perturb(const int i, const real_t step_size);
 };
 
@@ -192,6 +199,7 @@ struct time_delay_t : param_t {
               const bool fixed_=false);
 
   void plus(const vecx_t &dx);
+  void minus(const vecx_t &dx);
   void perturb(const int i, const real_t step_size);
 };
 

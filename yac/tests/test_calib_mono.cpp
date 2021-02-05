@@ -1,5 +1,5 @@
 #include "munit.hpp"
-#include "euroc.hpp"
+#include "euroc_test_data.hpp"
 #include "calib_mono.hpp"
 
 namespace yac {
@@ -12,23 +12,10 @@ namespace yac {
 #define CAM0_DATA "/data/euroc/calib/cam_april/mav0/cam0/data"
 #define CAM0_GRIDS "/tmp/aprilgrid_test/mono/cam0"
 
-void test_setup() {
-  // Setup calibration target
-  calib_target_t target;
-  if (calib_target_load(target, TARGET_CONFIG) != 0) {
-    FATAL("Failed to load calib target [%s]!", TARGET_CONFIG);
-  }
-
-  // Test preprocess data
-  auto t_start = tic();
-  int retval = preprocess_camera_data(target, CAM0_DATA, CAM0_GRIDS);
-  if (retval == -1) {
-    FATAL("Failed to preprocess camera data!");
-  }
-  printf("Processing calibration data took: %f [s]\n", toc(&t_start));
-}
-
 int test_calib_mono_solve() {
+  // Setup test data
+  test_data_t test_data = setup_test_data();
+
   // Setup camera intrinsics and distortion
   const id_t id = 0;
   const int cam_idx = 0;
@@ -45,14 +32,8 @@ int test_calib_mono_solve() {
                       proj_model, dist_model,
                       proj_params, dist_params};
 
-  // Load calibration data
-  aprilgrids_t grids;
-  MU_CHECK(load_camera_calib_data(CAM0_GRIDS, grids) == 0);
-  MU_CHECK(grids.size() > 0);
-  MU_CHECK(grids[0].nb_detections > 0);
-
   // Test
-  calib_mono_data_t data{grids, cam};
+  calib_mono_data_t data{test_data.grids0, cam};
   MU_CHECK(calib_mono_solve<pinhole_radtan4_t>(data) == 0);
 
   // Make sure the estimated camera parameters are not far from EuRoC
@@ -80,6 +61,9 @@ int test_calib_mono_solve() {
 }
 
 int test_calib_mono_inc_solve() {
+  // Setup test data
+  test_data_t test_data = setup_test_data();
+
   // Setup camera intrinsics and distortion
   const id_t id = 0;
   const int cam_idx = 0;
@@ -96,14 +80,8 @@ int test_calib_mono_inc_solve() {
                       proj_model, dist_model,
                       proj_params, dist_params};
 
-  // Load calibration data
-  std::vector<aprilgrid_t> grids;
-  MU_CHECK(load_camera_calib_data(CAM0_GRIDS, grids) == 0);
-  MU_CHECK(grids.size() > 0);
-  MU_CHECK(grids[0].nb_detections > 0);
-
   // Test
-  calib_mono_data_t data{grids, cam};
+  calib_mono_data_t data{test_data.grids0, cam};
   MU_CHECK(calib_mono_inc_solve<pinhole_radtan4_t>(data) == 0);
 
   // Make sure the estimated camera parameters are not far from EuRoC
@@ -131,7 +109,6 @@ int test_calib_mono_inc_solve() {
 }
 
 void test_suite() {
-  test_setup();
   MU_ADD_TEST(test_calib_mono_solve);
   MU_ADD_TEST(test_calib_mono_inc_solve);
 }

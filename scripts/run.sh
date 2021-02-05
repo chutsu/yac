@@ -23,24 +23,29 @@ set -e
 #   --network="host" \
 #   -it --rm yac_docker
 
-tmux send-keys -t dev -R "\
-cd ~/sync/projects/yac \
-&& make lib \
-&& source ~/catkin_ws/devel/setup.bash \
-&& rosrun yac test_calib_nbv --target test_calib_orbit_trajs
-" C-m
-exit
+# tmux send-keys -t dev -R "\
+# cd ~/sync/projects/yac \
+# && make lib \
+# && source ~/catkin_ws/devel/setup.bash \
+# && rosrun yac test_calib_stereo_inc --target test_calib_stereo_inc_solve
+# " C-m
+# exit
+# && rosrun yac test_calib_data --target test_blur_measure
+# && rosrun yac test_calib_vi --target test_calib_vi
+# && rosrun yac test_aprilgrid --target test_aprilgrid_detect2
+# && rosrun yac test_calib_stereo --target test_calib_stereo_solve
 # && rosrun yac test_calib_nbv --target test_nbv_draw
 # && roslaunch yac_ros calib_mono_nbv.launch
 
 # make
-# make lib
+make lib
 # make lib_debug
-make release
+# make release
 # make debug
 # make tests
 source ~/catkin_ws/devel/setup.bash
 # rm -rf /tmp/aprilgrid_test
+# rosrun yac test_calib_data --target test_blur_measure
 
 # --prefix 'gdb -ex run'
 # --prefix 'gdb -ex run -args'
@@ -71,14 +76,15 @@ source ~/catkin_ws/devel/setup.bash
 
 # -- MONOCULAR-CAMERA CALIBRATION
 # rosrun yac test_calib_mono
-# rosrun yac test_calib_mono --target calib_mono_solve
-# rosrun yac test_calib_mono --target calib_mono_inc_solve
+# rosrun yac test_calib_mono --target test_calib_mono_solve
+# rosrun yac test_calib_mono --target test_calib_mono_inc_solve
 
 # -- STEREO-CAMERA CALIBRATION
 # rosrun yac test_calib_stereo
 # rosrun yac test_calib_stereo --target test_reproj_error
 # rosrun yac test_calib_stereo --target test_calib_stereo_solve
-# rosrun yac test_calib_stereo --target test_calib_stereo_inc_solve
+# rm -rf /data/euroc/calib/cam_april/grid0
+rosrun yac test_calib_stereo_inc --target test_calib_stereo_inc_solve
 
 # -- VISUAL-INERTIAL CALIBRATION
 # rosrun yac test_calib_vi --target test_reproj_error
@@ -92,6 +98,9 @@ source ~/catkin_ws/devel/setup.bash
 # rosrun yac test_calib_nbv --target test_nbv_draw
 # rosrun yac test_calib_nbv --target test_nbv_test_grid
 # rosrun yac test_calib_nbv --target test_nbv_find
+
+# -- MARG ERROR
+# rosrun yac test_marg_error --target test_marg_block
 
 # -- ROS NODES
 # roslaunch yac_ros calib_capture.launch

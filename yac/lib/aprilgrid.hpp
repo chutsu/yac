@@ -30,6 +30,7 @@ struct aprilgrid_t {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 
   // Grid properties
+	bool init = false;
   timestamp_t timestamp = 0;
   int tag_rows = 0;
   int tag_cols = 0;
@@ -42,25 +43,36 @@ struct aprilgrid_t {
   matx_t data;
 
   aprilgrid_t() {}
-  aprilgrid_t(const std::string &csv_path) { load(csv_path); }
+
+  aprilgrid_t(const std::string &csv_path)
+			: init{true} {
+		load(csv_path);
+	}
+
   aprilgrid_t(const timestamp_t &timestamp,
               const int tag_rows,
               const int tag_cols,
               const double tag_size,
               const double tag_spacing)
-      : timestamp{timestamp},
+      : init{true},
+				timestamp{timestamp},
         tag_rows{tag_rows}, tag_cols{tag_cols},
         tag_size{tag_size}, tag_spacing{tag_spacing},
         data{zeros(tag_rows * tag_cols * 4, 6)} {}
+
   ~aprilgrid_t() {}
 
   void clear() {
+		assert(init == true);
+
     detected = false;
     nb_detections = 0;
     data.setZero();
   }
 
   vec2_t center() const {
+		assert(init == true);
+
     double x = ((tag_cols / 2.0) * tag_size);
     x +=  (((tag_cols / 2.0) - 1) * tag_spacing * tag_size);
     x +=  (0.5 * tag_spacing * tag_size);
@@ -73,10 +85,13 @@ struct aprilgrid_t {
   }
 
   vec2_t center() {
+		assert(init == true);
     return static_cast<const aprilgrid_t>(*this).center();
   }
 
   void grid_index(const int tag_id, int &i, int &j) const {
+		assert(init == true);
+
     if (tag_id > (tag_rows * tag_cols)) {
       FATAL("tag_id > (tag_rows * tag_cols)!");
     } else if (tag_id < 0) {
@@ -88,10 +103,14 @@ struct aprilgrid_t {
   }
 
   void grid_index(const int tag_id, int &i, int &j) {
+		assert(init == true);
+
     static_cast<const aprilgrid_t>(*this).grid_index(tag_id, i, j);
   }
 
   vec3_t object_point(const int tag_id, const int corner_idx) const {
+		assert(init == true);
+
     // Calculate the AprilGrid index using tag id
     int i = 0;
     int j = 0;
@@ -124,10 +143,12 @@ struct aprilgrid_t {
   }
 
   vec3_t object_point(const int tag_id, const int corner_idx) {
+		assert(init == true);
     return static_cast<const aprilgrid_t>(*this).object_point(tag_id, corner_idx);
   }
 
   vec3s_t object_points() const {
+		assert(init == true);
     vec3s_t object_points_;
 
     for (int i = 0; i < (tag_rows * tag_cols * 4); i++) {
@@ -140,10 +161,12 @@ struct aprilgrid_t {
   }
 
   vec3s_t object_points() {
+		assert(init == true);
     return static_cast<const aprilgrid_t>(*this).object_points();
   }
 
   vec2_t keypoint(const int tag_id, const int corner_idx) const {
+		assert(init == true);
     const int data_row = (tag_id * 4) + corner_idx;
     if (data(data_row, 0) > 0) {
       return data.block(data_row, 1, 1, 2).transpose();
@@ -154,10 +177,12 @@ struct aprilgrid_t {
   }
 
   vec2_t keypoint(const int tag_id, const int corner_idx) {
+		assert(init == true);
     return static_cast<const aprilgrid_t>(*this).keypoint(tag_id, corner_idx);
   }
 
   vec2s_t keypoints() const {
+		assert(init == true);
     vec2s_t keypoints_;
 
     for (int i = 0; i < (tag_rows * tag_cols * 4); i++) {
@@ -170,6 +195,7 @@ struct aprilgrid_t {
   }
 
   vec2s_t keypoints() {
+		assert(init == true);
     return static_cast<const aprilgrid_t>(*this).keypoints();
   }
 
@@ -177,6 +203,12 @@ struct aprilgrid_t {
                         std::vector<int> &corner_indicies,
                         vec2s_t &keypoints,
                         vec3s_t &object_points) const {
+		assert(init == true);
+
+		if (detected == false) {
+      return;
+		}
+
     for (int i = 0; i < (tag_rows * tag_cols * 4); i++) {
       if (data(i, 0) > 0) {
         tag_ids.push_back(int(i / 4));
@@ -188,6 +220,7 @@ struct aprilgrid_t {
   }
 
   std::vector<int> tag_ids() const {
+		assert(init == true);
     std::set<int> tag_ids_;
     for (int i = 0; i < (tag_rows * tag_cols * 4); i++) {
       if (data(i, 0)) {
@@ -199,10 +232,13 @@ struct aprilgrid_t {
   }
 
   std::vector<int> tag_ids() {
+		assert(init == true);
     return static_cast<const aprilgrid_t>(*this).tag_ids();
   }
 
   void add(const int tag_id, const int corner_idx, const vec2_t &kp) {
+		assert(init == true);
+
     // Set AprilGrid as detected
     detected = true;
     nb_detections++;
@@ -216,6 +252,8 @@ struct aprilgrid_t {
   }
 
   void remove(const int tag_id, const int corner_idx) {
+		assert(init == true);
+
     const int data_row = (tag_id * 4) + corner_idx;
     if (data(data_row, 0) > 0) {
       data.block(data_row, 0, 1, 6).setZero();
@@ -225,31 +263,46 @@ struct aprilgrid_t {
   }
 
   void remove(const int tag_id) {
+		assert(init == true);
+
     remove(tag_id, 0);
     remove(tag_id, 1);
     remove(tag_id, 2);
     remove(tag_id, 3);
   }
 
-  void imshow(const std::string &title, const cv::Mat &image) const {
+	cv::Mat draw(const cv::Mat &image) const {
     cv::Mat image_rgb = gray2rgb(image);
     const cv::Scalar red{0, 0, 255};
 
     for (const vec2_t &kp : keypoints()) {
       cv::Point2f p(kp(0), kp(1));
-      cv::circle(image_rgb, p, 2, red, -1);
+      cv::circle(image_rgb, p, 1, red, -1);
     }
 
-    cv::imshow(title, image_rgb);
+		return image_rgb;
+	}
+
+	cv::Mat draw(const cv::Mat &image) {
+		assert(init == true);
+    return static_cast<const aprilgrid_t>(*this).draw(image);
+	}
+
+  void imshow(const std::string &title, const cv::Mat &image) const {
+		assert(init == true);
+    cv::imshow(title, draw(image));
     cv::waitKey(1);
   }
 
   void imshow(const std::string &title, const cv::Mat &image) {
+		assert(init == true);
     static_cast<const aprilgrid_t>(*this).imshow(title, image);
   }
 
   template <typename CAMERA_TYPE>
   int estimate(const CAMERA_TYPE &cam, mat4_t &T_CF) const {
+		assert(init == true);
+
     // Check if we actually have data to work with
     if (nb_detections == 0) {
       return -1;
@@ -270,10 +323,13 @@ struct aprilgrid_t {
 
   template <typename CAMERA_TYPE>
   int estimate(const CAMERA_TYPE &cam, mat4_t &T_CF) {
+		assert(init == true);
     return static_cast<const aprilgrid_t>(*this).estimate(cam, T_CF);
   }
 
   int save(const std::string &save_path) const {
+		assert(init == true);
+
     // Check save dir
     const std::string dir_path = dir_name(save_path);
     if (dir_create(dir_path) != 0) {
@@ -305,28 +361,30 @@ struct aprilgrid_t {
     fprintf(fp, "\n");
 
     // Output data
-    vec2s_t kps = keypoints();
-    for (long i = 0; i < data.rows(); i++) {
-      const int tag_id = int(i / 4);
-      const int corner_idx = (i % 4);
+    if (detected) {
+      vec2s_t kps = keypoints();
+      for (long i = 0; i < data.rows(); i++) {
+        const int tag_id = int(i / 4);
+        const int corner_idx = (i % 4);
 
-      int detected = data(i, 0);
-      if (detected > 0) {
-        const vec2_t kp = data.block(i, 1, 1, 2).transpose();
-        const vec3_t p = data.block(i, 3, 1, 3).transpose();
-        fprintf(fp, "%ld,", timestamp);
-        fprintf(fp, "%d,", tag_rows);
-        fprintf(fp, "%d,", tag_cols);
-        fprintf(fp, "%f,", tag_size);
-        fprintf(fp, "%f,", tag_spacing);
-        fprintf(fp, "%f,", kp(0));
-        fprintf(fp, "%f,", kp(1));
-        fprintf(fp, "%f,", p(0));
-        fprintf(fp, "%f,", p(1));
-        fprintf(fp, "%f,", p(2));
-        fprintf(fp, "%d,", tag_id);
-        fprintf(fp, "%d", corner_idx);
-        fprintf(fp, "\n");
+        int corner_detected = data(i, 0);
+        if (corner_detected > 0) {
+          const vec2_t kp = data.block(i, 1, 1, 2).transpose();
+          const vec3_t p = data.block(i, 3, 1, 3).transpose();
+          fprintf(fp, "%ld,", timestamp);
+          fprintf(fp, "%d,", tag_rows);
+          fprintf(fp, "%d,", tag_cols);
+          fprintf(fp, "%f,", tag_size);
+          fprintf(fp, "%f,", tag_spacing);
+          fprintf(fp, "%f,", kp(0));
+          fprintf(fp, "%f,", kp(1));
+          fprintf(fp, "%f,", p(0));
+          fprintf(fp, "%f,", p(1));
+          fprintf(fp, "%f,", p(2));
+          fprintf(fp, "%d,", tag_id);
+          fprintf(fp, "%d", corner_idx);
+          fprintf(fp, "\n");
+        }
       }
     }
 
@@ -336,10 +394,12 @@ struct aprilgrid_t {
   }
 
   int save(const std::string &save_path) {
+		assert(init == true);
     return static_cast<const aprilgrid_t>(*this).save(save_path);
   }
 
   int load(const std::string &data_path) {
+		assert(init == true);
     // Open file for loading
     int nb_rows = 0;
     FILE *fp = file_open(data_path, "r", &nb_rows);
@@ -423,6 +483,7 @@ struct aprilgrid_t {
   }
 
   int equal(const aprilgrid_t &grid1) const {
+		assert(init == true);
     bool timestamp_ok = (this->timestamp == grid1.timestamp);
     bool tag_rows_ok = (this->tag_rows == grid1.tag_rows);
     bool tag_cols_ok = (this->tag_cols == grid1.tag_cols);
@@ -471,10 +532,12 @@ struct aprilgrid_t {
   }
 
   int equal(const aprilgrid_t &grid1) {
+		assert(init == true);
     return static_cast<const aprilgrid_t>(*this).equal(grid1);
   }
 
   void intersect(aprilgrid_t &grid1) {
+		assert(init == true);
 		// Get rows in data that are detected
 		std::vector<int> grid0_rows;
 		std::vector<int> grid1_rows;
@@ -542,6 +605,7 @@ struct aprilgrid_t {
               std::vector<int> &sample_corner_indicies,
               vec2s_t &sample_keypoints,
               vec3s_t &sample_object_points) {
+		assert(init == true);
     if (nb_detections == 0) {
       return;
     }
@@ -630,6 +694,10 @@ struct aprilgrid_detector_t {
   // AprilTag3 by Ed Olsen
   apriltag_family_t *tf = tag36h11_create();
   apriltag_detector_t *det_v3 = apriltag_detector_create();
+
+  // Blur threshold
+  double blur_threshold = 0.0;
+  // double blur_threshold = 1200.0;
 
   aprilgrid_detector_t(const int tag_rows_,
                        const int tag_cols_,
@@ -751,6 +819,40 @@ struct aprilgrid_detector_t {
     }
   }
 
+  static double blur_score(const cv::Mat &image, const vec2_t &kp) {
+    // Laplacian blurr score
+    const double x = kp(0);
+    const double y = kp(1);
+    const double patch_width = 5.0;
+    const double patch_height = 5.0;
+    const double roi_x = round(x) - (patch_width / 2.0);
+    const double roi_y = round(y) - (patch_height / 2.0);
+    const double roi_width = patch_width;
+    const double roi_height = patch_height;
+    // -- Patch around the corner
+    const cv::Rect roi(roi_x, roi_y, roi_width, roi_height);
+    const cv::Mat patch = image(roi);
+    // -- Form laplacian image patch
+    cv::Mat patch_laplacian;
+    cv::Laplacian(patch, patch_laplacian, CV_64F);
+    // -- Calculate variance
+    cv::Scalar mean;
+    cv::Scalar stddev;
+    cv::meanStdDev(patch_laplacian, mean, stddev, cv::Mat());
+    const double var = stddev.val[0] * stddev.val[0];
+
+    return var;
+  }
+
+  static std::vector<double> blur_scores(const cv::Mat &image,
+                                         const aprilgrid_t &grid) {
+    std::vector<double> patch_vars;
+    for (auto &kp : grid.keypoints()) {
+      patch_vars.push_back(blur_score(image, kp));
+    }
+    return patch_vars;
+  }
+
   void filter_measurements(const cv::Mat &image,
                            std::vector<int> &tag_ids,
                            std::vector<int> &corner_indicies,
@@ -776,12 +878,18 @@ struct aprilgrid_detector_t {
     cv::cornerSubPix(image, corners_after, win_size, zero_zone, criteria);
 
     for (size_t i = 0; i < nb_measurements; i++) {
+      // Subpixel distance
       const auto &p_before = corners_before[i];
       const auto &p_after = corners_after[i];
       const auto dx = p_before.x - p_after.x;
       const auto dy = p_before.y - p_after.y;
       const auto dist = sqrt(dx * dx + dy * dy);
-      if (dist < max_subpix_disp) {
+
+      // Laplacian blurr score
+      const vec2_t kp{p_after.x, p_after.y};
+      const double var = blur_score(image, kp);
+
+      if (dist < max_subpix_disp && var > blur_threshold) {
         filtered_tag_ids.push_back(tag_ids[i]);
         filtered_corner_indicies.push_back(corner_indicies[i]);
         filtered_keypoints.emplace_back(p_after.x, p_after.y);
@@ -805,9 +913,9 @@ struct aprilgrid_detector_t {
       // Use AprilTags3
       // -- Make an image_u8_t header for the Mat data
       image_u8_t im = {.width = image_gray.cols,
-                      .height = image_gray.rows,
-                      .stride = image_gray.cols,
-                      .buf = image_gray.data};
+                       .height = image_gray.rows,
+                       .stride = image_gray.cols,
+                       .buf = image_gray.data};
 
       // -- Detector tags
       zarray_t *detections = apriltag_detector_detect(det_v3, &im);

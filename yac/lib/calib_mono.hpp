@@ -288,7 +288,7 @@ int calib_mono_solve(calib_mono_data_t &data) {
   camera_params_t &cam_params = data.cam_params;
   std::deque<pose_t> &poses = data.poses;
 
-  // Process all aprilgrid data
+  // Problem data
   id_t param_id = 0;
   std::vector<ceres::ResidualBlockId> res_ids;
   std::vector<calib_mono_residual_t<CAMERA_TYPE> *> cost_fns;
@@ -299,12 +299,18 @@ int calib_mono_solve(calib_mono_data_t &data) {
   const vecx_t dist_params = cam_params.dist_params();
   const CAMERA_TYPE cam{cam_res, proj_params, dist_params};
 
-  for (const auto &grid : grids) {
-    // Make sure grid is detected
-    if (grid.detected == false) {
-      continue;
-    }
+	// Drop AprilGrids that are not detected
+	auto it = grids.begin();
+  while (it != grids.end()) {
+		if ((*it).detected == false) {
+			it = grids.erase(it);
+		} else {
+			it++;
+		}
+	}
 
+	// Build Problem
+  for (const auto &grid : grids) {
     // Estimate relative pose
     mat4_t T_CF_k;
     grid.estimate(cam, T_CF_k);
@@ -353,9 +359,9 @@ int calib_mono_solve(calib_mono_data_t &data) {
 
 /* Filter view */
 template <typename CAMERA_TYPE>
-int filter_view(ceres::Problem &problem,
-                calib_mono_view_t<CAMERA_TYPE> &view,
-                double threshold=1.0) {
+static int filter_view(ceres::Problem &problem,
+                       calib_mono_view_t<CAMERA_TYPE> &view,
+                       double threshold=1.0) {
   auto &grid = view.grid;
   const auto cam = view.cam_params;
   int nb_outliers = 0;
@@ -418,9 +424,9 @@ int filter_view(ceres::Problem &problem,
 
 /* Filter views */
 template <typename T>
-int filter_views(ceres::Problem &problem,
-                 calib_mono_views_t<T> &views,
-                 const double threshold=1.0) {
+static int filter_views(ceres::Problem &problem,
+                        calib_mono_views_t<T> &views,
+                        const double threshold=1.0) {
   int nb_outliers = 0;
   for (auto &view : views) {
     nb_outliers += filter_view(problem, view, threshold);
@@ -483,6 +489,17 @@ int calib_mono_inc_solve(calib_mono_data_t &data) {
   aprilgrids_t &grids = data.grids;
   camera_params_t &cam_params = data.cam_params;
   std::deque<pose_t> &poses = data.poses;
+	auto problem = data.problem;
+
+	// Drop AprilGrids that are not detected
+	auto it = grids.begin();
+  while (it != grids.end()) {
+		if ((*it).detected == false) {
+			it = grids.erase(it);
+		} else {
+			it++;
+		}
+	}
 
   // Create random index vector (same length as grids)
   // -- Create indicies vector
@@ -493,11 +510,7 @@ int calib_mono_inc_solve(calib_mono_data_t &data) {
   // -- Randomize the indicies vector
   std::random_shuffle(std::begin(indicies), std::end(indicies));
 
-  // Setup optimization problem
-	auto problem = data.problem;
-  PoseLocalParameterization pose_plus;
-
-  // Process all aprilgrid data
+  // Build Problem
   id_t param_id = 0;
   calib_mono_views_t<CAMERA_TYPE> views;
   double info = -1;
@@ -528,8 +541,10 @@ int calib_mono_inc_solve(calib_mono_data_t &data) {
     view.T_CF = &poses.back();
 
     // Add AprilGrid to problem
-    process_grid<CAMERA_TYPE>(grid, covar, cam_params, poses.back(), *problem,
-                              view.res_ids, view.cost_fns, pose_plus);
+    process_grid<CAMERA_TYPE>(grid, covar, cam_params,
+						 		 	 	 	 	 	 	  poses.back(), *problem,
+                              view.res_ids, view.cost_fns,
+				 	 	 	 		 	 	 	 	    data.pose_plus);
     views.push_back(view);
 
     // Solve

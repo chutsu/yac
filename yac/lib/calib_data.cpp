@@ -189,8 +189,8 @@ void extract_common_calib_data(aprilgrids_t &grids0, aprilgrids_t &grids1) {
 
 int load_stereo_calib_data(const std::string &cam0_data_dir,
                            const std::string &cam1_data_dir,
-                           aprilgrids_t &cam0_aprilgrids,
-                           aprilgrids_t &cam1_aprilgrids) {
+                           aprilgrids_t &cam0_grids,
+                           aprilgrids_t &cam1_grids) {
   int retval = 0;
 
   // Load cam0 calibration data
@@ -232,9 +232,9 @@ int load_stereo_calib_data(const std::string &cam0_data_dir,
     // assert(grid0.nb_detections == grid1.nb_detections);
 
     // Add to results if detected anything
-    if (grid0.nb_detections > 0 && grid1.nb_detections) {
-      cam0_aprilgrids.emplace_back(grid0);
-      cam1_aprilgrids.emplace_back(grid1);
+    if (grid0.detected && grid1.detected) {
+      cam0_grids.emplace_back(grid0);
+      cam1_grids.emplace_back(grid1);
     }
 
     // Check if there's more data to go though

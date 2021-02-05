@@ -139,114 +139,113 @@ int test_blur_measure() {
 }
 
 void fit_circle(const vec2s_t &points, double &cx, double &cy, double &radius) {
-	assert(points.size() > 3);
+  assert(points.size() > 3);
 
-	// Parametric circle equation
-	// (x - cx)^2 + (y - cy)^2 = R^2
+  // Parametric circle equation
+  // (x - cx)^2 + (y - cy)^2 = r^2
 
-	// Expand and rewrite the circle equation
-	// (x^2 - 2x * cx + cx^2) + (y^2 - 2y * cy + cy^2) = R^2
-	// - 2x * cx + cx^2 - 2y * cy + cy^2 = R^2 - x^2 - y^2
-	// (- 2x * cx + cx^2) - (2y * cy + cy^2) - R^2 = -(x^2 + y^2)
+  // Expand and rewrite the circle equation
+  // (x^2 - 2x * cx + cx^2) + (y^2 - 2y * cy + cy^2) = r^2
+  // -2x * cx + cx^2 - 2y * cy + cy^2 = r^2 - x^2 - y^2
+  // (-2x * cx + cx^2) - (2y * cy + cy^2) - r^2 = -(x^2 + y^2)
+  // (-2x * cx) + (-2y * cy) + (-r^2  + cx^2 + cy^2) = -(x^2 + y^2)
 
   // Matrix form: Ax = b
   // Let
-	//     A = [-2x -2y 1]
-	//     x = [cx, cy, -R^2 + cx^2 + cy^2]'
-  // 		 b = -(x^2 + y^2)
-  // [-2x -2y 1] [cx cy -R^2+cx^2+cy^2]' = -(x^2 + y^2)
+  //   A = [-2x -2y 1]
+  //   x = [cx, cy, -r^2 + cx^2 + cy^2]'
+  //   b = [-(x^2 + y^2)]'
+  // [-2x -2y 1] [cx cy -r^2+cx^2+cy^2]' = [-(x^2 + y^2)]'
 
-	// Form A matrix and vector b
-	int nb_points = points.size();
-	matx_t A;
-	vecx_t b;
+  // Form A matrix and vector b
+  int nb_points = points.size();
+  matx_t A;
+  vecx_t b;
+  A.resize(nb_points, 3);
+  b.resize(nb_points, 1);
 
-	A.resize(nb_points, 3);
-	b.resize(nb_points, 1);
+  for (int i = 0; i < nb_points; i++) {
+    const vec2_t p = points[i];
+    A(i, 0) = -2.0 * p.x();
+    A(i, 1) = -2.0 * p.y();
+    A(i, 2) = 1.0;
+    b(i) = -(p.x() * p.x() + p.y() * p.y());
+  }
 
-	for (int i = 0; i < nb_points; i++) {
-		const vec2_t p = points[i];
-		A(i, 0) = -2.0 * p.x();
-		A(i, 1) = -2.0 * p.y();
-		A(i, 2) = 1.0;
+  // Solve Ax = b
+  Eigen::JacobiSVD<matx_t> svd(A, Eigen::ComputeFullU | Eigen::ComputeFullV);
+  vecx_t x = svd.solve(b);
 
-		b(i) = -(p.x() * p.x() + p.y() * p.y());
-	}
-
-	// Solve Ax = b
-	Eigen::JacobiSVD<matx_t> svd(A, Eigen::ComputeFullU | Eigen::ComputeFullV);
-	vecx_t x = svd.solve(b);
-
-	// Results
-	cx = x(0);
-	cy = x(1);
-	radius= sqrt((cx * cx) + (cy * cy) - x(2));
+  // Results
+  cx = x(0);
+  cy = x(1);
+  radius= sqrt((cx * cx) + (cy * cy) - x(2));
 }
 
 int test_fit_circle() {
-	int nb_points = 1000;
-	int nb_tests = 10;
+  int nb_points = 1000;
+  int nb_tests = 10;
 
-	for (int i = 0; i < nb_tests; i++) {
-		vec2s_t points;
-		double gnd_cx = randf(-5.0, 5.0);
-		double gnd_cy = randf(-5.0, 5.0);
-		double gnd_radius = randf(0.1, 5.0);
+  for (int i = 0; i < nb_tests; i++) {
+    vec2s_t points;
+    double gnd_cx = randf(-5.0, 5.0);
+    double gnd_cy = randf(-5.0, 5.0);
+    double gnd_radius = randf(0.1, 5.0);
 
-		double theta = 0.0;
-		double dtheta = 2.0 * M_PI / (double) nb_points;
-		while (theta <= 2.0 * M_PI) {
-			const double x = gnd_radius * cos(theta) + gnd_cx;
-			const double y = gnd_radius * sin(theta) + gnd_cy;
-			points.emplace_back(x, y);
-			theta += dtheta;
-		}
+    double theta = 0.0;
+    double dtheta = 2.0 * M_PI / (double) nb_points;
+    while (theta <= 2.0 * M_PI) {
+      const double x = gnd_radius * cos(theta) + gnd_cx;
+      const double y = gnd_radius * sin(theta) + gnd_cy;
+      points.emplace_back(x, y);
+      theta += dtheta;
+    }
 
-		double est_cx = 0.0;
-		double est_cy = 0.0;
-		double est_radius = 0.0;
-		fit_circle(points, est_cx, est_cy, est_radius);
+    double est_cx = 0.0;
+    double est_cy = 0.0;
+    double est_radius = 0.0;
+    fit_circle(points, est_cx, est_cy, est_radius);
 
-		// printf("true_cx: %f, est_cx: %f\n", gnd_cx, est_cx);
-		// printf("true_cy: %f, est_cy: %f\n", gnd_cy, est_cy);
-		// printf("true_radius: %f, est_radius: %f\n", gnd_radius, est_radius);
+    // printf("true_cx: %f, est_cx: %f\n", gnd_cx, est_cx);
+    // printf("true_cy: %f, est_cy: %f\n", gnd_cy, est_cy);
+    // printf("true_radius: %f, est_radius: %f\n", gnd_radius, est_radius);
 
-		MU_CHECK(fabs(est_cx - gnd_cx) < 1e-4);
-		MU_CHECK(fabs(est_cy - gnd_cy) < 1e-4);
-		MU_CHECK(fabs(est_radius - gnd_radius) < 1e-4);
-	}
+    MU_CHECK(fabs(est_cx - gnd_cx) < 1e-4);
+    MU_CHECK(fabs(est_cy - gnd_cy) < 1e-4);
+    MU_CHECK(fabs(est_radius - gnd_radius) < 1e-4);
+  }
 
-	return 0;
+  return 0;
 }
 
 vec2s_t intersect_circles(const double cx0, const double cy0, const double r0,
-					 		 		 	 	 	 	const double cx1, const double cy1, const double r1) {
-	vec2s_t ipts;
+                          const double cx1, const double cy1, const double r1) {
+  vec2s_t ipts;
 
-	// Check if circles are separate
-	double d = sqrt(pow(cx0 - cx1, 2) + pow(cy0 - cy1, 2));
-	if (d > r0 + r1) {
-		return ipts;
-	}
+  // Check if circles are separate
+  double d = sqrt(pow(cx0 - cx1, 2) + pow(cy0 - cy1, 2));
+  if (d > r0 + r1) {
+    return ipts;
+  }
 
   // Check if one circle is contained within the other
-	if (d < fabs(r0 - r1)) {
-		return ipts;
-	}
+  if (d < fabs(r0 - r1)) {
+    return ipts;
+  }
 
-	// Check if circles intersect only at a single point
-	double a = (pow(r0, 2) - pow(r1, 2) + pow(d, 2)) / (2.0 * d);
-	double h = sqrt(pow(r0, 2) - pow(a, 2));
-	double x3 = cx0 + a * (cx1 - cx0) / d;
-	double y3 = cy0 + a * (cy1 - cy0) / d;
-	if (h < 1e-10) {
-		ipts.emplace_back(x3, y3);
-		return ipts;
-	}
+  // Check if circles intersect only at a single point
+  double a = (pow(r0, 2) - pow(r1, 2) + pow(d, 2)) / (2.0 * d);
+  double h = sqrt(pow(r0, 2) - pow(a, 2));
+  double x3 = cx0 + a * (cx1 - cx0) / d;
+  double y3 = cy0 + a * (cy1 - cy0) / d;
+  if (h < 1e-10) {
+    ipts.emplace_back(x3, y3);
+    return ipts;
+  }
 
-	// Circles interset at two points
-	ipts.emplace_back(x3 + h * (cy1 - cy0) / d, y3 - h * (cx1 - cx0) / d);
-	ipts.emplace_back(x3 - h * (cy1 - cy0) / d, y3 + h * (cx1 - cx0) / d);
+  // Circles interset at two points
+  ipts.emplace_back(x3 + h * (cy1 - cy0) / d, y3 - h * (cx1 - cx0) / d);
+  ipts.emplace_back(x3 - h * (cy1 - cy0) / d, y3 + h * (cx1 - cx0) / d);
 }
 
 int focal_init(const aprilgrid_t &grid, const int axis, double &focal) {
@@ -268,8 +267,8 @@ int focal_init(const aprilgrid_t &grid, const int axis, double &focal) {
   // circle to these lines we obtain circle cx, cy and radius. And from that we
   // can find the intersection of these circles / lines to obtain vanishing
   // points.
-	std::vector<vec2_t> centers;
-	std::vector<double> radiuses;
+  std::vector<vec2_t> centers;
+  std::vector<double> radiuses;
 
   if (axis == 0) {
     int tag_id = 0;
@@ -312,7 +311,7 @@ int focal_init(const aprilgrid_t &grid, const int axis, double &focal) {
   // Estimate focal lengths between all pairs of vanishing points
   std::vector<double> focal_guesses;
   int nb_circles = centers.size();
-	for (int i = 0; i < nb_circles; i++) {
+  for (int i = 0; i < nb_circles; i++) {
     for (int j = i + 1; j < nb_circles; j++) {
       // Find vanishing points between two circles
       const auto cx0 = centers[i].x();
@@ -332,9 +331,9 @@ int focal_init(const aprilgrid_t &grid, const int axis, double &focal) {
       double f_guess = (vp0 - vp1).norm() / M_PI;
       focal_guesses.push_back(f_guess);
     }
-	}
+  }
 
-	// From all the focal length guesses return the median
+  // From all the focal length guesses return the median
   focal = median(focal_guesses);
 
   return 0;
@@ -350,7 +349,7 @@ int test_focal_init() {
   focal_init(grid, 0, focal);
   printf("focal: %f\n", focal);
 
-// cv::imshow("Image", image);
+  // cv::imshow("Image", image);
   // cv::waitKey(0);
 
   return 0;

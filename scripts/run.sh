@@ -23,13 +23,13 @@ set -e
 #   --network="host" \
 #   -it --rm yac_docker
 
-# tmux send-keys -t dev -R "\
-# cd ~/sync/projects/yac \
-# && make lib \
-# && source ~/catkin_ws/devel/setup.bash \
-# && rosrun yac test_calib_stereo_inc --target test_calib_stereo_inc_solve
-# " C-m
-# exit
+tmux send-keys -t dev -R "\
+cd ~/sync/projects/yac \
+&& make lib \
+&& source ~/catkin_ws/devel/setup.bash \
+&& rosrun yac test_calib_data --target test_focal_init
+" C-m
+exit
 # && rosrun yac test_calib_data --target test_blur_measure
 # && rosrun yac test_calib_vi --target test_calib_vi
 # && rosrun yac test_aprilgrid --target test_aprilgrid_detect2
@@ -84,7 +84,9 @@ source ~/catkin_ws/devel/setup.bash
 # rosrun yac test_calib_stereo --target test_reproj_error
 # rosrun yac test_calib_stereo --target test_calib_stereo_solve
 # rm -rf /data/euroc/calib/cam_april/grid0
-rosrun yac test_calib_stereo_inc --target test_calib_stereo_inc_solve
+
+# -- STEREO-CAMERA INCREMENTAL CALIBRATION
+# rosrun yac test_calib_stereo_inc --target test_calib_stereo_inc_solve
 
 # -- VISUAL-INERTIAL CALIBRATION
 # rosrun yac test_calib_vi --target test_reproj_error

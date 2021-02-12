@@ -25,6 +25,4 @@ cam0:
   resolution: [640, 480]
   proj_model: "pinhole"
   dist_model: "radtan4"
-  lens_hfov: 69.4
-  lens_vfov: 42.5
   rate: 30.0

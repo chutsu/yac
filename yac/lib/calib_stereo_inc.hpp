@@ -19,17 +19,16 @@ public:
   const mat2_t &covar;
   aprilgrids_t &grids0;
   aprilgrids_t &grids1;
-  camera_params_t &cam0;
-  camera_params_t &cam1;
-  mat4_t &T_C1C0;
   mat4s_t &T_C0F;
   mat4s_t &T_C1F;
 
   // Optimization variables
   id_t param_counter = 0;
   std::deque<pose_t> rel_poses;
-  extrinsics_t cam0_exts;
-  extrinsics_t cam1_exts;
+  camera_params_t &cam0;
+  camera_params_t &cam1;
+  extrinsics_t &cam0_exts;  // T_BC0
+  extrinsics_t &cam1_exts;  // T_BC1
   calib_views_t<CAMERA> views0;
   calib_views_t<CAMERA> views1;
   std::vector<int> nbv_indicies;
@@ -63,7 +62,8 @@ public:
         grids1{data.cam1_grids},
         cam0{data.cam0},
         cam1{data.cam1},
-        T_C1C0{data.T_C1C0},
+        cam0_exts{data.cam0_exts},
+        cam1_exts{data.cam1_exts},
         T_C0F{data.T_C0F},
         T_C1F{data.T_C1F} {
     // Seed random
@@ -78,12 +78,6 @@ public:
     prob_options.local_parameterization_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
     prob_options.loss_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
     problem = new ceres::Problem{prob_options};
-
-    // Setup design variables
-    const mat4_t T_BC0 = I(4);
-    const mat4_t T_BC1 = T_BC0 * T_C1C0.inverse();
-    cam0_exts = extrinsics_t{param_counter++, T_BC0};
-    cam1_exts = extrinsics_t{param_counter++, T_BC1};
 
     // Fix cam0_exts
     problem->AddParameterBlock(cam0_exts.param.data(), 7);
@@ -155,7 +149,8 @@ public:
     grids1 = cam1_grids;
   }
 
-  /* Check stereo data
+  /**
+   * Check stereo data
    * - Timestamps are the same for cam0 and cam1
    * - AprilGrid properties are correct
    */
@@ -227,11 +222,21 @@ public:
 
     // Initialize stereo-pair extrinsics
     LOG_INFO("Initializing cam0-cam1 extrinsics ...");
-    cam0 = cam0_data.cam_params;
-    cam1 = cam1_data.cam_params;
     auto cam0_grids = grids0;
     auto cam1_grids = grids1;
-    calib_stereo_solve<CAMERA>(cam0_grids, cam1_grids, covar, cam0, cam1, T_C1C0);
+    std::map<timestamp_t, pose_t> poses;  // T_BF
+    calib_stereo_data_t data{target, cam0_grids, cam1_grids,
+                             poses, cam0, cam1, cam0_exts, cam1_exts};
+    calib_stereo_solve<CAMERA>(data);
+
+    // Show initialized parameters
+    const mat4_t T_BC0 = cam0_exts.tf();
+    const mat4_t T_BC1 = cam1_exts.tf();
+    const mat4_t T_C1C0 = T_BC1.inverse() * T_BC0;
+    LOG_INFO("Stereo-camera intrinsics and extrinsics initialized!");
+    print_vector("cam0_params:", cam0.param);
+    print_vector("cam1_params:", cam1.param);
+    print_matrix("T_C1C0", T_C1C0);
   }
 
   int find_nbv(std::set<int> &views_seen) {
@@ -385,7 +390,6 @@ public:
     printf("Processed [%ld / %ld] views, ", processed++, grids0.size());
     printf("nb_kept_views: %ld, ", views0.size());
     printf("nb_outliers: %d, ", nb_outliers);
-    printf("batch_info: %f, ", batch_info);
     printf("cam0_rmse: %.2f, ", rmse(cam0_errs));
     printf("cam1_rmse: %.2f", rmse(cam1_errs));
     printf("\n");
@@ -393,13 +397,17 @@ public:
 
   void show_results() {
     // Show results
+    const mat4_t T_BC0 = cam0_exts.tf();
+    const mat4_t T_BC1 = cam1_exts.tf();
+    const mat4_t T_C1C0 = T_BC1.inverse() * T_BC0;
+
     std::vector<double> cam0_errs, cam1_errs;
     reproj_errors<CAMERA>(views0, cam0_errs);
     reproj_errors<CAMERA>(views1, cam1_errs);
 
     printf("Optimization results:\n");
     printf("---------------------\n");
-    printf("nb_total_outliers: %d\n", total_outliers);
+    printf("nb_total_outliers: %ld\n", total_outliers);
     printf("cam0 reproj_error [px] [rmse: %f, ", rmse(cam0_errs));
     printf("mean: %f, ", mean(cam0_errs));
     printf("median: %f]\n", median(cam0_errs));
@@ -612,78 +620,6 @@ public:
     ceres::Solve(options, problem, &summary);
   }
 
-  /* Estimate Calibration Covariance */
-  int calib_covar(ceres::Problem &problem,
-                  camera_params_t &cam0,
-                  camera_params_t &cam1,
-                  extrinsics_t &exts,
-                  matx_t &covar) {
-    const auto cam0_size = cam0.param.size();
-    const auto cam1_size = cam1.param.size();
-    const auto exts_size = exts.param.size() - 1;
-    const auto covar_size = cam0_size + cam1_size + exts_size;
-    covar.resize(covar_size, covar_size);
-    covar.setZero();
-
-    const auto cam0_data = cam0.param.data();
-    const auto cam1_data = cam1.param.data();
-    const auto exts_data = exts.param.data();
-
-    std::vector<std::pair<const double *, const double *>> covar_blocks;
-    covar_blocks.push_back({cam0_data, cam0_data});
-    covar_blocks.push_back({cam1_data, cam1_data});
-    covar_blocks.push_back({exts_data, exts_data});
-
-    ceres::Covariance::Options covar_opts;
-    ceres::Covariance covar_est(covar_opts);
-    if (covar_est.Compute(covar_blocks, &problem) == false) {
-      return -1;
-    }
-
-    // cam0-cam0 covar
-    {
-      mat_t<Eigen::Dynamic, Eigen::Dynamic, row_major_t> covar_cam0;
-      covar_cam0.resize(cam0_size, cam0_size);
-      covar_est.GetCovarianceBlock(cam0_data, cam0_data, covar_cam0.data());
-
-      const long rs = 0;
-      const long cs = 0;
-      const long nb_rows = cam0_size;
-      const long nb_cols = cam0_size;
-      covar.block(rs, cs, nb_rows, nb_cols) = covar_cam0;
-    }
-
-    // cam1-cam1 covar
-    {
-      mat_t<Eigen::Dynamic, Eigen::Dynamic, row_major_t> covar_cam1;
-      covar_cam1.resize(cam1_size, cam1_size);
-      covar_est.GetCovarianceBlock(cam1_data, cam1_data, covar_cam1.data());
-
-      const long rs = cam0_size;
-      const long cs = cam0_size;
-      const long nb_rows = cam1_size;
-      const long nb_cols = cam1_size;
-      covar.block(rs, cs, nb_rows, nb_cols) = covar_cam1;
-    }
-
-    // extrinsics covar
-    {
-      mat_t<Eigen::Dynamic, Eigen::Dynamic, row_major_t> covar_ext;
-      covar_ext.resize(exts_size, exts_size);
-      covar_est.GetCovarianceBlockInTangentSpace(exts_data, exts_data, covar_ext.data());
-
-      const long rs = cam0_size + cam1_size;
-      const long cs = cam0_size + cam1_size;
-      const long nb_rows = exts_size;
-      const long nb_cols = exts_size;
-      covar.block(rs, cs, nb_rows, nb_cols) = covar_ext;
-    }
-
-    // printf("rank(covar): %ld\n", rank(covar));
-
-    return 0;
-  }
-
   double entropy(matx_t &covar) {
     // Calculate entropy in bits
     const Eigen::SelfAdjointEigenSolver<matx_t> eig(covar);
@@ -810,7 +746,7 @@ public:
     // Update data
     const mat4_t T_BC0 = cam0_exts.tf();
     const mat4_t T_BC1 = cam1_exts.tf();
-    T_C1C0 = T_BC1.inverse() * T_BC0;
+    const mat4_t T_C1C0 = T_BC1.inverse() * T_BC0;
     T_C0F.clear();
     T_C1F.clear();
     for (auto pose : rel_poses) {

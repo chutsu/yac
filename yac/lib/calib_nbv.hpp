@@ -5,8 +5,20 @@
 #include "calib_data.hpp"
 #include "calib_params.hpp"
 #include "calib_mono.hpp"
+#include "calib_stereo.hpp"
 
 namespace yac {
+
+double entropy(const matx_t &covar) {
+  const Eigen::SelfAdjointEigenSolver<matx_t> eig(covar);
+  const auto eigvals = eig.eigenvalues().array();
+  return -1.0 * eigvals.log().sum() / std::log(2);
+}
+
+double info_gain(const matx_t calib_covar, const double info_prev) {
+  const double info = entropy(calib_covar);
+  return 0.5 * (info - info_prev);
+}
 
 // Check number of apriltags observed by camera
 template <typename CAMERA>
@@ -40,6 +52,37 @@ bool check_fully_observable(const calib_target_t &target,
   }
 
   return true;
+}
+
+template <typename T>
+aprilgrid_t *nbv_target_grid(const calib_target_t &target,
+                             const camera_params_t &cam_params,
+                             const mat4_t &nbv_pose) {
+  const int tag_rows = target.tag_rows;
+  const int tag_cols = target.tag_cols;
+  const double tag_size = target.tag_size;
+  const double tag_spacing = target.tag_spacing;
+
+  const auto cam_res = cam_params.resolution;
+  const vecx_t proj_params = cam_params.proj_params();
+  const vecx_t dist_params = cam_params.dist_params();
+  const T camera{cam_res, proj_params, dist_params};
+
+  auto grid = new aprilgrid_t{0, tag_rows, tag_cols, tag_size, tag_spacing};
+  const mat4_t T_CF = nbv_pose.inverse();
+  for (int tag_id = 0; tag_id < (tag_rows * tag_cols); tag_id++) {
+    for (int corner_idx = 0; corner_idx < 4; corner_idx++) {
+      const vec3_t r_FFi = grid->object_point(tag_id, corner_idx);
+      const vec3_t r_CFi = tf_point(T_CF, r_FFi);
+
+      vec2_t z_hat{0.0, 0.0};
+      if (camera.project(r_CFi, z_hat) == 0) {
+        grid->add(tag_id, corner_idx, z_hat);
+      }
+    }
+  }
+
+  return grid;
 }
 
 /** Calculate target origin (O) w.r.t. fiducial (F) T_FO **/
@@ -151,7 +194,7 @@ mat4s_t calib_nbv_poses(const calib_target_t &target,
   // Pose settings
   const double xy_scale = 2.0;
   const double d_start = r_FO(2);
-  const double d_end = d_start * 4.0;
+  const double d_end = d_start * 1.5;
   const double h_width = target_width / 2.0;
   const double h_height = target_height / 2.0;
   const double range_w[2] = {-h_width * xy_scale, h_width * xy_scale};
@@ -178,7 +221,14 @@ mat4s_t calib_nbv_poses(const calib_target_t &target,
   mat4s_t poses;
   for (const auto &cam_pos : cam_positions) {
     mat4_t T_FC = lookat(cam_pos, target_center);
-    poses.push_back(T_FC);
+
+    const auto roll = deg2rad(randf(-5.0, 5.0));
+    const auto pitch = deg2rad(randf(-5.0, 5.0));
+    const auto yaw = deg2rad(randf(-5.0, 5.0));
+    const vec3_t rpy{roll, pitch, yaw};
+    const mat3_t dC = euler321(rpy);
+    const mat4_t dT = tf(dC, zeros(3, 1));
+    poses.push_back(T_FC * dT);
   }
 
   return poses;
@@ -372,10 +422,10 @@ void calib_pan_trajs(const calib_target_t &target,
 }
 
 template <typename CAMERA>
-void nbv_draw(const calib_target_t &target,
-              const camera_params_t &cam_params,
-              const mat4_t &T_FC,
-              cv::Mat &image) {
+vec2s_t nbv_draw(const calib_target_t &target,
+                 const camera_params_t &cam_params,
+                 const mat4_t &T_FC,
+                 cv::Mat &image) {
   const double tag_rows = target.tag_rows;
   const double tag_cols = target.tag_cols;
   const double tag_size = target.tag_size;
@@ -426,12 +476,15 @@ void nbv_draw(const calib_target_t &target,
   cv::circle(image, pt1, 1.0, corner_color, 5, 8);
   cv::circle(image, pt2, 1.0, corner_color, 5, 8);
   cv::circle(image, pt3, 1.0, corner_color, 5, 8);
+
+  return {p0, p1, p2, p3};
 }
 
 template <typename CAMERA>
 aprilgrids_t calib_simulate(const calib_target_t &target,
                             const mat4s_t &rel_poses,
-                            const camera_params_t &cam_params) {
+                            const camera_params_t &cam_params,
+                            const mat4_t &T_C0C1=I(4)) {
 	const auto cam_res = cam_params.resolution;
 	const auto proj_params = cam_params.proj_params();
 	const auto dist_params = cam_params.dist_params();
@@ -441,20 +494,21 @@ aprilgrids_t calib_simulate(const calib_target_t &target,
   const int tag_cols = target.tag_cols;
   const double tag_size = target.tag_size;
   const double tag_spacing = target.tag_spacing;
-  const mat4s_t nbv_poses = calib_nbv_poses<CAMERA>(target, cam_params);
+  const mat4_t T_CiC0 = T_C0C1.inverse();
 
   aprilgrids_t grids;
-  for (const mat4_t &T_FC : rel_poses) {
+  for (const mat4_t &T_FC0 : rel_poses) {
     aprilgrid_t grid(0, tag_rows, tag_cols, tag_size, tag_spacing);
-    const mat4_t T_CF = T_FC.inverse();
+    const mat4_t T_C0F = T_FC0.inverse();
 
     for (int tag_id = 0; tag_id < (tag_rows * tag_cols); tag_id++) {
       for (int corner_idx = 0; corner_idx < 4; corner_idx++) {
         const vec3_t r_FFi = grid.object_point(tag_id, corner_idx);
-        const vec3_t r_CFi = tf_point(T_CF, r_FFi);
+        const vec3_t r_C0Fi = tf_point(T_C0F, r_FFi);
+        const vec3_t r_CiFi = tf_point(T_CiC0, r_C0Fi);
 
         vec2_t z_hat{0.0, 0.0};
-        if (camera.project(r_CFi, z_hat) == 0) {
+        if (camera.project(r_CiFi, z_hat) == 0) {
           grid.add(tag_id, corner_idx, z_hat);
         }
       }
@@ -466,11 +520,11 @@ aprilgrids_t calib_simulate(const calib_target_t &target,
   return grids;
 }
 
-// Returns reprojection uncertainty stddev in pixels
+// Find next best pose for monocular camera
 template <typename CAMERA>
 int nbv_find(const calib_target_t &target,
              calib_mono_data_t &data,
-             mat4_t &T_FC) {
+             mat4_t &T_FC0) {
   assert(data.problem);
 
   camera_params_t &cam_params = data.cam_params;
@@ -481,19 +535,26 @@ int nbv_find(const calib_target_t &target,
   const mat4s_t nbv_poses = calib_nbv_poses<CAMERA>(target, cam_params);
   const auto grids = calib_simulate<CAMERA>(target, nbv_poses, cam_params);
 
-  // Evaluate observations
+  // Evaluate batch information
+  matx_t covar;
+  if (calib_covar(problem, cam_params, covar) != 0) {
+    return -1;
+  }
+  double batch_info = entropy(covar);
+
+  // Evaluate different poses
   const auto cam_res = cam_params.resolution;
   bool success = false;
-  int best_index = 0;
-  double best_score = std::numeric_limits<double>::max();
+  int best_index = -1;
+  double best_info_gain = 0.0;
 
   for (size_t k = 0; k < nbv_poses.size(); k++) {
     const auto grid = grids[k];
     if (grid.detected == 0) {
       continue;
     }
-    const mat4_t T_FC = nbv_poses[k];
-    const mat4_t T_CF = T_FC.inverse();
+    const mat4_t T_FC0 = nbv_poses[k];
+    const mat4_t T_C0F = T_FC0.inverse();
 
     // Add current view residual blocks to problem
     std::vector<int> tag_ids;
@@ -502,7 +563,7 @@ int nbv_find(const calib_target_t &target,
     vec3s_t object_points;
     grid.get_measurements(tag_ids, corner_indicies, keypoints, object_points);
 
-    pose_t pose{0, 0, T_CF};
+    pose_t pose{0, 0, T_C0F};
     std::vector<calib_mono_residual_t<CAMERA> *> cost_fns;
     std::vector<ceres::ResidualBlockId> res_blocks;
     for (size_t i = 0; i < tag_ids.size(); i++) {
@@ -526,9 +587,21 @@ int nbv_find(const calib_target_t &target,
     }
     problem.SetParameterization(pose.param.data(), &pose_plus);
 
-    // Evaluate NBV that has the least uncertainty
-    matx_t covar = std::numeric_limits<double>::max() * I(8);
-    int retval = calib_mono_covar(cam_params, problem, covar);
+    // Evaluate information gain
+    matx_t covar;
+    if (calib_covar(problem, cam_params, covar) == 0) {
+      const double view_info = entropy(covar);
+      const double info_gain = 0.5 * (view_info - batch_info);
+      printf("batch_info: %f, ", batch_info);
+      printf("view_info: %f, ", view_info);
+      printf("info_gain: %f\n", info_gain);
+
+      if (info_gain > 0.2 && info_gain > best_info_gain) {
+        best_info_gain = info_gain;
+        best_index = k;
+        success = true;
+      }
+    }
 
     // Remove view from problem
     for (size_t i = 0; i < cost_fns.size(); i++) {
@@ -536,18 +609,124 @@ int nbv_find(const calib_target_t &target,
       delete cost_fns[i];
     }
     problem.RemoveParameterBlock(pose.param.data());
-
-    if (retval == 0 && covar.trace() < best_score) {
-      best_score = covar.trace();
-      best_index = k;
-      success = true;
-    }
   }
 
   // Set NBV pose
-  T_FC = nbv_poses[best_index];
+  T_FC0 = nbv_poses[best_index];
 
-  return success ? 0 : -1;
+  return success ? 0 : -2;
+}
+
+// Find next best pose for a stereo-camera calibration
+template <typename CAMERA>
+int nbv_find(const calib_target_t &target,
+             calib_stereo_data_t &data,
+             mat4_t &T_FC0) {
+  assert(data.problem);
+
+  camera_params_t &cam0 = data.cam0;
+  camera_params_t &cam1 = data.cam1;
+  extrinsics_t &cam0_exts = data.cam0_exts;
+  extrinsics_t &cam1_exts = data.cam1_exts;
+  ceres::Problem &problem = *data.problem;
+  PoseLocalParameterization pose_plus;
+
+  // Create NBVs and simulate observations
+  const mat4s_t nbv_poses = calib_nbv_poses<CAMERA>(target, cam0, 4, 4, 3);
+  const mat4_t T_BC1 = cam1_exts.tf();
+  std::map<int, aprilgrids_t> nbv_grids;
+  nbv_grids[0] = calib_simulate<CAMERA>(target, nbv_poses, cam0);
+  nbv_grids[1] = calib_simulate<CAMERA>(target, nbv_poses, cam1, T_BC1);
+
+  // Evaluate batch information
+  matx_t covar;
+  if (calib_covar(problem, cam0, cam1, cam1_exts, covar) != 0) {
+    return -1;
+  }
+  double batch_info = entropy(covar);
+
+  // Evaluate different poses
+  const auto cam_res = cam0.resolution;
+  bool success = false;
+  int best_index = -1;
+  double best_info_gain = 0.0;
+  std::vector<camera_params_t *> cam_params = {&cam0, &cam1};
+  std::vector<extrinsics_t *> extrinsics = {&cam0_exts, &cam1_exts};
+
+  for (size_t k = 0; k < nbv_poses.size(); k++) {
+    std::vector<reproj_error_t<CAMERA> *> cost_fns;
+    std::vector<ceres::ResidualBlockId> res_blocks;
+
+    const mat4_t T_FC0 = nbv_poses[k];
+    const mat4_t T_C0F = T_FC0.inverse();
+    pose_t nbv_pose{0, 0, T_C0F};
+
+    // Add view from each camera
+    for (int cam_idx = 0; cam_idx < (int) extrinsics.size(); cam_idx++) {
+      const auto grid = nbv_grids[cam_idx][k];
+      if (grid.detected == false) {
+        continue;
+      }
+
+      // Add current view residual blocks to problem
+      std::vector<int> tag_ids;
+      std::vector<int> corner_indicies;
+      vec2s_t keypoints;
+      vec3s_t object_points;
+      grid.get_measurements(tag_ids, corner_indicies, keypoints, object_points);
+
+      for (size_t i = 0; i < tag_ids.size(); i++) {
+        const int tag_id = tag_ids[i];
+        const int corner_idx = corner_indicies[i];
+        const vec2_t z = keypoints[i];
+        const vec3_t r_FFi = object_points[i];
+        const mat2_t covar = I(2);
+
+        auto cost_fn = new reproj_error_t<CAMERA>{cam_idx, cam_res,
+                                                  tag_id, corner_idx,
+                                                  r_FFi, z, covar};
+        auto res_id = problem.AddResidualBlock(cost_fn,
+                                               NULL,
+                                               nbv_pose.param.data(),
+                                               extrinsics[cam_idx]->param.data(),
+                                               cam_params[cam_idx]->param.data());
+
+        cost_fns.push_back(cost_fn);
+        res_blocks.push_back(res_id);
+      }
+      problem.SetParameterization(nbv_pose.param.data(), &pose_plus);
+    }
+
+    // Evaluate information gain
+    matx_t covar;
+    if (calib_covar(problem, cam0, cam1, cam1_exts, covar) == 0) {
+      const double view_info = entropy(covar);
+      const double info_gain = 0.5 * (view_info - batch_info);
+      printf("batch_info: %f, ", batch_info);
+      printf("view_info: %f, ", view_info);
+      printf("info_gain: %f\n", info_gain);
+
+      if (info_gain > 0.2 && info_gain > best_info_gain) {
+        best_info_gain = info_gain;
+        best_index = k;
+        success = true;
+      }
+    }
+
+    // Remove view from problem
+    for (size_t i = 0; i < cost_fns.size(); i++) {
+      problem.RemoveResidualBlock(res_blocks[i]);
+      delete cost_fns[i];
+    }
+    problem.RemoveParameterBlock(nbv_pose.param.data());
+  }
+
+  // Set NBV pose
+  if (best_index != -1) {
+    T_FC0 = nbv_poses[best_index];
+  }
+
+  return success ? 0 : -2;
 }
 
 struct nbv_test_grid_t {

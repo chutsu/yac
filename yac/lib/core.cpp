@@ -1985,6 +1985,80 @@ real_t closest_point(const vec2_t &a,
   return t;
 }
 
+void fit_circle(const vec2s_t &points, double &cx, double &cy, double &radius) {
+  assert(points.size() > 3);
+
+  // Parametric circle equation
+  // (x - cx)^2 + (y - cy)^2 = r^2
+
+  // Expand and rewrite the circle equation
+  // (x^2 - 2x * cx + cx^2) + (y^2 - 2y * cy + cy^2) = r^2
+  // -2x * cx + cx^2 - 2y * cy + cy^2 = r^2 - x^2 - y^2
+  // (-2x * cx + cx^2) - (2y * cy + cy^2) - r^2 = -(x^2 + y^2)
+  // (-2x * cx) + (-2y * cy) + (-r^2  + cx^2 + cy^2) = -(x^2 + y^2)
+
+  // Matrix form: Ax = b
+  // Let
+  //   A = [-2x -2y 1]
+  //   x = [cx, cy, -r^2 + cx^2 + cy^2]'
+  //   b = [-(x^2 + y^2)]'
+  // [-2x -2y 1] [cx cy -r^2+cx^2+cy^2]' = [-(x^2 + y^2)]'
+
+  // Form A matrix and vector b
+  int nb_points = points.size();
+  matx_t A;
+  vecx_t b;
+  A.resize(nb_points, 3);
+  b.resize(nb_points, 1);
+
+  for (int i = 0; i < nb_points; i++) {
+    const vec2_t p = points[i];
+    A(i, 0) = -2.0 * p.x();
+    A(i, 1) = -2.0 * p.y();
+    A(i, 2) = 1.0;
+    b(i) = -(p.x() * p.x() + p.y() * p.y());
+  }
+
+  // Solve Ax = b
+  Eigen::JacobiSVD<matx_t> svd(A, Eigen::ComputeFullU | Eigen::ComputeFullV);
+  vecx_t x = svd.solve(b);
+
+  // Results
+  cx = x(0);
+  cy = x(1);
+  radius= sqrt((cx * cx) + (cy * cy) - x(2));
+}
+
+vec2s_t intersect_circles(const double cx0, const double cy0, const double r0,
+                          const double cx1, const double cy1, const double r1) {
+  vec2s_t ipts;
+
+  // Check if circles are separate
+  double d = sqrt(pow(cx0 - cx1, 2) + pow(cy0 - cy1, 2));
+  if (d > r0 + r1) {
+    return ipts;
+  }
+
+  // Check if one circle is contained within the other
+  if (d < fabs(r0 - r1)) {
+    return ipts;
+  }
+
+  // Check if circles intersect only at a single point
+  double a = (pow(r0, 2) - pow(r1, 2) + pow(d, 2)) / (2.0 * d);
+  double h = sqrt(pow(r0, 2) - pow(a, 2));
+  double x3 = cx0 + a * (cx1 - cx0) / d;
+  double y3 = cy0 + a * (cy1 - cy0) / d;
+  if (h < 1e-10) {
+    ipts.emplace_back(x3, y3);
+    return ipts;
+  }
+
+  // Circles interset at two points
+  ipts.emplace_back(x3 + h * (cy1 - cy0) / d, y3 - h * (cx1 - cx0) / d);
+  ipts.emplace_back(x3 - h * (cy1 - cy0) / d, y3 + h * (cx1 - cx0) / d);
+}
+
 void latlon_offset(real_t lat_ref,
                    real_t lon_ref,
                    real_t offset_N,

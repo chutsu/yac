@@ -165,5 +165,12 @@ cv::Mat draw_calib_validation(const cv::Mat &image,
  */
 std::ostream &operator<<(std::ostream &os, const calib_target_t &target);
 
+/**
+ * Initialize focal lengths using aprilgrid. `axis` denotes the focal length
+ * for x-axis or y-axis, 0 or 1 repsectively. The result is written to `focal`.
+ * Returns 0 for success, -1 for failure.
+ */
+int focal_init(const aprilgrid_t &grid, const int axis, double &focal);
+
 } // namespace yac
 #endif // YAC_CALIB_DATA_HPP

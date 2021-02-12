@@ -6,13 +6,20 @@
 #include <ros/ros.h>
 #include <rosbag/bag.h>
 #include <rosbag/view.h>
+
 #include <cv_bridge/cv_bridge.h>
 #include <image_transport/image_transport.h>
+#include <image_transport/subscriber_filter.h>
+
+#include <message_filters/subscriber.h>
+#include <message_filters/synchronizer.h>
+#include <message_filters/sync_policies/exact_time.h>
 
 #include <std_msgs/UInt8.h>
 #include <std_msgs/Bool.h>
 #include <std_msgs/Float64.h>
 #include <std_msgs/String.h>
+
 #include <geometry_msgs/Vector3.h>
 #include <geometry_msgs/Point.h>
 #include <geometry_msgs/Quaternion.h>
@@ -20,7 +27,9 @@
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
 #include <geometry_msgs/TwistStamped.h>
+
 #include <nav_msgs/Odometry.h>
+
 #include <sensor_msgs/Joy.h>
 #include <sensor_msgs/NavSatFix.h>
 #include <sensor_msgs/Imu.h>

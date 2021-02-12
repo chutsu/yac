@@ -70,6 +70,31 @@ struct aprilgrid_t {
     data.setZero();
   }
 
+  bool fully_observable() const {
+		assert(init == true);
+    return (nb_detections == (tag_rows * tag_cols * 4));
+  }
+
+  bool fully_observable() {
+		assert(init == true);
+    return static_cast<const aprilgrid_t>(*this).fully_observable();
+  }
+
+  bool has(const int tag_id, const int corner_idx) const {
+    assert(init == true);
+    const int data_row = (tag_id * 4) + corner_idx;
+    if (data(data_row, 0) <= 0) {
+      return false;
+    }
+
+    return true;
+  }
+
+  bool has(const int tag_id, const int corner_idx) {
+		assert(init == true);
+    return static_cast<const aprilgrid_t>(*this).has(tag_id, corner_idx);
+  }
+
   vec2_t center() const {
 		assert(init == true);
 
@@ -679,6 +704,26 @@ struct aprilgrid_t {
 /* AprilGrids */
 typedef std::vector<aprilgrid_t> aprilgrids_t;
 
+/* Load AprilGrids */
+inline aprilgrids_t load_aprilgrids(const std::string &dir_path) {
+  std::vector<std::string> csv_files;
+  if (list_dir(dir_path, csv_files) != 0) {
+    FATAL("Failed to list dir [%s]!", dir_path.c_str());
+  }
+  sort(csv_files.begin(), csv_files.end());
+
+  aprilgrids_t grids;
+  for (const auto &grid_csv : csv_files) {
+    const auto csv_path = dir_path + "/" + grid_csv;
+    aprilgrid_t grid{csv_path};
+    if (grid.detected) {
+      grids.push_back(grid);
+    }
+  }
+
+  return grids;
+}
+
 /* AprilGrid Detector */
 struct aprilgrid_detector_t {
   /// Grid properties
@@ -887,9 +932,9 @@ struct aprilgrid_detector_t {
 
       // Laplacian blurr score
       const vec2_t kp{p_after.x, p_after.y};
-      const double var = blur_score(image, kp);
+      // const double var = blur_score(image, kp);
 
-      if (dist < max_subpix_disp && var > blur_threshold) {
+      if (dist < max_subpix_disp/*  && var > blur_threshold */) {
         filtered_tag_ids.push_back(tag_ids[i]);
         filtered_corner_indicies.push_back(corner_indicies[i]);
         filtered_keypoints.emplace_back(p_after.x, p_after.y);

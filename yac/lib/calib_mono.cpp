@@ -2,10 +2,10 @@
 
 namespace yac {
 
-int calib_mono_covar(const camera_params_t &cam_params,
-                     ceres::Problem &problem,
-                     matx_t &covar) {
-  const auto param_data = cam_params.param.data();
+int calib_covar(ceres::Problem &problem,
+                camera_params_t &cam,
+                matx_t &covar) {
+  const auto param_data = cam.param.data();
 
   std::vector<std::pair<const double *, const double *>> covar_blocks;
   covar_blocks.push_back({param_data, param_data});
@@ -17,7 +17,7 @@ int calib_mono_covar(const camera_params_t &cam_params,
     return -1;
   }
 
-  const auto params_size = cam_params.param.size();
+  const auto params_size = cam.param.size();
   double *covar_raw = (double *) malloc(sizeof(double) * params_size * params_size);
   covar_est.GetCovarianceBlock(param_data, param_data, covar_raw);
   covar = Eigen::Map<mat_t<8, 8, row_major_t>>(covar_raw);
@@ -33,8 +33,6 @@ int calib_mono_solve(const std::string &config_file) {
   bool imshow = true;
   double sigma_vision = 0.0;
   vec2_t resolution{0.0, 0.0};
-  real_t lens_hfov = 0.0;
-  real_t lens_vfov = 0.0;
   std::string proj_model;
   std::string dist_model;
 
@@ -45,24 +43,8 @@ int calib_mono_solve(const std::string &config_file) {
   parse(config, "settings.imshow", imshow);
   parse(config, "settings.sigma_vision", sigma_vision);
   parse(config, "cam0.resolution", resolution);
-  parse(config, "cam0.lens_hfov", lens_hfov);
-  parse(config, "cam0.lens_vfov", lens_vfov);
   parse(config, "cam0.proj_model", proj_model);
   parse(config, "cam0.dist_model", dist_model);
-
-  // Setup camera intrinsics and distortion
-  const id_t id = 0;
-  const int cam_idx = 0;
-  const int cam_res[2] = {(int) resolution[0], (int) resolution[1]};
-  const double fx = pinhole_focal(cam_res[0], 98.0);
-  const double fy = pinhole_focal(cam_res[1], 73.0);
-  const double cx = cam_res[0] / 2.0;
-  const double cy = cam_res[1] / 2.0;
-  const vec4_t proj_params{fx, fy, cx, cy};
-  const vec4_t dist_params{0.0, 0.0, 0.0, 0.0};
-  camera_params_t cam{id, cam_idx, cam_res,
-                      proj_model, dist_model,
-                      proj_params, dist_params};
 
   // Load calibration target
   calib_target_t calib_target;
@@ -89,6 +71,15 @@ int calib_mono_solve(const std::string &config_file) {
   if (load_camera_calib_data(grid_path, grids) != 0) {
     LOG_ERROR("Failed to load camera calibration data!");
     return -1;
+  }
+
+  // Setup camera intrinsics and distortion
+  const id_t id = 0;
+  const int cam_idx = 0;
+  const int res[2] = {(int) resolution[0], (int) resolution[1]};
+  camera_params_t cam{id, cam_idx, res, proj_model, dist_model, 4, 4};
+  if (cam.initialize(grids) == false) {
+    FATAL("Failed to initialize camera focal lengths!");
   }
 
   // Calibrate camera

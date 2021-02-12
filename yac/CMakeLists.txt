@@ -52,6 +52,9 @@ ADD_DEFINITIONS(-DTEST_PATH="${TEST_BIN_PATH}")
 ADD_EXECUTABLE(test_aprilgrid tests/test_aprilgrid.cpp)
 TARGET_LINK_LIBRARIES(test_aprilgrid yac ${DEPS})
 
+ADD_EXECUTABLE(test_core tests/test_core.cpp)
+TARGET_LINK_LIBRARIES(test_core yac ${DEPS})
+
 ADD_EXECUTABLE(test_calib_mocap tests/test_calib_mocap.cpp)
 TARGET_LINK_LIBRARIES(test_calib_mocap yac ${DEPS})
 

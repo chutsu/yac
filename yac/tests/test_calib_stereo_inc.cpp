@@ -4,33 +4,23 @@
 
 namespace yac {
 
-std::vector<camera_params_t> setup_cameras() {
+std::vector<camera_params_t> setup_cameras(const aprilgrids_t &grids0,
+                                           const aprilgrids_t &grids1) {
   // Setup cameras
   const int img_w = 752;
   const int img_h = 480;
   const int cam_res[2] = {img_w, img_h};
-  const double lens_hfov = 90.0;
-  const double lens_vfov = 90.0;
 	const std::string proj_model = "pinhole";
 	const std::string dist_model = "radtan4";
-  // -- cam0 intrinsics and distortion
-  const double cam0_fx = pinhole_focal(img_w, lens_hfov);
-  const double cam0_fy = pinhole_focal(img_h, lens_vfov);
-  const double cam0_cx = img_w / 2.0;
-  const double cam0_cy = img_h / 2.0;
-  const vec4_t cam0_proj_params{cam0_fx, cam0_fy, cam0_cx, cam0_cy};
-  const vec4_t cam0_dist_params{0.01, 0.0001, 0.0001, 0.0001};
-  camera_params_t cam0{0, 0, cam_res, proj_model, dist_model,
-                       cam0_proj_params, cam0_dist_params};
-  // -- cam1 intrinsics and distortion
-  const double cam1_fx = pinhole_focal(img_w, lens_hfov);
-  const double cam1_fy = pinhole_focal(img_h, lens_vfov);
-  const double cam1_cx = img_w / 2.0;
-  const double cam1_cy = img_h / 2.0;
-  const vec4_t cam1_proj_params{cam1_fx, cam1_fy, cam1_cx, cam1_cy};
-  const vec4_t cam1_dist_params{0.01, 0.0001, 0.0001, 0.0001};
-  camera_params_t cam1{1, 1, cam_res, proj_model, dist_model,
-                       cam1_proj_params, cam1_dist_params};
+  camera_params_t cam0{0, 0, cam_res, proj_model, dist_model, 4, 4};
+  camera_params_t cam1{1, 1, cam_res, proj_model, dist_model, 4, 4};
+
+  if (cam0.initialize(grids0) == false) {
+    FATAL("Failed to inialize camera!");
+  }
+  if (cam1.initialize(grids1) == false) {
+    FATAL("Failed to inialize camera!");
+  }
 
 	return {cam0, cam1};
 }
@@ -38,22 +28,32 @@ std::vector<camera_params_t> setup_cameras() {
 int test_calib_stereo_inc_solve() {
   // Setup
   test_data_t test_data = setup_test_data();
-	auto cameras = setup_cameras();
-	auto cam0 = cameras[0];
-	auto cam1 = cameras[1];
 
   // Test
   const auto target = test_data.target;
-  const auto grids0 = test_data.grids0;
-  const auto grids1 = test_data.grids1;
-  calib_stereo_data_t data{target, grids0, grids1, cam0, cam1, I(2)};
+  auto grids0 = test_data.grids0;
+  auto grids1 = test_data.grids1;
+	auto cameras = setup_cameras(grids0, grids1);
+  std::map<timestamp_t, pose_t> poses;  // T_BF
+	auto cam0 = cameras[0];
+	auto cam1 = cameras[1];
+	extrinsics_t cam0_exts{2};
+	extrinsics_t cam1_exts{3};
+	mat2_t covar = I(2);
+
+  calib_stereo_data_t data{target, grids0, grids1,
+                           poses, cam0, cam1, cam0_exts, cam1_exts};
   calib_stereo_inc_solver_t<pinhole_radtan4_t> solver(data);
 
   const std::string results_fpath = "/tmp/calib-stereo.yaml";
   printf("\x1B[92m");
   printf("Saving optimization results to [%s]", results_fpath.c_str());
   printf("\033[0m\n");
-  if (save_results(results_fpath, data.cam0, data.cam1, data.T_C1C0, data.cam0_errs, data.cam1_errs) != 0) {
+
+  const mat4_t T_BC0 = cam0_exts.tf();
+  const mat4_t T_BC1 = cam1_exts.tf();
+  const mat4_t T_C1C0 = T_BC1.inverse() * T_BC0;
+  if (save_results(results_fpath, cam0, cam1, T_C1C0, data.cam0_errs, data.cam1_errs) != 0) {
     LOG_ERROR("Failed to save results to [%s]!", results_fpath.c_str());
     return -1;
   }
@@ -121,12 +121,12 @@ int test_calib_stereo_inc_solve() {
     const mat4_t T_C1C0_gnd = T_SC1.inverse() * T_SC0;
     // clang-format on
     const vec3_t gnd_trans = tf_trans(T_C1C0_gnd);
-    const vec3_t est_trans = tf_trans(data.T_C1C0);
+    const vec3_t est_trans = tf_trans(T_C1C0);
     const vec3_t gnd_euler = rad2deg(quat2euler(tf_quat(T_C1C0_gnd)));
-    const vec3_t est_euler = rad2deg(quat2euler(tf_quat(data.T_C1C0)));
+    const vec3_t est_euler = rad2deg(quat2euler(tf_quat(T_C1C0)));
 
     print_matrix("T_C1C0 [gnd]", T_C1C0_gnd);
-    print_matrix("T_C1C0 [est]", data.T_C1C0);
+    print_matrix("T_C1C0 [est]", T_C1C0);
     print_vector("trans (cam1-cam0) [gnd] [m]", gnd_trans);
     print_vector("trans (cam1-cam0) [est] [m]", est_trans);
     print_vector("rot (cam1-cam0) [gnd] [deg]", gnd_euler);

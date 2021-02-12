@@ -68,25 +68,6 @@ void lerp_body_poses(const aprilgrids_t &grids,
   }
 }
 
-aprilgrids_t load_aprilgrids(const std::string &dir_path) {
-  std::vector<std::string> csv_files;
-  if (list_dir(dir_path, csv_files) != 0) {
-    FATAL("Failed to list dir [%s]!", dir_path.c_str());
-  }
-  sort(csv_files.begin(), csv_files.end());
-
-  aprilgrids_t grids;
-  for (const auto &grid_csv : csv_files) {
-    const auto csv_path = dir_path + "/" + grid_csv;
-    aprilgrid_t grid{csv_path};
-    if (grid.detected) {
-      grids.push_back(grid);
-    }
-  }
-
-  return grids;
-}
-
 /** Mocap-Camera Calibration data */
 struct calib_mocap_data_t {
   bool fix_intrinsics = false;
@@ -147,81 +128,49 @@ struct calib_mocap_data_t {
 
     // Load camera params
     if (yaml_has_key(config, "cam0.proj_params") == false) {
-      // Camera parameters unknown - Lets first calibrate intrinsics
-      LOG_INFO("Camera parameters unknown!");
-      real_t lens_hfov = 0.0;
-      real_t lens_vfov = 0.0;
-      parse(config, "cam0.lens_hfov", lens_hfov);
-      parse(config, "cam0.lens_vfov", lens_vfov);
-
-      const int cam_idx = 0;
-      const int cam_res[2] = {(int) resolution[0], (int) resolution[1]};
-      const double fx = pinhole_focal(cam_res[0], lens_hfov);
-      const double fy = pinhole_focal(cam_res[1], lens_vfov);
-      const double cx = cam_res[0] / 2.0;
-      const double cy = cam_res[1] / 2.0;
-      vec4_t proj_params{fx, fy, cx, cy};
-      vec4_t dist_params{0.0, 0.0, 0.0, 0.0};
-      this->cam0 = camera_params_t{param_id++, cam_idx, cam_res,
-                                   proj_model, dist_model,
-                                   proj_params, dist_params};
-
-
       // Perform intrinsics calibration
+      LOG_INFO("Camera parameters unknown!");
       LOG_INFO("Calibrating camera intrinsics!");
-      {
-        // Setup AprilGrid detector
-        aprilgrid_detector_t detector(calib_target.tag_rows,
-                                      calib_target.tag_cols,
-                                      calib_target.tag_size,
-                                      calib_target.tag_spacing);
-        std::vector<std::string> image_paths;
-        if (list_dir(cam0_path, image_paths) != 0) {
-          FATAL("Failed to traverse dir [%s]!", cam0_path.c_str());
-        }
-        std::sort(image_paths.begin(), image_paths.end());
 
-        // Esimate AprilGrids
-        aprilgrids_t cam0_grids;
-        for (const auto &image_path : image_paths) {
-          const auto ts = std::stoull(parse_fname(image_path));
-          const auto image = cv::imread(paths_join(cam0_path, image_path));
-          const auto grid = detector.detect(ts, image);
-          cam0_grids.push_back(grid);
-        }
+      // -- Setup AprilGrid detector
+      aprilgrid_detector_t detector(calib_target.tag_rows,
+                                    calib_target.tag_cols,
+                                    calib_target.tag_size,
+                                    calib_target.tag_spacing);
+      std::vector<std::string> image_paths;
+      if (list_dir(cam0_path, image_paths) != 0) {
+        FATAL("Failed to traverse dir [%s]!", cam0_path.c_str());
+      }
+      std::sort(image_paths.begin(), image_paths.end());
 
-        int retval = 0;
-        calib_mono_data_t data{cam0_grids, this->cam0};
-        if (proj_model == "pinhole" && dist_model == "radtan4") {
-          calib_mono_solve<pinhole_radtan4_t>(data);
-        } else if (proj_model == "pinhole" && dist_model == "equi4") {
-          calib_mono_solve<pinhole_equi4_t>(data);
-        } else {
-          FATAL("Unsupported [%s-%s]!", proj_model.c_str(), dist_model.c_str());
-        }
-        if (retval != 0) {
-          FATAL("Failed to calibrate [cam0] intrinsics!");
-        }
+      // -- Detect AprilGrids
+      aprilgrids_t cam0_grids;
+      for (const auto &image_path : image_paths) {
+        const auto ts = std::stoull(parse_fname(image_path));
+        const auto image = cv::imread(paths_join(cam0_path, image_path));
+        const auto grid = detector.detect(ts, image);
+        cam0_grids.push_back(grid);
       }
 
-      // Redetect AprilGrid
-      LOG_INFO("Re-estimating AprilGrid data");
-      {
-        // Remove previously estimated aprilgrid
-        const std::string cmd = "rm -rf " + grid0_path;
-        if (system(cmd.c_str()) == -1) {
-          FATAL("Failed to delete [%s]!", grid0_path.c_str());
-        }
+      // -- Initialize camera parameters
+      const int cam_idx = 0;
+      const int cam_res[2] = {(int) resolution[0], (int) resolution[1]};
+      this->cam0 = camera_params_t{param_id++, cam_idx, cam_res,
+                                   proj_model, dist_model, 4, 4};
+      this->cam0.initialize(cam0_grids);
 
-        // Prepare aprilgrid data directory
-        if (dir_exists(grid0_path) == false) {
-          dir_create(grid0_path);
-        }
-
-        // Preprocess calibration data
-        if (preprocess_camera_data(calib_target, cam0_path, grid0_path) != 0) {
-          FATAL("Failed to preprocess calibration data!");
-        }
+      // -- Calibrate camera intrinsics
+      int retval = 0;
+      calib_mono_data_t data{cam0_grids, this->cam0};
+      if (proj_model == "pinhole" && dist_model == "radtan4") {
+        calib_mono_solve<pinhole_radtan4_t>(data);
+      } else if (proj_model == "pinhole" && dist_model == "equi4") {
+        calib_mono_solve<pinhole_equi4_t>(data);
+      } else {
+        FATAL("Unsupported [%s-%s]!", proj_model.c_str(), dist_model.c_str());
+      }
+      if (retval != 0) {
+        FATAL("Failed to calibrate [cam0] intrinsics!");
       }
 
     } else {
@@ -237,9 +186,6 @@ struct calib_mocap_data_t {
                                    proj_model, dist_model,
                                    proj_params, dist_params};
     }
-
-    print_vector("cam0 proj params", this->cam0.proj_params());
-    print_vector("cam0 dist params", this->cam0.dist_params());
 
     // Load dataset
     // -- April Grid
@@ -608,7 +554,7 @@ static void save_results(const calib_mocap_data_t &data,
   }
 }
 
-/** Calibrate mocap marker to camera extrinsics */
+/* Calibrate mocap marker to camera extrinsics */
 template <typename CAMERA_TYPE>
 int calib_mocap_solve(calib_mocap_data_t &data) {
   assert(data.grids.size() > 0);
@@ -678,6 +624,7 @@ int calib_mocap_solve(calib_mocap_data_t &data) {
   return 0;
 }
 
+/* Solve the camera-mocap_marker extrinsics */
 int calib_mocap_solve(const std::string &config_file);
 
 } //  namespace yac

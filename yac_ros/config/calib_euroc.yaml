@@ -20,15 +20,11 @@ calib_target:
 cam0:
   proj_model: "pinhole"
   dist_model: "radtan4"
-  lens_hfov: 90
-  lens_vfov: 90
   resolution: [752, 480]
   rate: 20.0
 
 cam1:
   proj_model: "pinhole"
   dist_model: "radtan4"
-  lens_hfov: 90
-  lens_vfov: 90
   resolution: [752, 480]
   rate: 20.0

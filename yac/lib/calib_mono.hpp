@@ -21,20 +21,13 @@ struct calib_mono_data_t {
   PoseLocalParameterization pose_plus;
 
   aprilgrids_t grids;
-  camera_params_t cam_params;
+  camera_params_t &cam_params;
   std::deque<pose_t> poses;
   mat2_t covar = I(2);
 
-	calib_mono_data_t() {
-		prob_options.local_parameterization_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
-		prob_options.cost_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
-		prob_options.enable_fast_removal = true;
-		problem = new ceres::Problem(prob_options);
-	}
-
 	calib_mono_data_t(const aprilgrids_t &grids_,
-									  const camera_params_t &cam_params_,
-					 	 	 	 	  const mat2_t covar_=I(2))
+									  camera_params_t &cam_params_,
+					 	 	 	 	  const mat2_t &covar_=I(2))
 			: grids{grids_}, cam_params{cam_params_}, covar{covar_} {
 		prob_options.local_parameterization_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
 		prob_options.cost_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
@@ -434,11 +427,6 @@ static int filter_views(ceres::Problem &problem,
   return nb_outliers;
 }
 
-/* Estimate Monocular Camera Covariance */
-int calib_mono_covar(const camera_params_t &cam_params,
-                     ceres::Problem &problem,
-                     matx_t &covar);
-
 /* Save Camera Parameters */
 static int save_results(const std::string &save_path,
                         const camera_params_t &params,
@@ -475,6 +463,11 @@ static int save_results(const std::string &save_path,
 
   return 0;
 }
+
+/* Estimate Calibration Covariance */
+int calib_covar(ceres::Problem &problem,
+                camera_params_t &cam,
+                matx_t &covar);
 
 /**
  * Calibrate camera intrinsics and relative pose between camera and fiducial
@@ -560,7 +553,7 @@ int calib_mono_inc_solve(calib_mono_data_t &data) {
 
       // Evaluate current view
       matx_t covar;
-      if (calib_mono_covar(cam_params, *problem, covar) == 0) {
+      if (calib_covar(*problem, cam_params, covar) == 0) {
         const double info_k = covar.trace();
         const double diff = (info - info_k) / info;
 
@@ -738,174 +731,6 @@ int calib_mono_solve(const std::string &config_file);
 //     pose_factor.eval();
 //     r = pose_factor.residuals;
 //     J = pose_factor.jacobians;
-//   }
-// };
-
-// /** Monocular Camera Calibration Covariance Estimation **/
-// struct calib_mono_covar_est_t {
-//   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-//
-//   int frame_idx = 0;
-//   bool pose_prior_set = false;
-//
-//   std::deque<cost_func_spec_t *> cost_specs;
-//   camera_params_t *cam_params = nullptr;
-//   std::deque<pose_t *> poses;
-//
-//   calib_mono_covar_est_t(const camera_params_t &params_,
-//                          const aprilgrids_t &grids) {
-//     const int cam_idx = params_.cam_index;
-//     const int cam_res[2] = {params_.resolution[0], params_.resolution[1]};
-//     const std::string &proj_model = params_.proj_model;
-//     const std::string &dist_model = params_.dist_model;
-//     const vecx_t &proj_params = params_.proj_params();
-//     const vecx_t &dist_params = params_.dist_params();
-//     cam_params = new camera_params_t{0, cam_idx, cam_res,
-//                                      proj_model, dist_model,
-//                                      proj_params, dist_params};
-//
-//     // Add camera params prior
-//     const auto cam_prior = new cost_func_spec_t(frame_idx, cam_params);
-//     cost_specs.push_back(cam_prior);
-//
-//     // for (size_t i = 0; i < grids.size(); i++) {
-//     for (size_t i = 0; i < 10; i++) {
-//       add(grids[i]);
-//     }
-//   }
-//
-//   virtual ~calib_mono_covar_est_t() {
-//     for (auto &spec : cost_specs) {
-//       delete spec;
-//     }
-//
-//     delete cam_params;
-//     for (auto &pose : poses) {
-//       delete pose;
-//     }
-//   }
-//
-//   void add(const aprilgrid_t &grid) {
-//     // Add new pose
-//     auto T_CF = grid.T_CF;
-//     const auto pose = new pose_t{frame_idx, frame_idx, grid.T_CF};
-//     poses.push_back(pose);
-//
-//     // Add pose prior if not already added
-//     if (pose_prior_set == false) {
-//       const auto pose_prior = new cost_func_spec_t(frame_idx, pose);
-//       cost_specs.push_back(pose_prior);
-//       pose_prior_set = true;
-//     }
-//
-//     // Add reprojection residuals
-//     for (const auto &tag_id : grid.ids) {
-//       // Get keypoints
-//       vec2s_t keypoints;
-//       if (aprilgrid_keypoints(grid, tag_id, keypoints) != 0) {
-//         FATAL("Failed to get AprilGrid keypoints!");
-//       }
-//
-//       // Get object points
-//       vec3s_t object_points;
-//       if (aprilgrid_object_points(grid, tag_id, object_points) != 0) {
-//         FATAL("Failed to calculate AprilGrid object points!");
-//       }
-//
-//       // Form residual block
-//       for (size_t i = 0; i < 4; i++) {
-//         auto &kp = keypoints[i];
-//         auto &obj_pt = object_points[i];
-//         auto spec = new cost_func_spec_t{frame_idx, pose, cam_params, kp, obj_pt};
-//         cost_specs.push_back(spec);
-//       }
-//     }
-//
-//     frame_idx++;
-//   }
-//
-//   void remove_last() {
-//     // Remove cost specs that belong to the last frame index
-//     while (cost_specs.back()->frame_idx == (frame_idx-1)) {
-//       auto last_spec = cost_specs.back();
-//       cost_specs.pop_back();
-//       delete last_spec;
-//     }
-//
-//     // Remove last pose that belong to the last frame index
-//     auto last_pose = poses.back();
-//     poses.pop_back();
-//     delete last_pose;
-//
-//     // Decrement frame index
-//     frame_idx--;
-//   }
-//
-//   int estimate(matx_t &covar) {
-//     std::unordered_map<std::string, size_t> param_cs;
-//     param_cs["pose_t"] = 0;
-//     param_cs["camera_params_t"] = frame_idx * 6;
-//
-//     // Assign param global index
-//     size_t params_size = 0;
-//     std::vector<int> factor_ok;
-//     std::unordered_map<const param_t *, size_t> param_index;
-//
-//     for (const auto &spec : cost_specs) {
-//       for (size_t i = 0; i < spec->nb_params; i++) {
-//         const auto param = spec->params[i];
-//         const auto param_type = param->type;
-//         const auto min_param_size = param->local_size;
-//         if (param_index.count(param) > 0) {
-//           continue; // Skip this param
-//         }
-//
-//         param_index.insert({param, param_cs[param_type]});
-//         param_cs[param_type] += min_param_size;
-//         params_size += min_param_size;
-//       }
-//     }
-//
-//     // Form Hessian
-//     const size_t H_size = frame_idx * 6 + 8;
-//     matx_t H = zeros(H_size, H_size);
-//
-//     for (const auto &spec : cost_specs) {
-//       // Form Hessian H
-//       for (size_t i = 0; i < spec->nb_params; i++) {
-//         const auto &param_i = spec->params[i];
-//         const auto idx_i = param_index[param_i];
-//         const auto size_i = param_i->local_size;
-//         const matx_t &J_i = spec->J[i];
-//
-//         for (size_t j = i; j < spec->nb_params; j++) {
-//           const auto &param_j = spec->params[j];
-//           const auto idx_j = param_index[param_j];
-//           const auto size_j = param_j->local_size;
-//           const matx_t &J_j = spec->J[j];
-//
-//           if (i == j) {  // Diagonal
-//             H.block(idx_i, idx_j, size_i, size_j) += J_i.transpose() * J_j;
-//           } else {  // Off-diagonal
-//             H.block(idx_i, idx_j, size_i, size_j) += J_i.transpose() * J_j;
-//             H.block(idx_j, idx_i, size_j, size_i) =
-//               H.block(idx_i, idx_j, size_i, size_j).transpose();
-//           }
-//         }
-//       }
-//     }
-//
-//     // Recover covariance matrix
-//     // covar = pinv(H);
-//     Eigen::FullPivLU<Eigen::MatrixXd> LU(H);
-//     if (LU.rank() != H.rows()) { // Check full rank
-//       return -1;
-//     } else {
-//       covar = H.llt().solve(I(H.rows()));
-//       // covar = pinv(H);
-//     }
-//
-//     return 0;
 //   }
 // };
 

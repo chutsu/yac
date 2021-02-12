@@ -1,6 +1,7 @@
 ros:
   bag: "/data/calib_mono.bag"
   cam0_topic: "/rs/ir0/image"
+  cam1_topic: "/rs/ir1/image"
 
 settings:
   data_path: "/data/intel_d435i/calib_data"
@@ -11,26 +12,19 @@ calib_target:
   target_type: 'aprilgrid'  # Target type
   tag_rows: 6               # Number of rows
   tag_cols: 6               # Number of cols
-  tag_size: 0.088           # Size of apriltag, edge to edge [m]
+  # tag_size: 0.088           # Size of apriltag, edge to edge [m]
+  tag_size: 0.033           # Size of apriltag, edge to edge [m]
   tag_spacing: 0.3          # Ratio of space between tags to tagSize
                             # Example: tagSize=2m, spacing=0.5m --> tagSpacing=0.25[-]
 
 cam0:
   proj_model: "pinhole"
   dist_model: "radtan4"
-  lens_hfov: 90.0
-  lens_vfov: 90.0
-  # lens_hfov: 69.4
-  # lens_vfov: 42.5
   resolution: [640, 480]
   rate: 30.0
 
 cam1:
   proj_model: "pinhole"
   dist_model: "radtan4"
-  lens_hfov: 90.0
-  lens_vfov: 90.0
-  # lens_hfov: 69.4
-  # lens_vfov: 42.5
   resolution: [640, 480]
   rate: 30.0

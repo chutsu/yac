@@ -7,7 +7,77 @@
 
 namespace yac {
 
-struct calib_mono_nbv_t {
+struct ros_config_t {
+  bool ok = false;
+  ros::NodeHandle &ros_nh;
+  std::string node_name;
+  config_t config;
+
+  // ROS TOPICS
+  std::string cam0_topic;
+  std::string cam1_topic;
+
+  // Camera0
+  std::vector<int> cam0_res;
+  std::string cam0_proj_model;
+  std::string cam0_dist_model;
+  camera_params_t cam0_params;
+
+  // Camera1
+  std::vector<int> cam1_res;
+  std::string cam1_proj_model;
+  std::string cam1_dist_model;
+  camera_params_t cam1_params;
+
+  // Extrinsics
+  std::map<timestamp_t, pose_t> poses;  // T_BF
+  extrinsics_t cam0_exts;
+  extrinsics_t cam1_exts;
+
+  // Calibration target
+  calib_target_t target;
+
+  ros_config_t(ros::NodeHandle &ros_nh_,
+               std::string &node_name_)
+      : ros_nh{ros_nh_}, node_name{node_name_} {
+    std::string config_file;
+    ROS_PARAM(ros_nh, node_name + "/config_file", config_file);
+
+    // Parse config
+    config = config_t{config_file};
+    parse(config, "ros.cam0_topic", cam0_topic);
+    parse(config, "ros.cam1_topic", cam1_topic);
+    parse(config, "cam0.resolution", cam0_res);
+    parse(config, "cam0.proj_model", cam0_proj_model);
+    parse(config, "cam0.dist_model", cam0_dist_model);
+    parse(config, "cam1.resolution", cam1_res);
+    parse(config, "cam1.proj_model", cam1_proj_model);
+    parse(config, "cam1.dist_model", cam1_dist_model);
+
+    // Camera0
+    cam0_params = camera_params_t{0, 0, cam0_res.data(),
+                                  cam0_proj_model, cam0_dist_model,
+                                  4, 4};
+
+    // Camera1
+    cam1_params = camera_params_t{1, 1, cam1_res.data(),
+                                  cam1_proj_model, cam1_dist_model,
+                                  4, 4};
+
+    // Extrinsics
+    poses.clear();
+    cam0_exts = extrinsics_t{2};
+    cam1_exts = extrinsics_t{3};
+
+    // Calibration target
+    if (calib_target_load(target, config_file, "calib_target") != 0) {
+      FATAL("Failed to load calib target [%s]!", config_file.c_str());
+    }
+  }
+};
+
+template <typename CAMERA>
+struct calib_stereo_nbv_t {
   enum CALIB_STATE {
     INITIALIZE = 0,
     NBV = 1,
@@ -15,10 +85,14 @@ struct calib_mono_nbv_t {
   };
 
   // ROS
-  const std::string node_name;
-  ros::NodeHandle ros_nh;
-  ros::Subscriber cam0_sub;
-  config_t config;
+  ros_config_t config;
+  typedef sensor_msgs::Image ImageMsg;
+  typedef message_filters::Subscriber<ImageMsg> ImageSubscriber;
+  typedef message_filters::sync_policies::ExactTime<ImageMsg, ImageMsg> ImageSyncPolicy;
+  typedef message_filters::Synchronizer<ImageSyncPolicy> ImageSyncer;
+  ImageSubscriber cam0_sub;
+  ImageSubscriber cam1_sub;
+  message_filters::Synchronizer<ImageSyncPolicy> image_sync;
 
   // State
   int state = INITIALIZE;
@@ -29,12 +103,8 @@ struct calib_mono_nbv_t {
   bool batch_event = false;
   struct termios term_config_orig;
 
-  // Calibration
-  std::string proj_model;
-  std::string dist_model;
-  calib_target_t target;
+  // NBV
   mat4s_t poses_init;
-
   mat4_t nbv_pose = I(4);
   aprilgrid_t *target_grid = nullptr;
   double nbv_reproj_error_threshold = 10.0;
@@ -43,37 +113,34 @@ struct calib_mono_nbv_t {
   struct timespec nbv_hold_tic = (struct timespec){0, 0};
 
   // Data
+  calib_target_t target;
   aprilgrid_detector_t *detector = nullptr;
-  std::vector<cv::Mat> frames;
-  aprilgrids_t grids;
-  camera_params_t cam_params;
+  std::vector<cv::Mat> cam0_frames;
+  std::vector<cv::Mat> cam1_frames;
+  aprilgrids_t cam0_grids;
+  aprilgrids_t cam1_grids;
+  std::map<timestamp_t, pose_t> &poses;  // T_BF
+  camera_params_t &cam0_params;
+  camera_params_t &cam1_params;
+  extrinsics_t &cam0_exts;
+  extrinsics_t &cam1_exts;
 
-
-  calib_mono_nbv_t(const std::string &node_name_) : node_name{node_name_} {
-    // Load config
-    std::string config_file;
-    ROS_PARAM(ros_nh, node_name + "/config_file", config_file);
-    config = config_t{config_file};
-
-    // Setup calibration target, aprilgrid detector
-    if (calib_target_load(target, config_file, "calib_target") != 0) {
-      FATAL("Failed to load calib target [%s]!", config_file.c_str());
-    }
+  calib_stereo_nbv_t(ros_config_t &config_)
+      : config{config_},
+        target{config_.target},
+        cam0_sub{config.ros_nh, config.cam0_topic, 30},
+        cam1_sub{config.ros_nh, config.cam1_topic, 30},
+        image_sync(ImageSyncPolicy(10), cam0_sub, cam1_sub),
+        poses{config_.poses},
+        cam0_params{config_.cam0_params},
+        cam1_params{config_.cam1_params},
+        cam0_exts{config_.cam0_exts},
+        cam1_exts{config_.cam1_exts} {
+    // Setup AprilGrid detector
     detector = new aprilgrid_detector_t{target.tag_rows,
                                         target.tag_cols,
                                         target.tag_size,
                                         target.tag_spacing};
-    // Parse camera params
-    const int cam_idx = 0;
-    std::vector<int> cam_res;
-    parse(config, "cam0.resolution", cam_res);
-    parse(config, "cam0.proj_model", proj_model);
-    parse(config, "cam0.dist_model", dist_model);
-
-    // Setup camera parameters
-    cam_params = camera_params_t{0, cam_idx, cam_res.data(),
-                                 proj_model, dist_model,
-                                 4, 4};
 
     // Setup Non-blocking keyboard handler
     struct termios term_config;
@@ -87,35 +154,38 @@ struct calib_mono_nbv_t {
     tcsetattr(0, TCSANOW, &term_config);
 
     // ROS setup
-    std::string cam0_topic;
-    parse(config, "ros.cam0_topic", cam0_topic);
-    // -- Subscribe ros topics
-    cam0_sub = ros_nh.subscribe(cam0_topic, 1, &calib_mono_nbv_t::image_cb, this);
-    ros_topic_subscribed(cam0_sub, cam0_topic);
+    image_transport::ImageTransport it{config.ros_nh};
+    ros_topic_subscribed(cam0_sub.getSubscriber(), config.cam0_topic);
+    ros_topic_subscribed(cam1_sub.getSubscriber(), config.cam1_topic);
+    image_sync.registerCallback(&calib_stereo_nbv_t::image_cb, this);
+    loop();
   }
 
-  ~calib_mono_nbv_t() {
-    tcsetattr(0, TCSANOW, &term_config_orig);
+  ~calib_stereo_nbv_t() {
     if (detector) {
       delete detector;
     }
+
+    // Restore keyboard
+    tcsetattr(0, TCSANOW, &term_config_orig);
   }
 
   void initialize_camera(const aprilgrid_t &grid) {
-    if (cam_params.initialize({grid}) == false) {
+    if (cam0_params.initialize({grid}) == false) {
       LOG_WARN("Failed to initialize camera focal lengths, try again!");
-      frames.clear();
-      grids.clear();
+      cam0_frames.clear();
+      cam0_grids.clear();
+      return;
+    }
+    if (cam1_params.initialize({grid}) == false) {
+      LOG_WARN("Failed to initialize camera focal lengths, try again!");
+      cam1_frames.clear();
+      cam1_grids.clear();
       return;
     }
 
 		// Setup initial calibration poses
-		if (proj_model == "pinhole" && dist_model == "radtan4") {
-			poses_init = calib_init_poses<pinhole_radtan4_t>(target, cam_params);
-		} else if (proj_model == "pinhole" && dist_model == "equi4") {
-			poses_init = calib_init_poses<pinhole_equi4_t>(target, cam_params);
-		}
-
+    poses_init = calib_init_poses<CAMERA>(target, cam0_params);
     LOG_INFO("Camera initialized!");
 		cam_init = true;
   }
@@ -198,14 +268,7 @@ struct calib_mono_nbv_t {
 
   void draw_nbv(const mat4_t &T_FC0, cv::Mat &image) {
     // Draw NBV
-    if (proj_model == "pinhole" && dist_model == "radtan4") {
-      nbv_draw<pinhole_radtan4_t>(target, cam_params, T_FC0, image);
-    } else if (proj_model == "pinhole" && dist_model == "equi4") {
-      nbv_draw<pinhole_equi4_t>(target, cam_params, T_FC0, image);
-    } else {
-      FATAL("Unsupported projection-distorion type [%s-%s]!",
-            proj_model.c_str(), dist_model.c_str());
-    }
+    nbv_draw<CAMERA>(target, cam0_params, T_FC0, image);
 
     // Show NBV Reproj Error
     {
@@ -261,6 +324,7 @@ struct calib_mono_nbv_t {
         break;
       case 66:  // 'b' key
         batch_event = true;
+        state = BATCH;
         break;
       }
     }
@@ -275,7 +339,7 @@ struct calib_mono_nbv_t {
     switch (state) {
     case INITIALIZE:
       if (poses_init.size()) {
-        const mat4_t T_FC0 = poses_init[frames.size()];
+        const mat4_t T_FC0 = poses_init[cam0_frames.size()];
         // draw_nbv(T_FC0, image_rgb);
       }
       break;
@@ -286,6 +350,9 @@ struct calib_mono_nbv_t {
       } else {
         draw_status_text("Finding NBV!", image_rgb);
       }
+      break;
+    case BATCH:
+      draw_status_text("Finished Capturing!", image_rgb);
       break;
     }
 
@@ -342,38 +409,49 @@ struct calib_mono_nbv_t {
     return true;
   }
 
-  void image_cb(const sensor_msgs::ImageConstPtr &msg) {
+  void image_cb(const sensor_msgs::ImageConstPtr &cam0_msg,
+                const sensor_msgs::ImageConstPtr &cam1_msg) {
     // Convert message to image
-    const cv::Mat frame_k = msg_convert(msg);
+    const cv::Mat cam0_frame_k = msg_convert(cam0_msg);
+    const cv::Mat cam1_frame_k = msg_convert(cam1_msg);
 
     // Detect and visualize
-    const timestamp_t ts = msg->header.stamp.toNSec();
-    const auto grid = detector->detect(ts, frame_k);
-    visualize(grid, frame_k);
-    if (grid.detected == false) {
+    const timestamp_t ts = cam0_msg->header.stamp.toNSec();
+    auto cam0_grid = detector->detect(ts, cam0_frame_k, true);
+    auto cam1_grid = detector->detect(ts, cam1_frame_k, true);
+    visualize(cam0_grid, cam0_frame_k);
+    if (cam0_grid.detected == false || cam1_grid.detected == false) {
       return;
     }
 
     // Initialize camera
-    if (cam_init == false && grid.fully_observable()) {
-      initialize_camera(grid);
+    if (cam_init == false && cam0_grid.fully_observable()) {
+      initialize_camera(cam0_grid);
     }
 
     // Handle capture event
     switch(state) {
     case INITIALIZE:
       if (capture_event) {
-        LOG_INFO("Adding image frame [%ld]!", frames.size());
-        frames.push_back(frame_k);
-        grids.push_back(grid);
+        LOG_INFO("Adding image frame [%ld]!", cam0_frames.size());
+        cam0_grid = detector->detect(ts, cam0_frame_k);
+        cam1_grid = detector->detect(ts, cam1_frame_k);
+        cam0_frames.push_back(cam0_frame_k);
+        cam1_frames.push_back(cam1_frame_k);
+        cam0_grids.push_back(cam0_grid);
+        cam1_grids.push_back(cam1_grid);
       }
       break;
 
     case NBV:
       mat4_t T_C0F;
-      if ((capture_event || nbv_reached(grid)) && nbv_event == false) {
-        frames.push_back(frame_k);
-        grids.push_back(grid);
+      if ((capture_event || nbv_reached(cam0_grid)) && nbv_event == false) {
+        cam0_grid = detector->detect(ts, cam0_frame_k);
+        cam1_grid = detector->detect(ts, cam1_frame_k);
+        cam0_frames.push_back(cam0_frame_k);
+        cam1_frames.push_back(cam1_frame_k);
+        cam0_grids.push_back(cam0_grid);
+        cam1_grids.push_back(cam1_grid);
         nbv_event = true;
       }
       break;
@@ -381,66 +459,31 @@ struct calib_mono_nbv_t {
     capture_event = false;
   }
 
-  template <typename T>
-  void create_target_grid(const mat4_t &nbv_pose) {
-    const int tag_rows = target.tag_rows;
-    const int tag_cols = target.tag_cols;
-    const double tag_size = target.tag_size;
-    const double tag_spacing = target.tag_spacing;
+  void find_nbv() {
+    // Solve batch problem
+    calib_stereo_data_t data{target, cam0_grids, cam1_grids,
+                             poses, cam0_params, cam1_params,
+                             cam0_exts, cam1_exts};
+    calib_stereo_solve<CAMERA>(data);
 
-    const auto cam_res = cam_params.resolution;
-    const vecx_t proj_params = cam_params.proj_params();
-    const vecx_t dist_params = cam_params.dist_params();
-    const T camera{cam_res, proj_params, dist_params};
+    // Find NBV
+    if (nbv_find<CAMERA>(target, data, nbv_pose) == -2) {
+      state = BATCH;
+      return;
+    }
+    print_matrix("nbv_pose", nbv_pose);
 
     if (target_grid != nullptr) {
       delete target_grid;
     }
-    auto grid = new aprilgrid_t{0, tag_rows, tag_cols, tag_size, tag_spacing};
-    const mat4_t T_CF = nbv_pose.inverse();
-    for (int tag_id = 0; tag_id < (tag_rows * tag_cols); tag_id++) {
-      for (int corner_idx = 0; corner_idx < 4; corner_idx++) {
-        const vec3_t r_FFi = grid->object_point(tag_id, corner_idx);
-        const vec3_t r_CFi = tf_point(T_CF, r_FFi);
-
-        vec2_t z_hat{0.0, 0.0};
-        if (camera.project(r_CFi, z_hat) == 0) {
-          grid->add(tag_id, corner_idx, z_hat);
-        }
-      }
-    }
-    target_grid = grid;
-  }
-
-  void find_nbv() {
-    if (cam_params.proj_model == "pinhole") {
-      if (cam_params.dist_model == "radtan4") {
-        calib_mono_data_t data{grids, cam_params};
-        calib_mono_solve<pinhole_radtan4_t>(data);
-        if (nbv_find<pinhole_radtan4_t>(target, data, nbv_pose) == -2) {
-          state = BATCH;
-          return;
-        }
-        create_target_grid<pinhole_radtan4_t>(nbv_pose);
-
-      } else if (cam_params.dist_model == "equi4") {
-        calib_mono_data_t data{grids, cam_params};
-        calib_mono_solve<pinhole_equi4_t>(data);
-        if (nbv_find<pinhole_equi4_t>(target, data, nbv_pose) == -2) {
-          state = BATCH;
-          return;
-        }
-        create_target_grid<pinhole_radtan4_t>(nbv_pose);
-      }
-    }
+    target_grid = nbv_target_grid<CAMERA>(target, cam0_params, nbv_pose);
+    printf("target_grid.nb_detections: %d\n", target_grid->nb_detections);
   }
 
   void mode_init() {
-    if (cam_init && frames.size() == poses_init.size()) {
+    if (cam_init && cam0_frames.size() == poses_init.size()) {
       LOG_INFO("Collected enough init camera frames!");
       LOG_INFO("Transitioning to NBV mode!");
-      calib_mono_data_t data{grids, cam_params};
-      calib_mono_solve<pinhole_radtan4_t>(data);
 
       // Transition to NBV mode
       find_nbv();
@@ -452,7 +495,6 @@ struct calib_mono_nbv_t {
     if (nbv_event == false) {
       return;
     }
-
     LOG_INFO("Find NBV!");
     find_nbv();
 
@@ -466,23 +508,10 @@ struct calib_mono_nbv_t {
     LOG_INFO("Final Optimization!");
     std::vector<double> errs;
 
-    if (cam_params.proj_model == "pinhole") {
-      if (cam_params.dist_model == "radtan4") {
-        calib_mono_data_t data{grids, cam_params};
-        calib_mono_solve<pinhole_radtan4_t>(data);
-        reproj_errors<pinhole_radtan4_t>(data, errs);
-      } else if (cam_params.dist_model == "equi4") {
-        calib_mono_data_t data{grids, cam_params};
-        calib_mono_solve<pinhole_equi4_t>(data);
-        reproj_errors<pinhole_equi4_t>(data, errs);
-      }
-    }
-
-    const std::string results_fpath = "/tmp/calib-mono.csv";
-    if (save_results(results_fpath, cam_params, rmse(errs), mean(errs)) != 0) {
-      LOG_ERROR("Failed to save results to [%s]!", results_fpath.c_str());
-    }
-
+    calib_stereo_data_t data{target, cam0_grids, cam1_grids,
+                             poses, cam0_params, cam1_params,
+                             cam0_exts, cam1_exts};
+    calib_stereo_inc_solver_t<CAMERA> solver(data);
     keep_running = false;
   }
 
@@ -514,14 +543,25 @@ struct calib_mono_nbv_t {
 
 int main(int argc, char *argv[]) {
   // Setup ROS Node
-  const std::string node_name = yac::ros_node_name(argc, argv);
+  std::string node_name = yac::ros_node_name(argc, argv);
   if (ros::isInitialized() == false) {
     ros::init(argc, argv, node_name, ros::init_options::NoSigintHandler);
   }
 
-  // Start calibrating
-  yac::calib_mono_nbv_t calib{node_name};
-  calib.loop();
+  // Load ROS Config
+  ros::NodeHandle ros_nh;
+  yac::ros_config_t config{ros_nh, node_name};
+
+  auto proj_model = config.cam0_proj_model;
+  auto dist_model = config.cam0_dist_model;
+  if (proj_model == "pinhole" && dist_model == "radtan4") {
+    yac::calib_stereo_nbv_t<yac::pinhole_radtan4_t> calib{config};
+  } else if (proj_model == "pinhole" && dist_model == "equi4") {
+    yac::calib_stereo_nbv_t<yac::pinhole_equi4_t> calib{config};
+  } else {
+    FATAL("Unsupported projection-distorion type [%s-%s]!",
+          proj_model.c_str(), dist_model.c_str());
+  }
 
   return 0;
 }

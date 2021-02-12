@@ -263,6 +263,28 @@ camera_params_t::camera_params_t(const id_t id_,
                                  const int resolution_[2],
                                  const std::string proj_model_,
                                  const std::string dist_model_,
+                                 const int proj_size_,
+                                 const int dist_size_,
+                                 const bool fixed_)
+    : param_t{"camera_params_t", id_,
+              proj_size_+ dist_size_,
+              proj_size_+ dist_size_,
+              fixed_},
+      cam_index{cam_index_},
+      resolution{resolution_[0], resolution_[1]},
+      proj_model{proj_model_},
+      dist_model{dist_model_},
+      proj_size{proj_size_},
+      dist_size{dist_size_} {
+  param.resize(proj_size + dist_size);
+  param = zeros(proj_size + dist_size);
+}
+
+camera_params_t::camera_params_t(const id_t id_,
+                                 const int cam_index_,
+                                 const int resolution_[2],
+                                 const std::string proj_model_,
+                                 const std::string dist_model_,
                                  const vecx_t &proj_params_,
                                  const vecx_t &dist_params_,
                                  const bool fixed_)
@@ -270,15 +292,39 @@ camera_params_t::camera_params_t(const id_t id_,
               proj_params_.size() + dist_params_.size(),
               proj_params_.size() + dist_params_.size(),
               fixed_},
+      ok{true},
       cam_index{cam_index_},
       resolution{resolution_[0], resolution_[1]},
       proj_model{proj_model_},
       dist_model{dist_model_},
-      proj_size{proj_params_.size()},
-      dist_size{dist_params_.size()} {
+      proj_size{(int) proj_params_.size()},
+      dist_size{(int) dist_params_.size()} {
   param.resize(proj_size + dist_size);
   param.head(proj_size) = proj_params_;
   param.tail(dist_size) = dist_params_;
+}
+
+int camera_params_t::initialize(const aprilgrids_t &grids) {
+  bool initialized = false;
+
+  for (auto grid : grids) {
+    if (grid.nb_detections < grid.fully_observable()) {
+      continue;
+    }
+
+    double focal = 0.0;
+    if (focal_init(grid, 0, focal)) {
+      continue;
+    }
+    param(0) = focal;
+    param(1) = focal;
+    param(2) = resolution[0] / 2.0;
+    param(3) = resolution[1] / 2.0;
+    initialized = true;
+    break;
+  }
+
+  return initialized;
 }
 
 vecx_t camera_params_t::proj_params() {
@@ -298,14 +344,17 @@ vecx_t camera_params_t::dist_params() const {
 }
 
 void camera_params_t::plus(const vecx_t &dx) {
+  assert(ok);
   param += dx;
 }
 
 void camera_params_t::minus(const vecx_t &dx) {
+  assert(ok);
   param -= dx;
 }
 
 void camera_params_t::perturb(const int i, const real_t step_size) {
+  assert(ok);
   param(i) += step_size;
 }
 

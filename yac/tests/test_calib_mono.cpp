@@ -22,15 +22,12 @@ int test_calib_mono_solve() {
   const int cam_res[2] = {752, 480};
   const std::string proj_model = "pinhole";
   const std::string dist_model = "radtan4";
-  const double fx = pinhole_focal(cam_res[0], 98.0);
-  const double fy = pinhole_focal(cam_res[1], 73.0);
-  const double cx = cam_res[0] / 2.0;
-  const double cy = cam_res[1] / 2.0;
-  const vec4_t proj_params{fx, fy, cx, cy};
-  const vec4_t dist_params{0.0, 0.0, 0.0, 0.0};
   camera_params_t cam{id, cam_idx, cam_res,
                       proj_model, dist_model,
-                      proj_params, dist_params};
+                      4, 4};
+  if (cam.initialize(test_data.grids0) == false) {
+    FATAL("Failed to inialize camera!");
+  }
 
   // Test
   calib_mono_data_t data{test_data.grids0, cam};
@@ -70,15 +67,12 @@ int test_calib_mono_inc_solve() {
   const int cam_res[2] = {752, 480};
   const std::string proj_model = "pinhole";
   const std::string dist_model = "radtan4";
-  const double fx = pinhole_focal(cam_res[0], 98.0);
-  const double fy = pinhole_focal(cam_res[1], 73.0);
-  const double cx = cam_res[0] / 2.0;
-  const double cy = cam_res[1] / 2.0;
-  const vec4_t proj_params{fx, fy, cx, cy};
-  const vec4_t dist_params{0.0, 0.0, 0.0, 0.0};
   camera_params_t cam{id, cam_idx, cam_res,
                       proj_model, dist_model,
-                      proj_params, dist_params};
+                      4, 4};
+  if (cam.initialize(test_data.grids0) == false) {
+    FATAL("Failed to inialize camera!");
+  }
 
   // Test
   calib_mono_data_t data{test_data.grids0, cam};

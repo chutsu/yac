@@ -14,6 +14,8 @@ int calib_mocap_solve(const std::string &config_file) {
   } else {
     FATAL("Unsupported [%s-%s]!", proj_model.c_str(), dist_model.c_str());
   }
+
+  return -1;
 }
 
 } //  namespace yac

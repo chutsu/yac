@@ -7,6 +7,7 @@
 
 #include "calib_mono.hpp"
 #include "calib_stereo.hpp"
+#include "calib_stereo_inc.hpp"
 #include "calib_mocap.hpp"
 #include "calib_vi.hpp"
 #include "calib_nbv.hpp"

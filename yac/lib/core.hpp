@@ -1528,6 +1528,17 @@ real_t closest_point(const vec2_t &p1,
                      const vec2_t &p3,
                      vec2_t &closest);
 
+/**
+ * Fit a circle from a list of points.
+ */
+void fit_circle(const vec2s_t &points, double &cx, double &cy, double &radius);
+
+/**
+ * Find the intersect of two circles.
+ */
+vec2s_t intersect_circles(const double cx0, const double cy0, const double r0,
+                          const double cx1, const double cy1, const double r1);
+
 #define EARTH_RADIUS_M 6378137.0
 
 /**

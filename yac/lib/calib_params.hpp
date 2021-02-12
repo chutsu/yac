@@ -2,6 +2,7 @@
 #define YAC_CALIB_PARAMS_HPP
 
 #include "core.hpp"
+#include "calib_data.hpp"
 
 namespace yac {
 
@@ -112,7 +113,7 @@ struct extrinsics_t : pose_t {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 
   extrinsics_t() {}
-  extrinsics_t(const id_t id_, const mat4_t &T, const bool fixed_=false)
+  extrinsics_t(const id_t id_, const mat4_t &T=I(4), const bool fixed_=false)
     : pose_t{id_, 0, T, fixed_} {
     this->type = "extrinsics_t";
   }
@@ -144,14 +145,23 @@ struct landmark_t : param_t {
 struct camera_params_t : param_t {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 
+  bool ok = false;
   int cam_index = 0;
   int resolution[2] = {0, 0};
   std::string proj_model;
   std::string dist_model;
-  long proj_size = 0;
-  long dist_size = 0;
+  int proj_size = 0;
+  int dist_size = 0;
 
   camera_params_t();
+  camera_params_t(const id_t id_,
+                  const int cam_index_,
+                  const int resolution_[2],
+                  const std::string proj_model_,
+                  const std::string dist_model_,
+                  const int proj_size_,
+                  const int dist_size_,
+                  const bool fixed_=false);
   camera_params_t(const id_t id_,
                   const int cam_index_,
                   const int resolution_[2],
@@ -160,6 +170,8 @@ struct camera_params_t : param_t {
                   const vecx_t &proj_params_,
                   const vecx_t &dist_params_,
                   const bool fixed_=false);
+
+  int initialize(const aprilgrids_t &grids_);
 
   vecx_t proj_params();
   vecx_t dist_params();

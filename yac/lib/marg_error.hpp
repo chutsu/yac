@@ -126,16 +126,6 @@ public:
       mutable_parameter_block_sizes()->push_back(param_block->global_size);
     }
 
-    // printf("marg params\n");
-    // for (auto &param : marg_param_ptrs_) {
-    //   printf("param: %s\n", param->type.c_str());
-    // }
-    //
-    // printf("remain params\n");
-    // for (auto &param : remain_param_ptrs_) {
-    //   printf("param: %s\n", param->type.c_str());
-    // }
-
     // !!!!!!!!!!!!!!!!!!!!!!!!!! VERY IMPORTANT!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     // Now we know the Hessian size, we can update the number of residuals for
     // ceres::CostFunction
@@ -279,9 +269,6 @@ public:
     // Note: after the Schur's Complement, H_marg and b_marg will be smaller due
     // to marginalization.
 
-    // printf("rank(H_marg): %ld\n", rank(H_marg));
-    // printf("rows(H_marg): %ld\n", H_marg.rows());
-
     // Calculate preconditioner for H
     const vecx_t p = (H.diagonal().array() > 1.0e-9).select(H.diagonal().cwiseSqrt(), 1.0e-3);
     const vecx_t p_inv = p.cwiseInverse();
@@ -340,6 +327,10 @@ public:
       params.push_back(remain_param_ptrs_[i]->param.data());
     }
     return params;
+  }
+
+  std::vector<param_t *> get_params() {
+    return remain_param_ptrs_;
   }
 
   vecx_t compute_delta_chi(double const *const *params) const {

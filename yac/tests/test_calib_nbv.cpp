@@ -290,7 +290,6 @@ int test_nbv_find() {
       break;
     }
   }
-
 	calib_mono_data_t data{grids0, cam_params};
   calib_mono_solve<pinhole_radtan4_t>(data);
 

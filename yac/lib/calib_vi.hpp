@@ -789,13 +789,11 @@ struct calib_vi_t {
   void add_time_delay(const double td) {
     time_delay = new time_delay_t{new_param_id++, td};
     problem->AddParameterBlock(time_delay->param.data(), 1);
-    // problem->SetParameterBlockConstant(time_delay->param.data());
   }
 
   void add_fiducial_pose(const mat4_t &T_WF) {
 		fiducial = new fiducial_t(new_param_id++, T_WF);
     problem->AddParameterBlock(fiducial->param.data(), FIDUCIAL_PARAMS_SIZE);
-    // problem->SetParameterBlockConstant(fiducial->param.data());
   }
 
   vecx_t get_camera(const int cam_idx) {

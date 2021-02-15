@@ -25,14 +25,15 @@ set -e
 
 tmux send-keys -t dev -R "\
 cd ~/sync/projects/yac \
-&& make release \
+&& make lib \
 && source ~/catkin_ws/devel/setup.bash \
-&& roslaunch yac_ros calib_stereo_nbv.launch
+&& rosrun yac test_marg_error --target test_marg_error_swe
 " C-m
 exit
+# && rosrun yac test_calib_stereo --target test_calib_stereo_solve
+# && roslaunch yac_ros calib_stereo_nbv.launch
 # && roslaunch yac_ros calib_mono_nbv.launch
 # && rosrun yac test_calib_nbv --target test_nbv_find
-# && rosrun yac test_calib_stereo --target test_calib_stereo_solve
 # && rosrun yac test_calib_stereo_inc --target test_calib_stereo_inc_solve
 
 
@@ -99,7 +100,7 @@ source ~/catkin_ws/devel/setup.bash
 # rosrun yac test_calib_nbv --target test_nbv_draw
 # rosrun yac test_calib_nbv --target test_nbv_test_grid
 # rosrun yac test_calib_nbv --target test_nbv_find
-rosrun yac test_calib_nbv --target test_nbv_find2
+# rosrun yac test_calib_nbv --target test_nbv_find2
 
 # -- MARG ERROR
 # rosrun yac test_marg_error --target test_marg_block

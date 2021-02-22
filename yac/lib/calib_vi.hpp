@@ -623,6 +623,7 @@ struct calib_vi_t {
   PoseLocalParameterization pose_parameterization;
 
   // Marginalization
+	bool enable_marg = false;
   marg_error_t *marg_error = new marg_error_t();
   ceres::ResidualBlockId marg_error_id = nullptr;
 
@@ -1135,7 +1136,7 @@ struct calib_vi_t {
 
   void add_state(const timestamp_t &ts, const aprilgrids_t &grids) {
     // Marginalize old state
-    if (sliding_window.size() >= max_window_size) {
+    if (enable_marg && sliding_window.size() >= max_window_size) {
       marginalize();
     }
 
@@ -1191,7 +1192,7 @@ struct calib_vi_t {
     update_prev_grids(grids);
 
     // Solve
-    if (sliding_window.size() >= max_window_size) {
+    if (enable_marg && sliding_window.size() >= max_window_size) {
       ceres::Solver::Options options;
       options.minimizer_progress_to_stdout = true;
       options.max_num_iterations = 5;

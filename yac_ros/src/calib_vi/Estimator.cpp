@@ -423,7 +423,6 @@ uint64_t Estimator::addFiducialPose(const mat4_t &T_WF, const bool add_prior) {
   T_WF_init_ = T_WF;
   Transformation T_WF_{T_WF};
   std::shared_ptr<FiducialParameterBlock> block(new FiducialParameterBlock(T_WF_, id));
-  // std::shared_ptr<PoseParameterBlock> block(new PoseParameterBlock(T_WF_, id));
 
   // LOG_INFO("Adding fiducial pose parameter [%ld]", id);
   problem_->addParameterBlock(block, Map::Trivial);
@@ -486,23 +485,22 @@ uint64_t Estimator::addCamera(const size_t cam_idx,
     batch_problem_->setParameterBlockConstant(block);
   }
 
-  // if (add_prior) {
-  //   matx_t cam_prior_info = I(8);
-  //   cam_prior_info(0, 0) = 1.0 / pow(10.0, 2);  // stddev 10 pixels
-  //   cam_prior_info(1, 1) = 1.0 / pow(10.0, 2);
-  //   cam_prior_info(2, 2) = 1.0 / pow(10.0, 2);
-  //   cam_prior_info(3, 3) = 1.0 / pow(10.0, 2);
-  //   cam_prior_info(4, 4) = 1.0 / pow(1.0, 2);   // stddev 1.0 (distortion is unit-less)
-  //   cam_prior_info(5, 5) = 1.0 / pow(1.0, 2);
-  //   cam_prior_info(6, 6) = 1.0 / pow(1.0, 2);
-  //   cam_prior_info(7, 7) = 1.0 / pow(1.0, 2);
-  //
-  //   cam_priors_[cam_idx] = std::make_shared<CameraIntrinsicsError>(params, cam_prior_info);
-  //   cam_priors_[cam_idx]->param_ids.push_back(id);
-  //   cam_priors_[cam_idx]->params.push_back(problem_->parameterBlockPtr(id));
-  //   cam_prior_ids_[cam_idx] =  problem_->addResidualBlock(cam_priors_[cam_idx], NULL, block);
-  //   // batch_problem_->addResidualBlock(cam_priors_[cam_idx], NULL, block);
-  // }
+  if (add_prior) {
+    matx_t cam_prior_info = I(8);
+    cam_prior_info(0, 0) = 1.0 / pow(10.0, 2);  // stddev 10 pixels
+    cam_prior_info(1, 1) = 1.0 / pow(10.0, 2);
+    cam_prior_info(2, 2) = 1.0 / pow(10.0, 2);
+    cam_prior_info(3, 3) = 1.0 / pow(10.0, 2);
+    cam_prior_info(4, 4) = 1.0 / pow(1.0, 2);   // stddev 1.0 (distortion is unit-less)
+    cam_prior_info(5, 5) = 1.0 / pow(1.0, 2);
+    cam_prior_info(6, 6) = 1.0 / pow(1.0, 2);
+    cam_prior_info(7, 7) = 1.0 / pow(1.0, 2);
+
+    cam_priors_[cam_idx] = std::make_shared<CameraIntrinsicsError>(params, cam_prior_info);
+    cam_priors_[cam_idx]->param_ids.push_back(id);
+    cam_priors_[cam_idx]->params.push_back(problem_->parameterBlockPtr(id));
+    cam_prior_ids_[cam_idx] =  problem_->addResidualBlock(cam_priors_[cam_idx], NULL, block);
+  }
 
   camera_param_ids_[cam_idx] = id;
   cam_blocks_[cam_idx] = block;
@@ -768,9 +766,6 @@ bool Estimator::addSensorPosePrior(const Time ts,
   sb_error->params.push_back(problem_->parameterBlockPtr(sb_id));
   auto sb_error_id = problem_->addResidualBlock(
     sb_error, nullptr, problem_->parameterBlockPtr(sb_id));
-  // batch_problem_->addResidualBlock(
-  //   sb_error, nullptr, batch_problem_->parameterBlockPtr(sb_id));
-  // residual_collection_.sb_errors.push_back(sb_error);
 
   sb_errors_.push_back({sb_error_id, sb_error});
   return sb_error_id;
@@ -920,15 +915,6 @@ void Estimator::addMeasurement(const timestamp_t &ts,
   profiler_.start("detect aprilgrid");
 
   for (int i = 0; i < (int) nb_cams(); i++) {
-    // aprilgrid_t grid(ts,
-    //                  target_params_.tag_rows,
-    //                  target_params_.tag_cols,
-    //                  target_params_.tag_size,
-    //                  target_params_.tag_spacing);
-    // const vecx_t cam_params = getCameraParameterEstimate(i);
-    // const mat3_t K = pinhole_K(cam_params.head(4));
-    // const vecx_t D = cam_params.tail(4);
-    // aprilgrid_detect(grid, *detector_, cam_images[i], K, D, true);
 		auto grid = detector_->detect(ts, cam_images[i], true);
     grid.timestamp = ts;
     grids_[i] = grid;

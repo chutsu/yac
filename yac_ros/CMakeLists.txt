@@ -82,7 +82,6 @@ ADD_LIBRARY(yac_ros
             src/calib_vi/cv/EquidistantDistortion.cpp
             src/calib_vi/cv/RadialTangentialDistortion.cpp
             src/calib_vi/param/LocalParamizationAdditionalInterfaces.cpp
-            src/calib_vi/error/ImuError.cpp
             src/calib_vi/error/MarginalizationError.cpp
             src/calib_vi/error/PoseError.cpp
             src/calib_vi/error/SpeedAndBiasError.cpp

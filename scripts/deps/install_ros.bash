@@ -17,6 +17,7 @@ sudo dpkg --configure -a
 apt_install ros-melodic-desktop
 apt_install python-catkin-tools
 apt_install ros-melodic-gazebo-dev*
+apt_install ros-melodic-tf2*
 apt_install python-rosdep
 sudo rosdep init
 rosdep update

@@ -97,6 +97,7 @@ namespace yac {
   #define real_t double
 #endif
 
+#define dynamic_t Eigen::Dynamic
 #define col_major_t Eigen::ColMajor
 #define row_major_t Eigen::RowMajor
 

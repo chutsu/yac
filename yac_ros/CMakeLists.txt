@@ -37,17 +37,12 @@ FIND_PACKAGE(
     message_runtime
     image_transport
     cv_bridge
+		tf2
+		tf2_ros
+		tf2_geometry_msgs
     yac
 )
 INCLUDE_DIRECTORIES(${catkin_INCLUDE_DIRS})
-
-# LINK
-SET(
-  DEPS
-  yac_ros
-  ${catkin_LIBRARIES}
-  ${YAC_DEPS}
-)
 
 # CATKING PACKAGE
 CATKIN_PACKAGE(
@@ -62,35 +57,65 @@ CATKIN_PACKAGE(
     message_runtime
     image_transport
     cv_bridge
+		tf2
+		tf2_ros
+		tf2_geometry_msgs
   LIBRARIES
     yac_ros
 )
 
+# LINK
+SET(
+  DEPS
+  yac_ros
+  ${catkin_LIBRARIES}
+  ${YAC_DEPS}
+)
+
 # YAC ROS
-ADD_LIBRARY(yac_ros ros.cpp)
+ADD_LIBRARY(yac_ros
+            src/calib_vi/common/Duration.cpp
+            src/calib_vi/common/operators.cpp
+            src/calib_vi/common/Time.cpp
+            src/calib_vi/common/Transformation.cpp
+            src/calib_vi/cv/CameraBase.cpp
+            src/calib_vi/cv/EquidistantDistortion.cpp
+            src/calib_vi/cv/RadialTangentialDistortion.cpp
+            src/calib_vi/param/LocalParamizationAdditionalInterfaces.cpp
+            src/calib_vi/error/ImuError.cpp
+            src/calib_vi/error/MarginalizationError.cpp
+            src/calib_vi/error/PoseError.cpp
+            src/calib_vi/error/SpeedAndBiasError.cpp
+            src/calib_vi/Calibrator.cpp
+            src/calib_vi/Estimator.cpp
+            src/calib_vi/Map.cpp
+            src/ros.cpp)
 INSTALL(
   DIRECTORY launch/
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/launch
 )
 
 # ROS NODES
-ADD_EXECUTABLE(calib_capture_node calib_capture_node.cpp)
+ADD_EXECUTABLE(calib_capture_node src/calib_capture_node.cpp)
 TARGET_LINK_LIBRARIES(calib_capture_node ${DEPS})
 
-ADD_EXECUTABLE(calib_mono_node calib_mono_node.cpp)
-TARGET_LINK_LIBRARIES(calib_mono_node ${DEPS})
-
-ADD_EXECUTABLE(calib_mono_nbv_node calib_mono_nbv_node.cpp)
-TARGET_LINK_LIBRARIES(calib_mono_nbv_node ${DEPS})
-
-ADD_EXECUTABLE(calib_stereo_node calib_stereo_node.cpp)
-TARGET_LINK_LIBRARIES(calib_stereo_node ${DEPS})
-
-ADD_EXECUTABLE(calib_stereo_nbv_node calib_stereo_nbv_node.cpp)
-TARGET_LINK_LIBRARIES(calib_stereo_nbv_node ${DEPS})
-
-ADD_EXECUTABLE(calib_mocap_capture_node calib_mocap_capture_node.cpp)
+ADD_EXECUTABLE(calib_mocap_capture_node src/calib_mocap_capture_node.cpp)
 TARGET_LINK_LIBRARIES(calib_mocap_capture_node ${DEPS})
 
-ADD_EXECUTABLE(calib_mocap_node calib_mocap_node.cpp)
+ADD_EXECUTABLE(calib_mocap_node src/calib_mocap_node.cpp)
 TARGET_LINK_LIBRARIES(calib_mocap_node ${DEPS})
+
+ADD_EXECUTABLE(calib_mono_node src/calib_mono_node.cpp)
+TARGET_LINK_LIBRARIES(calib_mono_node ${DEPS})
+
+ADD_EXECUTABLE(calib_mono_nbv_node src/calib_mono_nbv_node.cpp)
+TARGET_LINK_LIBRARIES(calib_mono_nbv_node ${DEPS})
+
+ADD_EXECUTABLE(calib_stereo_node src/calib_stereo_node.cpp)
+TARGET_LINK_LIBRARIES(calib_stereo_node ${DEPS})
+
+ADD_EXECUTABLE(calib_stereo_nbv_node src/calib_stereo_nbv_node.cpp)
+TARGET_LINK_LIBRARIES(calib_stereo_nbv_node ${DEPS})
+
+ADD_EXECUTABLE(calib_vi_smart_node src/calib_vi_smart_node.cpp)
+TARGET_LINK_LIBRARIES(calib_vi_smart_node ${DEPS})

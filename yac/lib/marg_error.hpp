@@ -80,7 +80,6 @@ struct residual_info_t {
 class marg_error_t : public ::ceres::CostFunction {
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-
   bool marginalized_ = false;
 
   // Residual blocks and parameters involved for marginalization
@@ -100,6 +99,31 @@ public:
   void add(const ceres::CostFunction *cost_fn,
            const std::vector<param_t *> param_blocks,
            const ::ceres::LossFunction *loss_fn=nullptr) {
+    // Check pointer to cost function
+    if (cost_fn == nullptr) {
+      FATAL("cost_fn == nullptr!");
+    }
+
+    // Check number of param blocks matches what the cost function is expecting
+    const auto param_sizes = cost_fn->parameter_block_sizes();
+    if (param_blocks.size() != param_sizes.size()) {
+      FATAL("param_blocks.size() != cost_fn->num_params!");
+    }
+
+    // Make sure param blocks are valid
+    for (size_t i = 0; i < param_blocks.size(); i++) {
+      const auto &param = param_blocks[i];
+      const auto &param_size = param_sizes[i];
+      if (param == nullptr) {
+        FATAL("Param block [%ld] is NULL! Implementation Error!", i);
+      }
+
+      if (param->global_size != param_size) {
+        FATAL("Param block [%ld] is not what the cost function expected!", i);
+      }
+    }
+
+    // Keep track
     blocks_.emplace_back(cost_fn, param_blocks, loss_fn);
   }
 
@@ -257,6 +281,16 @@ public:
       }
     }
 
+    // printf("nb_marg_params: %ld\n", marg_param_ptrs_.size());
+    // for (const auto &param : marg_param_ptrs_) {
+    //   printf("- marg_param: %s\n", param->type.c_str());
+    // }
+    //
+    // printf("nb_remain_params: %ld\n", remain_param_ptrs_.size());
+    // for (const auto &param : remain_param_ptrs_) {
+    //   printf("- remain_param: %s\n", param->type.c_str());
+    // }
+
     // Form Hessian and RHS of Gauss newton
     matx_t H;
     vecx_t b;
@@ -370,7 +404,7 @@ public:
   bool Evaluate(double const *const *params,
                 double *residuals,
                 double **jacobians=nullptr) const {
-    // Residual e = -pinv(J^T) * b + J * Delta_Chi;
+    // Residual e
     const vecx_t Delta_Chi = compute_delta_chi(params);
     Eigen::Map<vecx_t> e(residuals, e0_.rows());
     e = e0_ + J0_ * Delta_Chi;
@@ -387,6 +421,7 @@ public:
         const size_t index = param_index_.at(param) - m_;
         const size_t J_cols = param->global_size;
         const size_t local_size = param->local_size;
+        printf("param: %s, index: %ld\n", param->type.c_str(), index);
 
         Eigen::Map<matx_row_major_t> J(jacobians[i], J_rows, J_cols);
         J.setZero();

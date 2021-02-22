@@ -25,11 +25,14 @@ set -e
 
 tmux send-keys -t dev -R "\
 cd ~/sync/projects/yac \
-&& make lib \
-&& source ~/catkin_ws/devel/setup.bash \
-&& rosrun yac test_marg_error --target test_marg_error_swe
+&& make release \
+&& source ~/catkin_ws/devel/setup.bash
 " C-m
 exit
+# && rosrun --prefix 'gdb -ex=run -ex=\"set confirm off\" -ex=bt -ex=quit -args' yac test_calib_vi --target test_calib_vi
+# && rosrun yac test_calib_stereo --target test_calib_stereo_solve \
+# && rosrun --prefix 'gdb -ex=run -ex=\"set confirm off\" -ex=bt -ex=quit -args' yac test_marg_error --target test_marg_error_check_gradients
+# && rosrun yac test_calib_stereo_inc --target test_calib_stereo_inc_solve \
 # && rosrun yac test_calib_stereo --target test_calib_stereo_solve
 # && roslaunch yac_ros calib_stereo_nbv.launch
 # && roslaunch yac_ros calib_mono_nbv.launch
@@ -47,6 +50,7 @@ source ~/catkin_ws/devel/setup.bash
 # rm -rf /tmp/aprilgrid_test
 # rosrun yac test_calib_data --target test_blur_measure
 
+# --prefix 'gdb -ex=run -ex=\"set confirm off\" -ex=bt -ex=quit -args'
 # --prefix 'gdb -ex run'
 # --prefix 'gdb -ex run -args'
 

@@ -748,6 +748,9 @@ int check_jacobian(const std::string &jac_name,
   } else {
     if (print) {
       printf("Check [%s] passed!\n", jac_name.c_str());
+      // print_matrix("num diff jac", fdiff);
+      // print_matrix("analytical jac", jac);
+      // print_matrix("difference matrix", delta);
     }
     retval = 0;
   }

@@ -95,6 +95,28 @@ geometry_msgs::TwistStamped msg_build(const size_t seq,
   return msg;
 }
 
+geometry_msgs::TransformStamped build_msg(const ros::Time &ts,
+                                          const std::string &frame_id,
+                                          const std::string &child_frame_id,
+                                          const yac::mat4_t &T) {
+  const auto r = yac::tf_trans(T);
+  const auto q = yac::tf_quat(T);
+
+  geometry_msgs::TransformStamped msg;
+  msg.header.stamp = ts;
+  msg.header.frame_id = frame_id;
+  msg.child_frame_id = child_frame_id;
+  msg.transform.translation.x = r(0);
+  msg.transform.translation.y = r(1);
+  msg.transform.translation.z = r(2);
+  msg.transform.rotation.w = q.w();
+  msg.transform.rotation.x = q.x();
+  msg.transform.rotation.y = q.y();
+  msg.transform.rotation.z = q.z();
+
+  return msg;
+}
+
 void msg_convert(const std_msgs::Header &msg,
                  size_t seq,
                  yac::timestamp_t &ts,

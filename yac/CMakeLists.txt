@@ -69,10 +69,10 @@ ADD_DEFINITIONS(-DTEST_PATH="${TEST_BIN_PATH}")
 #
 # ADD_EXECUTABLE(test_calib_stereo_inc tests/test_calib_stereo_inc.cpp)
 # TARGET_LINK_LIBRARIES(test_calib_stereo_inc yac ${DEPS})
-#
-# ADD_EXECUTABLE(test_calib_vi tests/test_calib_vi.cpp)
-# TARGET_LINK_LIBRARIES(test_calib_vi yac ${DEPS})
-#
+
+ADD_EXECUTABLE(test_calib_vi tests/test_calib_vi.cpp)
+TARGET_LINK_LIBRARIES(test_calib_vi yac ${DEPS})
+
 # ADD_EXECUTABLE(test_calib_nbv tests/test_calib_nbv.cpp)
 # TARGET_LINK_LIBRARIES(test_calib_nbv yac ${DEPS})
 

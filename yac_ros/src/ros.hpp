@@ -27,6 +27,7 @@
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
 #include <geometry_msgs/TwistStamped.h>
+#include <geometry_msgs/TransformStamped.h>
 
 #include <nav_msgs/Odometry.h>
 
@@ -59,6 +60,10 @@ geometry_msgs::TwistStamped msg_build(const size_t seq,
                                       const std::string &frame_id,
                                       const yac::vec3_t &linear_velocity,
                                       const yac::vec3_t &angular_velocity);
+geometry_msgs::TransformStamped build_msg(const ros::Time &ts,
+                                          const std::string &frame_id,
+                                          const std::string &child_frame_id,
+                                          const yac::mat4_t &T);
 
 void msg_convert(const std_msgs::Header &msg,
                  size_t seq,

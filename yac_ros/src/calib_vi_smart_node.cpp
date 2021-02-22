@@ -24,9 +24,6 @@
 #include <opencv2/highgui/highgui.hpp>
 
 #include "yac.hpp"
-// #include <yac/calib/aprilgrid.hpp>
-// #include <yac/calib/calib_data.hpp>
-// #include <yac/util/util.hpp>
 #include "calib_vi/Calibrator.hpp"
 #include "calib_vi/Estimator.hpp"
 // #include "calib_vi/NBT.hpp"

@@ -26,7 +26,8 @@ set -e
 tmux send-keys -t dev -R "\
 cd ~/sync/projects/yac \
 && make release \
-&& source ~/catkin_ws/devel/setup.bash
+&& source ~/catkin_ws/devel/setup.bash \
+&& roslaunch yac_ros calib_intel_d435i.launch
 " C-m
 exit
 # && rosrun --prefix 'gdb -ex=run -ex=\"set confirm off\" -ex=bt -ex=quit -args' yac test_calib_vi --target test_calib_vi

@@ -1,14 +1,6 @@
 <launch>
-  <!-- <node pkg="rosbag" -->
-  <!--   type="play" name="player" output="screen" -->
-  <!--   args="&#45;&#45;clock &#45;q /home/chutsu/autocal_results/nbt/calib_data&#45;2.bag"/> -->
-    
-  <!-- <node pkg="rosbag" -->
-  <!--   type="play" name="player" output="screen" -->
-  <!--   args="&#45;&#45;clock &#45;q /tmp/autocal_2020&#45;10&#45;26&#45;12&#45;09&#45;15.bag"/> -->
-
   <!-- Record ROS bag -->
-  <node pkg="rosbag" type="record" name="record" output="screen" args="-a -o /tmp/autocal.bag"/>
+  <!-- <node pkg="rosbag" type="record" name="record" output="screen" args="&#45;a &#45;o /tmp/calib_vi.bag"/> -->
 
   <!-- Intel realsense D435i-->
   <node pkg="rs4se"
@@ -25,18 +17,18 @@
     <param name="enable_emitter" type="bool" value="false" />
     <param name="rgb_width" value="640"/>
     <param name="rgb_height" value="480"/>
-    <param name="rgb_frame_rate" value="30"/>
+    <param name="rgb_frame_rate" value="15"/>
     <param name="rgb_format" type="str" value="RGB8" />
     <param name="rgb_exposure" type="double" value="100" />
     <param name="ir_width" type="int" value="640" />
     <param name="ir_height" type="int" value="480" />
     <param name="ir_format" type="str" value="Y8" />
-    <param name="ir_frame_rate" type="int" value="30" />
+    <param name="ir_frame_rate" type="int" value="15" />
     <param name="ir_exposure" type="double" value="10000" />
     <param name="depth_width" type="int" value="640" />
     <param name="depth_height" type="int" value="480" />
     <param name="depth_format" type="str" value="Z16" />
-    <param name="depth_frame_rate" type="int" value="30" />
+    <param name="depth_frame_rate" type="int" value="15" />
 
     <!-- IMU -->
     <param name="enable_motion" type="bool" value="true" />
@@ -44,25 +36,25 @@
     <param name="accel_hz" type="double" value="250" />
   </node>
 
-  <!-- AUTOCAL -->
+  <!-- CALIB_VI_NODE -->
   <param name="mode" value="realtime" />
   <param name="publish_tfs" value="true" />
   <!-- <param name="mode" value="batch" /> -->
   <!-- <param name="publish_tfs" value="false" /> -->
   <param name="image_format" value="bgr8" />
   <param name="output_path" value="/tmp/calib_data" />
-  <param name="calib_file" value="$(find autocal_ros)/configs/calib_intel_d435i.yaml" />
+  <param name="calib_file" value="$(find yac_ros)/config/calib_intel_d435i.yaml" />
   <param name="cam0_topic" value="/rs/ir0/image" />
   <param name="cam1_topic" value="/rs/ir1/image" />
   <param name="imu0_topic" value="/rs/imu0/data" />
 
   <!-- RVIZ -->
   <node type="rviz" name="rviz" pkg="rviz"
-    args="-d $(find autocal_ros)/configs/autocal.rviz"
+    args="-d $(find yac_ros)/config/yac.rviz"
     required="true"
     output="screen" />
 
-  <node pkg="autocal_ros" type="autocal_node" name="autocal_node"
+  <node pkg="yac_ros" type="calib_vi_smart_node" name="yac_node"
     required="true" output="screen" />
-    <!-- launch&#45;prefix="gdb &#45;ex run &#45;&#45;args" -->
+    <!-- launch&#45;prefix="gdb &#45;ex run &#45;ex bt &#45;ex='set confirm off' &#45;ex quit &#45;&#45;args" -->
 </launch>

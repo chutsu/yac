@@ -323,7 +323,9 @@ void Estimator::configure(const std::string &config_file) {
   // -- Load optimization settings
   load_optimization_settings(config, opt_config_);
   // -- Load camera params.
+	printf("config_file: %s\n", config_file.c_str());
   int nb_cams = config_nb_cameras(config_file);
+	printf("nb_cams: %d\n", nb_cams);
   for (int cam_idx = 0; cam_idx < nb_cams; cam_idx++) {
     CameraParameters params;
     load_camera_params(config, cam_idx, params, true);
@@ -347,7 +349,9 @@ void Estimator::configure(const std::string &config_file) {
   // -- Load imu params.
   yac::ImuParameters imu_params;
   int nb_imus = config_nb_imus(config_file);
-  if (nb_imus == 1) {
+  if (nb_imus == 0) {
+    FATAL("Did you forget to add imu config?");
+  } else if (nb_imus == 1) {
     load_imu_params(config, 0, imu_params);
   } else if (nb_imus > 1) {
     FATAL("At current the calibrator only supports 1 imu!");
@@ -925,7 +929,7 @@ void Estimator::addMeasurement(const timestamp_t &ts,
     // const mat3_t K = pinhole_K(cam_params.head(4));
     // const vecx_t D = cam_params.tail(4);
     // aprilgrid_detect(grid, *detector_, cam_images[i], K, D, true);
-		auto grid = detector_->detect(ts, cam_images[i]);
+		auto grid = detector_->detect(ts, cam_images[i], true);
     grid.timestamp = ts;
     grids_[i] = grid;
   }
@@ -982,65 +986,6 @@ void Estimator::addMeasurement(const Time &ts,
 
   // Handle measurements
   if (grids_.size() == nb_cams()) {
-    // // -------------------------- Initialize T_WS ------------------------------
-    // if (sensor_init_ == false && imu_data_.size() > 5) {
-    //   // Extract gyro and accel data
-    //   vec3s_t gyro;
-    //   vec3s_t accel;
-    //   for (size_t i = 0; i < imu_data_.size(); i++) {
-    //     gyro.push_back(imu_data_.at(i).measurement.gyroscopes);
-    //     accel.push_back(imu_data_.at(i).measurement.accelerometers);
-    //   }
-    //
-    //   // Initialize initial IMU attitude
-    //   mat3_t C_WS;
-    //   imu_init_attitude({gyro.begin(), gyro.end()},
-    //                     {accel.begin(), accel.end()},
-    //                     C_WS,
-    //                     5);
-    //
-    //   // Construct T_WS
-    //   T_WS_init_ = tf(C_WS, zeros(3, 1));
-    //   sensor_init_ = true;
-    //
-    //   // Add T_WS prior
-    //   addSensorPosePrior(ts, T_WS_init_, zeros(3, 1));
-    // }
-    //
-    // // Make sure imu data is streaming first
-    // if (sensor_init_ == false) {
-    //   // LOG_WARN("IMU not initialized yet!");
-    //   grids_.clear();
-    //   return;
-    // }
-    //
-    // // -------------------------- Initialize T_WF ------------------------------
-    // if (sensor_init_ && fiducial_init_ == false && grids_[0].detected) {
-		// 	// Make sure we have a good detection
-		// 	if (grids_[0].nb_detections < 5) {
-		// 		grids_.clear();
-		// 		return;
-		// 	}
-    //
-    //   // Add T_WF
-    //   const mat4_t T_C0F = grids_[0].T_CF;
-    //   const mat4_t T_SC0 = getSensorCameraPoseEstimate(0);
-    //   const mat4_t T_WF{T_WS_init_ * T_SC0 * T_C0F};
-    //   addFiducialPose(T_WF, true);
-    //   fiducial_init_ = true;
-    //
-    //   // Clear grids
-    //   grids_.clear();
-    //   return;
-    // }
-    //
-    // // Make sure fiducial target is initialized
-    // if (fiducial_init_ == false) {
-    //   // LOG_WARN("Fiducial not initialized yet!");
-    //   grids_.clear();
-    //   return;
-    // }
-
     // ------------------------- Initialize grids ------------------------------
     if (grids_init_ == false && grids_[0].detected && grids_[1].detected) {
       grids_init_ = true;

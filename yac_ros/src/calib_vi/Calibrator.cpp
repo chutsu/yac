@@ -95,12 +95,12 @@ int config_nb_cameras(const std::string &config_file) {
   const int max_cameras = 100;
   for (int i = 0; i < max_cameras; i++) {
     const std::string key = "cam" + std::to_string(i);
-    if (yaml_has_key(config, key) != 0) {
+    if (yaml_has_key(config, key) == 0) {
       return i;
     }
   }
 
-  return max_cameras;
+  return 0;
 }
 
 int config_nb_imus(const std::string &config_file) {
@@ -109,12 +109,12 @@ int config_nb_imus(const std::string &config_file) {
   const int max_imus = 100;
   for (int i = 0; i < max_imus; i++) {
     const std::string key = "imu" + std::to_string(i);
-    if (yaml_has_key(config, key) != 0) {
+    if (yaml_has_key(config, key) == 0) {
       return i;
     }
   }
 
-  return max_imus;
+  return 0;
 }
 
 void load_calib_target_params(const config_t &config,
@@ -146,17 +146,17 @@ void load_camera_params(const config_t &config,
   const std::string cam_str = "cam" + std::to_string(index);
   // -- Parse resolution, camera and distortion model
   parse(config, cam_str + ".resolution", params.resolution);
-  parse(config, cam_str + ".camera_model", params.camera_model);
-  parse(config, cam_str + ".distortion_model", params.distortion_model);
+  parse(config, cam_str + ".proj_model", params.camera_model);
+  parse(config, cam_str + ".dist_model", params.distortion_model);
   // -- Parse intrinsics
-  if (yaml_has_key(config, cam_str + ".intrinsics") == 0) {
-    parse(config, cam_str + ".intrinsics", params.intrinsics);
+  if (yaml_has_key(config, cam_str + ".proj_params")) {
+    parse(config, cam_str + ".proj_params", params.intrinsics);
   } else {
     // Estimate intrinsics from resolution and field of view
-    double hfov = 0.0;
-    double vfov = 0.0;
-    parse(config, cam_str + ".lens_hfov", hfov);
-    parse(config, cam_str + ".lens_vfov", vfov);
+    double hfov = 90.0;
+    double vfov = 90.0;
+    // parse(config, cam_str + ".lens_hfov", hfov);
+    // parse(config, cam_str + ".lens_vfov", vfov);
 
     const double image_width = params.resolution(0);
     const double image_height = params.resolution(1);
@@ -171,9 +171,9 @@ void load_camera_params(const config_t &config,
   // -- Parse distortion
   params.distortion.resize(4);
   params.distortion << zeros(4, 1);
-  if (yaml_has_key(config, cam_str + ".distortion") == 0) {
-    parse(config, cam_str + ".distortion", params.distortion);
-  } else if (params.distortion_model == "radtan") {
+  if (yaml_has_key(config, cam_str + ".dist_params")) {
+    parse(config, cam_str + ".dist_params", params.distortion);
+  } else if (params.distortion_model == "radtan4") {
     params.distortion << 0.0, 0.0, 0.0, 0.0;
   } else {
     FATAL("Not implemented. Supported distortions: [radtan]");
@@ -182,12 +182,12 @@ void load_camera_params(const config_t &config,
   if (verbose) {
     LOG_INFO("Camera[%d] Parameters", index);
     LOG_INFO("----------------------------------------");
-    LOG_INFO("intrinsics: [%f, %f, %f, %f]",
+    LOG_INFO("proj_params: [%f, %f, %f, %f]",
             params.intrinsics(0),
             params.intrinsics(1),
             params.intrinsics(2),
             params.intrinsics(3));
-    LOG_INFO("distortion: [%f, %f, %f, %f]",
+    LOG_INFO("dist_params: [%f, %f, %f, %f]",
             params.distortion(0),
             params.distortion(1),
             params.distortion(2),

@@ -35,9 +35,7 @@ class MarginalizationError : public ::ceres::CostFunction, public ErrorInterface
   typedef ::ceres::CostFunction base_t;
 
   /// \brief Trivial destructor.
-  virtual ~MarginalizationError()
-  {
-  }
+  virtual ~MarginalizationError() {}
 
   /// \brief Default constructor. Initialises a new okvis::ceres::Map.
   MarginalizationError();

@@ -41,7 +41,8 @@ public:
   int image_height_ = 0;
 
   ///< The base class type.
-  typedef ::ceres::SizedCostFunction<2, 7, 2, 7, 8> base_t;
+  // typedef ::ceres::SizedCostFunction<2, 7, 2, 7, 7, 8> base_t;
+  typedef ::ceres::SizedCostFunction<2, 7, 2, 7, 7, 8, 1> base_t;
 
   ///< Number of residuals (2)
   static const int kNumResiduals = 2;
@@ -52,100 +53,59 @@ public:
   ///< Projected point
   mutable measurement_t kp_projected_;
 
-  CalibReprojError() : cameraGeometry_(new camera_geometry_t) {
-    // residuals_debug = (double *) malloc(sizeof(double) * 2);
-    // error_debug = (double *) malloc(sizeof(double) * 2);
-    // J.push_back(zeros(2, 6));
-    // J.push_back(zeros(2, 2));
-    // J.push_back(zeros(2, 6));
-    // J.push_back(zeros(2, 8));
-  }
+	///< Pixel velocity
+  vec2_t z_i_{0.0, 0.0};
+  vec2_t z_j_{0.0, 0.0};
+  vec2_t v_ij_{0.0, 0.0};  // pixel velocity: (z_j - z_i) / dt
+
+  CalibReprojError() : cameraGeometry_(new camera_geometry_t) {}
 
   CalibReprojError(const uint64_t cameraId,
                    const int tag_id,
                    const int corner_id,
                    const vec3_t &p_F,
                    const mat4_t &T_WF,
-                   const measurement_t &measurement,
+                   const vec2_t &z_i,
+                   const vec2_t &z_j,
+									 const timestamp_t &ts_i,
+									 const timestamp_t &ts_j,
                    const covariance_t &information) {
-    // residuals_debug = (double *) malloc(sizeof(double) * 2);
-    // error_debug = (double *) malloc(sizeof(double) * 2);
-    // J.push_back(zeros(2, 6));
-    // J.push_back(zeros(2, 2));
-    // J.push_back(zeros(2, 6));
-    // J.push_back(zeros(2, 8));
-
-    // printf("camera_id: %ld\n", cameraId);
-    // printf("tag_id: %ld\n", tag_id);
-    // printf("corner_id: %ld\n", corner_id);
-    // print_vector("p_F", p_F);
-    // print_matrix("T_WF", T_WF);
-    // print_vector("measurement", measurement);
-    // exit(0);
-
     setCameraId(cameraId);
     tag_id_ = tag_id;
     corner_id_ = corner_id;
     p_F_ = p_F;
     T_WF_ = T_WF;
 
-    setMeasurement(measurement);
+		z_i_ = z_i;
+		z_j_ = z_j;
+		v_ij_ = (z_j_ - z_i_) / ns2sec(ts_j - ts_i);
+
+    setMeasurement(z_i_);
     setInformation(information);
   }
 
-  virtual ~CalibReprojError() {
-    // free(residuals_debug);
-    // free(error_debug);
-  }
+  virtual ~CalibReprojError() {}
 
-  /// Set the measurement.
-  /// @param[in] measurement The measurement.
   virtual void setMeasurement(const measurement_t &measurement) {
     measurement_ = measurement;
   }
 
-  /// Set information matrix
-  /// @param[in] information The information (weight) matrix.
   virtual void setInformation(const covariance_t &information) {
     information_ = information;
     covariance_ = information.inverse();
-    // perform the Cholesky decomposition on order to obtain the correct error
-    // weighting
     Eigen::LLT<Eigen::Matrix2d> lltOfInformation(information_);
     squareRootInformation_ = lltOfInformation.matrixL().transpose();
   }
 
-  /// Get measurement
-  /// @return The measurement vector
   virtual const measurement_t &measurement() const { return measurement_; }
   measurement_t measurement() { return measurement_; }
 
-  /// Get information matrix
-  /// @return The information (weight) matrix
   virtual const covariance_t &information() const { return information_; }
   virtual covariance_t information() { return information_; }
 
-  /// Get covariance matrix
-  /// @return The inverse information (covariance) matrix
   virtual const covariance_t &covariance() const { return covariance_; }
   virtual covariance_t covariance() { return covariance_; }
 
-  /**
-   * This evaluates the error term and additionally computes the
-   * Jacobians.
-   *
-   * The parameter order is:
-   *
-   * - T_WS: sensor pose
-   * - T_WF: fiducial pose
-   * - T_SC: sensor-camera extrinsic pose
-   * - KD: camera intrinsics + distortion params
-   *
-   * @param[in] parameters Pointer to the parameters (see ceres)
-   * @param[in] residuals Pointer to the residual vector (see ceres)
-   * @param[in] jacobians Pointer to the Jacobians (see ceres)
-   * @return success of th evaluation.
-   */
   virtual bool Evaluate(double const *const *parameters,
                         double *residuals,
                         double **jacobians) const {
@@ -155,122 +115,37 @@ public:
                                         NULL); // debug test only
   }
 
-  /**
-   * This evaluates the error term and additionally computes the Jacobians in
-   * the minimal internal representation.
-   *
-   * The parameter order is:
-   *
-   * - T_WS: sensor pose
-   * - T_WF: fiducial pose
-   * - T_SC: sensor-camera extrinsic pose
-   * - KD: camera intrinsics + distortion params
-   *
-   * @param[in] parameters Pointer to the parameters (see ceres)
-   * @param[in] residuals Pointer to the residual vector (see ceres)
-   * @param[in] jacobians Pointer to the Jacobians (see ceres)
-   * @param[in] jacobiansMinimal Pointer to the minimal Jacobians (equivalent to
-   * jacobians).
-   *
-   * @return Success of the evaluation.
-   */
-  bool EvaluateWithMinimalJacobians(double const *const *parameters,
+  bool EvaluateWithMinimalJacobians(double const *const *params,
                                     double *residuals,
                                     double **jacobians,
                                     double **jacobiansMinimal) const {
-
-    // We avoid the use of yac::Transformation here due to
-    // quaternion normalization and so forth. This only matters in order to be
-    // able to check Jacobians with numeric differentiation chained, first w.r.t.
-    // q and then d_alpha.
-
-    // Pose of sensor in world frame
-    Eigen::Map<const Eigen::Vector3d> t_WS_W(&parameters[0][0]);
-    const Eigen::Quaterniond q_WS(parameters[0][6],
-                                  parameters[0][3],
-                                  parameters[0][4],
-                                  parameters[0][5]);
-
-    // Pose of fiducial target in world frame
-    const auto q_WF = tf_quat(T_WF_);
-    const double yaw = quat2euler(q_WF)(2);
-    const double pitch = parameters[1][1];
-    const double roll = parameters[1][0];
+		// Fiducial param
+    const double roll = params[1][0];
+    const double pitch = params[1][1];
+    const double yaw = quat2euler(tf_quat(T_WF_))(2);
     const vec3_t rpy{roll, pitch, yaw};
-
-    const vec3_t r_WF(T_WF_.block(0, 3, 3, 1));
     const mat3_t C_WF = euler321(rpy);
+		const vec3_t r_WF = tf_trans(T_WF_);
     const mat4_t T_WF = tf(C_WF, r_WF);
 
-    // Sensor to camera transformation
-    Eigen::Map<const Eigen::Vector3d> t_SC_S(&parameters[2][0]);
-    const Eigen::Quaterniond q_SC(parameters[2][6],
-                                  parameters[2][3],
-                                  parameters[2][4],
-                                  parameters[2][5]);
+    // Sensor pose, sensor-camera extrinsics, camera parameters
+    const mat4_t T_WS = tf(params[0]);
+    const mat4_t T_BS = tf(params[2]);
+    const mat4_t T_BCi = tf(params[3]);
+    Eigen::Map<const vecx_t> cam_params(params[4], 8);
+    const double td = params[5][0];
 
-    // camera intrinsics + distortion
-    Eigen::VectorXd cam_params = zeros(8, 1);
-    cam_params <<
-        // Intrinsics
-        parameters[3][0], // fx
-        parameters[3][1], // fy
-        parameters[3][2], // cx
-        parameters[3][3], // cy
-        // Distortion
-        parameters[3][4], // k1
-        parameters[3][5], // k2
-        parameters[3][6], // p1
-        parameters[3][7]; // p2
-
-    // Form transform from camera to sensor
-    const Eigen::Matrix3d C_SC = q_SC.toRotationMatrix();
-    const Eigen::Matrix3d C_CS = C_SC.transpose();
-    Eigen::Matrix4d T_CS = Eigen::Matrix4d::Identity();
-    T_CS.topLeftCorner<3, 3>() = C_CS;
-    T_CS.topRightCorner<3, 1>() = -C_CS * t_SC_S;
-    // auto T_SC = T_CS.inverse();
-
-    // Form transform from fiducial to world
-    // const Eigen::Matrix3d C_WF = q_WF.toRotationMatrix();
-    // const Eigen::Matrix3d C_FW = C_WF.transpose();
-    // Eigen::Matrix4d T_FW = Eigen::Matrix4d::Identity();
-    // T_FW.topLeftCorner<3, 3>() = C_FW;
-    // T_FW.topRightCorner<3, 1>() = -C_FW * t_WF_W;
-
-    // Form transform from sensor to world
-    const Eigen::Matrix3d C_WS = q_WS.toRotationMatrix();
-    const Eigen::Matrix3d C_SW = C_WS.transpose();
-    Eigen::Matrix4d T_SW = Eigen::Matrix4d::Identity();
-    T_SW.topLeftCorner<3, 3>() = C_SW;
-    T_SW.topRightCorner<3, 1>() = -C_SW * t_WS_W;
-    // auto T_WS = T_SW.inverse();
-
-    // Misc
-    // const Eigen::Matrix4d T_WF = T_FW.inverse();
-    const Eigen::Matrix4d T_CF = T_CS * T_SW * T_WF;
-
-    // Homogenous point in camera and world frame
-    const Eigen::Vector4d hp_C = T_CF * p_F_.homogeneous();
-    const Eigen::Vector4d hp_S = T_CS.inverse() * hp_C;
-    // const Eigen::Vector4d hp_W = T_WF * p_F_.homogeneous();
+		// Transform fiducial point to camera frame
+    const mat4_t T_CiB = T_BCi.inverse();
+    const mat4_t T_SW = T_WS.inverse();
+    const vec3_t r_CFi = tf_point(T_CiB * T_BS * T_SW * T_WF, p_F_);
+		const vec4_t hp_C = r_CFi.homogeneous();
 
     // Calculate the reprojection error
     // measurement_t kp;
     Eigen::Matrix<double, 2, 3> Jh;
     Eigen::Matrix2Xd J_cam_params;
     Eigen::Matrix<double, 2, 3> Jh_weighted;
-
-    // Form camera geometry
-    // const double fx = cam_params(0);
-    // const double fy = cam_params(1);
-    // const double cx = cam_params(2);
-    // const double cy = cam_params(3);
-    //
-    // const double k1 = cam_params(4);
-    // const double k2 = cam_params(5);
-    // const double p1 = cam_params(6);
-    // const double p2 = cam_params(7);
 
     assert(image_width_ > 0);
     assert(image_height_ > 0);
@@ -292,19 +167,13 @@ public:
                                                     &kp_projected_,
                                                     nullptr);
     }
-    measurement_t error = measurement_ - kp_projected_;
+    // measurement_t error = measurement_ - kp_projected_;
+    measurement_t error = (measurement_ + td * v_ij_) - kp_projected_;
 
     // weight:
     measurement_t weighted_error = squareRootInformation_ * error;
-    // r = weighted_error;
-
-    // assign:
     residuals[0] = weighted_error[0];
     residuals[1] = weighted_error[1];
-    // residuals_debug[0] = weighted_error[0];
-    // residuals_debug[1] = weighted_error[1];
-    // error_debug[0] = error(0);
-    // error_debug[1] = error(1);
 
     // check validity:
     bool valid = true;
@@ -312,121 +181,52 @@ public:
       valid = false;
     } else if (fabs(hp_C[3]) > 1.0e-8) {
       Eigen::Vector3d p_C = hp_C.template head<3>() / hp_C[3];
-      if (p_C[2] < 0.0) { // 20 cm - not very generic... but reasonable
-      // if (p_C[2] < 0.2) { // 20 cm - not very generic... but reasonable
-        // std::cout<<"INVALID POINT"<<std::endl;
+      if (p_C[2] < 0.0) {
         valid = false;
       }
     }
+    // print_vector("err" , error);
+    // printf("cam_idx: %d, valid: %d\n", cameraId_, valid);
 
-    // switch (status) {
-    //   case CameraBase::ProjectionStatus::Invalid: printf("point inavlid!\n"); break;
-    //   case CameraBase::ProjectionStatus::OutsideImage:
-    //     printf("point outside image!\n");
-    //     print_vector("p_F", p_F_);
-    //     print_vector("camera res", vec2_t{camera_geometry.imageWidth(), camera_geometry.imageHeight()});
-    //     print_vector("projected", kp_projected_);
-    //     break;
-    //   case CameraBase::ProjectionStatus::Masked: printf("point masked!\n"); break;
-    //   case CameraBase::ProjectionStatus::Behind: printf("point behind!\n"); break;
-    //   case CameraBase::ProjectionStatus::Successful: break;
-    // }
+    if (jacobians) {
+      // Jacobians w.r.t T_WS
+      if (jacobians[0]) {
+        const mat3_t C_CiS = tf_rot(T_CiB * T_BS);
+        const mat3_t C_WS = tf_rot(T_WS);
+        const mat3_t C_SW = C_WS.transpose();
+        const mat3_t C_CiW = C_CiS * C_SW;
+        const mat4_t T_SW = T_WS.inverse();
+        const vec3_t r_SFi = tf_point(T_SW * T_WF, p_F_);
 
-    if (valid == false) {
-      // print_matrix("T_WF", T_WF);
-      // print_matrix("T_SC", T_CS.inverse());
-      // print_vector("cam_params", cam_params);
-      // print_vector("measurement", measurement_);
-      // print_vector("projected", kp_projected_);
-      // print_vector("error", error);
+				mat_t<2, 6> J_min;
+        J_min.setZero();
+        J_min.block(0, 0, 2, 3) = -1 * Jh_weighted * -C_CiW * I(3);
+        J_min.block(0, 3, 2, 3) = -1 * Jh_weighted * -C_CiW * -skew(C_WS * r_SFi);
 
-      if (jacobians) {
-        if (jacobians[0]) {
-          Eigen::Map<Eigen::Matrix<double, 2, 7, Eigen::RowMajor>> J0(jacobians[0]);
-          J0.setZero();
-        }
-        if (jacobians[1]) {
-          Eigen::Map<Eigen::Matrix<double, 2, 2, Eigen::RowMajor>> J1(jacobians[1]);
-          J1.setZero();
-        }
-
-        if (jacobians[2]) {
-          Eigen::Map<Eigen::Matrix<double, 2, 7, Eigen::RowMajor>> J2(jacobians[2]);
-          J2.setZero();
-        }
-
-        if (jacobians[3]) {
-          Eigen::Map<Eigen::Matrix<double, 2, 8, Eigen::RowMajor>> J3(jacobians[3]);
-          J3.setZero();
-        }
-      }
-
-      if (jacobiansMinimal) {
-        if (jacobiansMinimal[0]) {
-          Eigen::Map<Eigen::Matrix<double, 2, 6, Eigen::RowMajor>> J0_min(jacobiansMinimal[0]);
-          J0_min.setZero();
-        }
-
-        if (jacobiansMinimal[1]) {
-          Eigen::Map<Eigen::Matrix<double, 2, 2, Eigen::RowMajor>> J1_min(jacobiansMinimal[1]);
-          J1_min.setZero();
-        }
-
-        if (jacobiansMinimal[2]) {
-          Eigen::Map<Eigen::Matrix<double, 2, 6, Eigen::RowMajor>> J2_min(jacobiansMinimal[2]);
-          J2_min.setZero();
-        }
-
-        if (jacobiansMinimal[3]) {
-          Eigen::Map<Eigen::Matrix<double, 2, 8, Eigen::RowMajor>> J3_min(jacobiansMinimal[3]);
-          J3_min.setZero();
-        }
-      }
-
-      return true;
-    }
-
-    // calculate jacobians, if required
-    // This is pretty close to Paul Furgale's thesis. eq. 3.100 on page 40
-    if (jacobians != NULL) {
-      if (jacobians[0] != NULL) {
-        // Jacobian w.r.t. sensor pose
-        // clang-format off
-        Eigen::Matrix<double, 3, 3> dp_C__dp_W = C_SC.transpose() * C_WS.transpose();
-        Eigen::Matrix<double, 3, 3> dp_W__dr_WS = I(3);
-        Eigen::Matrix<double, 3, 3> dp_W__dtheta = -kinematics::crossMx(C_WS * hp_S.head(3));
-        Eigen::Matrix<double, 2, 3> dh_dr_WS = Jh_weighted * dp_C__dp_W * dp_W__dr_WS;
-        Eigen::Matrix<double, 2, 3> dh_dtheta = Jh_weighted * dp_C__dp_W * dp_W__dtheta;
-        // clang-format on
-
-        // Compute the minimal version
-        Eigen::Matrix<double, 2, 6, Eigen::RowMajor> J0_minimal;
-        J0_minimal.block(0, 0, 2, 3) = dh_dr_WS;
-        J0_minimal.block(0, 3, 2, 3) = dh_dtheta;
-        // J[0] = J0_minimal;
-        if (!valid) {
-          J0_minimal.setZero();
-        }
-
-        // Pseudo inverse of the local parametrization Jacobian:
+        // pseudo inverse of the local parametrization Jacobian:
         Eigen::Matrix<double, 6, 7, Eigen::RowMajor> J_lift;
-        OKVISPoseLocalParameterization::liftJacobian(parameters[0], J_lift.data());
+        OKVISPoseLocalParameterization::liftJacobian(params[0], J_lift.data());
 
-        // Hallucinate Jacobian w.r.t. state
-        Eigen::Map<Eigen::Matrix<double, 2, 7, Eigen::RowMajor>> J0(jacobians[0]);
-        J0 = J0_minimal * J_lift;
-
-        // If requested, provide minimal Jacobians
-        if (jacobiansMinimal != NULL) {
-          if (jacobiansMinimal[0] != NULL) {
-            Eigen::Map<Eigen::Matrix<double, 2, 6, Eigen::RowMajor>>
-                J0_minimal_mapped(jacobiansMinimal[0]);
-            J0_minimal_mapped = J0_minimal;
-          }
+        // Global jacobian
+        Eigen::Map<mat_t<2, 7, row_major_t>> J(jacobians[0]);
+        J = J_min * J_lift;
+        if (valid == false) {
+					J.setZero();
         }
+
+        // Minimal jacobian
+				if (jacobiansMinimal && jacobiansMinimal[0]) {
+					Eigen::Map<mat_t<2, 6, row_major_t>> J_min_map(jacobiansMinimal[0]);
+					J_min_map = J_min;
+					if (valid == false) {
+						J_min_map.setZero();
+					}
+				}
       }
-      if (jacobians[1] != NULL) {
-        // Form jacobians
+
+      // Jacobians w.r.t. T_WF
+      if (jacobians[1]) {
+				// Form jacobians
         const double cphi = cos(roll);
         const double sphi = sin(roll);
         const double ctheta = cos(pitch);
@@ -454,69 +254,115 @@ public:
           0
         };
 
-        // Fill Jacobian
-        Eigen::Map<Eigen::Matrix<double, 2, 2, Eigen::RowMajor>> J1(jacobians[1]);
-        J1.block(0, 0, 2, 1) = -1 * Jh_weighted * C_CS * C_SW * J_x;
-        J1.block(0, 1, 2, 1) = -1 * Jh_weighted * C_CS * C_SW * J_y;
-        // J[1] = J1;
-        if (jacobiansMinimal != NULL) {
-          if (jacobiansMinimal[1] != NULL) {
-            Eigen::Map<Eigen::Matrix<double, 2, 2, Eigen::RowMajor>>
-                J1_minimal_mapped(jacobiansMinimal[1]);
-            J1_minimal_mapped = J1;
-          }
+				// Fill Jacobian
+        const mat3_t C_CiW = tf_rot(T_CiB * T_BS * T_SW);
+        Eigen::Map<mat_t<2, 2, row_major_t>> J(jacobians[1]);
+        J.block(0, 0, 2, 1) = -1 * Jh_weighted * C_CiW * J_x;
+        J.block(0, 1, 2, 1) = -1 * Jh_weighted * C_CiW * J_y;
+        if (valid == false) {
+          J.setZero();
         }
+
+				if (jacobiansMinimal && jacobiansMinimal[1]) {
+					Eigen::Map<mat_t<2, 2, row_major_t>> J_min(jacobiansMinimal[1]);
+					J_min = J;
+				}
       }
-      if (jacobians[2] != NULL) {
-        // Jacobian w.r.t. sensor-camera extrinsic pose
-        // clang-format off
-        Eigen::Matrix<double, 3, 3> dp_C__dp_S = C_SC.transpose();
-        Eigen::Matrix<double, 3, 3> dp_S__dr_SC = I(3);
-        Eigen::Matrix<double, 3, 3> dp_S__dtheta = -kinematics::crossMx(C_SC * hp_C.head(3));
-        Eigen::Matrix<double, 2, 3> dh__dr_SC = Jh_weighted * dp_C__dp_S * dp_S__dr_SC;
-        Eigen::Matrix<double, 2, 3> dh__dtheta = Jh_weighted * dp_C__dp_S * dp_S__dtheta;
-        // clang-format on
 
-        // Compute the minimal version
-        Eigen::Matrix<double, 2, 6, Eigen::RowMajor> J2_minimal;
-        J2_minimal.block(0, 0, 2, 3) = dh__dr_SC;
-        J2_minimal.block(0, 3, 2, 3) = dh__dtheta;
-        // J[2] = J2_minimal;
-        if (!valid) {
-          J2_minimal.setZero();
-        }
 
-        // Pseudo inverse of the local parametrization Jacobian:
+      // Jacobians w.r.t T_BS
+      if (jacobians[2]) {
+        const mat3_t C_CiB = tf_rot(T_CiB);
+        const mat3_t C_BS = tf_rot(T_BS);
+        const vec3_t r_SFi = tf_point(T_SW * T_WF, p_F_);
+
+				mat_t<2, 6> J_min;
+        J_min.setZero();
+        J_min.block(0, 0, 2, 3) = -1 * Jh_weighted * C_CiB * I(3);
+        J_min.block(0, 3, 2, 3) = -1 * Jh_weighted * C_CiB * -skew(C_BS * r_SFi);
+
+        // pseudo inverse of the local parametrization Jacobian:
         Eigen::Matrix<double, 6, 7, Eigen::RowMajor> J_lift;
-        OKVISPoseLocalParameterization::liftJacobian(parameters[2], J_lift.data());
+        OKVISPoseLocalParameterization::liftJacobian(params[2], J_lift.data());
 
-        // Hallucinate Jacobian w.r.t. state
-        Eigen::Map<Eigen::Matrix<double, 2, 7, Eigen::RowMajor>> J2(jacobians[2]);
-        J2 = J2_minimal * J_lift;
-
-        // If requested, provide minimal Jacobians
-        if (jacobiansMinimal != NULL) {
-          if (jacobiansMinimal[2] != NULL) {
-            Eigen::Map<Eigen::Matrix<double, 2, 6, Eigen::RowMajor>>
-                J2_minimal_mapped(jacobiansMinimal[2]);
-            J2_minimal_mapped = J2_minimal;
-          }
+        // Global jacobian
+        Eigen::Map<mat_t<2, 7, row_major_t>> J(jacobians[2]);
+        J.setZero();
+        J.block(0, 0, 2, 6) = J_min;
+        if (valid == false) {
+					J.setZero();
         }
+
+        // Minimal jacobian
+				if (jacobiansMinimal && jacobiansMinimal[2]) {
+					Eigen::Map<mat_t<2, 6, row_major_t>> J_min_map(jacobiansMinimal[2]);
+					J_min_map = J_min;
+					if (valid == false) {
+						J_min_map.setZero();
+					}
+				}
       }
-      if (jacobians[3] != NULL) {
-        // Jacobian w.r.t. camera intrinsics + distortion params
-        Eigen::Map<Eigen::Matrix<double, 2, 8, Eigen::RowMajor>> J3_minimal(jacobians[3]);
-        J3_minimal = -1 * squareRootInformation_ * J_cam_params;
-        // J[3] = J3_minimal;
 
-        // If requested, provide minimal Jacobians
-        if (jacobiansMinimal != NULL) {
-          if (jacobiansMinimal[3] != NULL) {
-            Eigen::Map<Eigen::Matrix<double, 2, 8, Eigen::RowMajor>>
-                J3_minimal_mapped(jacobiansMinimal[3]);
-            J3_minimal_mapped = J3_minimal;
-          }
+      // Jacobians w.r.t T_BCi
+      if (jacobians[3]) {
+        const mat3_t C_CiB = tf_rot(T_CiB);
+        const mat3_t C_BCi = C_CiB.transpose();
+        const vec3_t r_CiFi = tf_point(T_CiB * T_BS * T_SW * T_WF, p_F_);
+
+				mat_t<2, 6> J_min;
+        J_min.setZero();
+        J_min.block(0, 0, 2, 3) = -1 * Jh_weighted * -C_CiB * I(3);
+        J_min.block(0, 3, 2, 3) = -1 * Jh_weighted * -C_CiB * -skew(C_BCi * r_CiFi);
+
+        // pseudo inverse of the local parametrization Jacobian:
+        Eigen::Matrix<double, 6, 7, Eigen::RowMajor> J_lift;
+        OKVISPoseLocalParameterization::liftJacobian(params[3], J_lift.data());
+
+        // Global jacobian
+        Eigen::Map<mat_t<2, 7, row_major_t>> J(jacobians[3]);
+        J = J_min * J_lift;
+        if (valid == false) {
+          J.setZero();
         }
+
+        // Minimal jacobian
+				if (jacobiansMinimal && jacobiansMinimal[3]) {
+					Eigen::Map<mat_t<2, 6, row_major_t>> J_min_map(jacobiansMinimal[3]);
+					J_min_map = J_min;
+					if (valid == false) {
+						J_min_map.setZero();
+					}
+				}
+      }
+
+      // Jacobians w.r.t. camera parameters
+      if (jacobians[4]) {
+        const vec2_t p{r_CFi(0) / r_CFi(2), r_CFi(1) / r_CFi(2)};
+
+        Eigen::Map<Eigen::Matrix<double, 2, 8, Eigen::RowMajor>> J(jacobians[4]);
+        J = -1 * squareRootInformation_ * J_cam_params;
+        if (valid == false) {
+          J.setZero();
+        }
+
+				if (jacobiansMinimal && jacobiansMinimal[4]) {
+					Eigen::Map<mat_t<2, 8, row_major_t>> J_min_map(jacobiansMinimal[4]);
+					J_min_map = J;
+				}
+      }
+
+      // Jacobians w.r.t. time delay
+      if (jacobians[5]) {
+        Eigen::Map<vec2_t> J(jacobians[5]);
+        J = squareRootInformation_ * v_ij_;
+        if (valid == false) {
+          J.setZero();
+        }
+
+				if (jacobiansMinimal && jacobiansMinimal[5]) {
+					Eigen::Map<vec2_t> J_min(jacobiansMinimal[5]);
+					J_min = J;
+				}
       }
     }
 

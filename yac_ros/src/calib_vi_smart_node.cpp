@@ -26,35 +26,13 @@
 #include "yac.hpp"
 #include "calib_vi/Calibrator.hpp"
 #include "calib_vi/Estimator.hpp"
-// #include "calib_vi/NBT.hpp"
 #include "calib_vi/cv/PinholeCamera.hpp"
 #include "calib_vi/cv/RadialTangentialDistortion.hpp"
 
 #include "ros.hpp"
+#include "ros_calib.hpp"
 
 namespace yac {
-
-struct node_config_t {
-  std::string mode;
-  bool publish_tfs = true;
-  std::string image_format = "bgr8";
-  std::string output_path;
-  std::string calib_file;
-  std::string cam0_topic;
-  std::string cam1_topic;
-  std::string imu0_topic;
-
-  node_config_t(const ros::NodeHandle &ros_nh) {
-    ROS_PARAM(ros_nh, "mode", mode);
-    ROS_PARAM(ros_nh, "publish_tfs", publish_tfs);
-    ROS_PARAM(ros_nh, "image_format", image_format);
-    ROS_PARAM(ros_nh, "output_path", output_path);
-    ROS_PARAM(ros_nh, "calib_file", calib_file);
-    ROS_PARAM(ros_nh, "cam0_topic", cam0_topic);
-    ROS_PARAM(ros_nh, "cam1_topic", cam1_topic);
-    ROS_PARAM(ros_nh, "imu0_topic", imu0_topic);
-  }
-};
 
 bool tf_ok(const mat4_t &pose) {
   const auto r = tf_trans(pose);
@@ -74,8 +52,8 @@ public:
   profiler_t profiler_;
 
   // ROS
-  ros::NodeHandle ros_nh;
-  node_config_t config_{ros_nh};
+  ros_config_t &config;
+  calib_data_t &calib_data;
   // -- IMU subscriber
   ros::Subscriber imu0_sub_;
   // -- Image subscribers
@@ -94,7 +72,6 @@ public:
 
   // Calibrator
   yac::Estimator est_;
-  float cam_rate_ = 30.0;
 
   // NBT
   bool nbt_precomputing_ = false;
@@ -119,50 +96,12 @@ public:
   bool finding_nbt_ = false;
   std::thread nbt_thread_;
 
-  // Stats
-  // -- Intial sensor-camera stddev
-  bool sensor_camera_stdev_init_ = false;
-  double init_r_SC0_stddev_ = 0.0;
-  double init_r_SC1_stddev_ = 0.0;
-  double init_alpha_SC0_stddev_ = 0.0;
-  double init_alpha_SC1_stddev_ = 0.0;
-  double init_cam0_proj_stddev_ = 0.0;
-  double init_cam0_dist_stddev_ = 0.0;
-  double init_cam1_proj_stddev_ = 0.0;
-  double init_cam1_dist_stddev_ = 0.0;
-  double r_SC0_baseline_ = 0.0;
-  double r_SC1_baseline_ = 0.0;
-  double alpha_SC0_baseline_ = 0.0;
-  double alpha_SC1_baseline_ = 0.0;
-  double cam0_proj_baseline_ = 0.0;
-  double cam0_dist_baseline_ = 0.0;
-  double cam1_proj_baseline_ = 0.0;
-  double cam1_dist_baseline_ = 0.0;
-  // -- Reprojection stddev
-  bool reproj_stddev_init_ = false;
-  double init_reproj_stddev_ = 0.0;
-  double reproj_baseline_ = 0.0;
-
-  calib_vi_node_t() :
-      cam0_sub_{ros_nh, config_.cam0_topic, 30},
-      cam1_sub_{ros_nh, config_.cam1_topic, 30},
-      image_sync_(ImageSyncPolicy(10), cam0_sub_, cam1_sub_) {
-    // clang-format off
-    image_transport::ImageTransport it(ros_nh);
-    imu0_sub_ = ros_nh.subscribe(config_.imu0_topic, 1000, &calib_vi_node_t::imu0_callback, this);
-    image_sync_.registerCallback(&calib_vi_node_t::image_callback, this);
-    uncertainty_pub_ = it.advertise("/yac_ros/uncertainty_map", 1);
-    // clang-format on
-
-    // -- Rviz marker publisher
-    rviz_pub_ = ros_nh.advertise<visualization_msgs::Marker>("/yac_ros/rviz", 0);
-    nbt_pub_ = ros_nh.advertise<nav_msgs::Path>("/yac_ros/nbt", 0);
-
-    // Configure estimator
-    est_.configure(config_.calib_file);
-    // est_.save_estimates_ = false;
-    // est_.save_costs_ = false;
-
+  calib_vi_node_t(ros_config_t &config_, calib_data_t &calib_data_)
+      : config{config_},
+        calib_data{calib_data_},
+        cam0_sub_{*config.ros_nh, config.cam0_topic, 30},
+        cam1_sub_{*config.ros_nh, config.cam1_topic, 30},
+        image_sync_(ImageSyncPolicy(10), cam0_sub_, cam1_sub_) {
     // Set terminal to be non-blocking
     tcgetattr(0, &term_config_);
     term_config_orig_ = term_config_;
@@ -173,46 +112,20 @@ public:
     term_config_.c_cc[VTIME] = 0;
     tcsetattr(0, TCSANOW, &term_config_);
 
-    // Start keyboard event capture thread
-    keyboard_thread_ = std::thread([&](){
-      print_usage();
+    // ROS setup
+    // clang-format off
+    image_transport::ImageTransport it(*config.ros_nh);
+    imu0_sub_ = config.ros_nh->subscribe(config_.imu0_topic, 1000, &calib_vi_node_t::imu0_callback, this);
+    image_sync_.registerCallback(&calib_vi_node_t::image_callback, this);
+    uncertainty_pub_ = it.advertise("/yac_ros/uncertainty_map", 1);
+    // clang-format on
+    // -- Rviz marker publisher
+    rviz_pub_ = config.ros_nh->advertise<visualization_msgs::Marker>("/yac_ros/rviz", 0);
+    nbt_pub_ = config.ros_nh->advertise<nav_msgs::Path>("/yac_ros/nbt", 0);
 
-      while (loop_) {
-        int n = getchar();
-        if (n != EOF) {
-          int key = n;
-
-          switch (key) {
-          case 'b':
-            batch_opt_ = true;
-            loop_ = false;
-            break;
-          case 'q': // q
-          case 27:  // ESC
-          case 3:   // Control-C
-          case 4:   // Control-D
-            batch_opt_ = false;
-            loop_ = false;
-            break;
-          case 'p':
-            // print_calib_variances();
-            break;
-          // case 'f':
-          //   if (nbt_precomputed_ == false) {
-          //     LOG_WARN("Still computing NBT!");
-          //   } else if (config_.mode != "batch" && nbt_precomputed_ && finding_nbt_ == false) {
-          //     if (nbt_thread_.joinable()) {
-          //       nbt_thread_.join();
-          //     }
-          //     nbt_thread_ = std::thread(&calib_vi_node_t::find_nbt, this);
-          //   } else {
-          //     LOG_WARN("Already finding NBT!");
-          //   }
-          //   break;
-          }
-        }
-      }
-    });
+    // Configure estimator
+    est_.configure(calib_data);
+    loop();
   }
 
   ~calib_vi_node_t() {
@@ -233,9 +146,6 @@ public:
 
 	void print_usage() {
     printf("Press:\n");
-    if (config_.mode != "batch") {
-      printf("  'f' to find nbt\n");
-    }
     printf("  'b' to perform batch calbration\n");
     printf("  'q', ESC, Ctrl-c or Ctrl-d to terminate\n");
 	}
@@ -310,19 +220,22 @@ public:
       return;
     }
     // Sensor pose
-    const auto T_WS_id = est_.pose0_id_;
+    const auto T_WS_id = est_.sensor_pose_param_ids_.back();
     const auto T_WS = est_.getSensorPoseEstimate(T_WS_id);
     if (tf_ok(T_WS) == false) {
       return;
     }
     // Sensor cam0 pose
-    auto T_SC0 = est_.getSensorCameraPoseEstimate(0);
+    auto T_BC0 = est_.getCameraExtrinsicsEstimate(0);
+    auto T_BS = est_.getImuExtrinsicsEstimate();
+		auto T_SC0 = T_BS.inverse() * T_BC0;
     const auto T_WC0 = T_WS * T_SC0;
     if (tf_ok(T_WC0) == false) {
       return;
     }
     // Sensor cam1 pose
-    auto T_SC1 = est_.getSensorCameraPoseEstimate(1);
+    auto T_BC1 = est_.getCameraExtrinsicsEstimate(1);
+		auto T_SC1 = T_BS.inverse() * T_BC1;
     const auto T_WC1 = T_WS * T_SC1;
     if (tf_ok(T_WC1) == false) {
       return;
@@ -357,35 +270,12 @@ public:
     };
 		est_.addMeasurement(ts, cam_images);
 
-		// Show calibration variances
-    if (config_.mode != "batch") {
-      if (est_.frame_index_ > 0 && est_.frame_index_ % 100 == 0){
-        // print_calib_variances();
-        // find_nbt();
-      }
-    }
-
-    // // Precompute NBT
-    // if (config_.mode != "batch") {
-    //   if (nbt_precomputed_ == false && nbt_precomputing_ == false && est_.estimating_) {
-    //     nbt_precompute_thread_ = std::thread(&calib_vi_node_t::precompute_nbt, this);
-    //   }
-    // }
-
     // Visualize current sensor pose
-    if (est_.sensor_init_ && est_.fiducial_init_ && est_.grids_[0].detected) {
-      if (config_.publish_tfs) {
+    if (est_.initialized_) {
+      if (config.publish_tfs) {
         publish_tfs(cam0_ts);
         update_aprilgrid_model(cam0_ts);
       }
-    }
-
-    // Terminate if 2 minutes is up
-    const size_t limit_nb_frames = cam_rate_ * (2.0 * 60.0);
-    if (est_.frame_index_ >= limit_nb_frames) {
-      LOG_INFO("Times Up! Finishing Calibration!");
-      batch_opt_ = true;
-      loop_ = false;
     }
   }
 
@@ -398,61 +288,30 @@ public:
     const vec3_t a_m{acc.x, acc.y, acc.z};
     const auto ts = Time{msg->header.stamp.toSec()};
 		est_.addMeasurement(ts, w_m, a_m);
-		// est_.profiler_.print();
   }
 
-  void optimize_batch() {
-		LOG_INFO("Optimizing batch problem");
-
-    est_.optimizeBatch(30, 4, true);
-    est_.saveResults("/tmp/calib_results.yaml");
-    loop_ = false;
-
-		LOG_INFO("Finished optimizing batch problem!");
-  }
-
-  matx_t est_calib_info() {
-    // Estimate current information
-    std::vector<ImuError2Ptr> imu_errs;
-    std::vector<SpeedAndBiasErrorPtr> sb_errs;
-    std::vector<CalibReprojErrorPtr> reproj_errs;
-    MarginalizationError *marg_err = est_.marg_error_.get();
-    FiducialError *fiducial_prior = est_.T_WF_prior_.get();
-    for (const auto &pair : est_.imu_errors_) imu_errs.push_back(pair.second);
-    for (const auto &pair : est_.sb_errors_) sb_errs.push_back(pair.second);
-    for (const auto &pair : est_.reproj_errors_) reproj_errs.push_back(pair.second);
-
-    matx_t H;
-    vecx_t b;
-    form_hessian(imu_errs,
-                 {},
-                 reproj_errs,
-                 marg_err,
-                 nullptr,
-                 fiducial_prior,
-                 nullptr,
-                 {},
-                 {},
-                 H,
-                 &b);
-
-    const size_t r = 28;
-    const size_t m = H.rows() - r;
-    schurs_complement(H, b, m, r);
-    matx_t calib_info = H;
-
-    return calib_info;
-  }
+  // void optimize_batch() {
+	// 	LOG_INFO("Optimizing batch problem");
+  //
+  //   // est_.optimizeBatch(30, 4, true);
+  //   est_.saveResults("/tmp/calib_results.yaml");
+  //   loop_ = false;
+  //
+	// 	LOG_INFO("Finished optimizing batch problem!");
+  // }
 
 	void precompute_nbt() {
 		LOG_INFO("Precomputing NBT");
 		nbt_precomputing_ = true;
 
-		auto cam0 = est_.generateCamera(0);
-		auto cam1 = est_.generateCamera(1);
+		auto cam0 = est_.getCamera(0);
+		auto cam1 = est_.getCamera(1);
 		auto T_WF = est_.getFiducialPoseEstimate();
-		auto T_SC0 = est_.getSensorCameraPoseEstimate(0);
-		auto T_SC1 = est_.getSensorCameraPoseEstimate(1);
+		auto T_BS = est_.getImuExtrinsicsEstimate();
+		auto T_BC0 = est_.getCameraExtrinsicsEstimate(0);
+		auto T_BC1 = est_.getCameraExtrinsicsEstimate(1);
+		auto T_SC0 = T_BS.inverse() * T_BC0;
+		auto T_SC1 = T_BS.inverse() * T_BC1;
 		// nbt_compute(est_.target_params_,
 		// 						est_.imu_params_,
 		// 						cam0, cam1, cam_rate_,
@@ -481,8 +340,8 @@ public:
   //     std::lock_guard<std::mutex> guard(mtx_);
   //
   //     const matx_t calib_info = est_calib_info();
-  //     const auto cam0 = est_.generateCamera(0);
-  //     const auto cam1 = est_.generateCamera(1);
+  //     const auto cam0 = est_.getCamera(0);
+  //     const auto cam1 = est_.getCamera(1);
   //     const auto T_SC0 = est_.getSensorCameraPoseEstimate(0);
   //     const auto T_SC1 = est_.getSensorCameraPoseEstimate(1);
   //     int retval = nbt_find(est_.frame_index_,
@@ -502,172 +361,88 @@ public:
 	//   finding_nbt_ = false;
 	// }
 
-  void print_progress(const real_t percentage, const std::string &prefix) {
-    const char *PBSTR =
-        "||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||";
-    const int PBWIDTH = 60;
-
-    const real_t p = std::min(percentage, 1.0);
-    int val = (int) (p * 100);
-    int lpad = (int) (p * PBWIDTH);
-    int rpad = PBWIDTH - lpad;
-
-    // Terminal color start
-    if (p < 0.4) {
-      printf("\033[31m"); // Red
-    } else if (p < 0.8) {
-      printf("\033[33m"); // Orange
-    } else if (p <= 1.0) {
-      printf("\033[32m"); // Green
+  void event_handler(int key) {
+    if (key == EOF) {
+      return;
     }
 
-    printf("\r%s %3d%% [%.*s%*s]", prefix.c_str(), val, lpad, PBSTR, rpad, "");
-    fflush(stdout);
-
-    // Terminal color end
-    printf("\033[0m\n");
+    switch (key) {
+    case 'b':
+      batch_opt_ = true;
+      loop_ = false;
+      break;
+    case 'q': // q
+    case 27:  // ESC
+    case 3:   // Control-C
+    case 4:   // Control-D
+      batch_opt_ = false;
+      loop_ = false;
+      break;
+    // case 'f':
+    //   if (nbt_precomputed_ == false) {
+    //     LOG_WARN("Still computing NBT!");
+    //   } else if (config_.mode != "batch" && nbt_precomputed_ && finding_nbt_ == false) {
+    //     if (nbt_thread_.joinable()) {
+    //       nbt_thread_.join();
+    //     }
+    //     nbt_thread_ = std::thread(&calib_vi_node_t::find_nbt, this);
+    //   } else {
+    //     LOG_WARN("Already finding NBT!");
+    //   }
+    //   break;
+    }
   }
 
-	// void print_calib_variances() {
-	//   // Recover calibration covariance matrix
-  //   const matx_t calib_info = est_calib_info();
-  //   const matx_t calib_covar = calib_info.ldlt().solve(I(calib_info.rows()));
-  //
-  //   // Get calibration variances
-  //   const auto calib_var = calib_covar.diagonal();
-  //   const auto sc0_var = calib_var.segment<6>(0);
-  //   const auto sc1_var = calib_var.segment<6>(6);
-  //   const auto cam0_var = calib_var.segment<8>(12);
-  //   const auto cam1_var = calib_var.segment<8>(20);
-  //
-  //   // Convert variances to standard deviation
-  //   const auto r_SC0_stddev = sqrt(sc0_var.head<3>().norm());
-  //   const auto r_SC1_stddev = sqrt(sc1_var.head<3>().norm());
-  //   const auto alpha_SC0_stddev = rad2deg(sqrt(sc0_var.tail<3>().norm()));
-  //   const auto alpha_SC1_stddev = rad2deg(sqrt(sc1_var.tail<3>().norm()));
-  //   const auto cam0_stddev = cam0_var.array().sqrt();
-  //   const auto cam1_stddev = cam1_var.array().sqrt();
-  //
-  //   // Target standard deviation
-  //   const auto trans_target = 0.001;  // Translation target stddev [m]
-  //   const auto rot_target = 0.05;     // Rotation target stddev [deg]
-  //   const auto proj_target = 0.5;     // Projection target stddev [pixels]
-  //   const auto dist_target = 0.001;   // Distortion target stddev [unit-less]
-  //
-  //   // Calculate progress towards target standard deviation
-  //   if (sensor_camera_stdev_init_ == false) {
-  //     init_r_SC0_stddev_ = r_SC0_stddev;
-  //     init_r_SC1_stddev_ = r_SC1_stddev;
-  //     init_alpha_SC0_stddev_ = alpha_SC0_stddev;
-  //     init_alpha_SC1_stddev_ = alpha_SC1_stddev;
-  //     init_cam0_proj_stddev_ = cam0_stddev.head(4).maxCoeff();
-  //     init_cam0_dist_stddev_ = cam0_stddev.tail(4).maxCoeff();
-  //     init_cam1_proj_stddev_ = cam1_stddev.head(4).maxCoeff();
-  //     init_cam1_dist_stddev_ = cam1_stddev.tail(4).maxCoeff();
-  //
-  //     r_SC0_baseline_ = init_r_SC0_stddev_;
-  //     r_SC1_baseline_ = init_r_SC1_stddev_;
-  //
-  //     alpha_SC0_baseline_ = init_alpha_SC0_stddev_;
-  //     alpha_SC1_baseline_ = init_alpha_SC1_stddev_;
-  //
-  //     cam0_proj_baseline_ = init_cam0_proj_stddev_;
-  //     cam0_dist_baseline_ = init_cam0_dist_stddev_;
-  //
-  //     cam1_proj_baseline_ = init_cam1_proj_stddev_;
-  //     cam1_dist_baseline_ = init_cam1_dist_stddev_;
-  //   }
-  //
-  //   // Clear terminal screen
-  //   int retval = system("clear");
-  //   UNUSED(retval);
-  //
-  //   // Print stats
-  //   printf("Calibration Target Standard Deviations:\n");
-  //   printf("---------------------------------------\n");
-  //   printf("Translation stddev: %f [m]\n", trans_target);
-  //   printf("Rotation stddev:    %f [deg]\n", rot_target);
-  //   printf("Projection stddev:  %f [pixel]\n", proj_target);
-  //   printf("Distortion stddev:  %f\n", dist_target);
-  //   printf("\n");
-  //
-  //   printf("Current Calibration Parameter Standard Deviations:\n");
-  //   printf("--------------------------------------------------\n");
-  //   printf("imu-cam0 translation stddev: %.4f [m]\n", r_SC0_stddev);
-  //   printf("imu-cam1 translation stddev: %.4f [m]\n", r_SC0_stddev);
-  //   printf("imu-cam0 rotation stddev:    %.4f [deg]\n", alpha_SC0_stddev);
-  //   printf("imu-cam1 rotation stddev:    %.4f [deg]\n", alpha_SC1_stddev);
-  //   print_vector("cam0 proj stddev (fx fy cx cy) [pixels]   ", cam0_stddev.head<4>());
-  //   print_vector("cam0 dist stddev (k1 k2 p1 p2) [unit-less]", cam0_stddev.tail<4>());
-  //   print_vector("cam1 proj stddev (fx fy cx cy) [pixels]   ", cam1_stddev.head<4>());
-  //   print_vector("cam1 dist stddev (k1 k2 p1 p2) [unit-less]", cam1_stddev.tail<4>());
-  //   printf("\n");
-  //
-  //   printf("Progress Towards Meeting Calibration Target Standard Deviations:\n");
-  //   printf("-------------------------------------------------------------------------------\n");
-  //   print_progress(1.0 - ((r_SC0_stddev - trans_target) / r_SC0_baseline_),                       "imu-cam0 trans:");
-  //   print_progress(1.0 - ((r_SC1_stddev - trans_target) / r_SC1_baseline_),                       "imu-cam1 trans:");
-  //   print_progress(1.0 - ((alpha_SC0_stddev - rot_target) / alpha_SC0_baseline_),                 "imu-cam0 rot  :");
-  //   print_progress(1.0 - ((alpha_SC1_stddev - rot_target) / alpha_SC1_baseline_),                 "imu-cam1 rot  :");
-  //   print_progress(1.0 - ((cam0_stddev.head(4).maxCoeff() - proj_target) / cam0_proj_baseline_),  "cam0 proj     :");
-  //   print_progress(1.0 - ((cam0_stddev.tail(4).maxCoeff() - dist_target) / cam0_dist_baseline_),  "cam0 dist     :");
-  //   print_progress(1.0 - ((cam1_stddev.head(4).maxCoeff() - proj_target) / cam1_proj_baseline_),  "cam1 proj     :");
-  //   print_progress(1.0 - ((cam1_stddev.tail(4).maxCoeff() - dist_target) / cam1_dist_baseline_),  "cam1 dist     :");
-  //   printf("\n");
-  //
-  //   // Caculate max reprojection uncertainty
-  //   cv::Mat uncertainty_map;
-  //   const auto cam0 = est_.generateCamera(0);
-  //   const auto cam1 = est_.generateCamera(1);
-  //   const mat4_t T_SC0 = est_.getSensorCameraPoseEstimate(0);
-  //   const mat4_t T_SC1 = est_.getSensorCameraPoseEstimate(1);
-  //   double cam0_reproj_stddev = 0.0;
-  //   double cam1_reproj_stddev = 0.0;
-  //
-  //   if (reproj_stddev_init_ == false) {
-  //     cam0_reproj_stddev = eval_reproj_uncertainty(0, calib_covar, cam0, T_SC0);
-  //     cam1_reproj_stddev = eval_reproj_uncertainty(1, calib_covar, cam1, T_SC1);
-  //     init_reproj_stddev_ = std::max(cam0_reproj_stddev, cam1_reproj_stddev);
-  //     reproj_baseline_ = init_reproj_stddev_;
-  //     reproj_stddev_init_ = true;
-  //
-  //   } else {
-  //     cam0_reproj_stddev = eval_reproj_uncertainty(0, calib_covar, cam0, T_SC0, &uncertainty_map);
-  //     cam1_reproj_stddev = eval_reproj_uncertainty(1, calib_covar, cam1, T_SC1);
-  //   }
-  //   const double reproj_stddev_init = cam0_reproj_stddev + cam1_reproj_stddev;
-  //   printf("Maximum Reprojection Uncertainty [pixels]: %f\n", reproj_stddev_init);
-  //   printf("\n");
-  //
-  //   // Publish uncertainty map
-  //   sensor_msgs::ImagePtr msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", uncertainty_map).toImageMsg();
-  //   uncertainty_pub_.publish(msg);
-  //
-  //   print_usage();
-  //   printf("\n");
-	// }
-
   void loop() {
+    // Terminal capture thread
+    keyboard_thread_ = std::thread([&](){
+      print_usage();
+
+      while (loop_) {
+        const int key = getchar();
+        event_handler(key);
+      }
+    });
+
+    // ROS loop
     while (loop_) {
       ros::spinOnce();
     }
 
-    if (batch_opt_) {
-      optimize_batch();
-    }
+    // if (batch_opt_) {
+    //   optimize_batch();
+    // }
   }
 };
 
 }  // namespace yac
 
 int main(int argc, char **argv) {
-  // Setup ROS node
-  ros::init(argc, argv, argv[0]);
-	google::InitGoogleLogging("yac");
-  yac::calib_vi_node_t node;
+  // Load config and data
+  yac::ros_config_t config(argc, argv);
 
-  // Loop ros node
-  node.loop();
+  // Calibrate Stereo
+  // {
+  //   yac::calib_data_t calib_data{config.calib_file};
+  //
+  //   const auto proj_model = calib_data.cam_params[0].proj_model;
+  //   const auto dist_model = calib_data.cam_params[0].dist_model;
+  //   if (proj_model == "pinhole" && dist_model == "radtan4") {
+  //     yac::calib_stereo_nbv_t<yac::pinhole_radtan4_t> calib{config, calib_data};
+  //   } else if (proj_model == "pinhole" && dist_model == "equi4") {
+  //     yac::calib_stereo_nbv_t<yac::pinhole_equi4_t> calib{config, calib_data};
+  //   } else {
+  //     FATAL("Unsupported projection-distorion type [%s-%s]!",
+  //           proj_model.c_str(), dist_model.c_str());
+  //   }
+  // }
+
+  // Calibrate VI
+  {
+    yac::calib_data_t calib_data{"/tmp/calib_results.yaml"};
+    yac::calib_vi_node_t calib{config, calib_data};
+    calib.loop();
+  }
 
   return 0;
 }

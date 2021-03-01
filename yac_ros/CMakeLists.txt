@@ -86,7 +86,6 @@ ADD_LIBRARY(yac_ros
             src/calib_vi/error/PoseError.cpp
             src/calib_vi/error/SpeedAndBiasError.cpp
             src/calib_vi/Calibrator.cpp
-            src/calib_vi/Estimator.cpp
             src/calib_vi/Map.cpp
             src/ros.cpp)
 INSTALL(
@@ -94,27 +93,27 @@ INSTALL(
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/launch
 )
 
-# ROS NODES
-ADD_EXECUTABLE(calib_capture_node src/calib_capture_node.cpp)
-TARGET_LINK_LIBRARIES(calib_capture_node ${DEPS})
+# # ROS NODES
+# ADD_EXECUTABLE(calib_capture_node src/calib_capture_node.cpp)
+# TARGET_LINK_LIBRARIES(calib_capture_node ${DEPS})
+#
+# ADD_EXECUTABLE(calib_mocap_capture_node src/calib_mocap_capture_node.cpp)
+# TARGET_LINK_LIBRARIES(calib_mocap_capture_node ${DEPS})
+#
+# ADD_EXECUTABLE(calib_mocap_node src/calib_mocap_node.cpp)
+# TARGET_LINK_LIBRARIES(calib_mocap_node ${DEPS})
+#
+# ADD_EXECUTABLE(calib_mono_node src/calib_mono_node.cpp)
+# TARGET_LINK_LIBRARIES(calib_mono_node ${DEPS})
+#
+# ADD_EXECUTABLE(calib_mono_nbv_node src/calib_mono_nbv_node.cpp)
+# TARGET_LINK_LIBRARIES(calib_mono_nbv_node ${DEPS})
+#
+# ADD_EXECUTABLE(calib_stereo_node src/calib_stereo_node.cpp)
+# TARGET_LINK_LIBRARIES(calib_stereo_node ${DEPS})
 
-ADD_EXECUTABLE(calib_mocap_capture_node src/calib_mocap_capture_node.cpp)
-TARGET_LINK_LIBRARIES(calib_mocap_capture_node ${DEPS})
-
-ADD_EXECUTABLE(calib_mocap_node src/calib_mocap_node.cpp)
-TARGET_LINK_LIBRARIES(calib_mocap_node ${DEPS})
-
-ADD_EXECUTABLE(calib_mono_node src/calib_mono_node.cpp)
-TARGET_LINK_LIBRARIES(calib_mono_node ${DEPS})
-
-ADD_EXECUTABLE(calib_mono_nbv_node src/calib_mono_nbv_node.cpp)
-TARGET_LINK_LIBRARIES(calib_mono_nbv_node ${DEPS})
-
-ADD_EXECUTABLE(calib_stereo_node src/calib_stereo_node.cpp)
-TARGET_LINK_LIBRARIES(calib_stereo_node ${DEPS})
-
-ADD_EXECUTABLE(calib_stereo_nbv_node src/calib_stereo_nbv_node.cpp)
-TARGET_LINK_LIBRARIES(calib_stereo_nbv_node ${DEPS})
+# ADD_EXECUTABLE(calib_stereo_nbv_node src/calib_stereo_nbv_node.cpp)
+# TARGET_LINK_LIBRARIES(calib_stereo_nbv_node ${DEPS})
 
 ADD_EXECUTABLE(calib_vi_smart_node src/calib_vi_smart_node.cpp)
 TARGET_LINK_LIBRARIES(calib_vi_smart_node ${DEPS})

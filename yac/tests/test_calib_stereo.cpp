@@ -182,42 +182,18 @@ int test_calib_stereo_solve() {
   // Test data
   test_data_t test_data = setup_test_data();
 	auto cameras = setup_cameras(test_data);
-	auto cam0 = cameras[0];
-	auto cam1 = cameras[1];
-	extrinsics_t cam0_exts{2};
-	extrinsics_t cam1_exts{3};
-	auto grids0 = test_data.grids0;
-	auto grids1 = test_data.grids1;
 
-	// Drop AprilGrids that are not detected
-	{
-		auto it = grids0.begin();
-		while (it != grids0.end()) {
-			if ((*it).detected == false) {
-				it = grids0.erase(it);
-			} else {
-				it++;
-			}
-		}
-	}
-	{
-		auto it = grids1.begin();
-		while (it != grids1.end()) {
-			if ((*it).detected == false) {
-				it = grids1.erase(it);
-			} else {
-				it++;
-			}
-		}
-	}
+  calib_data_t data;
+  data.add_calib_target(test_data.target);
+  data.add_camera(cameras[0]);
+  data.add_camera(cameras[1]);
+  data.add_camera_extrinsics(0);
+  data.add_camera_extrinsics(1);
+  data.add_grids(0, test_data.grids0);
+  data.add_grids(1, test_data.grids1);
+  data.preprocess_data();
+  data.check_data();
 
-  // Test
-  std::map<timestamp_t, pose_t> poses;  // T_BF
-  calib_stereo_data_t data{test_data.target,
-                           grids0, grids1,
-                           poses,
-                           cam0, cam1,
-                           cam0_exts, cam1_exts};
   if (calib_stereo_solve<pinhole_radtan4_t>(data) != 0) {
     LOG_ERROR("Failed to calibrate stereo cameras!");
     return -1;
@@ -227,13 +203,7 @@ int test_calib_stereo_solve() {
   printf("\x1B[92m");
   printf("Saving optimization results to [%s]", outpath.c_str());
   printf("\033[0m\n");
-  std::vector<double> cam0_errs;
-  std::vector<double> cam1_errs;
-
-  const mat4_t T_BC0 = cam0_exts.tf();
-  const mat4_t T_BC1 = cam1_exts.tf();
-  const mat4_t T_C1C0 = T_BC1.inverse() * T_BC0;
-  if (save_results(outpath, cam0, cam1, T_C1C0, cam0_errs, cam1_errs) != 0) {
+  if (save_results(outpath, data) != 0) {
     LOG_ERROR("Failed to save results to [%s]!", outpath.c_str());
     return -1;
   }
@@ -243,8 +213,8 @@ int test_calib_stereo_solve() {
   {
     vec4_t gnd_proj_params{458.654, 457.296, 367.215, 248.375};
     vec4_t gnd_dist_params{-0.28340811, 0.07395907, 0.00019359, 1.76187114e-05};
-    vec4_t est_proj_params = cam0.proj_params();
-    vec4_t est_dist_params = cam0.dist_params();
+    vec4_t est_proj_params = data.cam_params[0].proj_params();
+    vec4_t est_dist_params = data.cam_params[0].dist_params();
 
     print_vector("cam0 proj params [gnd]", gnd_proj_params);
     print_vector("cam0 proj params [est]", est_proj_params);
@@ -266,8 +236,8 @@ int test_calib_stereo_solve() {
   {
     vec4_t gnd_proj_params{457.587, 456.134, 379.999, 255.238};
     vec4_t gnd_dist_params{-0.28368365,  0.07451284, -0.00010473, -3.55590700e-05};
-    vec4_t est_proj_params = cam1.proj_params();
-    vec4_t est_dist_params = cam1.dist_params();
+    vec4_t est_proj_params = data.cam_params[1].proj_params();
+    vec4_t est_dist_params = data.cam_params[1].dist_params();
 
     print_vector("cam1 proj params [gnd]", gnd_proj_params);
     print_vector("cam1 proj params [est]", est_proj_params);
@@ -326,6 +296,9 @@ int test_calib_stereo_solve() {
     //   0.0, 0.0, 0.0, 1.0;
 
     // clang-format on
+    const mat4_t T_BC0 = data.cam_exts[0].tf();
+    const mat4_t T_BC1 = data.cam_exts[1].tf();
+    const mat4_t T_C1C0 = T_BC1.inverse() * T_BC0;
     const vec3_t gnd_trans = tf_trans(T_C1C0_gnd);
     const vec3_t est_trans = tf_trans(T_C1C0);
     const vec3_t gnd_euler = rad2deg(quat2euler(tf_quat(T_C1C0_gnd)));

@@ -7,6 +7,7 @@
 
 namespace yac {
 
+template <typename CAMERA>
 struct calib_mono_nbv_t {
   enum CALIB_STATE {
     INITIALIZE = 0,
@@ -110,11 +111,7 @@ struct calib_mono_nbv_t {
     }
 
 		// Setup initial calibration poses
-		if (proj_model == "pinhole" && dist_model == "radtan4") {
-			poses_init = calib_init_poses<pinhole_radtan4_t>(target, cam_params);
-		} else if (proj_model == "pinhole" && dist_model == "equi4") {
-			poses_init = calib_init_poses<pinhole_equi4_t>(target, cam_params);
-		}
+    poses_init = calib_init_poses<CAMERA>(target, cam_params);
 
     LOG_INFO("Camera initialized!");
 		cam_init = true;
@@ -198,14 +195,7 @@ struct calib_mono_nbv_t {
 
   void draw_nbv(const mat4_t &T_FC0, cv::Mat &image) {
     // Draw NBV
-    if (proj_model == "pinhole" && dist_model == "radtan4") {
-      nbv_draw<pinhole_radtan4_t>(target, cam_params, T_FC0, image);
-    } else if (proj_model == "pinhole" && dist_model == "equi4") {
-      nbv_draw<pinhole_equi4_t>(target, cam_params, T_FC0, image);
-    } else {
-      FATAL("Unsupported projection-distorion type [%s-%s]!",
-            proj_model.c_str(), dist_model.c_str());
-    }
+    nbv_draw<CAMERA>(target, cam_params, T_FC0, image);
 
     // Show NBV Reproj Error
     {
@@ -413,26 +403,13 @@ struct calib_mono_nbv_t {
   }
 
   void find_nbv() {
-    if (cam_params.proj_model == "pinhole") {
-      if (cam_params.dist_model == "radtan4") {
-        calib_mono_data_t data{grids, cam_params};
-        calib_mono_solve<pinhole_radtan4_t>(data);
-        if (nbv_find<pinhole_radtan4_t>(target, data, nbv_pose) == -2) {
-          state = BATCH;
-          return;
-        }
-        create_target_grid<pinhole_radtan4_t>(nbv_pose);
-
-      } else if (cam_params.dist_model == "equi4") {
-        calib_mono_data_t data{grids, cam_params};
-        calib_mono_solve<pinhole_equi4_t>(data);
-        if (nbv_find<pinhole_equi4_t>(target, data, nbv_pose) == -2) {
-          state = BATCH;
-          return;
-        }
-        create_target_grid<pinhole_radtan4_t>(nbv_pose);
-      }
+    calib_mono_data_t data{grids, cam_params};
+    calib_mono_solve<CAMERA>(data);
+    if (nbv_find<CAMERA>(target, data, nbv_pose) == -2) {
+      state = BATCH;
+      return;
     }
+    create_target_grid<CAMERA>(nbv_pose);
   }
 
   void mode_init() {
@@ -440,7 +417,7 @@ struct calib_mono_nbv_t {
       LOG_INFO("Collected enough init camera frames!");
       LOG_INFO("Transitioning to NBV mode!");
       calib_mono_data_t data{grids, cam_params};
-      calib_mono_solve<pinhole_radtan4_t>(data);
+      calib_mono_solve<CAMERA>(data);
 
       // Transition to NBV mode
       find_nbv();
@@ -466,17 +443,9 @@ struct calib_mono_nbv_t {
     LOG_INFO("Final Optimization!");
     std::vector<double> errs;
 
-    if (cam_params.proj_model == "pinhole") {
-      if (cam_params.dist_model == "radtan4") {
-        calib_mono_data_t data{grids, cam_params};
-        calib_mono_solve<pinhole_radtan4_t>(data);
-        reproj_errors<pinhole_radtan4_t>(data, errs);
-      } else if (cam_params.dist_model == "equi4") {
-        calib_mono_data_t data{grids, cam_params};
-        calib_mono_solve<pinhole_equi4_t>(data);
-        reproj_errors<pinhole_equi4_t>(data, errs);
-      }
-    }
+    calib_mono_data_t data{grids, cam_params};
+    calib_mono_solve<CAMERA>(data);
+    reproj_errors<CAMERA>(data, errs);
 
     const std::string results_fpath = "/tmp/calib-mono.csv";
     if (save_results(results_fpath, cam_params, rmse(errs), mean(errs)) != 0) {

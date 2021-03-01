@@ -11,60 +11,6 @@
 
 namespace yac {
 
-/* Stereo Camera Calibration Data */
-struct calib_stereo_data_t {
-	ceres::Problem::Options prob_options;
-	ceres::Problem *problem = nullptr;
-  ceres::LossFunction *loss = nullptr;
-  PoseLocalParameterization pose_plus;
-
-  calib_target_t target;
-  aprilgrids_t &cam0_grids;
-  aprilgrids_t &cam1_grids;
-  std::map<timestamp_t, pose_t> &poses;  // T_BF
-  camera_params_t &cam0;
-  camera_params_t &cam1;
-  extrinsics_t &cam0_exts;
-  extrinsics_t &cam1_exts;
-
-  mat4s_t T_C0F;
-  mat4s_t T_C1F;
-
-  mat2_t covar;
-  std::vector<double> cam0_errs;
-  std::vector<double> cam1_errs;
-
-  calib_stereo_data_t(const calib_target_t &target_,
-                      aprilgrids_t &cam0_grids_,
-                      aprilgrids_t &cam1_grids_,
-                      std::map<timestamp_t, pose_t> &poses_,
-                      camera_params_t &cam0_,
-                      camera_params_t &cam1_,
-                      extrinsics_t &cam0_exts_,
-                      extrinsics_t &cam1_exts_,
-                      const mat2_t &covar_ = I(2))
-    : target{target_},
-      cam0_grids{cam0_grids_},
-      cam1_grids{cam1_grids_},
-      poses{poses_},
-      cam0{cam0_},
-      cam1{cam1_},
-      cam0_exts{cam0_exts_},
-      cam1_exts{cam1_exts_},
-      covar{covar_} {
-		prob_options.local_parameterization_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
-		prob_options.cost_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
-		prob_options.enable_fast_removal = true;
-		problem = new ceres::Problem(prob_options);
-  }
-
-	~calib_stereo_data_t() {
-	  if (problem) {
-      delete problem;
-    }
-	}
-};
-
 /** Stereo camera calibration residual */
 template <typename CAMERA>
 struct reproj_error_t : public ceres::SizedCostFunction<2, 7, 7, 8> {
@@ -407,16 +353,15 @@ int calib_covar(ceres::Problem &problem,
 
 /* Show calibration results */
 template <typename CAMERA>
-static void show_results(const calib_views_t<CAMERA> &cam0_views,
-                         const calib_views_t<CAMERA> &cam1_views,
-                         const mat4_t &T_C1C0) {
+static void show_results(const calib_data_t &data) {
   // Show results
-  std::vector<double> cam0_errs, cam1_errs;
-  reproj_errors<CAMERA>(cam0_views, cam0_errs);
-  reproj_errors<CAMERA>(cam1_views, cam1_errs);
-
-  auto cam0 = cam0_views[0].cam;
-  auto cam1 = cam1_views[0].cam;
+  const auto cam0_errs = data.vision_errors.at(0);
+  const auto cam1_errs = data.vision_errors.at(1);
+  const auto &cam0 = data.cam_params.at(0);
+  const auto &cam1 = data.cam_params.at(1);
+  const mat4_t T_BC0 = data.cam_exts.at(0).tf();
+  const mat4_t T_BC1 = data.cam_exts.at(1).tf();
+  const mat4_t T_C1C0 = T_BC1.inverse() * T_BC0;
 
   printf("Optimization results:\n");
   printf("---------------------\n");
@@ -441,20 +386,18 @@ static void show_results(const calib_views_t<CAMERA> &cam0_views,
  * function assumes that the path to `config_file` is a yaml file of the form:
  */
 template <typename T>
-int calib_stereo_solve(calib_stereo_data_t &data) {
+int calib_stereo_solve(calib_data_t &data) {
   // Map out data
 	ceres::Problem *problem = data.problem;
   ceres::LossFunction *loss = data.loss;
 	PoseLocalParameterization &pose_plus = data.pose_plus;
-  aprilgrids_t &cam0_grids = data.cam0_grids;
-  aprilgrids_t &cam1_grids = data.cam1_grids;
+  aprilgrids_t &cam0_grids = data.cam_grids[0];
+  aprilgrids_t &cam1_grids = data.cam_grids[1];
   mat2_t &covar = data.covar;
-  camera_params_t &cam0 = data.cam0;
-  camera_params_t &cam1 = data.cam1;
-  extrinsics_t &cam0_exts = data.cam0_exts;
-  extrinsics_t &cam1_exts = data.cam1_exts;
-  mat4s_t &T_C0F = data.T_C0F;
-  mat4s_t &T_C1F = data.T_C1F;
+  camera_params_t &cam0 = data.cam_params[0];
+  camera_params_t &cam1 = data.cam_params[1];
+  extrinsics_t &cam0_exts = data.cam_exts[0];
+  extrinsics_t &cam1_exts = data.cam_exts[1];
   std::map<timestamp_t, pose_t> &poses = data.poses;
 
   // Fix cam0_exts
@@ -469,6 +412,11 @@ int calib_stereo_solve(calib_stereo_data_t &data) {
 
   // -- cam0
   for (const auto &grid : cam0_grids) {
+    // check if grid is detected
+    if (grid.detected == false) {
+      continue;
+    }
+
     // Estimate T_BF and add to parameters to be estimated
     const auto ts = grid.timestamp;
     const mat4_t T_BC0 = cam0_exts.tf();
@@ -485,6 +433,11 @@ int calib_stereo_solve(calib_stereo_data_t &data) {
   }
   // -- cam1
   for (const auto &grid : cam1_grids) {
+    // check if grid is detected
+    if (grid.detected == false) {
+      continue;
+    }
+
     // Estimate T_BF if it does not exist at ts
     const auto ts = grid.timestamp;
     const mat4_t T_BC1 = cam1_exts.tf();
@@ -507,7 +460,6 @@ int calib_stereo_solve(calib_stereo_data_t &data) {
   options.function_tolerance = 1e-12;
   options.gradient_tolerance = 1e-12;
   options.parameter_tolerance = 1e-20;
-  // options.check_gradients = true;
 
   // Solve
   ceres::Solver::Summary summary;
@@ -516,24 +468,11 @@ int calib_stereo_solve(calib_stereo_data_t &data) {
   std::cout << std::endl;
 
   // Finish up
-  const mat4_t T_BC0 = cam0_exts.tf();
-  const mat4_t T_BC1 = cam1_exts.tf();
-  const mat4_t T_C1C0 = T_BC1.inverse() * T_BC0;
-
-  T_C0F.clear();
-  T_C1F.clear();
-  for (auto kv : poses) {
-    auto pose = kv.second.tf();
-    T_C0F.emplace_back(pose);
-    T_C1F.emplace_back(T_C1C0 * pose);
-  }
-
-  if (loss) {
-    delete loss;
-  }
+  reproj_errors<T>(views0, data.vision_errors.at(0));
+  reproj_errors<T>(views1, data.vision_errors.at(1));
 
   // Show results
-  show_results<T>(views0, views1, T_C1C0);
+  show_results<T>(data);
 
   return 0;
 }
@@ -573,12 +512,7 @@ int calib_stereo_solve(calib_stereo_data_t &data) {
 int calib_stereo_solve(const std::string &config_file);
 
 /* Save calibration results */
-int save_results(const std::string &save_path,
-                 const camera_params_t &cam0,
-                 const camera_params_t &cam1,
-                 const mat4_t &T_C1C0,
-                 const std::vector<double> &cam0_errs,
-                 const std::vector<double> &cam1_errs);
+int save_results(const std::string &save_path, const calib_data_t &data);
 
 } //  namespace yac
 #endif // YAC_CALIB_STEREO_HPP

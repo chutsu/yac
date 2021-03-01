@@ -1,8 +1,13 @@
 <launch>
   <arg name="config_file" default="$(find yac_ros)/config/calib_intel_d435i.yaml" />
 
+  <!-- Stereo NBV -->
   <node pkg="yac_ros" type="calib_stereo_nbv_node" name="calib_stereo_nbv_node" required="true" output="screen">
-    <!-- launch&#45;prefix="gdb &#45;ex run &#45;&#45;args"> -->
     <param name="config_file" value="$(arg config_file)" />
+    <param name="publish_tfs" value="true" />
+    <param name="image_format" value="bgr8" />
+    <param name="calib_file" value="$(find yac_ros)/config/calib_intel_d435i.yaml" />
+    <param name="cam0_topic" value="/rs/ir0/image" />
+    <param name="cam1_topic" value="/rs/ir1/image" />
   </node>
 </launch>

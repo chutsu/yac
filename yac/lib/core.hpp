@@ -519,6 +519,11 @@ private:
   std::set<T>    set;
 };
 
+/* Save vector of size 3 `y` with timestamps `ts` to `save_path`. */
+void save_data(const std::string &save_path,
+							 const timestamps_t &ts,
+							 const vec3s_t &y);
+
 /**
  * Save 3D features to csv file defined in `path`.
  */
@@ -1372,6 +1377,9 @@ matx_t pinv(const matx_t &A, const real_t tol=1e-4);
 /** Rank of matrix A **/
 long int rank(const matx_t &A);
 
+/** Check if matrix A is full rank */
+bool full_rank(const matx_t &A);
+
 /**
  * Perform Schur's Complement
  */
@@ -1896,6 +1904,11 @@ void imu_init_attitude(const vec3s_t w_m,
 void timestamp_print(const timestamp_t &ts, const std::string &prefix = "");
 
 /**
+ * Convert seconds to timestamp.
+ */
+timestamp_t sec2ts(const real_t sec);
+
+/**
  * Convert ts to second.
  */
 real_t ts2sec(const timestamp_t &ts);
@@ -2196,8 +2209,8 @@ int ctraj_save(const ctraj_t &ctraj, const std::string &save_path);
 struct sim_imu_t {
   // IMU parameters
   real_t rate = 0.0;        // IMU rate [Hz]
-  real_t tau_a = 0.0;       // Reversion time constant for accel [s]
-  real_t tau_g = 0.0;       // Reversion time constant for gyro [s]
+  real_t tau_a = 3600.0;    // Reversion time constant for accel [s]
+  real_t tau_g = 3600.0;    // Reversion time constant for gyro [s]
   real_t sigma_g_c = 0.0;   // Gyro noise density [rad/s/sqrt(Hz)]
   real_t sigma_a_c = 0.0;   // Accel noise density [m/s^s/sqrt(Hz)]
   real_t sigma_gw_c = 0.0;  // Gyro drift noise density [rad/s^s/sqrt(Hz)]
@@ -3719,13 +3732,15 @@ int solvepnp(const CAMERA_TYPE &cam,
 
 struct imu_params_t {
   real_t rate = 0.0;        // IMU rate [Hz]
-  real_t tau_a = 0.0;       // Reversion time constant for accel [s]
-  real_t tau_g = 0.0;       // Reversion time constant for gyro [s]
+  real_t a_max = 160.0;     // Max accelerometer measurement [m/s^2]
+  real_t g_max = 10.0;      // Max gyroscope measurement [rad/s]
   real_t sigma_g_c = 0.0;   // Gyro noise density [rad/s/sqrt(Hz)]
   real_t sigma_a_c = 0.0;   // Accel noise density [m/s^s/sqrt(Hz)]
   real_t sigma_gw_c = 0.0;  // Gyro drift noise density [rad/s^s/sqrt(Hz)]
   real_t sigma_aw_c = 0.0;  // Accel drift noise density [m/s^2/sqrt(Hz)]
-  real_t g = 9.81;          // Gravity vector [ms-2]
+  real_t sigma_bg = 0.03;   // Gyro bias prior [rad/s]
+  real_t sigma_ba = 0.1;    // Accel bias prior [m/s^2]
+  real_t g = 9.81;          // Gravity vector [ms^-2]
 };
 
 /*****************************************************************************

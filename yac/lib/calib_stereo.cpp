@@ -73,12 +73,15 @@ int calib_covar(ceres::Problem &problem,
   return 0;
 }
 
-int save_results(const std::string &save_path,
-                 const camera_params_t &cam0,
-                 const camera_params_t &cam1,
-                 const mat4_t &T_C1C0,
-                 const std::vector<double> &cam0_errs,
-                 const std::vector<double> &cam1_errs) {
+int save_results(const std::string &save_path, const calib_data_t &data) {
+  const camera_params_t cam0 = data.cam_params.at(0);
+  const camera_params_t cam1 = data.cam_params.at(1);
+  const mat4_t T_BC0 = data.cam_exts.at(0).tf();
+  const mat4_t T_BC1 = data.cam_exts.at(1).tf();
+  const mat4_t T_C1C0 = T_BC1.inverse() * T_BC0;
+  const auto cam0_errs = data.vision_errors.at(0);
+  const auto cam1_errs = data.vision_errors.at(1);
+
   // Open results file
   FILE *outfile = fopen(save_path.c_str(), "w");
   if (outfile == NULL) {
@@ -92,6 +95,31 @@ int save_results(const std::string &save_path,
     fprintf(outfile, "  cam1_rmse_reproj_error: %f\n", mean(cam1_errs));
     fprintf(outfile, "  cam0_mean_reproj_error: %f\n", rmse(cam0_errs));
     fprintf(outfile, "  cam1_mean_reproj_error: %f\n", mean(cam1_errs));
+    fprintf(outfile, "\n");
+  }
+  {
+    const auto target = data.target;
+    fprintf(outfile, "calib_target:\n");
+    fprintf(outfile, "  target_type: '%s'\n", target.target_type.c_str());
+    fprintf(outfile, "  tag_rows: %d\n", target.tag_rows);
+    fprintf(outfile, "  tag_cols: %d\n", target.tag_cols);
+    fprintf(outfile, "  tag_size: %f\n", target.tag_size);
+    fprintf(outfile, "  tag_spacing: %f\n", target.tag_spacing);
+    fprintf(outfile, "\n");
+  }
+  {
+    const auto imu_params = data.imu_params;
+    fprintf(outfile, "imu0:\n");
+    fprintf(outfile, "  rate: %f\n", imu_params.rate);
+    fprintf(outfile, "  a_max: %f\n", imu_params.a_max);
+    fprintf(outfile, "  g_max: %f\n", imu_params.g_max);
+    fprintf(outfile, "  sigma_a_c: %f\n", imu_params.sigma_a_c);
+    fprintf(outfile, "  sigma_g_c: %f\n", imu_params.sigma_g_c);
+    fprintf(outfile, "  sigma_aw_c: %f\n", imu_params.sigma_aw_c);
+    fprintf(outfile, "  sigma_gw_c: %f\n", imu_params.sigma_gw_c);
+    fprintf(outfile, "  sigma_ba: %f\n", imu_params.sigma_ba);
+    fprintf(outfile, "  sigma_bg: %f\n", imu_params.sigma_bg);
+    fprintf(outfile, "  g: %f\n", imu_params.g);
     fprintf(outfile, "\n");
   }
   {
@@ -124,12 +152,16 @@ int save_results(const std::string &save_path,
   }
 
   // Save camera extrinsics
-  fprintf(outfile, "T_cam1_cam0:\n");
-  fprintf(outfile, "  rows: 4\n");
-  fprintf(outfile, "  cols: 4\n");
-  fprintf(outfile, "  data: [\n");
-  fprintf(outfile, "%s\n", mat2str(T_C1C0, "    ").c_str());
-  fprintf(outfile, "  ]");
+  for (size_t cam_idx = 0; cam_idx < data.cam_exts.size(); cam_idx++) {
+    const mat4_t cam_exts = data.cam_exts.at(cam_idx).tf();
+    fprintf(outfile, "T_body0_cam%ld:\n", cam_idx);
+    fprintf(outfile, "  rows: 4\n");
+    fprintf(outfile, "  cols: 4\n");
+    fprintf(outfile, "  data: [\n");
+    fprintf(outfile, "%s\n", mat2str(cam_exts, "    ").c_str());
+    fprintf(outfile, "  ]\n");
+    fprintf(outfile, "\n");
+  }
 
   // Finsh up
   fclose(outfile);
@@ -145,14 +177,14 @@ int calib_stereo_solve(const std::string &config_file) {
   double sigma_vision = 0.0;
 
   std::vector<int> cam0_res;
-  real_t cam0_lens_hfov = 0.0;
-  real_t cam0_lens_vfov = 0.0;
+  real_t cam0_lens_hfov = 90.0;
+  real_t cam0_lens_vfov = 90.0;
   std::string cam0_proj_model;
   std::string cam0_dist_model;
 
   std::vector<int> cam1_res;
-  real_t cam1_lens_hfov = 0.0;
-  real_t cam1_lens_vfov = 0.0;
+  real_t cam1_lens_hfov = 90.0;
+  real_t cam1_lens_vfov = 90.0;
   std::string cam1_proj_model;
   std::string cam1_dist_model;
 
@@ -163,13 +195,9 @@ int calib_stereo_solve(const std::string &config_file) {
   parse(config, "settings.imshow", imshow);
   parse(config, "settings.sigma_vision", sigma_vision);
   parse(config, "cam0.resolution", cam0_res);
-  parse(config, "cam0.lens_hfov", cam0_lens_hfov);
-  parse(config, "cam0.lens_vfov", cam0_lens_vfov);
   parse(config, "cam0.proj_model", cam0_proj_model);
   parse(config, "cam0.dist_model", cam0_dist_model);
   parse(config, "cam1.resolution", cam1_res);
-  parse(config, "cam1.lens_hfov", cam1_lens_hfov);
-  parse(config, "cam1.lens_vfov", cam1_lens_vfov);
   parse(config, "cam1.proj_model", cam1_proj_model);
   parse(config, "cam1.dist_model", cam1_dist_model);
 
@@ -243,30 +271,24 @@ int calib_stereo_solve(const std::string &config_file) {
   // Calibrate stereo
   LOG_INFO("Calibrating stereo camera!");
   std::map<timestamp_t, pose_t> poses;  // T_BF
-	extrinsics_t cam0_exts{2};
-	extrinsics_t cam1_exts{3};
   mat2_t covar = pow(sigma_vision, 2) * I(2);
-  std::vector<double> cam0_errs;
-  std::vector<double> cam1_errs;
 
   // -- Pinhole-Radtan4
-  calib_stereo_data_t data{target,
-                           grids0, grids1,
-                           poses,
-                           cam0, cam1,
-                           cam0_exts, cam1_exts};
+  calib_data_t data;
+  data.add_calib_target(data.target);
+  data.add_camera(cam0);
+  data.add_camera(cam1);
+  data.add_camera_extrinsics(0);
+  data.add_camera_extrinsics(1);
+  data.add_grids(0, grids0);
+  data.add_grids(1, grids1);
+  data.preprocess_data();
+  data.check_data();
+
   if (cam0_proj_model == "pinhole" && cam0_dist_model == "radtan4") {
     calib_stereo_solve<pinhole_radtan4_t>(data);
-    // reproj_errors<pinhole_radtan4_t>(grids0, cam0, T_C0F, cam0_errs);
-    // reproj_errors<pinhole_radtan4_t>(grids1, cam1, T_C1F, cam1_errs);
-
-  // -- Pinhole-Equi4
   } else if (cam0_proj_model == "pinhole" && cam0_dist_model == "equi4") {
     calib_stereo_solve<pinhole_radtan4_t>(data);
-    // reproj_errors<pinhole_equi4_t>(grids0, cam0, T_C0F, cam0_errs);
-    // reproj_errors<pinhole_equi4_t>(grids1, cam1, T_C1F, cam1_errs);
-
-  // -- Unsupported
   } else {
     LOG_ERROR("[%s-%s] unsupported!", cam0_proj_model.c_str(),
                                       cam0_dist_model.c_str());
@@ -278,11 +300,7 @@ int calib_stereo_solve(const std::string &config_file) {
   printf("\x1B[92m");
   printf("Saving optimization results to [%s]", results_fpath.c_str());
   printf("\033[0m\n");
-
-  const mat4_t T_BC0 = cam0_exts.tf();
-  const mat4_t T_BC1 = cam1_exts.tf();
-  const mat4_t T_C1C0 = T_BC1.inverse() * T_BC0;
-  if (save_results(results_fpath, cam0, cam1, T_C1C0, cam0_errs, cam1_errs) != 0) {
+  if (save_results(results_fpath, data) != 0) {
     LOG_ERROR("Failed to save results to [%s]!", results_fpath.c_str());
     return -1;
   }

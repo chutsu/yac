@@ -37,7 +37,7 @@ struct OptSettings {
   size_t window_size = 6;
   int grid_limit = 20;
 	size_t nb_iters = 5;
-	size_t nb_threads = 2;
+	size_t nb_threads = 1;
 
   double sigma_vision = 1.0;
   bool fix_intrinsics = false;
@@ -124,11 +124,6 @@ void load_extrinsic_params(const config_t &config,
  */
 void load_optimization_settings(const config_t &config,
                                 OptSettings &opt);
-
-/**
- * Trim the front imu measurements up to t1.
- */
-void trim_imu_data(ImuMeasurementDeque &imu_data, const timestamp_t t1);
 
 } // namespace autocal
 #endif /* YAC_CALIBRATOR_HPP */

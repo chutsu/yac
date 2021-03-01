@@ -286,31 +286,4 @@ void load_optimization_settings(const config_t &config,
   LOG_INFO("");
 }
 
-void trim_imu_data(ImuMeasurementDeque &imu_data, const timestamp_t t1) {
-  // Makesure the trime timestamp is after the first imu measurement
-  // if (t1 < imu_data.front().timeStamp.toNSec()) {
-  //   return;
-  // }
-
-  // Trim IMU measurements
-  ImuMeasurementDeque prev_meas;
-  ImuMeasurementDeque imu_data_cropped;
-  for (const auto &meas : imu_data) {
-    if (meas.timeStamp.toNSec() > t1) {
-      if (imu_data_cropped.size() == 0) {
-        imu_data_cropped.push_back(prev_meas.back());
-      }
-      imu_data_cropped.push_back(meas);
-
-    } else {
-      prev_meas.push_back(meas);
-    }
-  }
-
-  // Set estimates
-  if (imu_data_cropped.size()) {
-    imu_data = imu_data_cropped;
-  }
-}
-
 } // namespace yac

@@ -1,20 +1,19 @@
-settings:
-  data_path: "/data/intel_d435i/calib_data"
-  results_fpath: "/data/intel_d435i/calib_data/calib_results.yaml"
-  imshow: true
-
-  verbose: false
-  save_estimates: false
-  save_costs: false
-
-  window_size: 5
-  grid_limit: 15
-  nb_iters: 2
-  nb_threads: 4
-
-  sigma_vision: 0.5
-  fix_intrinsics: false
-
+# settings:
+#   data_path: "/data/intel_d435i/calib_data"
+#   results_fpath: "/data/intel_d435i/calib_data/calib_results.yaml"
+#   imshow: true
+#
+#   verbose: false
+#   save_estimates: false
+#   save_costs: false
+#
+#   window_size: 5
+#   grid_limit: 15
+#   nb_iters: 2
+#   nb_threads: 4
+#
+#   sigma_vision: 0.5
+#   fix_intrinsics: false
 
 calib_target:
   target_type: 'aprilgrid'  # Target type

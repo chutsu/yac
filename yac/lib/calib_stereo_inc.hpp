@@ -19,8 +19,6 @@ public:
   const mat2_t &covar;
   aprilgrids_t &grids0;
   aprilgrids_t &grids1;
-  mat4s_t &T_C0F;
-  mat4s_t &T_C1F;
 
   // Optimization variables
   id_t param_counter = 0;
@@ -55,17 +53,15 @@ public:
   PoseLocalParameterization pose_plus;
   ceres::Solver::Summary summary;
 
-  calib_stereo_inc_solver_t(calib_stereo_data_t &data)
+  calib_stereo_inc_solver_t(calib_data_t &data)
       : target{data.target},
         covar{data.covar},
-        grids0{data.cam0_grids},
-        grids1{data.cam1_grids},
-        cam0{data.cam0},
-        cam1{data.cam1},
-        cam0_exts{data.cam0_exts},
-        cam1_exts{data.cam1_exts},
-        T_C0F{data.T_C0F},
-        T_C1F{data.T_C1F} {
+        grids0{data.cam_grids[0]},
+        grids1{data.cam_grids[1]},
+        cam0{data.cam_params[0]},
+        cam1{data.cam_params[1]},
+        cam0_exts{data.cam_exts[0]},
+        cam1_exts{data.cam_exts[1]} {
     // Seed random
     srand(time(NULL));
 
@@ -225,18 +221,33 @@ public:
     auto cam0_grids = grids0;
     auto cam1_grids = grids1;
     std::map<timestamp_t, pose_t> poses;  // T_BF
-    calib_stereo_data_t data{target, cam0_grids, cam1_grids,
-                             poses, cam0, cam1, cam0_exts, cam1_exts};
+
+    calib_data_t data;
+    data.add_calib_target(target);
+    data.add_camera(cam0);
+    data.add_camera(cam1);
+    data.add_camera_extrinsics(0);
+    data.add_camera_extrinsics(1);
+    data.add_grids(0, grids0);
+    data.add_grids(1, grids1);
+    data.preprocess_data();
+    data.check_data();
     calib_stereo_solve<CAMERA>(data);
 
     // Show initialized parameters
-    const mat4_t T_BC0 = cam0_exts.tf();
-    const mat4_t T_BC1 = cam1_exts.tf();
+    const mat4_t T_BC0 = data.cam_exts[0].tf();
+    const mat4_t T_BC1 = data.cam_exts[1].tf();
     const mat4_t T_C1C0 = T_BC1.inverse() * T_BC0;
     LOG_INFO("Stereo-camera intrinsics and extrinsics initialized!");
-    print_vector("cam0_params:", cam0.param);
-    print_vector("cam1_params:", cam1.param);
+    print_vector("cam0_params:", data.cam_params[0].param);
+    print_vector("cam1_params:", data.cam_params[1].param);
     print_matrix("T_C1C0", T_C1C0);
+
+    // Update params
+    cam0.param = data.cam_params[0].param;
+    cam1.param = data.cam_params[1].param;
+    cam0_exts.param = data.cam_exts[0].param;
+    cam1_exts.param = data.cam_exts[1].param;
   }
 
   int find_nbv(std::set<int> &views_seen) {
@@ -742,17 +753,6 @@ public:
     ceres::Solve(options, problem, &summary);
     std::cout << summary.FullReport() << std::endl;
     std::cout << std::endl;
-
-    // Update data
-    const mat4_t T_BC0 = cam0_exts.tf();
-    const mat4_t T_BC1 = cam1_exts.tf();
-    const mat4_t T_C1C0 = T_BC1.inverse() * T_BC0;
-    T_C0F.clear();
-    T_C1F.clear();
-    for (auto pose : rel_poses) {
-      T_C0F.emplace_back(pose.tf());
-      T_C1F.emplace_back(T_C1C0 * pose.tf());
-    }
 
     // Show reuslts
     show_results();

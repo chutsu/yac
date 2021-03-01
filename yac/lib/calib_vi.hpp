@@ -187,8 +187,8 @@ struct reproj_error_td_t : public ceres::SizedCostFunction<2, 7, 7, 7, 7, 8, 1> 
 
         Eigen::Map<mat_t<2, 7, row_major_t>> J(jacobians[1]);
         J.setZero();
-        J.block(0, 0, 2, 3) = -1 * Jh_weighted * -C_CiW * I(3);
-        J.block(0, 3, 2, 3) = -1 * Jh_weighted * -C_CiW * -skew(C_WS * r_SFi);
+        J.block(0, 0, 2, 3) = Jh_weighted * C_CiW * I(3);
+        J.block(0, 3, 2, 3) = Jh_weighted * C_CiW * -skew(C_WS * r_SFi);
         if (valid == false) {
           J.setZero();
         }
@@ -1360,6 +1360,45 @@ struct calib_vi_t {
     }
   }
 
+  int recover_calib_covar(matx_t &calib_covar) {
+    // Recover calibration covariance
+    auto T_BS = imu_exts->param.data();
+    auto td = time_delay->param.data();
+
+    // -- Setup covariance blocks to estimate
+    std::vector<std::pair<const double *, const double *>> covar_blocks;
+    covar_blocks.push_back({T_BS, T_BS});
+    covar_blocks.push_back({td, td});
+
+    // -- Estimate covariance
+    ::ceres::Covariance::Options options;
+    ::ceres::Covariance covar_est(options);
+    if (covar_est.Compute(covar_blocks, problem) == false) {
+      LOG_ERROR("Failed to estimate covariance!");
+      LOG_ERROR("Maybe Hessian is not full rank?");
+      return -1;
+    }
+
+    // -- Extract covariances sub-blocks
+    Eigen::Matrix<double, 6, 6, Eigen::RowMajor> T_BS_covar;
+    Eigen::Matrix<double, 1, 1, Eigen::RowMajor> td_covar;
+    covar_est.GetCovarianceBlockInTangentSpace(T_BS, T_BS, T_BS_covar.data());
+    covar_est.GetCovarianceBlock(td, td, td_covar.data());
+
+    // -- Form covariance matrix block
+    calib_covar = zeros(7, 7);
+    calib_covar.block(0, 0, 6, 6) = T_BS_covar;
+    calib_covar.block(6, 6, 1, 1) = td_covar;
+
+    // -- Check if calib_covar is full-rank?
+    if (rank(calib_covar) != calib_covar.rows()) {
+      LOG_ERROR("calib_covar is not full rank!");
+      return -1;
+    }
+
+    return 0;
+  }
+
   int save_results(const std::string &save_path) {
     LOG_INFO("Saved results to [%s]", save_path.c_str());
 
@@ -1417,12 +1456,12 @@ struct calib_vi_t {
     const vec3_t mu_bg = mean(bias_gyr);
     fprintf(outfile, "imu0:\n");
     fprintf(outfile, "  rate: %f\n", imu_params.rate);
-    fprintf(outfile, "  tau_a: %f\n", imu_params.tau_a);
-    fprintf(outfile, "  tau_g: %f\n", imu_params.tau_g);
     fprintf(outfile, "  sigma_a_c: %f\n", imu_params.sigma_a_c);
-    fprintf(outfile, "  sigma_aw_c: %f\n", imu_params.sigma_aw_c);
     fprintf(outfile, "  sigma_g_c: %f\n", imu_params.sigma_g_c);
+    fprintf(outfile, "  sigma_aw_c: %f\n", imu_params.sigma_aw_c);
     fprintf(outfile, "  sigma_gw_c: %f\n", imu_params.sigma_gw_c);
+    fprintf(outfile, "  sigma_ba: %f\n", imu_params.sigma_ba);
+    fprintf(outfile, "  sigma_bg: %f\n", imu_params.sigma_bg);
     fprintf(outfile, "  bg: [%f, %f, %f]\n", mu_bg(0), mu_bg(1), mu_bg(2));
     fprintf(outfile, "  ba: [%f, %f, %f]\n", mu_ba(0), mu_ba(1), mu_ba(2));
     fprintf(outfile, "  g: %f\n", imu_params.g);

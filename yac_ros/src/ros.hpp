@@ -123,9 +123,19 @@ void gyro_message_handler(const rosbag::MessageInstance &msg,
     exit(0);                                                                   \
   }
 
+#define ROS_PTR_PARAM(NH, X, Y)                                                \
+  if (NH->getParam(X, Y) == false) {                                           \
+    ROS_FATAL_STREAM("Failed to get ROS param [" << X << "]!");                \
+    exit(0);                                                                   \
+  }
+
 #define ROS_OPTIONAL_PARAM(NH, X, Y, DEFAULT)                                  \
   if (NH.getParam(X, Y) == false) {                                            \
-    ROS_INFO("ROS param [%s] not found, setting defaults!", (X).c_str());      \
+    Y = DEFAULT;                                                               \
+  }
+
+#define ROS_PTR_OPTIONAL_PARAM(NH, X, Y, DEFAULT)                              \
+  if (NH->getParam(X, Y) == false) {                                           \
     Y = DEFAULT;                                                               \
   }
 

@@ -11,6 +11,7 @@
 #include "common/Measurements.hpp"
 #include "error/ErrorInterface.hpp"
 #include "param/PoseLocalParameterization.hpp"
+// #include "ceres_utils.hpp"
 
 namespace yac {
 
@@ -42,14 +43,6 @@ public:
 
   Map();
   virtual ~Map();
-
-  void saveCameraParams(FILE *csv_file, const size_t frame_index, const size_t cam_idx);
-  void saveSensorCameraPose(FILE *csv_file, const size_t frame_index, const size_t cam_idx);
-  void saveFiducialPose(FILE *csv_file, const size_t frame_index);
-  void saveTimeDelay(FILE *csv_file, const size_t frame_index);
-  void saveSensorPose(FILE *csv_file, const size_t frame_index);
-  void saveSpeedBias(FILE *csv_file, const size_t frame_index);
-  void saveEstimates(const size_t frame_index);
 
   // definitions
   /// Struct to store some infos about a residual.

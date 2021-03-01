@@ -180,26 +180,21 @@ typedef ReprojectionError2dBase_<
     7 /* size of third parameter (camera extrinsics) */>
     ReprojectionError2dBase;
 
-typedef IntrinsicsExtrinsicsErrorBase_<2 /* number of residuals */,
-                                       7 /* size of T_WS */,
-                                       7 /* size of T_WF */,
-                                       7 /* size of T_SC */,
-                                       8 /* size of cam params */>
-    IntrinsicsExtrinsicsErrorBase;
-
+// typedef CalibReprojErrorBase_<2 /* number of residuals */,
+//                               7 /* size of T_WS */,
+//                               2 /* size of T_WF */,
+//                               7 /* size of T_BS */,
+//                               7 /* size of T_BC */,
+//                               8 /* size of cam params */>
+//     CalibReprojErrorBase;
 typedef CalibReprojErrorBase_<2 /* number of residuals */,
                               7 /* size of T_WS */,
                               2 /* size of T_WF */,
-                              7 /* size of T_SC */,
-                              8 /* size of cam params */>
+                              7 /* size of T_BS */,
+                              7 /* size of T_BC */,
+                              8 /* size of cam params */,
+															1 /* size of timedelay */>
     CalibReprojErrorBase;
-
-typedef CalibReprojError2Base_<2 /* number of residuals */,
-                               7 /* size of T_WS */,
-                               7 /* size of T_WF */,
-                               7 /* size of T_SC */,
-                               8 /* size of cam params */>
-    CalibReprojError2Base;
 
 } // namespace yac
 #endif /* YAC_REPROJECTION_ERROR_BASE_HPP */

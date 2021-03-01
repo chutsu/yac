@@ -2,7 +2,8 @@
 #define YAC_CALIB_PARAMS_HPP
 
 #include "core.hpp"
-#include "calib_data.hpp"
+#include "aprilgrid.hpp"
+// #include "calib_data.hpp"
 
 namespace yac {
 
@@ -141,6 +142,13 @@ struct landmark_t : param_t {
   void minus(const vecx_t &dx);
   void perturb(const int i, const real_t step_size);
 };
+
+/**
+ * Initialize focal lengths using aprilgrid. `axis` denotes the focal length
+ * for x-axis or y-axis, 0 or 1 repsectively. The result is written to `focal`.
+ * Returns 0 for success, -1 for failure.
+ */
+int focal_init(const aprilgrid_t &grid, const int axis, double &focal);
 
 struct camera_params_t : param_t {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;

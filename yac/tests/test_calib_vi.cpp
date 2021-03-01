@@ -197,27 +197,27 @@ int test_reproj_error_td() {
     MU_CHECK(check_jacobian("J0", fdiff, J0, threshold, true) == 0);
   }
 
-  // // -- Test sensor-pose jacobian
-  // {
-  //   mat_t<2, 6> fdiff;
-  //
-  //   for (int i = 0; i < 6; i++) {
-  //     vec2_t r_fd;
-  //     sensor_pose.perturb(i, 0.5 * step);
-  //     err.Evaluate(params.data(), r_fd.data(), nullptr);
-  //     sensor_pose.perturb(i, -0.5 * step);
-  //
-  //     vec2_t r_bd;
-  //     sensor_pose.perturb(i, -0.5 * step);
-  //     err.Evaluate(params.data(), r_bd.data(), nullptr);
-  //     sensor_pose.perturb(i, 0.5 * step);
-  //
-  //     fdiff.col(i) = (r_fd - r_bd) / step;
-  //   }
-  //
-  //   const mat_t<2, 6> J1_min = J1.block(0, 0, 2, 6);
-  //   MU_CHECK(check_jacobian("J1", fdiff, J1_min, threshold, true) == 0);
-  // }
+  // -- Test sensor-pose jacobian
+  {
+    mat_t<2, 6> fdiff;
+
+    for (int i = 0; i < 6; i++) {
+      vec2_t r_fd;
+      sensor_pose.perturb(i, 0.5 * step);
+      err.Evaluate(params.data(), r_fd.data(), nullptr);
+      sensor_pose.perturb(i, -0.5 * step);
+
+      vec2_t r_bd;
+      sensor_pose.perturb(i, -0.5 * step);
+      err.Evaluate(params.data(), r_bd.data(), nullptr);
+      sensor_pose.perturb(i, 0.5 * step);
+
+      fdiff.col(i) = (r_fd - r_bd) / step;
+    }
+
+    const mat_t<2, 6> J1_min = J1.block(0, 0, 2, 6);
+    MU_CHECK(check_jacobian("J1", fdiff, J1_min, threshold, true) == 0);
+  }
 
   // -- Test imu-extrinsics jacobian
   {
@@ -693,11 +693,9 @@ int test_calib_vi() {
   // Imu parameters
 	imu_params_t imu_params;
   imu_params.rate = 200.0;
-  imu_params.tau_a = 3600.0;      // Reversion time constant, currently not in use [s]
-  imu_params.tau_g = 3600.0;      // Reversion time constant, currently not in use [s]
   imu_params.sigma_a_c = 0.002;       // Accel noise density [m/s^2/sqrt(Hz)]
-  imu_params.sigma_aw_c = 0.003;      // Accel drift noise density [m/s^2/sqrt(Hz)]
   imu_params.sigma_g_c = 1.6968e-04;  // Gyro noise density [rad/s/sqrt(Hz)]
+  imu_params.sigma_aw_c = 0.003;      // Accel drift noise density [m/s^2/sqrt(Hz)]
   imu_params.sigma_gw_c = 1.9393e-05; // Gyro drift noise density [rad/s^s/sqrt(Hz)]
   imu_params.g = 9.81007;         // Earth's acceleration due to gravity [m/s^2]
 

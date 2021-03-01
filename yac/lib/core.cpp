@@ -468,6 +468,25 @@ bool all_true(const std::vector<bool> x) {
   return true;
 }
 
+void save_data(const std::string &save_path,
+							 const timestamps_t &ts,
+							 const vec3s_t &y) {
+	std::ofstream file{save_path};
+	if (file.good() != true) {
+		printf("Failed to open file for output!");
+		exit(-1);
+	}
+
+	for (size_t i = 0; i < ts.size(); i++) {
+		file << ts[i] << ",";
+		file << y[i](0) << ",";
+		file << y[i](1) << ",";
+		file << y[i](2) << std::endl;
+	}
+
+	file.close();
+};
+
 void save_features(const std::string &path, const vec3s_t &features) {
   FILE *csv = fopen(path.c_str(), "w");
   for (const auto &f : features) {
@@ -1776,6 +1795,14 @@ long int rank(const matx_t &A) {
   return lu_decomp.rank();
 }
 
+bool full_rank(const matx_t &A) {
+	if (rank(A) != A.rows() || rank(A) != A.cols()) {
+		return false;
+	}
+
+	return true;
+}
+
 int schurs_complement(matx_t &H, vecx_t &b,
                       const size_t m, const size_t r,
                       const bool precond, const bool debug) {
@@ -2688,6 +2715,8 @@ void timestamp_print(const timestamp_t &ts, const std::string &prefix) {
   }
 }
 
+timestamp_t sec2ts(const real_t sec) { return sec * 1.0e9; }
+
 real_t ts2sec(const timestamp_t &ts) { return ts * 1.0e-9; }
 
 real_t ns2sec(const int64_t ns) { return ns * 1.0e-9; }
@@ -3399,6 +3428,11 @@ void sim_imu_measurement(sim_imu_t &imu,
   const mat3_t C_SW = tf_rot(T_WS_W).transpose();
   const vec3_t w_g = mvn(rndeng); // Gyro white noise
   w_WS_S = C_SW * w_WS_W + imu.b_g + w_g * imu.sigma_g_c * sqrt(dt);
+	print_matrix("C_SW", C_SW);
+	print_vector("w_WS_W", w_WS_W);
+	print_vector("w_g", w_g);
+	print_vector("imu.b_g", imu.b_g);
+	printf("imu.sigma_g_c: %f\n", imu.sigma_g_c);
 
   // Compute accel measurement
   const vec3_t g{0.0, 0.0, imu.g}; // Gravity vector

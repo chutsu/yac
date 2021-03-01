@@ -256,6 +256,106 @@ mat4_t fiducial_t::estimate() {
 
 /**************************** camera_params_t *********************************/
 
+int focal_init(const aprilgrid_t &grid, const int axis, double &focal) {
+  // Using the method in:
+  // C. Hughes, P. Denny, M. Glavin, and E. Jones,
+  // Equidistant Fish-Eye Calibration and Rectification by Vanishing Point
+  // Extraction, PAMI 2010
+
+  // Method summary:
+  // 1. Form vanishing point lines from aprilgrid
+  // 2. For each of these lines estimate a circle to obtain cx, cy, radius
+  // 3. For each pair of circles find the intersection (i.e. vanishing points)
+  // 4. From each pair of vanishing points the focal length can be estimated
+
+  // Check if aprilgrid is fully observed
+  if (grid.nb_detections < (grid.tag_rows * grid.tag_cols * 4)) {
+    return -1;
+  }
+
+  // Form vanishing point lines from aprilgrid and estimate circle params
+  // -------------------------------------------------------------------------
+  // Form vanishing point lines horizontally or vertically using the aprilgrid
+  // detected points.  Fit a circle for each of these lines. By fitting a
+  // circle to these lines we obtain circle cx, cy and radius. And from that we
+  // can find the intersection of these circles / lines to obtain vanishing
+  // points.
+  std::vector<vec2_t> centers;
+  std::vector<double> radiuses;
+
+  if (axis == 0) {
+    for (int i = 0; i < grid.tag_rows; i++) {
+      int tag_id = i * grid.tag_cols;
+      vec2s_t points;
+      for (int j = 0; j < grid.tag_cols; j++) {
+        points.push_back(grid.keypoint(tag_id, 0)); // Bottom left
+        points.push_back(grid.keypoint(tag_id, 1)); // Bottom right
+        tag_id++;
+      }
+
+      double cx = 0.0;
+      double cy = 0.0;
+      double r = 0.0;
+      fit_circle(points, cx, cy, r);
+      centers.emplace_back(cx, cy);
+      radiuses.push_back(r);
+    }
+  } else if (axis == 1) {
+    for (int j = 0; j < grid.tag_cols; j++) {
+      int tag_id = j;
+      vec2s_t points;
+      for (int i = 0; i < grid.tag_rows; i++) {
+        points.push_back(grid.keypoint(tag_id, 0)); // Bottom left
+        points.push_back(grid.keypoint(tag_id, 3)); // Top left
+        tag_id += grid.tag_cols;
+      }
+
+      double cx = 0.0;
+      double cy = 0.0;
+      double r = 0.0;
+      fit_circle(points, cx, cy, r);
+      centers.emplace_back(cx, cy);
+      radiuses.push_back(r);
+    }
+  } else {
+    FATAL("Invalid axis[%d], expecting 0 or 1!", axis);
+  }
+
+  // Estimate focal lengths between all pairs of vanishing points
+  std::vector<double> focal_guesses;
+  int nb_circles = centers.size();
+  for (int i = 0; i < nb_circles; i++) {
+    for (int j = i + 1; j < nb_circles; j++) {
+      // Find vanishing points between two circles
+      const auto cx0 = centers[i].x();
+      const auto cy0 = centers[i].y();
+      const auto r0 = radiuses[i];
+      const auto cx1 = centers[j].x();
+      const auto cy1 = centers[j].y();
+      const auto r1 = radiuses[j];
+      const auto ipts = intersect_circles(cx0, cy0, r0, cx1, cy1, r1);
+      if (ipts.size() < 2) {
+        continue;
+      }
+
+      // Estimate focal length. Equation (8) in the paper.
+      const vec2_t vp0 = ipts[0];
+      const vec2_t vp1 = ipts[1];
+      double f_guess = (vp0 - vp1).norm() / M_PI;
+      focal_guesses.push_back(f_guess);
+    }
+  }
+
+  // From all the focal length guesses return the median
+  if (focal_guesses.size() == 0) {
+    LOG_ERROR("No focal guesses!");
+    return -1;
+  }
+  focal = median(focal_guesses);
+
+  return 0;
+}
+
 camera_params_t::camera_params_t() {}
 
 camera_params_t::camera_params_t(const id_t id_,

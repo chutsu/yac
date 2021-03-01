@@ -53,7 +53,7 @@ public:
   ///< Projected point
   mutable measurement_t kp_projected_;
 
-	///< Pixel velocity
+  ///< Pixel velocity
   vec2_t z_i_{0.0, 0.0};
   vec2_t z_j_{0.0, 0.0};
   vec2_t v_ij_{0.0, 0.0};  // pixel velocity: (z_j - z_i) / dt
@@ -67,8 +67,8 @@ public:
                    const mat4_t &T_WF,
                    const vec2_t &z_i,
                    const vec2_t &z_j,
-									 const timestamp_t &ts_i,
-									 const timestamp_t &ts_j,
+                   const timestamp_t &ts_i,
+                   const timestamp_t &ts_j,
                    const covariance_t &information) {
     setCameraId(cameraId);
     tag_id_ = tag_id;
@@ -76,9 +76,9 @@ public:
     p_F_ = p_F;
     T_WF_ = T_WF;
 
-		z_i_ = z_i;
-		z_j_ = z_j;
-		v_ij_ = (z_j_ - z_i_) / ns2sec(ts_j - ts_i);
+    z_i_ = z_i;
+    z_j_ = z_j;
+    v_ij_ = (z_j_ - z_i_) / ns2sec(ts_j - ts_i);
 
     setMeasurement(z_i_);
     setInformation(information);
@@ -119,13 +119,13 @@ public:
                                     double *residuals,
                                     double **jacobians,
                                     double **jacobiansMinimal) const {
-		// Fiducial param
+    // Fiducial param
     const double roll = params[1][0];
     const double pitch = params[1][1];
     const double yaw = quat2euler(tf_quat(T_WF_))(2);
     const vec3_t rpy{roll, pitch, yaw};
     const mat3_t C_WF = euler321(rpy);
-		const vec3_t r_WF = tf_trans(T_WF_);
+    const vec3_t r_WF = tf_trans(T_WF_);
     const mat4_t T_WF = tf(C_WF, r_WF);
 
     // Sensor pose, sensor-camera extrinsics, camera parameters
@@ -135,11 +135,11 @@ public:
     Eigen::Map<const vecx_t> cam_params(params[4], 8);
     const double td = params[5][0];
 
-		// Transform fiducial point to camera frame
+    // Transform fiducial point to camera frame
     const mat4_t T_CiB = T_BCi.inverse();
     const mat4_t T_SW = T_WS.inverse();
     const vec3_t r_CFi = tf_point(T_CiB * T_BS * T_SW * T_WF, p_F_);
-		const vec4_t hp_C = r_CFi.homogeneous();
+    const vec4_t hp_C = r_CFi.homogeneous();
 
     // Calculate the reprojection error
     // measurement_t kp;
@@ -198,7 +198,7 @@ public:
         const mat4_t T_SW = T_WS.inverse();
         const vec3_t r_SFi = tf_point(T_SW * T_WF, p_F_);
 
-				mat_t<2, 6> J_min;
+        mat_t<2, 6> J_min;
         J_min.setZero();
         J_min.block(0, 0, 2, 3) = -1 * Jh_weighted * -C_CiW * I(3);
         J_min.block(0, 3, 2, 3) = -1 * Jh_weighted * -C_CiW * -skew(C_WS * r_SFi);
@@ -211,22 +211,22 @@ public:
         Eigen::Map<mat_t<2, 7, row_major_t>> J(jacobians[0]);
         J = J_min * J_lift;
         if (valid == false) {
-					J.setZero();
+          J.setZero();
         }
 
         // Minimal jacobian
-				if (jacobiansMinimal && jacobiansMinimal[0]) {
-					Eigen::Map<mat_t<2, 6, row_major_t>> J_min_map(jacobiansMinimal[0]);
-					J_min_map = J_min;
-					if (valid == false) {
-						J_min_map.setZero();
-					}
-				}
+        if (jacobiansMinimal && jacobiansMinimal[0]) {
+          Eigen::Map<mat_t<2, 6, row_major_t>> J_min_map(jacobiansMinimal[0]);
+          J_min_map = J_min;
+          if (valid == false) {
+            J_min_map.setZero();
+          }
+        }
       }
 
       // Jacobians w.r.t. T_WF
       if (jacobians[1]) {
-				// Form jacobians
+        // Form jacobians
         const double cphi = cos(roll);
         const double sphi = sin(roll);
         const double ctheta = cos(pitch);
@@ -254,7 +254,7 @@ public:
           0
         };
 
-				// Fill Jacobian
+        // Fill Jacobian
         const mat3_t C_CiW = tf_rot(T_CiB * T_BS * T_SW);
         Eigen::Map<mat_t<2, 2, row_major_t>> J(jacobians[1]);
         J.block(0, 0, 2, 1) = -1 * Jh_weighted * C_CiW * J_x;
@@ -263,10 +263,10 @@ public:
           J.setZero();
         }
 
-				if (jacobiansMinimal && jacobiansMinimal[1]) {
-					Eigen::Map<mat_t<2, 2, row_major_t>> J_min(jacobiansMinimal[1]);
-					J_min = J;
-				}
+        if (jacobiansMinimal && jacobiansMinimal[1]) {
+          Eigen::Map<mat_t<2, 2, row_major_t>> J_min(jacobiansMinimal[1]);
+          J_min = J;
+        }
       }
 
 
@@ -276,7 +276,7 @@ public:
         const mat3_t C_BS = tf_rot(T_BS);
         const vec3_t r_SFi = tf_point(T_SW * T_WF, p_F_);
 
-				mat_t<2, 6> J_min;
+        mat_t<2, 6> J_min;
         J_min.setZero();
         J_min.block(0, 0, 2, 3) = -1 * Jh_weighted * C_CiB * I(3);
         J_min.block(0, 3, 2, 3) = -1 * Jh_weighted * C_CiB * -skew(C_BS * r_SFi);
@@ -290,17 +290,17 @@ public:
         J.setZero();
         J.block(0, 0, 2, 6) = J_min;
         if (valid == false) {
-					J.setZero();
+          J.setZero();
         }
 
         // Minimal jacobian
-				if (jacobiansMinimal && jacobiansMinimal[2]) {
-					Eigen::Map<mat_t<2, 6, row_major_t>> J_min_map(jacobiansMinimal[2]);
-					J_min_map = J_min;
-					if (valid == false) {
-						J_min_map.setZero();
-					}
-				}
+        if (jacobiansMinimal && jacobiansMinimal[2]) {
+          Eigen::Map<mat_t<2, 6, row_major_t>> J_min_map(jacobiansMinimal[2]);
+          J_min_map = J_min;
+          if (valid == false) {
+            J_min_map.setZero();
+          }
+        }
       }
 
       // Jacobians w.r.t T_BCi
@@ -309,7 +309,7 @@ public:
         const mat3_t C_BCi = C_CiB.transpose();
         const vec3_t r_CiFi = tf_point(T_CiB * T_BS * T_SW * T_WF, p_F_);
 
-				mat_t<2, 6> J_min;
+        mat_t<2, 6> J_min;
         J_min.setZero();
         J_min.block(0, 0, 2, 3) = -1 * Jh_weighted * -C_CiB * I(3);
         J_min.block(0, 3, 2, 3) = -1 * Jh_weighted * -C_CiB * -skew(C_BCi * r_CiFi);
@@ -326,13 +326,13 @@ public:
         }
 
         // Minimal jacobian
-				if (jacobiansMinimal && jacobiansMinimal[3]) {
-					Eigen::Map<mat_t<2, 6, row_major_t>> J_min_map(jacobiansMinimal[3]);
-					J_min_map = J_min;
-					if (valid == false) {
-						J_min_map.setZero();
-					}
-				}
+        if (jacobiansMinimal && jacobiansMinimal[3]) {
+          Eigen::Map<mat_t<2, 6, row_major_t>> J_min_map(jacobiansMinimal[3]);
+          J_min_map = J_min;
+          if (valid == false) {
+            J_min_map.setZero();
+          }
+        }
       }
 
       // Jacobians w.r.t. camera parameters
@@ -345,10 +345,10 @@ public:
           J.setZero();
         }
 
-				if (jacobiansMinimal && jacobiansMinimal[4]) {
-					Eigen::Map<mat_t<2, 8, row_major_t>> J_min_map(jacobiansMinimal[4]);
-					J_min_map = J;
-				}
+        if (jacobiansMinimal && jacobiansMinimal[4]) {
+          Eigen::Map<mat_t<2, 8, row_major_t>> J_min_map(jacobiansMinimal[4]);
+          J_min_map = J;
+        }
       }
 
       // Jacobians w.r.t. time delay
@@ -359,10 +359,10 @@ public:
           J.setZero();
         }
 
-				if (jacobiansMinimal && jacobiansMinimal[5]) {
-					Eigen::Map<vec2_t> J_min(jacobiansMinimal[5]);
-					J_min = J;
-				}
+        if (jacobiansMinimal && jacobiansMinimal[5]) {
+          Eigen::Map<vec2_t> J_min(jacobiansMinimal[5]);
+          J_min = J;
+        }
       }
     }
 

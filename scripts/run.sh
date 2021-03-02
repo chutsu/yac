@@ -25,14 +25,14 @@ set -e
 
 tmux send-keys -t dev -R "\
 cd ~/sync/projects/yac \
-&& make lib \
+&& make release \
 && source ~/catkin_ws/devel/setup.bash \
+&& roslaunch yac_ros calib_intel_d435i.launch
 " C-m
 exit
 # && rosrun yac test_calib_nbv --target test_simulate_imu \
 # && cd scripts/octave && octave-cli plot_nbt_sim_imu.m
 # && rosrun yac test_calib_nbv --target test_calib_orbit_trajs
-# && roslaunch yac_ros calib_intel_d435i.launch
 # && roslaunch yac_ros calib_stereo_nbv.launch
 # && roslaunch yac_ros calib_stereo_nbv.launch
 # && rosrun yac test_calib_stereo_inc --target test_calib_stereo_inc_solve

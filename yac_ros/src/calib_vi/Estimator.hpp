@@ -90,7 +90,6 @@ class Estimator {
   mat4_t prev_T_C0F_ = I(4);
   ImuParameters imu_params_;
   ImuMeasurementDeque imu_data_;
-  mat4_t T_WS_init_ = I(4);
   mat4_t T_WF_init_ = I(4);
 
   // AprilGrid
@@ -146,7 +145,7 @@ class Estimator {
     std::vector<std::vector<uint64_t>> reproj_error_param_ids;
   };
   std::deque<state_t> sliding_window_;
-  int max_window_size_ = 8;
+  int max_window_size_ = 5;
 
   Estimator()
       : problem_(new Map()),
@@ -229,6 +228,11 @@ class Estimator {
 
     // LOG_INFO("Adding time delay parameter [%ld]", id);
     problem_->addParameterBlock(block, Map::Trivial);
+
+    auto td_prior = std::make_shared<TimeDelayError>(0.0, 1.0 / pow(0.01, 2));
+    auto td_prior_id = problem_->addResidualBlock(td_prior,
+                                                  nullptr,
+                                                  problem_->parameterBlockPtr(id));
     // problem_->problem_->SetParameterBlockConstant(block->parameters());
 
     // Keep track of time delay parameter
@@ -264,7 +268,7 @@ class Estimator {
 
     // LOG_INFO("Adding camera parameter [%ld]", id);
     problem_->addParameterBlock(block, Map::Trivial);
-    // problem_->setParameterBlockConstant(block);
+    problem_->setParameterBlockConstant(block);
 
     camera_param_ids_[cam_idx] = id;
     cam_blocks_[cam_idx] = block;
@@ -280,7 +284,7 @@ class Estimator {
 
     // LOG_INFO("Adding imu extrinsics parameter [%ld]", id);
     problem_->addParameterBlock(block, Map::Pose6d);
-    batch_problem_->addParameterBlock(block, Map::Pose6d);
+    // batch_problem_->addParameterBlock(block, Map::Pose6d);
 
     imu_exts_id_ = id;
     T_BS_block_ = block;
@@ -296,10 +300,10 @@ class Estimator {
 
     // LOG_INFO("Adding sensor camera extrinsics parameter [%ld]", id);
     problem_->addParameterBlock(block, Map::Pose6d);
-    if (cam_idx == 0) {
-      problem_->setParameterBlockConstant(block);
-    }
-    // problem_->setParameterBlockConstant(block);
+    // if (cam_idx == 0) {
+    //   problem_->setParameterBlockConstant(block);
+    // }
+    problem_->setParameterBlockConstant(block);
 
     camera_exts_ids_[cam_idx] = id;
     T_BC_blocks_[cam_idx] = block;
@@ -773,8 +777,8 @@ class Estimator {
     auto imu_error_id = addImuError(imu_data, imu_error_param_ids);
 
     // Add speed bias factor
-    uint64_t sb_param_id;
-    auto sb_error_id = addSpeedBiasError(sb_param_id);
+    // uint64_t sb_param_id;
+    // auto sb_error_id = addSpeedBiasError(sb_param_id);
 
     // Add vision factors
     std::vector<::ceres::ResidualBlockId> reproj_error_ids;
@@ -786,8 +790,8 @@ class Estimator {
     state.timestamp = ts;
     state.imu_error_id = imu_error_id;
     state.imu_error_param_ids = imu_error_param_ids;
-    state.sb_error_id = sb_error_id;
-    state.sb_param_id = sb_param_id;
+    // state.sb_error_id = sb_error_id;
+    // state.sb_param_id = sb_param_id;
     state.reproj_error_ids = reproj_error_ids;
     state.reproj_error_param_ids = reproj_error_param_ids;
     sliding_window_.push_back(state);
@@ -795,6 +799,14 @@ class Estimator {
     // Optimize sliding window
     if (sliding_window_.size() >= max_window_size_) {
       marginalize();
+
+      // const auto state = sliding_window_.front();
+      // sliding_window_.pop_front();
+      // problem_->removeResidualBlock(state.imu_error_id);
+      // for (auto &res_block : state.reproj_error_ids) {
+      //   problem_->removeResidualBlock(res_block);
+      // }
+
       optimize();
       // exit(0);
     }
@@ -934,8 +946,8 @@ class Estimator {
     return true;
   }
 
-  void optimize(const size_t numIter=5,
-                const size_t numThreads=2,
+  void optimize(const size_t numIter=10,
+                const size_t numThreads=4,
                 const bool verbose=false) {
     // printf("nb_residual_blocks: %d\n", problem_->problem_->NumResidualBlocks());
     // printf("nb_param_blocks: %d\n", problem_->problem_->NumParameterBlocks());

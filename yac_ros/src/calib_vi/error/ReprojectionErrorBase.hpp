@@ -193,7 +193,7 @@ typedef CalibReprojErrorBase_<2 /* number of residuals */,
                               7 /* size of T_BS */,
                               7 /* size of T_BC */,
                               8 /* size of cam params */,
-															1 /* size of timedelay */>
+                              1 /* size of timedelay */>
     CalibReprojErrorBase;
 
 } // namespace yac

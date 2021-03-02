@@ -34,10 +34,10 @@ struct OptSettings {
   bool save_estimates = false;
   bool save_costs = false;
 
-  size_t window_size = 6;
+  size_t window_size = 3;
   int grid_limit = 20;
-	size_t nb_iters = 5;
-	size_t nb_threads = 1;
+	size_t nb_iters = 10;
+	size_t nb_threads = 4;
 
   double sigma_vision = 1.0;
   bool fix_intrinsics = false;

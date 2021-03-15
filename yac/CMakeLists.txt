@@ -61,6 +61,9 @@ TARGET_LINK_LIBRARIES(test_calib_mocap yac ${DEPS})
 ADD_EXECUTABLE(test_calib_mono tests/test_calib_mono.cpp)
 TARGET_LINK_LIBRARIES(test_calib_mono yac ${DEPS})
 
+ADD_EXECUTABLE(test_calib_nbv tests/test_calib_nbv.cpp)
+TARGET_LINK_LIBRARIES(test_calib_nbv yac ${DEPS})
+
 ADD_EXECUTABLE(test_calib_data tests/test_calib_data.cpp)
 TARGET_LINK_LIBRARIES(test_calib_data yac ${DEPS})
 
@@ -73,8 +76,5 @@ TARGET_LINK_LIBRARIES(test_calib_stereo_inc yac ${DEPS})
 ADD_EXECUTABLE(test_calib_vi tests/test_calib_vi.cpp)
 TARGET_LINK_LIBRARIES(test_calib_vi yac ${DEPS})
 
-ADD_EXECUTABLE(test_calib_nbv tests/test_calib_nbv.cpp)
-TARGET_LINK_LIBRARIES(test_calib_nbv yac ${DEPS})
-
-# ADD_EXECUTABLE(test_marg_error tests/test_marg_error.cpp)
-# TARGET_LINK_LIBRARIES(test_marg_error yac ${DEPS})
+ADD_EXECUTABLE(test_marg_error tests/test_marg_error.cpp)
+TARGET_LINK_LIBRARIES(test_marg_error yac ${DEPS})

@@ -30,16 +30,18 @@ cd ~/sync/projects/yac \
 && roslaunch yac_ros calib_intel_d435i.launch
 " C-m
 exit
-# && rosrun yac test_calib_nbv --target test_simulate_imu \
+# && rosrun yac test_calib_vi --target test_calib_vi_init
+# && rosrun yac test_calib_vi --target test_calib_vi
+# && rosrun yac test_marg_error --target test_marg_error_swe
+# && rosrun yac test_marg_error --target test_marg_error_swe
+# && rosrun yac test_calib_vi --target test_reproj_error_td
 # && cd scripts/octave && octave-cli plot_nbt_sim_imu.m
 # && rosrun yac test_calib_nbv --target test_calib_orbit_trajs
 # && roslaunch yac_ros calib_stereo_nbv.launch
 # && roslaunch yac_ros calib_stereo_nbv.launch
 # && rosrun yac test_calib_stereo_inc --target test_calib_stereo_inc_solve
 # && rosrun yac test_calib_stereo --target test_calib_stereo_solve
-# && rosrun --prefix 'gdb -ex=run -ex=\"set confirm off\" -ex=bt -ex=quit -args' yac test_calib_vi --target test_calib_vi
 # && rosrun yac test_calib_stereo --target test_calib_stereo_solve \
-# && rosrun --prefix 'gdb -ex=run -ex=\"set confirm off\" -ex=bt -ex=quit -args' yac test_marg_error --target test_marg_error_check_gradients
 # && rosrun yac test_calib_stereo_inc --target test_calib_stereo_inc_solve \
 # && rosrun yac test_calib_stereo --target test_calib_stereo_solve
 # && roslaunch yac_ros calib_stereo_nbv.launch

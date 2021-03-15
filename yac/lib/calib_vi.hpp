@@ -11,11 +11,219 @@
 #include "calib_data.hpp"
 #include "ceres_utils.hpp"
 #include "calib_params.hpp"
-#include "timeline.hpp"
 #include "imu_error.hpp"
 #include "marg_error.hpp"
 
 namespace yac {
+
+struct pose_error_t : public ceres::SizedCostFunction<6, 7> {
+  pose_t pose_meas_;
+  matx_t covar_;
+  matx_t info_;
+  matx_t sqrt_info_;
+
+  pose_error_t(const pose_t &pose, const matx_t &covar)
+    : pose_meas_{pose},
+      covar_{covar},
+      info_{covar.inverse()},
+      sqrt_info_{info_.llt().matrixL().transpose()} {}
+
+  virtual ~pose_error_t() {}
+
+  bool Evaluate(double const * const *params,
+                double *residuals,
+                double **jacobians) const {
+    // Parameters
+    mat4_t pose_meas = pose_meas_.tf();
+    mat4_t pose_est = tf(params[0]);
+
+    // Error
+    const mat4_t dpose = pose_meas * pose_est.inverse();
+    const vec3_t dr = tf_trans(pose_meas) - tf_trans(pose_est);
+    const mat3_t dC = tf_rot(dpose);
+    const quat_t dq{dC};
+    const vec3_t dtheta = 2 * vec3_t{dq.x(), dq.y(), dq.z()};
+    vec6_t error;
+    error.head<3>() = dr;
+    error.tail<3>() = dtheta;
+
+    // Residuals
+    Eigen::Map<Eigen::Matrix<double, 6, 1> > r(residuals);
+    r = sqrt_info_ * error;
+
+		// Jacobians
+		if (jacobians != NULL && jacobians[0] != NULL) {
+			mat_t<6, 6> J_min;
+			J_min.setIdentity();
+			J_min *= -1.0;
+			J_min.block<3, 3>(3, 3) = -plus(dq).topLeftCorner<3, 3>();
+			J_min = (sqrt_info_ * J_min).eval();
+
+			Eigen::Map<Eigen::Matrix<double, 6, 7, Eigen::RowMajor>> J(jacobians[0]);
+			J.setZero();
+			J.block(0, 0, 6, 6) = J_min;
+		}
+
+    return true;
+  }
+};
+
+template <typename CAMERA_TYPE>
+struct reproj_fiducial_error_t : public ceres::SizedCostFunction<2, 7, 7, 7, 7, 8> {
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
+
+  const timestamp_t ts_i_ = 0;
+  const timestamp_t ts_j_ = 0;
+  const int cam_res_[2] = {0, 0};
+  const int tag_id_ = -1;
+  const int corner_idx_ = -1;
+  const vec3_t r_FFi_{0.0, 0.0, 0.0};
+  const vec2_t z_i_{0.0, 0.0};
+  const vec2_t z_j_{0.0, 0.0};
+  const vec2_t v_ij_{0.0, 0.0};  // pixel velocity: (z_j - z_i) / dt
+  const mat4_t T_WF_ = I(4);
+
+  const mat2_t covar_;
+  const mat2_t info_;
+  const mat2_t sqrt_info_;
+
+  reproj_fiducial_error_t(const timestamp_t &ts_i,
+                    const timestamp_t &ts_j,
+                    const int cam_res[2],
+                    const int tag_id,
+                    const int corner_idx,
+                    const vec3_t &r_FFi,
+                    const vec2_t &z_i,
+                    const vec2_t &z_j,
+                    const mat4_t &T_WF,
+                    const mat2_t &covar)
+      : ts_i_{ts_i}, ts_j_{ts_j},
+        cam_res_{cam_res[0], cam_res[1]},
+        tag_id_{tag_id}, corner_idx_{corner_idx},
+        r_FFi_{r_FFi}, z_i_{z_i}, z_j_{z_j},
+        v_ij_{(z_j_ - z_i_) / ns2sec(ts_j_ - ts_i_)},
+        T_WF_{T_WF},
+        covar_{covar},
+        info_{covar.inverse()},
+        sqrt_info_{info_.llt().matrixL().transpose()} {
+    assert(ts_i != ts_j && ts_j > ts_i);
+    assert(cam_res[0] != 0 && cam_res[1] != 0);
+    assert(tag_id_ >= 0);
+    assert(corner_idx_ >= 0);
+  }
+
+  ~reproj_fiducial_error_t() {}
+
+  bool Evaluate(double const * const *params,
+                double *residuals,
+                double **jacobians) const {
+    // Pose of fiducial target in world frame
+    const mat4_t T_WF = tf(params[0]);
+
+    // Sensor pose, sensor-camera extrinsics, camera parameters
+    const mat4_t T_WS = tf(params[1]);
+    const mat4_t T_BS = tf(params[2]);
+    const mat4_t T_BCi = tf(params[3]);
+    Eigen::Map<const vecx_t> cam_params(params[4], 8);
+
+    // Transform and project point to image plane
+    bool valid = true;
+    CAMERA_TYPE camera{cam_res_, cam_params};
+    const mat4_t T_CiB = T_BCi.inverse();
+    const mat4_t T_SW = T_WS.inverse();
+    const vec3_t r_CFi = tf_point(T_CiB * T_BS * T_SW * T_WF, r_FFi_);
+    mat_t<2, 3> Jh;
+    vec2_t z_hat;
+    if (camera.project(r_CFi, z_hat, Jh) != 0) {
+      valid = false;
+    }
+
+    // Residuals
+    const vec2_t r = sqrt_info_ * (z_i_ - z_hat);
+    residuals[0] = r(0);
+    residuals[1] = r(1);
+
+    // Jacobians
+    const matx_t Jh_weighted = sqrt_info_ * Jh;
+
+    if (jacobians) {
+      // Jacobians w.r.t. T_WF
+      if (jacobians[0]) {
+				// Fill Jacobian
+        const mat3_t C_CiW = tf_rot(T_CiB * T_BS * T_SW);
+        const mat3_t C_WF = tf_rot(T_WF);
+        Eigen::Map<mat_t<2, 7, row_major_t>> J(jacobians[0]);
+        J.setZero();
+        J.block(0, 0, 2, 3) = -1 * Jh_weighted * C_CiW * I(3);
+        J.block(0, 3, 2, 3) = -1 * Jh_weighted * C_CiW * -skew(C_WF * r_FFi_);
+        if (valid == false) {
+          J.setZero();
+        }
+      }
+
+      // Jacobians w.r.t T_WS
+      if (jacobians[1]) {
+        const mat3_t C_CiS = tf_rot(T_CiB * T_BS);
+        const mat3_t C_WS = tf_rot(T_WS);
+        const mat3_t C_SW = C_WS.transpose();
+        const mat3_t C_CiW = C_CiS * C_SW;
+        const mat4_t T_SW = T_WS.inverse();
+        const vec3_t r_SFi = tf_point(T_SW * T_WF, r_FFi_);
+
+        Eigen::Map<mat_t<2, 7, row_major_t>> J(jacobians[1]);
+        J.setZero();
+        J.block(0, 0, 2, 3) = Jh_weighted * C_CiW * I(3);
+        J.block(0, 3, 2, 3) = Jh_weighted * C_CiW * -skew(C_WS * r_SFi);
+        if (valid == false) {
+          J.setZero();
+        }
+      }
+
+      // Jacobians w.r.t T_BS
+      if (jacobians[2]) {
+        const mat3_t C_CiB = tf_rot(T_CiB);
+        const mat3_t C_BS = tf_rot(T_BS);
+        const vec3_t r_SFi = tf_point(T_SW * T_WF, r_FFi_);
+
+        Eigen::Map<mat_t<2, 7, row_major_t>> J(jacobians[2]);
+        J.setZero();
+        J.block(0, 0, 2, 3) = -1 * Jh_weighted * C_CiB * I(3);
+        J.block(0, 3, 2, 3) = -1 * Jh_weighted * C_CiB * -skew(C_BS * r_SFi);
+        if (valid == false) {
+          J.setZero();
+        }
+      }
+
+      // Jacobians w.r.t T_BCi
+      if (jacobians[3]) {
+        const mat3_t C_CiB = tf_rot(T_CiB);
+        const mat3_t C_BCi = C_CiB.transpose();
+        const vec3_t r_CiFi = tf_point(T_CiB * T_BS * T_SW * T_WF, r_FFi_);
+
+        Eigen::Map<mat_t<2, 7, row_major_t>> J(jacobians[3]);
+        J.setZero();
+        J.block(0, 0, 2, 3) = -1 * Jh_weighted * -C_CiB * I(3);
+        J.block(0, 3, 2, 3) = -1 * Jh_weighted * -C_CiB * -skew(C_BCi * r_CiFi);
+        if (valid == false) {
+          J.setZero();
+        }
+      }
+
+      // Jacobians w.r.t. camera parameters
+      if (jacobians[4]) {
+        const vec2_t p{r_CFi(0) / r_CFi(2), r_CFi(1) / r_CFi(2)};
+
+        Eigen::Map<mat_t<2, 8, row_major_t>> J(jacobians[4]);
+        J.block(0, 0, 2, 8) = -1 * sqrt_info_ * camera.J_params(p);
+        if (valid == false) {
+          J.setZero();
+        }
+      }
+    }
+
+    return true;
+  }
+};
 
 template <typename CAMERA_TYPE>
 #if FIDUCIAL_PARAMS_SIZE == 2
@@ -593,11 +801,629 @@ struct aprilgrid_buffer_t {
   }
 };
 
-struct calib_vi_t {
+struct calib_vi_init_t {
   id_t new_param_id = 0;
 
-  // Calibration data
-  timeline_t timeline;
+  // Data
+  aprilgrid_buffer_t grids_buf;
+  std::map<int, aprilgrids_t> cam_grids;
+  std::map<int, aprilgrid_t> grids_prev;
+  imu_data_t imu_buf;
+  bool initialized = false;
+
+  // Parameters to be optimized
+  pose_t *fiducial = nullptr;
+  std::vector<pose_t *> sensor_poses;
+  std::vector<sb_params_t *> speed_biases;
+  std::map<int, camera_params_t *> cam_params;
+  std::map<int, extrinsics_t *> cam_exts;
+  extrinsics_t * imu_exts;
+
+  // Optimization
+  imu_params_t imu_params;
+  double sigma_vision = 1.0;
+  ceres::Problem::Options prob_options;
+  ceres::Problem *problem;
+  PoseLocalParameterization pose_parameterization;
+
+	template <typename CAMERA_TYPE>
+  struct calib_view_t {
+		ceres::Problem *problem = nullptr;
+
+		pose_t *fiducial = nullptr;
+    pose_t *pose_i = nullptr;
+    pose_t *pose_j = nullptr;
+    sb_params_t *sb_i = nullptr;
+    sb_params_t *sb_j = nullptr;
+    std::map<int, extrinsics_t *> cam_exts;
+    std::map<int, camera_params_t *> cam_params;
+    extrinsics_t * imu_exts = nullptr;
+
+    ceres::ResidualBlockId imu_error_id = nullptr;
+    ImuError *imu_error = nullptr;
+
+    std::map<int, std::vector<ceres::ResidualBlockId>> reproj_error_ids;
+		std::map<int, std::vector<reproj_fiducial_error_t<CAMERA_TYPE> *>> reproj_errors;
+
+		calib_view_t(ceres::Problem *problem_,
+				 	 	 	 	 pose_t *fiducial_,
+				 	 	 	 	 pose_t *pose_i_, pose_t *pose_j_,
+				 	 	 	 	 sb_params_t *sb_i_, sb_params_t *sb_j_,
+                 std::map<int, extrinsics_t *> cam_exts_,
+				 	 	 	 	 std::map<int, camera_params_t *> cam_params_,
+                 extrinsics_t * imu_exts_,
+                 ceres::ResidualBlockId imu_error_id_,
+                 ImuError *imu_error_,
+                 std::map<int, std::vector<ceres::ResidualBlockId>> reproj_error_ids_,
+                 std::map<int, std::vector<reproj_fiducial_error_t<CAMERA_TYPE> *>> reproj_errors_)
+			: problem{problem_},
+				fiducial{fiducial_},
+				pose_i{pose_i_}, pose_j{pose_j_},
+				sb_i{sb_i_}, sb_j{sb_j_},
+				cam_exts{cam_exts_},
+				cam_params{cam_params_},
+				imu_exts{imu_exts_},
+				imu_error_id{imu_error_id_},
+				imu_error{imu_error_},
+				reproj_error_ids{reproj_error_ids_},
+				reproj_errors{reproj_errors_} {}
+
+		void calculate_reproj_errors(const int cam_idx,
+		                             std::vector<double> &errs) {
+			const mat4_t T_WF = fiducial->tf();
+			const mat4_t T_CiB = cam_exts[cam_idx]->tf().inverse();
+			const mat4_t T_BS = imu_exts->tf();
+			const mat4_t T_CiS = T_CiB * T_BS;
+			const mat4_t T_SW_i = pose_i->tf().inverse();
+
+			for (const auto reproj_error : reproj_errors[cam_idx]) {
+				const vec2_t z = reproj_error->z_i_;
+				const vec2_t v = reproj_error->v_ij_;
+				const vec3_t r_FFi = reproj_error->r_FFi_;
+				const vec3_t r_CiFi = tf_point(T_CiS * T_SW_i * T_WF, r_FFi);
+
+				vec2_t z_hat;
+				auto res = cam_params[cam_idx]->resolution;
+				auto params = cam_params[cam_idx]->param;
+				const CAMERA_TYPE cam_geom(res, params);
+				cam_geom.project(r_CiFi, z_hat);
+				const vec2_t r = z - z_hat;
+				errs.push_back(r.norm());
+			}
+		}
+
+		int filter(const int cam_idx, const double threshold) {
+		  std::vector<double> errs;
+      calculate_reproj_errors(cam_idx, errs);
+
+			auto id_iter = reproj_error_ids[cam_idx].begin();
+			auto err_iter = reproj_errors[cam_idx].begin();
+
+			int nb_outliers = 0;
+			for (size_t i = 0; i < errs.size(); i++) {
+				if (errs[i] > threshold) {
+					problem->RemoveResidualBlock(*id_iter);
+					id_iter = reproj_error_ids[cam_idx].erase(id_iter);
+					err_iter = reproj_errors[cam_idx].erase(err_iter);
+					nb_outliers++;
+				} else {
+					id_iter++;
+					err_iter++;
+				}
+			}
+
+			return nb_outliers;
+		}
+  };
+	std::deque<calib_view_t<pinhole_radtan4_t>> sliding_window;
+
+  calib_vi_init_t() {
+    prob_options.local_parameterization_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
+    prob_options.cost_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
+    problem = new ceres::Problem(prob_options);
+  }
+
+  ~calib_vi_init_t() {
+    if (fiducial) delete fiducial;
+    for (const auto &pose : sensor_poses) delete pose;
+    for (const auto &sb : speed_biases) delete sb;
+    for (const auto &kv: cam_params) delete kv.second;
+    for (const auto &kv: cam_exts) delete kv.second;
+    if (imu_exts) delete imu_exts;
+    if (problem) delete problem;
+  }
+
+  void add_imu(const imu_params_t &imu_params_) {
+    imu_params = imu_params_;
+  }
+
+  void add_camera(const int cam_idx,
+                  const int resolution[2],
+                  const std::string &proj_model,
+                  const std::string &dist_model,
+                  const vecx_t &proj_params,
+                  const vecx_t &dist_params,
+                  const bool fix=false) {
+    auto cam = new camera_params_t(new_param_id++,
+                                   cam_idx, resolution,
+                                   proj_model, dist_model,
+                                   proj_params, dist_params);
+    cam_params[cam_idx] = cam;
+    grids_buf.nb_cams++; // Very important!
+
+    if (fix) {
+      problem->AddParameterBlock(cam->param.data(), cam->global_size);
+      problem->SetParameterBlockConstant(cam->param.data());
+      cam->fixed = true;
+    }
+  }
+
+  void add_cam_extrinsics(const int cam_idx,
+                          const mat4_t &T_BCi,
+                          const bool fix=false) {
+    auto cam_ext = new extrinsics_t(new_param_id++, T_BCi);
+    cam_exts[cam_idx] = cam_ext;
+    problem->AddParameterBlock(cam_ext->param.data(), 7);
+    problem->SetParameterization(cam_ext->param.data(), &pose_parameterization);
+
+    if (fix) {
+      problem->SetParameterBlockConstant(cam_ext->param.data());
+      cam_ext->fixed = true;
+    }
+  }
+
+  void add_imu_extrinsics(const mat4_t &T_BS,
+                          const bool fix=false) {
+    auto imu_ext = new extrinsics_t(new_param_id++, T_BS);
+    imu_exts = imu_ext;
+    problem->AddParameterBlock(imu_ext->param.data(), 7);
+    problem->SetParameterization(imu_ext->param.data(), &pose_parameterization);
+
+    if (fix) {
+      problem->SetParameterBlockConstant(imu_ext->param.data());
+      imu_ext->fixed = true;
+    }
+  }
+
+  void add_sensor_pose(const timestamp_t ts,
+											 const mat4_t &T_WS,
+											 const bool fix=false) {
+    sensor_poses.push_back(new pose_t{new_param_id++, ts, T_WS});
+    problem->AddParameterBlock(sensor_poses.back()->param.data(), 7);
+    problem->SetParameterization(sensor_poses.back()->param.data(),
+                                 &pose_parameterization);
+
+		if (fix) {
+			problem->SetParameterBlockConstant(sensor_poses.back()->param.data());
+		}
+  }
+
+  void add_speed_biases(const timestamp_t ts, const vec_t<9> &sb) {
+    speed_biases.push_back(new sb_params_t(new_param_id++, ts, sb));
+    problem->AddParameterBlock(speed_biases.back()->param.data(), 9);
+  }
+
+  void add_fiducial_pose(const mat4_t &T_WF) {
+		fiducial = new pose_t(new_param_id++, 0, T_WF);
+    problem->AddParameterBlock(fiducial->param.data(), 7);
+    problem->SetParameterization(fiducial->param.data(),
+                                 &pose_parameterization);
+  }
+
+  vecx_t get_camera(const int cam_idx) {
+    return cam_params[cam_idx]->param;
+  }
+
+  mat4_t get_cam_extrinsics(const int cam_idx) {
+    return cam_exts[cam_idx]->tf();
+  }
+
+  mat4_t get_imu_extrinsics() {
+    return imu_exts->tf();
+  }
+
+  mat4_t get_sensor_pose(const int pose_index) {
+    if (pose_index == -1) {
+      return sensor_poses.back()->tf();
+    }
+    return sensor_poses[pose_index]->tf();
+  }
+
+  mat4_t get_fiducial_pose() {
+    return fiducial->tf();
+  }
+
+  int nb_cams() {
+    return cam_params.size();
+  }
+
+  int estimate_relative_pose(const aprilgrid_t &grid, mat4_t &T_C0F) {
+    assert(cam_params.count(0) == 1);
+
+    // Estimate relative pose
+    const int *cam_res = cam_params[0]->resolution;
+    const auto proj_model = cam_params[0]->proj_model;
+    const auto dist_model = cam_params[0]->dist_model;
+    const vec4_t proj_params = cam_params[0]->proj_params();
+    const vec4_t dist_params = cam_params[0]->dist_params();
+
+    int retval = 0;
+    if (proj_model == "pinhole" && dist_model == "radtan4") {
+      const pinhole_radtan4_t cam{cam_res, proj_params, dist_params};
+      retval = grid.estimate(cam, T_C0F);
+    } else if (proj_model == "pinhole" && dist_model == "equi4") {
+      const pinhole_equi4_t cam{cam_res, proj_params, dist_params};
+      retval = grid.estimate(cam, T_C0F);
+    } else {
+      FATAL("Unsupported projection-distorion type [%s-%s]!",
+            proj_model.c_str(), dist_model.c_str());
+    }
+
+    return retval;
+  }
+
+  void trim_imu_data(imu_data_t &imu_data, const timestamp_t t1) {
+    // Makesure the trim timestamp is after the first imu measurement
+    if (t1 < imu_data.timestamps.front()) {
+      return;
+    }
+
+    // Trim IMU measurements
+    imu_data_t trimmed_imu_data;
+    for (size_t k = 0; k < imu_data.timestamps.size(); k++) {
+      const timestamp_t ts = imu_data.timestamps[k];
+      if (ts >= t1) {
+        const vec3_t acc = imu_data.accel[k];
+        const vec3_t gyr = imu_data.gyro[k];
+        trimmed_imu_data.add(ts, acc, gyr);
+      }
+    }
+
+    imu_data = trimmed_imu_data;
+  }
+
+  void update_prev_grids(const aprilgrids_t &grids) {
+    // Keep track of old aprilgrids
+    grids_prev.clear();
+    for (int i = 0; i < nb_cams(); i++) {
+      grids_prev[i] = grids[i];
+    }
+  }
+
+  ImuError * add_imu_error(ceres::ResidualBlockId &error_id) {
+    pose_t *pose_i = sensor_poses[sensor_poses.size() - 2];
+    pose_t *pose_j = sensor_poses[sensor_poses.size() - 1];
+    sb_params_t *sb_i = speed_biases[speed_biases.size() - 2];
+    sb_params_t *sb_j = speed_biases[speed_biases.size() - 1];
+    const auto t0 = pose_i->ts;
+    const auto t1 = pose_j->ts;
+
+    auto error = new ImuError(imu_buf, imu_params, t0, t1);
+    error_id = problem->AddResidualBlock(error,
+                                         NULL,
+                                         pose_i->param.data(),
+                                         sb_i->param.data(),
+                                         pose_j->param.data(),
+                                         sb_j->param.data());
+
+    return error;
+  }
+
+  void add_reproj_errors(const int cam_idx,
+                         const aprilgrid_t &grid_j,
+                         std::map<int, std::vector<ceres::ResidualBlockId>> &error_ids,
+                         std::map<int, std::vector<reproj_fiducial_error_t<pinhole_radtan4_t> *>> &errors) {
+    assert(cam_params.count(cam_idx) > 0);
+    assert(cam_exts.count(cam_idx) > 0);
+    assert(imu_exts != nullptr);
+    assert(sensor_poses.size() >= 1);
+
+    const aprilgrid_t &grid_i = grids_prev[cam_idx];
+    const auto ts_i = grid_i.timestamp;
+    const auto ts_j = grid_j.timestamp;
+    const auto &T_WF = fiducial;
+    const auto &T_WS_i = sensor_poses[sensor_poses.size() - 2];
+    const auto &T_BS = imu_exts;
+    const auto &T_BCi = cam_exts[cam_idx];
+    const auto &cam = cam_params[cam_idx];
+    const int *cam_res = cam->resolution;
+    const mat2_t covar = pow(sigma_vision, 2) * I(2);
+
+    std::vector<int> tag_ids;
+    std::vector<int> corner_indicies;
+    vec2s_t grid_i_keypoints;
+    vec2s_t grid_j_keypoints;
+    vec3s_t object_points;
+    aprilgrid_t::common_measurements(grid_i, grid_j,
+                                     tag_ids, corner_indicies,
+                                     grid_i_keypoints,
+                                     grid_j_keypoints,
+                                     object_points);
+
+    for (size_t i = 0; i < tag_ids.size(); i++) {
+      const int tag_id = tag_ids[i];
+      const int corner_idx = corner_indicies[i];
+      const vec2_t z_i = grid_i_keypoints[i];
+      const vec2_t z_j = grid_j_keypoints[i];
+      const vec3_t r_FFi = object_points[i];
+
+      auto error = new reproj_fiducial_error_t<pinhole_radtan4_t>(ts_i, ts_j,
+                                                                  cam_res,
+                                                                  tag_id,
+                                                                  corner_idx,
+                                                                  r_FFi,
+                                                                  z_i, z_j,
+																												          fiducial->tf(),
+                                                                  covar);
+      auto error_id = problem->AddResidualBlock(error,
+                                                NULL,
+                                                T_WF->param.data(),
+                                                T_WS_i->param.data(),
+                                                T_BS->param.data(),
+                                                T_BCi->param.data(),
+                                                cam->param.data());
+      error_ids[cam_idx].push_back(error_id);
+      errors[cam_idx].push_back(error);
+    }
+  }
+
+  bool fiducial_detected(const aprilgrids_t &grids) {
+    assert(grids.size() > 0);
+
+    bool detected = false;
+    for (int i = 0; i < nb_cams(); i++) {
+      if (grids[i].detected) {
+        detected = true;
+      }
+    }
+
+    return detected;
+  }
+
+  mat4_t estimate_sensor_pose(const aprilgrids_t &grids) {
+    assert(grids.size() > 0);
+    assert(initialized);
+
+    if (fiducial_detected(grids) == false) {
+      FATAL("No fiducials detected!");
+    }
+
+    for (int i = 0; i < nb_cams(); i++) {
+      // Skip if not detected
+      if (grids[i].detected == false) {
+        continue;
+      }
+
+      // Estimate relative pose
+      mat4_t T_CiF = I(4);
+      if (estimate_relative_pose(grids[i], T_CiF) != 0) {
+        FATAL("Failed to estimate relative pose!");
+      }
+
+      // Infer current pose T_WS using T_C0F, T_SC0 and T_WF
+      const mat4_t T_FCi_k = T_CiF.inverse();
+      const mat4_t T_BCi = get_cam_extrinsics(i);
+      const mat4_t T_BS = get_imu_extrinsics();
+      const mat4_t T_CiS = T_BCi.inverse() * T_BS;
+      const mat4_t T_WF = get_fiducial_pose();
+      const mat4_t T_WS_k = T_WF * T_FCi_k * T_CiS;
+
+      return T_WS_k;
+    }
+
+    // Should never reach here
+    FATAL("Implementation Error!");
+    return zeros(4, 4);
+  }
+
+  void initialize(const timestamp_t &ts,
+                  const aprilgrids_t &grids,
+                  imu_data_t &imu_buf) {
+    // Estimate relative pose - T_C0F
+    assert(grids.size() > 0);
+    assert(grids[0].detected);
+    mat4_t T_C0F = I(4);
+    if (estimate_relative_pose(grids[0], T_C0F) != 0) {
+      FATAL("Failed to estimate relative pose!");
+      return;
+    }
+
+    // Estimate initial IMU attitude
+    mat3_t C_WS;
+    imu_init_attitude(imu_buf.gyro, imu_buf.accel, C_WS, 1);
+
+    // Sensor pose - T_WS
+    mat4_t T_WS = tf(C_WS, zeros(3, 1));
+
+    // Fiducial pose - T_WF
+    const mat4_t T_BC0 = get_cam_extrinsics(0);
+    const mat4_t T_BS = get_imu_extrinsics();
+    const mat4_t T_SC0 = T_BS.inverse() * T_BC0;
+    mat4_t T_WF = T_WS * T_SC0 * T_C0F;
+
+    // // Set fiducial target as origin (with r_WF (0, 0, 0))
+    // // and calculate the sensor pose offset relative to target origin
+    // const vec3_t offset = -1.0 * tf_trans(T_WF);
+    // const mat3_t C_WF = tf_rot(T_WF);
+    // const vec3_t r_WF{0.0, 0.0, 0.0};
+    // T_WF = tf(C_WF, r_WF);
+    // T_WS = tf(C_WS, offset);
+
+    // Finish up
+    add_sensor_pose(ts, T_WS, true);
+    add_speed_biases(ts, zeros(9, 1));
+    add_fiducial_pose(T_WF);
+
+    LOG_INFO("Initialize:");
+    print_matrix("T_WS", T_WS);
+    print_matrix("T_WF", T_WF);
+
+    initialized = true;
+    trim_imu_data(imu_buf, ts);  // Remove imu measurements up to ts
+    update_prev_grids(grids);
+  }
+
+  void add_state(const timestamp_t &ts, const aprilgrids_t &grids) {
+    // Estimate current pose
+    const mat4_t T_WS_k = estimate_sensor_pose(grids);
+
+    // // Propagate imu measurements to obtain speed and biases
+    // const auto t0 = sensor_poses.back()->ts;
+    // const auto t1 = ts;
+    // mat4_t T_WS = sensor_poses.back()->tf();
+    // vec_t<9> sb_k = speed_biases.back()->param;
+    // ImuError::propagation(imu_buf, imu_params, T_WS, sb_k, t0, t1);
+
+    // Infer velocity from two poses T_WS_k and T_WS_km1
+    const mat4_t T_WS_km1 = tf(sensor_poses.back()->param);
+    const vec3_t r_WS_km1 = tf_trans(T_WS_km1);
+    const vec3_t r_WS_k = tf_trans(T_WS_k);
+    const vec3_t v_WS_k = r_WS_k - r_WS_km1;
+    vec_t<9> sb_k;
+    sb_k.setZero();
+    sb_k << v_WS_k, zeros(3, 1), zeros(3, 1);
+
+    // Add updated sensor pose T_WS_k and speed and biases sb_k
+    // Note: instead of using the propagated sensor pose `T_WS`, we are using
+    // the provided `T_WS_`, this is because in the scenario where we are using
+    // AprilGrid, as a fiducial target, we actually have a better estimation of
+    // the sensor pose, as supposed to the imu propagated sensor pose.
+    add_sensor_pose(ts, T_WS_k);
+    add_speed_biases(ts, sb_k);
+
+    // Add inertial factors
+    ceres::ResidualBlockId imu_error_id = nullptr;
+    ImuError *imu_error = add_imu_error(imu_error_id);
+
+    // Add vision factors
+    std::map<int, std::vector<ceres::ResidualBlockId>> reproj_error_ids;
+    std::map<int, std::vector<reproj_fiducial_error_t<pinhole_radtan4_t> *>> reproj_errors;
+    for (int i = 0; i < nb_cams(); i++) {
+      add_reproj_errors(i, grids[i], reproj_error_ids, reproj_errors);
+    }
+
+    // Add view to sliding window
+    const auto &pose_i = sensor_poses[sensor_poses.size() - 2];
+    const auto &pose_j = sensor_poses[sensor_poses.size() - 1];
+    const auto &sb_i = speed_biases[speed_biases.size() - 2];
+    const auto &sb_j = speed_biases[speed_biases.size() - 1];
+    sliding_window.emplace_back(problem, fiducial, pose_i, pose_j, sb_i, sb_j,
+                                cam_exts, cam_params, imu_exts,
+                                imu_error_id, imu_error,
+                                reproj_error_ids, reproj_errors);
+
+    trim_imu_data(imu_buf, ts);
+    update_prev_grids(grids);
+  }
+
+  void add_measurement(const int cam_idx, const aprilgrid_t &grid) {
+    grids_buf.add(cam_idx, grid);
+    cam_grids[cam_idx].push_back(grid);
+  }
+
+  void add_measurement(const timestamp_t imu_ts,
+                       const vec3_t &a_m,
+                       const vec3_t &w_m) {
+    imu_buf.add(imu_ts, a_m, w_m);
+
+    if (grids_buf.ready()) {
+      const auto grids = grids_buf.pop_front();
+
+      // Initialize T_WS and T_WF
+      if (initialized == false) {
+        if (grids[0].detected && imu_buf.size() > 2) {
+          const auto ts = imu_buf.timestamps.front();
+          initialize(ts, grids, imu_buf);
+        }
+        return;
+      }
+
+      // Add new state
+      timestamp_t grid_ts = 0;
+      for (int i = 0; i < nb_cams(); i++) {
+        if (grids[i].detected) {
+          grid_ts = grids[i].timestamp;
+          break;
+        }
+      }
+      if (fiducial_detected(grids) && imu_ts >= grid_ts) {
+        const auto ts = imu_buf.timestamps.back();
+        add_state(ts, grids);
+      }
+    }
+  }
+
+  std::map<int, std::vector<double>> get_camera_errors() {
+    std::map<int, std::vector<double>> cam_errs;
+
+    for (int cam_idx = 0; cam_idx < nb_cams(); cam_idx++) {
+      std::vector<double> errs;
+      for (auto &view : sliding_window) {
+        view.calculate_reproj_errors(cam_idx, errs);
+      }
+      cam_errs[cam_idx] = errs;
+    }
+
+    return cam_errs;
+  }
+
+  void show_results() {
+    // Show results
+    std::map<int, std::vector<double>> cam_errs = get_camera_errors();
+
+    printf("Optimization results:\n");
+    printf("---------------------\n");
+
+    // Stats
+    printf("stats:\n");
+    for (int cam_idx = 0; cam_idx < nb_cams(); cam_idx++) {
+      printf("cam%d reprojection error [px]: ", cam_idx);
+      printf("[rmse: %f,", rmse(cam_errs[cam_idx]));
+      printf(" mean: %f,", mean(cam_errs[cam_idx]));
+      printf(" median: %f]\n", median(cam_errs[cam_idx]));
+    }
+    printf("\n");
+
+    // Cameras
+    for (int cam_idx = 0; cam_idx < nb_cams(); cam_idx++) {
+      printf("cam%d:\n", cam_idx);
+      print_vector("proj_params", cam_params[cam_idx]->proj_params());
+      print_vector("dist_params", cam_params[cam_idx]->dist_params());
+      printf("\n");
+    }
+
+    // Imu extrinsics
+    print_matrix("T_WS", sensor_poses.front()->tf());
+    print_matrix("T_BS", get_imu_extrinsics());
+    print_matrix("T_SB", get_imu_extrinsics().inverse());
+
+    // Camera Extrinsics
+    for (int cam_idx = 1; cam_idx < nb_cams(); cam_idx++) {
+      const auto key = "T_C0C" + std::to_string(cam_idx);
+      const mat4_t T_C0Ci = get_cam_extrinsics(cam_idx);
+      print_matrix(key, T_C0Ci);
+
+      {
+        const auto key = "T_C" + std::to_string(cam_idx) + "C0";
+        const mat4_t T_CiC0 = T_C0Ci.inverse();
+        print_matrix(key, T_CiC0);
+      }
+    }
+  }
+
+  void solve() {
+		ceres::Solver::Options options;
+		options.minimizer_progress_to_stdout = true;
+		options.max_num_iterations = 30;
+		ceres::Solver::Summary summary;
+		ceres::Solve(options, problem, &summary);
+		std::cout << summary.FullReport() << std::endl;
+		show_results();
+  }
+};
+
+struct calib_vi_t {
+  id_t new_param_id = 0;
 
   // Data
   aprilgrid_buffer_t grids_buf;
@@ -628,7 +1454,7 @@ struct calib_vi_t {
   ceres::ResidualBlockId marg_error_id = nullptr;
 
   // Sliding window
-  size_t max_window_size = 10;
+  size_t max_window_size = 5;
 
 	template <typename CAMERA_TYPE>
   struct calib_view_t {
@@ -723,7 +1549,6 @@ struct calib_vi_t {
 			return nb_outliers;
 		}
   };
-	// std::map<int, std::vector<calib_view_t<pinhole_radtan4_t>>> calib_views;
 	std::deque<calib_view_t<pinhole_radtan4_t>> sliding_window;
 
   calib_vi_t() {
@@ -765,6 +1590,7 @@ struct calib_vi_t {
     if (fix) {
       problem->AddParameterBlock(cam->param.data(), cam->global_size);
       problem->SetParameterBlockConstant(cam->param.data());
+      cam->fixed = true;
     }
   }
 
@@ -778,6 +1604,7 @@ struct calib_vi_t {
 
     if (fix) {
       problem->SetParameterBlockConstant(cam_ext->param.data());
+      cam_ext->fixed = true;
     }
   }
 
@@ -790,6 +1617,7 @@ struct calib_vi_t {
 
     if (fix) {
       problem->SetParameterBlockConstant(imu_ext->param.data());
+      imu_ext->fixed = true;
     }
   }
 
@@ -1060,6 +1888,9 @@ struct calib_vi_t {
     LOG_INFO("Initialize:");
     print_matrix("T_WS", T_WS);
     print_matrix("T_WF", T_WF);
+    print_matrix("T_BS", T_BS);
+    print_matrix("T_BC0", get_cam_extrinsics(0));
+    print_matrix("T_BC1", get_cam_extrinsics(1));
 
     initialized = true;
     trim_imu_data(imu_buf, ts);  // Remove imu measurements up to ts
@@ -1135,11 +1966,6 @@ struct calib_vi_t {
   }
 
   void add_state(const timestamp_t &ts, const aprilgrids_t &grids) {
-    // Marginalize old state
-    if (enable_marg && sliding_window.size() >= max_window_size) {
-      marginalize();
-    }
-
     // Estimate current pose
     const mat4_t T_WS_k = estimate_sensor_pose(grids);
 
@@ -1193,9 +2019,11 @@ struct calib_vi_t {
 
     // Solve
     if (enable_marg && sliding_window.size() >= max_window_size) {
+      marginalize();
       ceres::Solver::Options options;
       options.minimizer_progress_to_stdout = true;
-      options.max_num_iterations = 5;
+      options.max_num_iterations = 2;
+      options.num_threads = 4;
       ceres::Solver::Summary summary;
       ceres::Solve(options, problem, &summary);
 

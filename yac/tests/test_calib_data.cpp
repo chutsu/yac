@@ -158,7 +158,7 @@ int test_focal_init() {
 void test_suite() {
   MU_ADD_TEST(test_preprocess_and_load_camera_data);
   // MU_ADD_TEST(test_load_multicam_calib_data);
-  MU_ADD_TEST(test_blur_measure);
+  // MU_ADD_TEST(test_blur_measure);
   MU_ADD_TEST(test_focal_init);
 }
 

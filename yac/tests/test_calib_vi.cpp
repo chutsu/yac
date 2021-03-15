@@ -109,22 +109,22 @@ int test_reproj_error_td() {
 
   mat4_t T_WS;
   T_WS << -0.324045, 0.036747, -0.945328, 0.100000,
-          0.036747, 0.998980, 0.026236, 0.200000,
-          0.945328, -0.026236, -0.325065, 0.300000,
+          0.036747, 0.998980, 0.026236, 0.000000,
+          0.945328, -0.026236, -0.325065, 0.000000,
           0.000000, 0.000000, 0.000000, 1.000000;
   // ^ Note: Due to numerical stability issues the translation component cannot
   // be 0 for checking jacobians
 
 	mat4_t T_BC0;
-  T_BC0 << 0.0, -1.0, 0.0, 0.1,
-          1.0, 0.0, 0.0, 0.2,
-          0.0, 0.0, 1.0, 0.3,
+  T_BC0 << 0.0, -1.0, 0.0, 0.001,
+          1.0, 0.0, 0.0, 0.001,
+          0.0, 0.0, 1.0, 0.001,
           0.0, 0.0, 0.0, 1.0;
 
 	mat4_t T_BS;
-  T_BS << 0.0, -1.0, 0.0, 1.0,
-          1.0, 0.0, 0.0, 2.0,
-          0.0, 0.0, 1.0, 3.0,
+  T_BS << 0.0, -1.0, 0.0, 0.001,
+          1.0, 0.0, 0.0, 0.001,
+          0.0, 0.0, 1.0, 0.001,
           0.0, 0.0, 0.0, 1.0;
 
   const int res[2] = {752, 480};
@@ -187,14 +187,16 @@ int test_reproj_error_td() {
     mat_t<2, 2> fdiff;
 
     for (int i = 0; i < 2; i++) {
-      fiducial.perturb(i, step);
       vec2_t r_fd;
+      fiducial.perturb(i, step);
       err.Evaluate(params.data(), r_fd.data(), nullptr);
       fdiff.col(i) = (r_fd - r) / step;
       fiducial.perturb(i, -step);
     }
 
     MU_CHECK(check_jacobian("J0", fdiff, J0, threshold, true) == 0);
+		print_matrix("fdiff", fdiff);
+		print_matrix("J0", J0);
   }
 
   // -- Test sensor-pose jacobian
@@ -203,16 +205,25 @@ int test_reproj_error_td() {
 
     for (int i = 0; i < 6; i++) {
       vec2_t r_fd;
-      sensor_pose.perturb(i, 0.5 * step);
+      sensor_pose.perturb(i, step);
       err.Evaluate(params.data(), r_fd.data(), nullptr);
-      sensor_pose.perturb(i, -0.5 * step);
+      sensor_pose.perturb(i, -step);
+      fdiff.col(i) = (r_fd - r) / step;
 
-      vec2_t r_bd;
-      sensor_pose.perturb(i, -0.5 * step);
-      err.Evaluate(params.data(), r_bd.data(), nullptr);
-      sensor_pose.perturb(i, 0.5 * step);
+			print_vector("r", r);
+			print_vector("r_fd", r_fd);
 
-      fdiff.col(i) = (r_fd - r_bd) / step;
+      // vec2_t r_fd;
+      // sensor_pose.perturb(i, 0.5 * step);
+      // err.Evaluate(params.data(), r_fd.data(), nullptr);
+      // sensor_pose.perturb(i, -0.5 * step);
+      //
+      // vec2_t r_bd;
+      // sensor_pose.perturb(i, -0.5 * step);
+      // err.Evaluate(params.data(), r_bd.data(), nullptr);
+      // sensor_pose.perturb(i, 0.5 * step);
+      //
+      // fdiff.col(i) = (r_fd - r_bd) / step;
     }
 
     const mat_t<2, 6> J1_min = J1.block(0, 0, 2, 6);
@@ -221,8 +232,9 @@ int test_reproj_error_td() {
 
   // -- Test imu-extrinsics jacobian
   {
-    mat_t<2, 6> fdiff;
+    const mat_t<2, 6> J2_min = J2.block(0, 0, 2, 6);
 
+    mat_t<2, 6> fdiff;
     for (int i = 0; i < 6; i++) {
       imu_extrinsics.perturb(i, step);
       vec2_t r_fd;
@@ -231,14 +243,16 @@ int test_reproj_error_td() {
       imu_extrinsics.perturb(i, -step);
     }
 
-    const mat_t<2, 6> J2_min = J2.block(0, 0, 2, 6);
     MU_CHECK(check_jacobian("J2", fdiff, J2_min, threshold, true) == 0);
+		print_matrix("fdiff", fdiff);
+		print_matrix("J2", J2_min);
   }
 
   // -- Test cam extrinsics jacobian
   {
-    mat_t<2, 6> fdiff;
+    const mat_t<2, 6> J3_min = J3.block(0, 0, 2, 6);
 
+    mat_t<2, 6> fdiff;
     for (int i = 0; i < 6; i++) {
       cam_extrinsics.perturb(i, step);
       vec2_t r_fd;
@@ -247,8 +261,9 @@ int test_reproj_error_td() {
       cam_extrinsics.perturb(i, -step);
     }
 
-    const mat_t<2, 6> J3_min = J3.block(0, 0, 2, 6);
     MU_CHECK(check_jacobian("J3", fdiff, J3_min, threshold, true) == 0);
+		print_matrix("fdiff", fdiff);
+		print_matrix("J3", J3_min);
   }
 
   // -- Test camera-parameters jacobian
@@ -264,6 +279,8 @@ int test_reproj_error_td() {
     }
 
     MU_CHECK(check_jacobian("J4", fdiff, J4, threshold, true) == 0);
+		print_matrix("fdiff", fdiff);
+		print_matrix("J4", J4);
   }
 
 
@@ -280,6 +297,8 @@ int test_reproj_error_td() {
     }
 
     MU_CHECK(check_jacobian("J5", fdiff, J5, threshold, true) == 0);
+		print_matrix("fdiff", fdiff);
+		print_matrix("J5", J5);
   }
 
   return 0;
@@ -665,6 +684,83 @@ struct sim_data_t {
 //   return 0;
 // }
 
+int test_calib_vi_init() {
+  test_data_t test_data = setup_test_data();
+
+  vec4_t cam0_proj_params;
+  vec4_t cam0_dist_params;
+  vec4_t cam1_proj_params;
+  vec4_t cam1_dist_params;
+  mat4_t T_BC0;
+  mat4_t T_BC1;
+  config_t config{"/tmp/calib-stereo.yaml"};
+  parse(config, "cam0.proj_params", cam0_proj_params);
+  parse(config, "cam0.dist_params", cam0_dist_params);
+  parse(config, "cam1.proj_params", cam1_proj_params);
+  parse(config, "cam1.dist_params", cam1_dist_params);
+  parse(config, "T_body0_cam0", T_BC0);
+  parse(config, "T_body0_cam1", T_BC1);
+
+  // Camera parameters
+  const int res[2] = {752, 480};
+  const std::string proj_model = "pinhole";
+  const std::string dist_model = "radtan4";
+
+  // Imu parameters
+	imu_params_t imu_params;
+  imu_params.rate = 200.0;
+  imu_params.sigma_a_c = 0.002;       // Accel noise density [m/s^2/sqrt(Hz)]
+  imu_params.sigma_g_c = 1.6968e-04;  // Gyro noise density [rad/s/sqrt(Hz)]
+  imu_params.sigma_aw_c = 0.003;      // Accel drift noise density [m/s^2/sqrt(Hz)]
+  imu_params.sigma_gw_c = 1.9393e-05; // Gyro drift noise density [rad/s^s/sqrt(Hz)]
+  imu_params.g = 9.81007;         // Earth's acceleration due to gravity [m/s^2]
+
+  // Setup VI calibrator
+	calib_vi_init_t calib;
+	calib.add_imu(imu_params);
+  calib.add_camera(0, res, proj_model, dist_model, cam0_proj_params, cam0_dist_params, true);
+  calib.add_camera(1, res, proj_model, dist_model, cam1_proj_params, cam1_dist_params, true);
+  calib.add_imu_extrinsics(I(4));
+  calib.add_cam_extrinsics(0, T_BC0, true);
+  calib.add_cam_extrinsics(1, T_BC1, true);
+	// clang-format on
+
+	LOG_INFO("Adding data to problem ...");
+	// int counter = 0;
+	auto timeline = test_data.data.timeline();
+	for (const auto &ts : timeline.timestamps) {
+		const auto kv = timeline.data.equal_range(ts);
+
+		for (auto it = kv.first; it != kv.second; it++) {
+			const auto event = it->second;
+
+			if (event.type == CAMERA_EVENT) {
+				const int cam_idx = event.camera_index;
+				const auto ts = event.ts;
+				const auto grid_fname = std::to_string(ts) + ".csv";
+
+				std::string grid_fpath;
+				if (cam_idx == 0) {
+					grid_fpath = test_data.grids0_path + "/" + grid_fname;
+				} else if (cam_idx == 1) {
+					grid_fpath = test_data.grids1_path + "/" + grid_fname;
+        }
+				aprilgrid_t grid{grid_fpath};
+				calib.add_measurement(cam_idx, grid);
+
+			} else if (event.type == IMU_EVENT) {
+				const auto ts = event.ts;
+				const vec3_t a_m = event.a_m;
+				const vec3_t w_m = event.w_m;
+				calib.add_measurement(ts, a_m, w_m);
+			}
+		}
+	}
+	calib.solve();
+
+  return 0;
+}
+
 int test_calib_vi() {
   test_data_t test_data = setup_test_data();
 
@@ -672,13 +768,15 @@ int test_calib_vi() {
   vec4_t cam0_dist_params;
   vec4_t cam1_proj_params;
   vec4_t cam1_dist_params;
-  mat4_t T_C1C0;
+  mat4_t T_BC0;
+  mat4_t T_BC1;
   config_t config{"/tmp/calib-stereo.yaml"};
   parse(config, "cam0.proj_params", cam0_proj_params);
   parse(config, "cam0.dist_params", cam0_dist_params);
   parse(config, "cam1.proj_params", cam1_proj_params);
   parse(config, "cam1.dist_params", cam1_dist_params);
-  parse(config, "T_cam1_cam0", T_C1C0);
+  parse(config, "T_body0_cam0", T_BC0);
+  parse(config, "T_body0_cam1", T_BC1);
 
   // Camera parameters
   const int res[2] = {752, 480};
@@ -704,36 +802,15 @@ int test_calib_vi() {
 	calib.add_imu(imu_params);
   calib.add_camera(0, res, proj_model, dist_model, cam0_proj_params, cam0_dist_params, true);
   calib.add_camera(1, res, proj_model, dist_model, cam1_proj_params, cam1_dist_params, true);
-	// -- Add sensor-camera extrinsics
-	// clang-format off
-  // // -- Euroc Calibration values
-  // mat4_t T_imu0_cam0;
-  // T_imu0_cam0 << 0.0148655429818, -0.999880929698, 0.00414029679422, -0.0216401454975,
-  //                0.999557249008, 0.0149672133247, 0.025715529948, -0.064676986768,
-  //                -0.0257744366974, 0.00375618835797, 0.999660727178, 0.00981073058949,
-  //                0.0, 0.0, 0.0, 1.0;
-  // mat4_t T_imu0_cam1;
-  // T_imu0_cam1 << 0.0125552670891, -0.999755099723, 0.0182237714554, -0.0198435579556,
-  //                0.999598781151, 0.0130119051815, 0.0251588363115, 0.0453689425024,
-  //                -0.0253898008918, 0.0179005838253, 0.999517347078, 0.00786212447038,
-  //                0.0, 0.0, 0.0, 1.0;
-  // T_C1C0 = T_imu0_cam1.inverse() * T_imu0_cam0;
-  // print_matrix("T_C1C0", T_C1C0);
-
 	mat4_t T_BS;
-  T_BS << 0.0, -1.0, 0.0, 0.0,
-          1.0, 0.0, 0.0, 0.0,
+  T_BS << 0.0, 1.0, 0.0, 0.0,
+          -1.0, 0.0, 0.0, 0.0,
           0.0, 0.0, 1.0, 0.0,
           0.0, 0.0, 0.0, 1.0;
-	mat4_t T_BC0;
-  T_BC0 << 0.0, -1.0, 0.0, 0.0,
-          1.0, 0.0, 0.0, 0.0,
-          0.0, 0.0, 1.0, 0.0,
-          0.0, 0.0, 0.0, 1.0;
-	mat4_t T_BC1 = T_BC0 * T_C1C0.inverse();
+	// T_BS = T_imu0_cam0.inverse();
+  calib.add_imu_extrinsics(T_BS);
   calib.add_cam_extrinsics(0, T_BC0, true);
   calib.add_cam_extrinsics(1, T_BC1, true);
-  calib.add_imu_extrinsics(T_BS);
 	// clang-format on
 
 	LOG_INFO("Adding data to problem ...");
@@ -777,6 +854,7 @@ void test_suite() {
   MU_ADD_TEST(test_reproj_error_td);
   // MU_ADD_TEST(test_imu_propagate);
   // MU_ADD_TEST(test_calib_vi_sim);
+  MU_ADD_TEST(test_calib_vi_init);
   MU_ADD_TEST(test_calib_vi);
 }
 

@@ -1,0 +1,74 @@
+calib_target:
+  target_type: 'aprilgrid'  # Target type
+  tag_rows: 6               # Number of rows
+  tag_cols: 6               # Number of cols
+  tag_size: 0.088           # Size of apriltag, edge to edge [m]
+  tag_spacing: 0.3          # Ratio of space between tags to tagSize
+                            # Example: tagSize=2m, spacing=0.5m --> tagSpacing=0.25[-]
+
+settings:
+  data_path: "/data/intel_d435i/calib_data"
+  use_imu_data: true
+  est_fiducial: true
+  est_intrinsics: true
+  est_extrinsics: true
+  est_time_delay: true
+  sigma_img: 0.6
+  prepost_time_gap: 0.02
+  time_delay_bounds: [-0.05, 0.05]
+
+cam0:
+  camera_model: "pinhole"
+  distortion_model: "radtan"
+  lens_hfov: 69.4
+  lens_vfov: 42.5
+  resolution: [640.0, 480.0]
+  rate: 30.0
+
+cam1:
+  camera_model: "pinhole"
+  distortion_model: "radtan"
+  lens_hfov: 69.4
+  lens_vfov: 42.5
+  resolution: [640.0, 480.0]
+  rate: 30.0
+
+imu0:
+  a_max: 160.0 # acceleration saturation [m/s^2]
+  g_max: 10.0 # gyro saturation [rad/s]
+  # sigma_g_c: 0.00278 # gyro noise density [rad/s/sqrt(Hz)]
+  # sigma_a_c: 0.0252 # accelerometer noise density [m/s^2/sqrt(Hz)]
+  # sigma_gw_c: 1.65e-05 # gyro drift noise density [rad/s^s/sqrt(Hz)]
+  # sigma_aw_c: 0.000441 # accelerometer drift noise density [m/s^2/sqrt(Hz)]
+  # sigma_bg: 0.03 # gyro bias prior [rad/s]
+  # sigma_ba: 0.1 # accelerometer bias prior [m/s^2]
+  sigma_g_c: 0.0 # gyro noise density [rad/s/sqrt(Hz)]
+  sigma_a_c: 0.0 # accelerometer noise density [m/s^2/sqrt(Hz)]
+  sigma_gw_c: 0.0 # gyro drift noise density [rad/s^s/sqrt(Hz)]
+  sigma_aw_c: 0.0 # accelerometer drift noise density [m/s^2/sqrt(Hz)]
+  sigma_bg: 0.0 # gyro bias prior [rad/s]
+  sigma_ba: 0.0 # accelerometer bias prior [m/s^2]
+  tau: 3600.0 # reversion time constant, currently not in use [s]
+  g: 9.81007 # Earth's acceleration due to gravity [m/s^2]
+  a0: [ 0.0, 0.0, 0.0 ] # Accelerometer bias [m/s^2]
+  update_rate: 400
+
+T_imu0_cam0:
+  rows: 4
+  cols: 4
+  data: [
+    1.0, 0.0, 0.0, 0.0,
+    0.0, 1.0, 0.0, 0.0,
+    0.0, 0.0, 1.0, 0.0,
+    0.0, 0.0, 0.0, 1.0
+  ]
+
+T_imu0_cam1:
+  rows: 4
+  cols: 4
+  data: [
+    1.0, 0.0, 0.0, 0.0,
+    0.0, 1.0, 0.0, 0.0,
+    0.0, 0.0, 1.0, 0.0,
+    0.0, 0.0, 0.0, 1.0
+  ]

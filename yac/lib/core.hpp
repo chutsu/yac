@@ -183,6 +183,16 @@ typedef std::vector<timestamp_t> timestamps_t;
           ##__VA_ARGS__);                                                      \
   exit(-1)
 
+#define FATAL_ASSERT(X, M, ...)                                                \
+  if (!(X)) {                                                                  \
+    fprintf(stdout,                                                            \
+            "\033[31m[FATAL] [%s:%d] " M "\033[0m\n",                          \
+            __FILENAME__,                                                      \
+            __LINE__,                                                          \
+            ##__VA_ARGS__);                                                    \
+    exit(-1);                                                                  \
+  }
+
 #ifdef NDEBUG
 #define DEBUG(M, ...)
 #else

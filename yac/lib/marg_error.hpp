@@ -141,6 +141,10 @@ public:
     }
     // -- Column indices for parameter blocks to remain
     for (const auto &param_block : remain_param_ptrs_) {
+      if (param_block->fixed) {
+        continue;
+      }
+
       param_index_.insert({param_block, index});
       index += param_block->local_size;
       r_ += param_block->local_size;
@@ -273,7 +277,7 @@ public:
         if (param_blocks_.find(param) == param_blocks_.end()) {
           if (param->marginalize) {
             marg_param_ptrs_.push_back(param);
-          } else {
+          } else if (param->fixed == false) {
             remain_param_ptrs_.push_back(param);
           }
           param_blocks_[param] = 1;
@@ -304,27 +308,36 @@ public:
     // to marginalization.
 
     // Calculate preconditioner for H
-    const vecx_t p = (H.diagonal().array() > 1.0e-9).select(H.diagonal().cwiseSqrt(), 1.0e-3);
+    const vecx_t p = (H_marg.diagonal().array() > 1.0e-9).select(H_marg.diagonal().cwiseSqrt(), 1.0e-3);
     const vecx_t p_inv = p.cwiseInverse();
 
     // Decompose matrix H into J^T * J to obtain J via eigen-decomposition
     // i.e. H = U S U^T and therefore J = S^0.5 * U^T
-    const double eps = 1.0e-8;
-    // const Eigen::SelfAdjointEigenSolver<matx_t> eig(0.5  * p_inv.asDiagonal() * (H + H.transpose()) * p_inv.asDiagonal());
-    const Eigen::SelfAdjointEigenSolver<matx_t> eig(H_marg);
-    auto eigvals = (eig.eigenvalues().array() > eps).select(eig.eigenvalues().array(), 0.0);
-    const auto eigvals_inv = (eigvals > eps).select(eigvals.inverse(), 0);
+    // const Eigen::SelfAdjointEigenSolver<matx_t> eig(H_marg);
+    const Eigen::SelfAdjointEigenSolver<matx_t> eig(0.5  * p_inv.asDiagonal() * (H_marg + H_marg.transpose()) * p_inv.asDiagonal());
+    // -- Calculate tolerance
+    // const double eps = 1.0e-8;
+    const auto eps = std::numeric_limits<double>::epsilon();
+    const auto tol = eps * H_marg.cols() * eig.eigenvalues().array().maxCoeff();
+    // -- Form J0
+    // auto eigvals = (eig.eigenvalues().array() > eps).select(eig.eigenvalues().array(), 0.0);
+    // const auto eigvals_inv = (eigvals > eps).select(eigvals.inverse(), 0);
+    auto eigvals = (eig.eigenvalues().array() > tol).select(eig.eigenvalues().array(), 0.0);
+    const auto eigvals_inv = (eigvals > tol).select(eigvals.inverse(), 0);
     const vecx_t S = vecx_t(eigvals);
     const vecx_t S_sqrt = S.cwiseSqrt();
-    // J0_ = (p.asDiagonal() * eig.eigenvectors() * (S_sqrt.asDiagonal())).transpose();
-    J0_ = S_sqrt.asDiagonal() * eig.eigenvectors().transpose();
+    // J0_ = S_sqrt.asDiagonal() * eig.eigenvectors().transpose();
+    J0_ = (p.asDiagonal() * eig.eigenvectors() * (S_sqrt.asDiagonal())).transpose();
+    printf("tolerance: %f\t", tol);
+    printf("rank: %ld\t", rank(H_marg));
+    printf("size(H_marg): %ldx%ld\n", H_marg.rows(), H_marg.cols());
+    // print_vector("eigvals", eig.eigenvalues());
 
     // Calculate residual: e0 = -pinv(J^T) * b
     const vecx_t S_pinv = vecx_t(eigvals_inv);
     const vecx_t S_pinv_sqrt = S_pinv.cwiseSqrt();
-    // matx_t J_pinv_T = (S_pinv_sqrt.asDiagonal()) * eig.eigenvectors().transpose() * p_inv.asDiagonal();
-    // e0_ = -J_pinv_T * b_marg;
-    matx_t J_pinv_T = S_pinv_sqrt.asDiagonal() * eig.eigenvectors().transpose();
+    // const matx_t J_pinv_T = S_pinv_sqrt.asDiagonal() * eig.eigenvectors().transpose();
+    const matx_t J_pinv_T = (S_pinv_sqrt.asDiagonal()) * eig.eigenvectors().transpose() * p_inv.asDiagonal();
     e0_ = -J_pinv_T * b_marg;
 
     // Keep track of linearization point x0
@@ -374,6 +387,10 @@ public:
     vecx_t DeltaChi(e0_.size());
     for (size_t i = 0; i < remain_param_ptrs_.size(); i++) {
       const auto param_block = remain_param_ptrs_[i];
+      if (param_block->fixed) {
+        continue;
+      }
+
       const auto idx = param_index_.at(param_block) - m_;
       const vecx_t x0_i = x0_.at(param_block->param.data());
       const size_t size = param_block->global_size;
@@ -421,7 +438,6 @@ public:
         const size_t index = param_index_.at(param) - m_;
         const size_t J_cols = param->global_size;
         const size_t local_size = param->local_size;
-        printf("param: %s, index: %ld\n", param->type.c_str(), index);
 
         Eigen::Map<matx_row_major_t> J(jacobians[i], J_rows, J_cols);
         J.setZero();

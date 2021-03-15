@@ -41,8 +41,8 @@ public:
   int image_height_ = 0;
 
   ///< The base class type.
-  // typedef ::ceres::SizedCostFunction<2, 7, 2, 7, 7, 8> base_t;
-  typedef ::ceres::SizedCostFunction<2, 7, 2, 7, 7, 8, 1> base_t;
+  typedef ::ceres::SizedCostFunction<2, 7, 2, 7, 7, 8> base_t;
+  // typedef ::ceres::SizedCostFunction<2, 7, 2, 7, 7, 8, 1> base_t;
 
   ///< Number of residuals (2)
   static const int kNumResiduals = 2;
@@ -133,7 +133,7 @@ public:
     const mat4_t T_BS = tf(params[2]);
     const mat4_t T_BCi = tf(params[3]);
     Eigen::Map<const vecx_t> cam_params(params[4], 8);
-    const double td = params[5][0];
+    // const double td = params[5][0];
 
     // Transform fiducial point to camera frame
     const mat4_t T_CiB = T_BCi.inverse();
@@ -167,8 +167,9 @@ public:
                                                     &kp_projected_,
                                                     nullptr);
     }
-    // measurement_t error = measurement_ - kp_projected_;
-    measurement_t error = (measurement_ + td * v_ij_) - kp_projected_;
+    measurement_t error = measurement_ - kp_projected_;
+    // measurement_t error = (measurement_ + td * v_ij_) - kp_projected_;
+    // printf("kp: %f %f\n", kp_projected_(0), kp_projected_(1));
 
     // weight:
     measurement_t weighted_error = squareRootInformation_ * error;
@@ -179,12 +180,15 @@ public:
     bool valid = true;
     if (status != CameraBase::ProjectionStatus::Successful) {
       valid = false;
-    } else if (fabs(hp_C[3]) > 1.0e-8) {
-      Eigen::Vector3d p_C = hp_C.template head<3>() / hp_C[3];
-      if (p_C[2] < 0.0) {
-        valid = false;
-      }
+    // } else if (fabs(hp_C[3]) > 1.0e-8) {
+    //   Eigen::Vector3d p_C = hp_C.template head<3>() / hp_C[3];
+    //   if (p_C[2] < 0.0) {
+    //     valid = false;
+    //   }
+      // printf("FALSE\n");
+      // printf("error: %f %f\n", error(0), error(1));
     }
+
     // print_vector("err" , error);
     // printf("cam_idx: %d, valid: %d\n", cameraId_, valid);
 
@@ -198,10 +202,13 @@ public:
         const mat4_t T_SW = T_WS.inverse();
         const vec3_t r_SFi = tf_point(T_SW * T_WF, p_F_);
 
-        mat_t<2, 6> J_min;
+        mat_t<2, 6, row_major_t> J_min;
         J_min.setZero();
         J_min.block(0, 0, 2, 3) = -1 * Jh_weighted * -C_CiW * I(3);
         J_min.block(0, 3, 2, 3) = -1 * Jh_weighted * -C_CiW * -skew(C_WS * r_SFi);
+        if (valid == false) {
+          J_min.setZero();
+        }
 
         // pseudo inverse of the local parametrization Jacobian:
         Eigen::Matrix<double, 6, 7, Eigen::RowMajor> J_lift;
@@ -210,17 +217,11 @@ public:
         // Global jacobian
         Eigen::Map<mat_t<2, 7, row_major_t>> J(jacobians[0]);
         J = J_min * J_lift;
-        if (valid == false) {
-          J.setZero();
-        }
 
         // Minimal jacobian
         if (jacobiansMinimal && jacobiansMinimal[0]) {
           Eigen::Map<mat_t<2, 6, row_major_t>> J_min_map(jacobiansMinimal[0]);
           J_min_map = J_min;
-          if (valid == false) {
-            J_min_map.setZero();
-          }
         }
       }
 
@@ -276,10 +277,13 @@ public:
         const mat3_t C_BS = tf_rot(T_BS);
         const vec3_t r_SFi = tf_point(T_SW * T_WF, p_F_);
 
-        mat_t<2, 6> J_min;
+        mat_t<2, 6, row_major_t> J_min;
         J_min.setZero();
         J_min.block(0, 0, 2, 3) = -1 * Jh_weighted * C_CiB * I(3);
         J_min.block(0, 3, 2, 3) = -1 * Jh_weighted * C_CiB * -skew(C_BS * r_SFi);
+        if (valid == false) {
+          J_min.setZero();
+        }
 
         // pseudo inverse of the local parametrization Jacobian:
         Eigen::Matrix<double, 6, 7, Eigen::RowMajor> J_lift;
@@ -287,19 +291,12 @@ public:
 
         // Global jacobian
         Eigen::Map<mat_t<2, 7, row_major_t>> J(jacobians[2]);
-        J.setZero();
-        J.block(0, 0, 2, 6) = J_min;
-        if (valid == false) {
-          J.setZero();
-        }
+        J = J_min * J_lift;
 
         // Minimal jacobian
         if (jacobiansMinimal && jacobiansMinimal[2]) {
           Eigen::Map<mat_t<2, 6, row_major_t>> J_min_map(jacobiansMinimal[2]);
           J_min_map = J_min;
-          if (valid == false) {
-            J_min_map.setZero();
-          }
         }
       }
 
@@ -309,10 +306,13 @@ public:
         const mat3_t C_BCi = C_CiB.transpose();
         const vec3_t r_CiFi = tf_point(T_CiB * T_BS * T_SW * T_WF, p_F_);
 
-        mat_t<2, 6> J_min;
+        mat_t<2, 6, row_major_t> J_min;
         J_min.setZero();
         J_min.block(0, 0, 2, 3) = -1 * Jh_weighted * -C_CiB * I(3);
         J_min.block(0, 3, 2, 3) = -1 * Jh_weighted * -C_CiB * -skew(C_BCi * r_CiFi);
+        if (valid == false) {
+          J_min.setZero();
+        }
 
         // pseudo inverse of the local parametrization Jacobian:
         Eigen::Matrix<double, 6, 7, Eigen::RowMajor> J_lift;
@@ -321,17 +321,11 @@ public:
         // Global jacobian
         Eigen::Map<mat_t<2, 7, row_major_t>> J(jacobians[3]);
         J = J_min * J_lift;
-        if (valid == false) {
-          J.setZero();
-        }
 
         // Minimal jacobian
         if (jacobiansMinimal && jacobiansMinimal[3]) {
           Eigen::Map<mat_t<2, 6, row_major_t>> J_min_map(jacobiansMinimal[3]);
           J_min_map = J_min;
-          if (valid == false) {
-            J_min_map.setZero();
-          }
         }
       }
 
@@ -351,19 +345,19 @@ public:
         }
       }
 
-      // Jacobians w.r.t. time delay
-      if (jacobians[5]) {
-        Eigen::Map<vec2_t> J(jacobians[5]);
-        J = squareRootInformation_ * v_ij_;
-        if (valid == false) {
-          J.setZero();
-        }
-
-        if (jacobiansMinimal && jacobiansMinimal[5]) {
-          Eigen::Map<vec2_t> J_min(jacobiansMinimal[5]);
-          J_min = J;
-        }
-      }
+      // // Jacobians w.r.t. time delay
+      // if (jacobians[5]) {
+      //   Eigen::Map<vec2_t> J(jacobians[5]);
+      //   J = squareRootInformation_ * v_ij_;
+      //   if (valid == false) {
+      //     J.setZero();
+      //   }
+      //
+      //   if (jacobiansMinimal && jacobiansMinimal[5]) {
+      //     Eigen::Map<vec2_t> J_min(jacobiansMinimal[5]);
+      //     J_min = J;
+      //   }
+      // }
     }
 
     return true;

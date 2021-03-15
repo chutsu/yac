@@ -2,6 +2,10 @@
 #include <thread>
 #include <termios.h>
 
+#include <nav_msgs/Path.h>
+#include <visualization_msgs/Marker.h>
+#include <tf2_ros/transform_broadcaster.h>
+
 #include "ros.hpp"
 #include "yac.hpp"
 
@@ -115,6 +119,104 @@ static void draw_detected(const aprilgrid_t &grid, cv::Mat &image) {
   for (const vec2_t &kp : grid.keypoints()) {
     cv::circle(image, cv::Point(kp(0), kp(1)), 1.0, corner_color, 2, 8);
   }
+}
+
+bool tf_ok(const mat4_t &pose) {
+  const auto r = tf_trans(pose);
+  if (r.norm() > 100.0) {
+    return false;
+  }
+  return true;
+}
+
+void update_aprilgrid_model(const ros::Time &ts,
+                            const calib_target_t &target,
+                            ros::Publisher &rviz_pub) {
+  visualization_msgs::Marker marker;
+
+  marker.header.frame_id = "T_WF";
+  marker.header.stamp = ts;
+
+  marker.ns = "yac_ros";
+  marker.id = 0;
+  marker.type = visualization_msgs::Marker::MESH_RESOURCE;
+  marker.action = visualization_msgs::Marker::ADD;
+
+  marker.mesh_resource = "package://yac_ros/models/aprilgrid/aprilgrid.dae";
+  marker.mesh_use_embedded_materials = true;
+
+  const double tag_rows = target.tag_rows;
+  const double tag_cols = target.tag_cols;
+  const double tag_spacing = target.tag_spacing;
+  const double tag_size = target.tag_size;
+  const double spacing_x = (tag_cols - 1) * tag_spacing * tag_size;
+  const double spacing_y = (tag_rows - 1) * tag_spacing * tag_size;
+  const double calib_width = tag_cols * tag_size + spacing_x;
+  const double calib_height = tag_rows * tag_size + spacing_y;
+
+  marker.pose.position.x = calib_width / 2.0 - (tag_spacing * tag_size);
+  marker.pose.position.y = calib_height / 2.0 - (tag_spacing * tag_size);
+  marker.pose.position.z = 0;
+
+  marker.pose.orientation.w = 1.0;
+  marker.pose.orientation.x = 0.0;
+  marker.pose.orientation.y = 0.0;
+  marker.pose.orientation.z = 0.0;
+
+  marker.scale.x = calib_width;
+  marker.scale.y = calib_height;
+  marker.scale.z = 0.1;
+
+  marker.color.a = 1.0f;
+  marker.color.r = 0.0f;
+  marker.color.g = 0.0f;
+  marker.color.b = 0.0f;
+
+  rviz_pub.publish(marker);
+}
+
+void publish_nbt(const ctraj_t &traj, ros::Publisher &pub) {
+  auto ts = ros::Time::now();
+  auto frame_id = "map";
+
+  nav_msgs::Path path_msg;
+  path_msg.header.seq = 0;
+  path_msg.header.stamp = ts;
+  path_msg.header.frame_id = frame_id;
+
+  for (size_t i = 0; i < traj.timestamps.size(); i++) {
+    auto pose = tf(traj.orientations[i], traj.positions[i]);
+    auto pose_stamped = msg_build(0, ts, frame_id, pose);
+    path_msg.poses.push_back(pose_stamped);
+  }
+
+  pub.publish(path_msg);
+}
+
+void publish_fiducial_tf(const ros::Time &ts,
+                         const calib_target_t &target,
+                         const mat4_t &T_WF,
+                         tf2_ros::TransformBroadcaster &tf_br,
+                         ros::Publisher rviz_pub) {
+  if (tf_ok(T_WF) == false) {
+    return;
+  }
+
+  const auto msg = build_msg(ts, "map", "T_WF", T_WF);
+  tf_br.sendTransform(msg);
+  update_aprilgrid_model(ts, target, rviz_pub);
+}
+
+void publish_tf(const ros::Time &ts,
+                const std::string &pose_name,
+                const mat4_t &pose,
+                tf2_ros::TransformBroadcaster &tf_br) {
+  if (tf_ok(pose) == false) {
+    return;
+  }
+
+  const auto msg = build_msg(ts, "map", pose_name, pose);
+  tf_br.sendTransform(msg);
 }
 
 /* Stereo NBV calibration */

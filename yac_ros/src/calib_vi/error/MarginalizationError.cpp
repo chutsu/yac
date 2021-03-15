@@ -39,6 +39,7 @@
 #include <functional>
 
 // #include "yac/util/assert_macros.hpp"
+#include "core.hpp"
 #include "../Map.hpp"
 #include "../param/LocalParamizationAdditionalInterfaces.hpp"
 #include "MarginalizationError.hpp"
@@ -129,6 +130,7 @@ bool MarginalizationError::addResidualBlock(
   // get the residual block & check
   std::shared_ptr<ErrorInterface> errorInterfacePtr =
       mapPtr_->errorInterfacePtr(residualBlockId);
+  FATAL_ASSERT(errorInterfacePtr, "residual block id does not exist.");
   // AUTOCAL_ASSERT_TRUE_DBG(Exception, errorInterfacePtr,
   //     "residual block id does not exist.");
   if (errorInterfacePtr == 0) {
@@ -280,6 +282,8 @@ bool MarginalizationError::addResidualBlock(
       parameters.size());
 
   for (size_t i = 0; i < parameters.size(); ++i) {
+    FATAL_ASSERT(isParameterBlockConnected(parameters[i].first),
+                 "okvis bug: no linearization point, since not connected.");
     // AUTOCAL_ASSERT_TRUE_DBG(Exception, isParameterBlockConnected(parameters[i].first),
     //     "okvis bug: no linearization point, since not connected.");
     parametersRaw[i] =
@@ -306,6 +310,7 @@ bool MarginalizationError::addResidualBlock(
       ->residualBlockId2ResidualBlockSpecMap().find(residualBlockId)->second
       .lossFunctionPtr;
   if (lossFunction) {
+    FATAL_ASSERT(mapPtr_->residualBlockId2ResidualBlockSpecMap().find(residualBlockId) != mapPtr_->residualBlockId2ResidualBlockSpecMap().end(), "???");
     // AUTOCAL_ASSERT_TRUE_DBG(
     //     Exception,
     //     mapPtr_->residualBlockId2ResidualBlockSpecMap().find(residualBlockId)
@@ -361,6 +366,9 @@ bool MarginalizationError::addResidualBlock(
     ParameterBlockInfo parameterBlockInfo_i = parameterBlockInfos_.at(
         parameterBlockId2parameterBlockInfoIdx_[parameters[i].first]);
 
+    FATAL_ASSERT(parameterBlockInfo_i.parameterBlockId == parameters[i].second->id(),
+                 "okvis bug: inconstistent okvis ordering");
+
     // AUTOCAL_ASSERT_TRUE_DBG(
     //     Exception,
     //     parameterBlockInfo_i.parameterBlockId == parameters[i].second->id(),
@@ -369,6 +377,7 @@ bool MarginalizationError::addResidualBlock(
     if (parameterBlockInfo_i.minimalDimension == 0)
       continue;
 
+    FATAL_ASSERT(H_.allFinite(), "WTF1");
     // AUTOCAL_ASSERT_TRUE_DBG(Exception,H_.allFinite(),"WTF1");
 
     H_.block(parameterBlockInfo_i.orderingIdx, parameterBlockInfo_i.orderingIdx,
@@ -379,6 +388,7 @@ bool MarginalizationError::addResidualBlock(
                 parameterBlockInfo_i.minimalDimension) -= jacobiansMinimalEigen
         .at(i).transpose().eval() * residualsEigen;
 
+    FATAL_ASSERT(H_.allFinite(), "WTF2");
     // AUTOCAL_ASSERT_TRUE_DBG(Exception,H_.allFinite(),
     //                   "WTF2 " <<jacobiansMinimalEigen.at(i).transpose().eval() * jacobiansMinimalEigen.at(i));
 
@@ -386,6 +396,8 @@ bool MarginalizationError::addResidualBlock(
       ParameterBlockInfo parameterBlockInfo_j = parameterBlockInfos_.at(
           parameterBlockId2parameterBlockInfoIdx_[parameters[j].first]);
 
+      FATAL_ASSERT(parameterBlockInfo_j.parameterBlockId == parameters[j].second->id(),
+                   "okvis bug: inconstistent okvis ordering");
       // AUTOCAL_ASSERT_TRUE_DBG(
       //     Exception,
       //     parameterBlockInfo_j.parameterBlockId == parameters[j].second->id(),
@@ -427,6 +439,8 @@ bool MarginalizationError::addResidualBlock(
 // Info: is this parameter block connected to this marginalization error?
 bool MarginalizationError::isParameterBlockConnected(
     uint64_t parameterBlockId) {
+  FATAL_ASSERT(mapPtr_->parameterBlockExists(parameterBlockId),
+               "this parameter block does not even exist in the map...");
   // AUTOCAL_ASSERT_TRUE_DBG(Exception, mapPtr_->parameterBlockExists(parameterBlockId),
   //     "this parameter block does not even exist in the map...");
   std::map<uint64_t, size_t>::iterator it =
@@ -439,16 +453,23 @@ bool MarginalizationError::isParameterBlockConnected(
 
 // Checks the internal datastructure (debug)
 void MarginalizationError::check() {
-// check basic sizes
-  // AUTOCAL_ASSERT_TRUE_DBG(
-  //     Exception,
-  //     base_t::parameter_block_sizes().size()==parameterBlockInfos_.size(),
-  //     "check failed"); AUTOCAL_ASSERT_TRUE_DBG(
-  //     Exception,
-  //     parameterBlockId2parameterBlockInfoIdx_.size()==parameterBlockInfos_.size(),
-  //     "check failed"); AUTOCAL_ASSERT_TRUE_DBG(Exception, base_t::num_residuals()==H_.cols(), "check failed"); AUTOCAL_ASSERT_TRUE_DBG(Exception, base_t::num_residuals()==H_.rows(), "check failed"); AUTOCAL_ASSERT_TRUE_DBG(Exception, base_t::num_residuals()==b0_.rows(),
-  //     "check failed"); AUTOCAL_ASSERT_TRUE_DBG(Exception, parameterBlockInfos_.size()>=denseIndices_,
-  //     "check failed");
+  // check basic sizes
+  FATAL_ASSERT(base_t::parameter_block_sizes().size()==parameterBlockInfos_.size(), "check failed");
+  FATAL_ASSERT(parameterBlockId2parameterBlockInfoIdx_.size()==parameterBlockInfos_.size(), "check failed");
+  FATAL_ASSERT(base_t::num_residuals()==H_.cols(), "check failed");
+  FATAL_ASSERT(base_t::num_residuals()==H_.rows(), "check failed");
+  FATAL_ASSERT(base_t::num_residuals()==b0_.rows(), "check failed");
+  FATAL_ASSERT(parameterBlockInfos_.size()>=denseIndices_, "check failed");
+
+  /*
+  AUTOCAL_ASSERT_TRUE_DBG(Exception, base_t::parameter_block_sizes().size()==parameterBlockInfos_.size(), "check failed");
+  AUTOCAL_ASSERT_TRUE_DBG(Exception, parameterBlockId2parameterBlockInfoIdx_.size()==parameterBlockInfos_.size(), "check failed");
+  AUTOCAL_ASSERT_TRUE_DBG(Exception, base_t::num_residuals()==H_.cols(), "check failed");
+  AUTOCAL_ASSERT_TRUE_DBG(Exception, base_t::num_residuals()==H_.rows(), "check failed");
+  AUTOCAL_ASSERT_TRUE_DBG(Exception, base_t::num_residuals()==b0_.rows(), "check failed");
+  AUTOCAL_ASSERT_TRUE_DBG(Exception, parameterBlockInfos_.size()>=denseIndices_, "check failed");
+  */
+
   int totalsize = 0;
   // check parameter block sizes
   for (size_t i = 0; i < parameterBlockInfos_.size(); ++i) {
@@ -464,9 +485,11 @@ void MarginalizationError::check() {
     //     parameterBlockId2parameterBlockInfoIdx_[parameterBlockInfos_[i].parameterBlockId]==i,
     //     "check failed");
     if (i < denseIndices_) {
+      FATAL_ASSERT(!parameterBlockInfos_[i].isLandmark, "check failed");
       // AUTOCAL_ASSERT_TRUE_DBG(Exception, !parameterBlockInfos_[i].isLandmark,
       //     "check failed");
     } else {
+      FATAL_ASSERT(parameterBlockInfos_[i].isLandmark, "check failed");
       // AUTOCAL_ASSERT_TRUE_DBG(Exception, parameterBlockInfos_[i].isLandmark,
       //                   "check failed");
     }
@@ -474,6 +497,7 @@ void MarginalizationError::check() {
   }
   // check contiguous
   for (size_t i = 1; i < parameterBlockInfos_.size(); ++i) {
+    FATAL_ASSERT(parameterBlockInfos_[i-1].orderingIdx+parameterBlockInfos_[i-1].minimalDimension==parameterBlockInfos_[i].orderingIdx, "check failed ");
     // AUTOCAL_ASSERT_TRUE_DBG(
     //     Exception,
     //     parameterBlockInfos_[i-1].orderingIdx+parameterBlockInfos_[i-1].minimalDimension==parameterBlockInfos_[i].orderingIdx,
@@ -481,6 +505,7 @@ void MarginalizationError::check() {
   }
 // check dimension again
   // AUTOCAL_ASSERT_TRUE_DBG(Exception, base_t::num_residuals()==totalsize, "check failed");
+  FATAL_ASSERT(base_t::num_residuals()==totalsize, "check failed");
 }
 
 // Call this in order to (re-)add this error term after whenever it had been modified.
@@ -824,6 +849,12 @@ void MarginalizationError::updateErrorComputation() {
 
   S_sqrt_ = S_.cwiseSqrt();
   S_pinv_sqrt_ = S_pinv_.cwiseSqrt();
+
+  // printf("tolerance: %e\t", tolerance);
+  // printf("rank: %ld\t", rank(H_));
+  // printf("size(H_marg): %ldx%ld\n", H_.rows(), H_.cols());
+  // print_vector("eigen values", saes.eigenvalues());
+  // mat2csv("/tmp/H_marg.csv", H_);
 
   // assign Jacobian
   J_ = (p.asDiagonal() * saes.eigenvectors() * (S_sqrt_.asDiagonal())).transpose();

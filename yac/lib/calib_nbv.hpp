@@ -341,6 +341,10 @@ void calib_pan_trajs(const calib_target_t &target,
                      const timestamp_t &ts_start,
                      const timestamp_t &ts_end,
                      ctrajs_t &trajs) {
+  UNUSED(cam0);
+  UNUSED(cam1);
+  UNUSED(T_C0C1);
+
   // Tag width
   const double tag_rows = target.tag_rows;
   const double tag_cols = target.tag_cols;

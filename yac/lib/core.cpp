@@ -2694,13 +2694,13 @@ void imu_init_attitude(const vec3s_t w_m,
   const vec3_t gravity{0.0, 0.0, -9.81};
   C_WS = vecs2rot(mean_accel, -gravity);
 
-  // // Extract roll, pitch and set yaw to 0
-  // const quat_t q_WS = quat_t(C_WS);
-  // const vec3_t rpy = quat2euler(q_WS);
-  // const real_t roll = rpy(0);
-  // const real_t pitch = rpy(1);
-  // const real_t yaw = 0.0;
-  // C_WS = euler321(vec3_t{roll, pitch, yaw});
+  // Extract roll, pitch and set yaw to 0
+  const quat_t q_WS = quat_t(C_WS);
+  const vec3_t rpy = quat2euler(q_WS);
+  const real_t roll = rpy(0);
+  const real_t pitch = rpy(1);
+  const real_t yaw = 0.0;
+  C_WS = euler321(vec3_t{roll, pitch, yaw});
 }
 
 /*****************************************************************************

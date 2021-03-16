@@ -238,8 +238,6 @@ class Estimator {
   Estimator();
   virtual ~Estimator();
 
-  // void setupOutputs();
-  // void configure(const std::string &config_file);
   void configure(const yac::calib_data_t &calib_data);
   int addCalibTarget(const calib_target_t &calib_target);
   int addImu(const ImuParameters &params);
@@ -253,6 +251,7 @@ class Estimator {
   uint64_t addSensorPoseParameter(const Time &ts, const mat4_t &T_WS);
   uint64_t addSpeedBiasParameter(const Time &ts, const autocal::SpeedAndBias &sb);
 
+	PinholeRadtan getCamera(const int cam_idx);
   mat4_t getImuExtrinsicsEstimate();
   vecx_t getCameraParameterEstimate(const size_t cam_idx);
   mat4_t getCameraExtrinsicsEstimate(const size_t cam_idx);
@@ -296,7 +295,7 @@ class Estimator {
   void optimizeBatch(size_t numIter, size_t numThreads=1, bool verbose=false);
   void removeOutliers();
   bool setOptimizationTimeLimit(double timeLimit, int minIterations);
-  // int recoverCalibCovariance(matx_t &calib_covar);
+  int recoverCalibCovariance(matx_t &calib_covar);
   PinholeRadtan generateCamera(const int cam_idx);
 
   // void evalResiduals(std::vector<double> &imu_residuals, std::vector<double> &reproj_residuals);

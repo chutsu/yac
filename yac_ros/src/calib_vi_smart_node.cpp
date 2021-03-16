@@ -552,56 +552,56 @@ public:
 		LOG_INFO("Finished optimizing batch problem!");
   }
 
-	// void precompute_nbt() {
-	// 	LOG_INFO("Precomputing NBT");
-	// 	nbt_precomputing_ = true;
-  //
-  //   auto cam_rate = 30.0;
-	// 	auto cam0_geom = est_.getCamera(0);
-	// 	const int cam0_res[2] = {(int)cam0_geom.imageWidth(), (int)cam0_geom.imageHeight()};
-	// 	const auto cam0_params = est_.getCameraParameterEstimate(0);
-	// 	const auto cam0_proj = "pinhole";
-	// 	const auto cam0_dist = "radtan4";
-	// 	const vec4_t cam0_proj_params = cam0_params.head(4);
-	// 	const vec4_t cam0_dist_params = cam0_params.tail(4);
-	// 	camera_params_t cam0{0, 0, cam0_res, cam0_proj, cam0_dist,
-	// 		 	 	 		 	 	 	 	   cam0_proj_params, cam0_dist_params};
-  //
-	// 	auto cam1_geom = est_.getCamera(1);
-	// 	const int cam1_res[2] = {(int)cam1_geom.imageWidth(), (int)cam1_geom.imageHeight()};
-	// 	const auto cam1_params = est_.getCameraParameterEstimate(0);
-	// 	const auto cam1_proj = "pinhole";
-	// 	const auto cam1_dist = "radtan4";
-	// 	const vec4_t cam1_proj_params = cam1_params.head(4);
-	// 	const vec4_t cam1_dist_params = cam1_params.tail(4);
-	// 	camera_params_t cam1{0, 0, cam1_res, cam1_proj, cam1_dist,
-	// 		 	 	 		 	 	 	 	   cam1_proj_params, cam1_dist_params};
-  //
-	// 	auto T_WF = est_.getFiducialPoseEstimate();
-	// 	auto T_BS = est_.getImuExtrinsicsEstimate();
-	// 	auto T_BC0 = est_.getCameraExtrinsicsEstimate(0);
-	// 	auto T_BC1 = est_.getCameraExtrinsicsEstimate(1);
-	// 	auto T_SC0 = T_BS.inverse() * T_BC0;
-	// 	auto T_SC1 = T_BS.inverse() * T_BC1;
-  //
-	// 	// nbt_compute<pinhole_radtan4_t>(est_.target_params_,
-	// 	// 															 est_.imu_params_,
-	// 	// 															 cam0, cam1, cam_rate,
-	// 	// 															 T_WF, T_BC0, T_BC1, T_BS,
-	// 	// 															 nbt_trajs_, nbt_calib_infos_);
-	// 	LOG_INFO("Computed %ld NBTs", nbt_trajs_.size());
-	// 	LOG_INFO("Computed %ld NBT infos", nbt_calib_infos_.size());
-  //
-	// 	// for (size_t i = 0; i < nbt_calib_infos_.size(); i++) {
-  //   //   const matx_t covar_nbt = nbt_calib_infos_[i];
-  //   //   const std::string base_path = "/tmp/yac/nbt_infos";
-  //   //   const std::string save_path = base_path + "/nbt_calib_info-" + std::to_string(i) + ".csv";
-  //   //   mat2csv(save_path, covar_nbt);
-	// 	// }
-  //
-  //   nbt_precomputed_ = true;
-	// 	LOG_INFO("Finished precomputing NBT");
-	// }
+	void precompute_nbt() {
+		LOG_INFO("Precomputing NBT");
+		nbt_precomputing_ = true;
+
+    auto cam_rate = 30.0;
+		auto cam0_geom = est_.getCamera(0);
+		const int cam0_res[2] = {(int)cam0_geom.imageWidth(), (int)cam0_geom.imageHeight()};
+		const auto cam0_params = est_.getCameraParameterEstimate(0);
+		const auto cam0_proj = "pinhole";
+		const auto cam0_dist = "radtan4";
+		const vec4_t cam0_proj_params = cam0_params.head(4);
+		const vec4_t cam0_dist_params = cam0_params.tail(4);
+		camera_params_t cam0{0, 0, cam0_res, cam0_proj, cam0_dist,
+			 	 	 		 	 	 	 	   cam0_proj_params, cam0_dist_params};
+
+		auto cam1_geom = est_.getCamera(1);
+		const int cam1_res[2] = {(int)cam1_geom.imageWidth(), (int)cam1_geom.imageHeight()};
+		const auto cam1_params = est_.getCameraParameterEstimate(0);
+		const auto cam1_proj = "pinhole";
+		const auto cam1_dist = "radtan4";
+		const vec4_t cam1_proj_params = cam1_params.head(4);
+		const vec4_t cam1_dist_params = cam1_params.tail(4);
+		camera_params_t cam1{0, 0, cam1_res, cam1_proj, cam1_dist,
+			 	 	 		 	 	 	 	   cam1_proj_params, cam1_dist_params};
+
+		auto T_WF = est_.getFiducialPoseEstimate();
+		auto T_BS = est_.getImuExtrinsicsEstimate();
+		auto T_BC0 = est_.getCameraExtrinsicsEstimate(0);
+		auto T_BC1 = est_.getCameraExtrinsicsEstimate(1);
+		auto T_SC0 = T_BS.inverse() * T_BC0;
+		auto T_SC1 = T_BS.inverse() * T_BC1;
+
+		// nbt_compute<pinhole_radtan4_t>(est_.target_params_,
+		// 															 est_.imu_params_,
+		// 															 cam0, cam1, cam_rate,
+		// 															 T_WF, T_BC0, T_BC1, T_BS,
+		// 															 nbt_trajs_, nbt_calib_infos_);
+		LOG_INFO("Computed %ld NBTs", nbt_trajs_.size());
+		LOG_INFO("Computed %ld NBT infos", nbt_calib_infos_.size());
+
+		// for (size_t i = 0; i < nbt_calib_infos_.size(); i++) {
+    //   const matx_t covar_nbt = nbt_calib_infos_[i];
+    //   const std::string base_path = "/tmp/yac/nbt_infos";
+    //   const std::string save_path = base_path + "/nbt_calib_info-" + std::to_string(i) + ".csv";
+    //   mat2csv(save_path, covar_nbt);
+		// }
+
+    nbt_precomputed_ = true;
+		LOG_INFO("Finished precomputing NBT");
+	}
 
 	// void find_nbt() {
 	//   finding_nbt_ = true;

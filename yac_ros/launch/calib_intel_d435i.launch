@@ -49,8 +49,8 @@
 
   <!-- CALIB_VI_NODE -->
   <node pkg="yac_ros" type="calib_vi_smart_node" name="yac_node"
-      required="true" output="screen"
-      launch-prefix='gdb -ex run -args'>
+      required="true" output="screen">
+      <!-- launch&#45;prefix='gdb &#45;ex run &#45;args'> -->
     <param name="config_file" value="$(arg config_file)" />
     <param name="publish_tfs" value="true" />
     <param name="image_format" value="bgr8" />

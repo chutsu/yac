@@ -2,7 +2,7 @@
 #define AUTOCAL_CERES_FIDUCIAL_PARAMETER_BLOCK_HPP
 
 #include <Eigen/Core>
-#include "../common/Core.hpp"
+#include "core.hpp"
 #include "../common/Time.hpp"
 #include "../common/Transformation.hpp"
 #include "./ParameterBlockSized.hpp"

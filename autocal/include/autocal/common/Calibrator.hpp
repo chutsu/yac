@@ -8,8 +8,6 @@
 
 #include "core.hpp"
 #include "calib_data.hpp"
-// #include "./Core.hpp"
-// #include "./CalibData.hpp"
 #include "./Parameters.hpp"
 #include "./Measurements.hpp"
 #include "./Transformation.hpp"

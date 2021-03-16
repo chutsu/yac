@@ -826,10 +826,10 @@ void MarginalizationError::updateErrorComputation() {
   double tolerance = epsilon * H_.cols() * saes.eigenvalues().array().maxCoeff();
   S_ = Eigen::VectorXd( (saes.eigenvalues().array() > tolerance).select( saes.eigenvalues().array(), 0));
   S_pinv_ = Eigen::VectorXd( (saes.eigenvalues().array() > tolerance).select( saes.eigenvalues().array().inverse(), 0));
-  std::cout << "tol: " << tolerance << std::endl;
-  printf("rank(H_): %ld\n", rank(H_));
-  printf("size(H_): %ld\n", H_.rows());
-  print_vector("eigen values: ", saes.eigenvalues());
+  // std::cout << "tol: " << tolerance << std::endl;
+  // printf("rank(H_): %ld\n", rank(H_));
+  // printf("size(H_): %ld\n", H_.rows());
+  // print_vector("eigen values: ", saes.eigenvalues());
 
   S_sqrt_ = S_.cwiseSqrt();
   S_pinv_sqrt_ = S_pinv_.cwiseSqrt();

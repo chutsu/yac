@@ -574,6 +574,22 @@ uint64_t Estimator::addSpeedBiasParameter(const Time &ts, const autocal::SpeedAn
   return id;
 }
 
+PinholeRadtan Estimator::getCamera(const int cam_idx) {
+	const auto img_w = cameras_[cam_idx].imageWidth();
+	const auto img_h = cameras_[cam_idx].imageHeight();
+	const auto params = getCameraParameterEstimate(cam_idx);
+	const double fx = params(0);
+	const double fy = params(1);
+	const double cx = params(2);
+	const double cy = params(3);
+	const double k1 = params(4);
+	const double k2 = params(5);
+	const double k3 = params(6);
+	const double k4 = params(7);
+	PinholeRadtan camera(img_w, img_h, fx, fy, cx, cy, {k1, k2, k3, k4});
+	return camera;
+}
+
 mat4_t Estimator::getImuExtrinsicsEstimate() {
   auto param_block = T_BS_block_;
   auto param = static_cast<PoseParameterBlock *>(param_block.get());
@@ -1413,9 +1429,9 @@ void Estimator::optimize(size_t numIter, size_t numThreads, bool verbose) {
 
   // Summary output
   if (verbose) {
-    LOG(INFO) << problem_->summary.FullReport();
+		std::cout << problem_->summary.BriefReport() << std::endl;
+    // LOG(INFO) << problem_->summary.FullReport();
   }
-  std::cout << problem_->summary.BriefReport() << std::endl;
 }
 
 void Estimator::optimizeBatch(size_t numIter, size_t numThreads, bool verbose) {
@@ -1573,99 +1589,47 @@ bool Estimator::setOptimizationTimeLimit(double timeLimit, int minIterations) {
   return true;
 }
 
-// int Estimator::recoverCalibCovariance(matx_t &calib_covar) {
-//   // Recover calibration covariance
-//   auto T_SC0 = T_SC_blocks_[0]->parameters();
-//   auto T_SC1 = T_SC_blocks_[1]->parameters();
-//   auto cam0 = cam_blocks_[0]->parameters();
-//   auto cam1 = cam_blocks_[1]->parameters();
-//
-//   // Setup covariance blocks to estimate
-//   std::vector<std::pair<const double *, const double *>> covar_blocks;
-//   // -- Row 1
-//   covar_blocks.push_back({T_SC0, T_SC0});
-//   covar_blocks.push_back({T_SC0, T_SC1});
-//   covar_blocks.push_back({T_SC0, cam0});
-//   covar_blocks.push_back({T_SC0, cam1});
-//   // -- Row 2
-//   covar_blocks.push_back({T_SC1, T_SC1});
-//   covar_blocks.push_back({T_SC1, cam0});
-//   covar_blocks.push_back({T_SC1, cam1});
-//   // -- Row 3
-//   covar_blocks.push_back({cam0, cam0});
-//   covar_blocks.push_back({cam0, cam1});
-//   // -- Row 4
-//   covar_blocks.push_back({cam1, cam1});
-//
-//   // Estimate covariance
-//   ::ceres::Covariance::Options options;
-//   ::ceres::Covariance covar_est(options);
-//   auto problem_ptr = problem_->problem_.get();
-//   if (covar_est.Compute(covar_blocks, problem_ptr) == false) {
-//     LOG_ERROR("Failed to estimate covariance!");
-//     LOG_ERROR("Maybe Hessian is not full rank?");
-//     return -1;
-//   }
-//   // printf("nb residual blocks: %d\n", problem_ptr->NumResidualBlocks());
-//   // printf("nb param blocks: %d\n", problem_ptr->NumParameterBlocks());
-//
-//   // Extract covariances sub-blocks
-//   // -- Row 1
-//   Eigen::Matrix<double, 6, 6, Eigen::RowMajor> T_SC0__T_SC0_covar;
-//   Eigen::Matrix<double, 6, 6, Eigen::RowMajor> T_SC0__T_SC1_covar;
-//   Eigen::Matrix<double, 6, 8, Eigen::RowMajor> T_SC0__cam0_covar;
-//   Eigen::Matrix<double, 6, 8, Eigen::RowMajor> T_SC0__cam1_covar;
-//   covar_est.GetCovarianceBlockInTangentSpace(T_SC0, T_SC0, T_SC0__T_SC0_covar.data());
-//   covar_est.GetCovarianceBlockInTangentSpace(T_SC0, T_SC1, T_SC0__T_SC1_covar.data());
-//   covar_est.GetCovarianceBlockInTangentSpace(T_SC0, cam0, T_SC0__cam0_covar.data());
-//   covar_est.GetCovarianceBlockInTangentSpace(T_SC0, cam1, T_SC0__cam1_covar.data());
-//   // -- Row 2
-//   Eigen::Matrix<double, 6, 6, Eigen::RowMajor> T_SC1__T_SC1_covar;
-//   Eigen::Matrix<double, 6, 8, Eigen::RowMajor> T_SC1__cam0_covar;
-//   Eigen::Matrix<double, 6, 8, Eigen::RowMajor> T_SC1__cam1_covar;
-//   covar_est.GetCovarianceBlockInTangentSpace(T_SC1, T_SC1, T_SC1__T_SC1_covar.data());
-//   covar_est.GetCovarianceBlockInTangentSpace(T_SC1, cam0, T_SC1__cam0_covar.data());
-//   covar_est.GetCovarianceBlockInTangentSpace(T_SC1, cam1, T_SC1__cam1_covar.data());
-//   // -- Row 3
-//   Eigen::Matrix<double, 8, 8, Eigen::RowMajor> cam0__cam0_covar;
-//   Eigen::Matrix<double, 8, 8, Eigen::RowMajor> cam0__cam1_covar;
-//   covar_est.GetCovarianceBlock(cam0, cam0, cam0__cam0_covar.data());
-//   covar_est.GetCovarianceBlock(cam0, cam1, cam0__cam1_covar.data());
-//   // -- Row 4
-//   Eigen::Matrix<double, 8, 8, Eigen::RowMajor> cam1__cam1_covar;
-//   covar_est.GetCovarianceBlock(cam1, cam1, cam1__cam1_covar.data());
-//
-//   // Form covariance matrix block
-//   calib_covar = zeros(28, 28);
-//   // -- Row 1
-//   calib_covar.block(0, 0, 6, 6) = T_SC0__T_SC0_covar;
-//   calib_covar.block(0, 6, 6, 6) = T_SC0__T_SC1_covar;
-//   calib_covar.block(0, 12, 6, 8) = T_SC0__cam0_covar;
-//   calib_covar.block(0, 20, 6, 8) = T_SC0__cam1_covar;
-//   // -- Row 2
-//   calib_covar.block(6, 0, 6, 6) = T_SC0__T_SC1_covar.transpose();
-//   calib_covar.block(6, 6, 6, 6) = T_SC1__T_SC1_covar;
-//   calib_covar.block(6, 12, 6, 8) = T_SC1__cam0_covar;
-//   calib_covar.block(6, 20, 6, 8) = T_SC1__cam1_covar;
-//   // -- Row 3
-//   calib_covar.block(12, 0, 8, 6) = T_SC0__cam0_covar.transpose();
-//   calib_covar.block(12, 6, 8, 6) = T_SC1__cam0_covar.transpose();
-//   calib_covar.block(12, 12, 8, 8) = cam0__cam0_covar;
-//   calib_covar.block(12, 20, 8, 8) = cam0__cam1_covar;
-//   // -- Row 4
-//   calib_covar.block(20, 0, 8, 6) = T_SC0__cam1_covar.transpose();
-//   calib_covar.block(20, 6, 8, 6) = T_SC1__cam1_covar.transpose();
-//   calib_covar.block(20, 12, 8, 8) = cam0__cam1_covar.transpose();
-//   calib_covar.block(20, 20, 8, 8) = cam1__cam1_covar;
-//
-//   // Check if calib_covar is full-rank?
-//   if (rank(calib_covar) != calib_covar.rows()) {
-//     LOG_ERROR("calib_covar is not full rank!");
-//     return -1;
-//   }
-//
-//   return 0;
-// }
+int Estimator::recoverCalibCovariance(matx_t &calib_covar) {
+	// Recover calibration covariance
+	auto T_BS = T_BS_block_->parameters();
+	auto time_delay = time_delay_block_->parameters();
+
+	// Setup covariance blocks to estimate
+	std::vector<std::pair<const double *, const double *>> covar_blocks;
+	covar_blocks.push_back({T_BS, T_BS});
+	covar_blocks.push_back({time_delay, time_delay});
+
+	// Estimate covariance
+	::ceres::Covariance::Options options;
+	::ceres::Covariance covar_est(options);
+	auto problem_ptr = problem_->problem_.get();
+	if (covar_est.Compute(covar_blocks, problem_ptr) == false) {
+		LOG_ERROR("Failed to estimate covariance!");
+		LOG_ERROR("Maybe Hessian is not full rank?");
+		return -1;
+	}
+	// printf("nb residual blocks: %d\n", problem_ptr->NumResidualBlocks());
+	// printf("nb param blocks: %d\n", problem_ptr->NumParameterBlocks());
+
+	// Extract covariances sub-blocks
+	Eigen::Matrix<double, 6, 6, Eigen::RowMajor> T_BS_covar;
+	Eigen::Matrix<double, 1, 1, Eigen::RowMajor> td_covar;
+	covar_est.GetCovarianceBlockInTangentSpace(T_BS, T_BS, T_BS_covar.data());
+	covar_est.GetCovarianceBlock(time_delay, time_delay, td_covar.data());
+
+	// Form covariance matrix block
+	calib_covar = zeros(7, 7);
+	calib_covar.block(0, 0, 6, 6) = T_BS_covar;
+	calib_covar.block(6, 6, 1, 1) = td_covar;
+
+	// Check if calib_covar is full-rank?
+	if (full_rank(calib_covar) == false) {
+		LOG_ERROR("calib_covar is not full rank!");
+		return -1;
+	}
+
+	return 0;
+}
 
 PinholeRadtan Estimator::generateCamera(const int cam_idx) {
   const auto img_w = cameras_[cam_idx].imageWidth();

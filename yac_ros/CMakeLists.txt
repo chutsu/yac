@@ -75,19 +75,19 @@ SET(
 
 # YAC ROS
 ADD_LIBRARY(yac_ros
-            # src/calib_vi/common/Duration.cpp
-            # src/calib_vi/common/operators.cpp
-            # src/calib_vi/common/Time.cpp
-            # src/calib_vi/common/Transformation.cpp
-            # src/calib_vi/cv/CameraBase.cpp
-            # src/calib_vi/cv/EquidistantDistortion.cpp
-            # src/calib_vi/cv/RadialTangentialDistortion.cpp
-            # src/calib_vi/param/LocalParamizationAdditionalInterfaces.cpp
-            # src/calib_vi/error/MarginalizationError.cpp
-            # src/calib_vi/error/PoseError.cpp
-            # src/calib_vi/error/SpeedAndBiasError.cpp
-            # src/calib_vi/Calibrator.cpp
-            # src/calib_vi/Map.cpp
+            src/calib_vi/common/Duration.cpp
+            src/calib_vi/common/operators.cpp
+            src/calib_vi/common/Time.cpp
+            src/calib_vi/common/Transformation.cpp
+            src/calib_vi/cv/CameraBase.cpp
+            src/calib_vi/cv/EquidistantDistortion.cpp
+            src/calib_vi/cv/RadialTangentialDistortion.cpp
+            src/calib_vi/param/LocalParamizationAdditionalInterfaces.cpp
+            src/calib_vi/error/MarginalizationError.cpp
+            src/calib_vi/error/PoseError.cpp
+            src/calib_vi/error/SpeedAndBiasError.cpp
+            src/calib_vi/Calibrator.cpp
+            src/calib_vi/Map.cpp
             src/ros.cpp)
 INSTALL(
   DIRECTORY launch/

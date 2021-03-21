@@ -800,9 +800,9 @@ public:
     addSpeedBiasParameter(ts, zeros(9, 1));
     addFiducialPose(T_WF);
 
-    std::vector<::ceres::ResidualBlockId> reproj_error_ids;
-    std::vector<std::vector<uint64_t>> reproj_error_param_ids;
-    addReprojErrors(grids, reproj_error_ids, reproj_error_param_ids);
+    // std::vector<::ceres::ResidualBlockId> reproj_error_ids;
+    // std::vector<std::vector<uint64_t>> reproj_error_param_ids;
+    // addReprojErrors(grids, reproj_error_ids, reproj_error_param_ids);
 
     LOG_INFO("Initialize:");
     print_matrix("T_WS", T_WS);
@@ -879,15 +879,15 @@ public:
     vec_t<9> sb_k;
     sb_k.setZero();
     sb_k << v_WS_k, zeros(3, 1), zeros(3, 1);
-    addSpeedBiasParameter(ts, sb_k);
+    auto sb_param_id = addSpeedBiasParameter(ts, sb_k);
 
     // Add inertial factor
     std::vector<uint64_t> imu_error_param_ids;
     auto imu_error_id = addImuError(imu_data, imu_error_param_ids);
 
-    // Add speed bias factor
-    uint64_t sb_param_id;
-    auto sb_error_id = addSpeedBiasError(sb_param_id);
+    // // Add speed bias factor
+    // auto sb_error_id = addSpeedBiasError(sb_param_id);
+		::ceres::ResidualBlockId sb_error_id;
 
     // Add vision factors
     std::vector<::ceres::ResidualBlockId> reproj_error_ids;
@@ -992,12 +992,12 @@ public:
       keep_params.push_back(false);
       keep_params.push_back(false);
     }
-    // -- Add SpeedBiasError to MarginalizationError
-    if (sb_error_id) {
-      marg_error_->addResidualBlock(sb_error_id);
-      marg_params.push_back(sb_error_param_id);
-      keep_params.push_back(false);
-    }
+    // // -- Add SpeedBiasError to MarginalizationError
+    // if (sb_error_id) {
+    //   marg_error_->addResidualBlock(sb_error_id);
+    //   marg_params.push_back(sb_error_param_id);
+    //   keep_params.push_back(false);
+    // }
     // -- Add CalibReprojError to MarginalizationError
     for (size_t i = 0; i < reproj_error_ids.size(); i++) {
       auto &error_id = reproj_error_ids[i];

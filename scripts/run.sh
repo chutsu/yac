@@ -50,7 +50,7 @@ exit
 
 
 # make
-make lib
+# make lib
 # make lib_debug
 # make release
 # make debug

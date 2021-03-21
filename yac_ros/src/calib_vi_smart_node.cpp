@@ -24,22 +24,17 @@
 #include "yac.hpp"
 #include "calib_nbv.hpp"
 
-// #include "calib_vi/Calibrator.hpp"
-// #include "calib_vi/Estimator.hpp"
-// #include "calib_vi/cv/PinholeCamera.hpp"
-// #include "calib_vi/cv/RadialTangentialDistortion.hpp"
+#include "calib_vi/Calibrator.hpp"
+#include "calib_vi/Estimator.hpp"
+#include "calib_vi/cv/PinholeCamera.hpp"
+#include "calib_vi/cv/RadialTangentialDistortion.hpp"
 
-// #include "autocal/common/Core.hpp"
-// #include "autocal/common/AprilGrid.hpp"
-// #include "autocal/common/CalibData.hpp"
-#include "autocal/common/Calibrator.hpp"
-#include "autocal/Estimator.hpp"
-#include "autocal/cv/CameraGeometry.hpp"
+// #include "autocal/common/Calibrator.hpp"
+// #include "autocal/Estimator.hpp"
+// #include "autocal/cv/CameraGeometry.hpp"
 
 #include "ros.hpp"
 #include "ros_calib.hpp"
-
-using namespace autocal;
 
 namespace yac {
 
@@ -390,7 +385,7 @@ public:
 
   // Calibrator
   aprilgrid_detector_t *detector_ = nullptr;
-  autocal::Estimator est_;
+  Estimator est_;
 
   // NBT
   bool nbt_precomputing_ = false;
@@ -538,7 +533,7 @@ public:
     const auto acc = msg->linear_acceleration;
     const vec3_t w_m{gyr.x, gyr.y, gyr.z};
     const vec3_t a_m{acc.x, acc.y, acc.z};
-    const auto ts = autocal::Time{msg->header.stamp.toSec()};
+    const auto ts = Time{msg->header.stamp.toSec()};
 		est_.addMeasurement(ts, w_m, a_m);
   }
 
@@ -665,15 +660,15 @@ public:
   }
 
   void loop() {
-    // Terminal capture thread
-    keyboard_thread_ = std::thread([&](){
-      print_usage();
-
-      while (loop_) {
-        const int key = getchar();
-        event_handler(key);
-      }
-    });
+    // // Terminal capture thread
+    // keyboard_thread_ = std::thread([&](){
+    //   print_usage();
+    //
+    //   while (loop_) {
+    //     const int key = getchar();
+    //     event_handler(key);
+    //   }
+    // });
 
     // ROS loop
     while (loop_) {

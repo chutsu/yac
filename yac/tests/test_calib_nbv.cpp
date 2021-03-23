@@ -577,24 +577,23 @@ int test_nbt_eval_traj() {
 
   // Generate trajectory
   const timestamp_t ts_start = 0;
-  const timestamp_t ts_end = 5e9;
+  const timestamp_t ts_end = 2e9;
   ctrajs_t trajs;
-  calib_orbit_trajs<pinhole_radtan4_t>(target,
-				 	 	 	 	 	  	 	 	 		 	 	 	 	 cameras[0], cameras[1],
+  calib_orbit_trajs<pinhole_radtan4_t>(target, cameras[0], cameras[1],
 			 	 	 		 	 	  	 	 	 		 	 	 	 	 T_BC0, T_BC1, T_WF, T_FO,
 					 		 	    	 	 	 		 	 	 	 	 ts_start, ts_end, trajs);
 
   // Simulate IMU
   imu_params_t imu_params;
   imu_params.rate = 250.0;
-  imu_params.sigma_g_c  = 0.0;
-  imu_params.sigma_bg = 0.0;
-  imu_params.sigma_a_c  = 0.0;
-  imu_params.sigma_ba  = 0.0;
-  imu_params.sigma_gw_c = 0.0;
-  imu_params.sigma_aw_c = 0.0;
-  // imu_params.tau = 0.0;
+  imu_params.sigma_g_c = 0.00278;
+  imu_params.sigma_a_c = 0.0252;
+  imu_params.sigma_bg = 0.03;
+  imu_params.sigma_ba = 0.1;
+  imu_params.sigma_gw_c = 1.65e-05;
+  imu_params.sigma_aw_c = 0.000441;
 
+  #pragma omp parallel for
   for (size_t traj_idx = 0; traj_idx < trajs.size(); traj_idx++) {
 		matx_t calib_covar;
 		int retval = nbt_eval_traj<pinhole_radtan4_t>(trajs[traj_idx],

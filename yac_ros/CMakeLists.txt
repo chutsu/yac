@@ -41,7 +41,6 @@ FIND_PACKAGE(
 		tf2_ros
 		tf2_geometry_msgs
     yac
-    autocal
 )
 INCLUDE_DIRECTORIES(${catkin_INCLUDE_DIRS})
 
@@ -88,33 +87,34 @@ ADD_LIBRARY(yac_ros
             src/calib_vi/error/SpeedAndBiasError.cpp
             src/calib_vi/Calibrator.cpp
             src/calib_vi/Map.cpp
-            src/ros.cpp)
+            src/ros_calib.cpp
+            src/ros_utils.cpp)
 INSTALL(
   DIRECTORY launch/
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/launch
 )
 
 # # ROS NODES
-# ADD_EXECUTABLE(calib_capture_node src/calib_capture_node.cpp)
+# ADD_EXECUTABLE(calib_capture_node src/nodes/calib_capture_node.cpp)
 # TARGET_LINK_LIBRARIES(calib_capture_node ${DEPS})
 #
-# ADD_EXECUTABLE(calib_mocap_capture_node src/calib_mocap_capture_node.cpp)
+# ADD_EXECUTABLE(calib_mocap_capture_node src/nodes/calib_mocap_capture_node.cpp)
 # TARGET_LINK_LIBRARIES(calib_mocap_capture_node ${DEPS})
 #
-# ADD_EXECUTABLE(calib_mocap_node src/calib_mocap_node.cpp)
+# ADD_EXECUTABLE(calib_mocap_node src/nodes/calib_mocap_node.cpp)
 # TARGET_LINK_LIBRARIES(calib_mocap_node ${DEPS})
 #
-# ADD_EXECUTABLE(calib_mono_node src/calib_mono_node.cpp)
+# ADD_EXECUTABLE(calib_mono_node src/nodes/calib_mono_node.cpp)
 # TARGET_LINK_LIBRARIES(calib_mono_node ${DEPS})
 #
-# ADD_EXECUTABLE(calib_mono_nbv_node src/calib_mono_nbv_node.cpp)
+# ADD_EXECUTABLE(calib_mono_nbv_node src/nodes/calib_mono_nbv_node.cpp)
 # TARGET_LINK_LIBRARIES(calib_mono_nbv_node ${DEPS})
 #
-# ADD_EXECUTABLE(calib_stereo_node src/calib_stereo_node.cpp)
+# ADD_EXECUTABLE(calib_stereo_node src/nodes/calib_stereo_node.cpp)
 # TARGET_LINK_LIBRARIES(calib_stereo_node ${DEPS})
 
-# ADD_EXECUTABLE(calib_stereo_nbv_node src/calib_stereo_nbv_node.cpp)
+# ADD_EXECUTABLE(calib_stereo_nbv_node src/nodes/calib_stereo_nbv_node.cpp)
 # TARGET_LINK_LIBRARIES(calib_stereo_nbv_node ${DEPS})
 
-ADD_EXECUTABLE(calib_vi_smart_node src/calib_vi_smart_node.cpp)
+ADD_EXECUTABLE(calib_vi_smart_node src/nodes/calib_vi_smart_node.cpp)
 TARGET_LINK_LIBRARIES(calib_vi_smart_node ${DEPS})

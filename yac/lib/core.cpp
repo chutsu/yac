@@ -3428,11 +3428,6 @@ void sim_imu_measurement(sim_imu_t &imu,
   const mat3_t C_SW = tf_rot(T_WS_W).transpose();
   const vec3_t w_g = mvn(rndeng); // Gyro white noise
   w_WS_S = C_SW * w_WS_W + imu.b_g + w_g * imu.sigma_g_c * sqrt(dt);
-	print_matrix("C_SW", C_SW);
-	print_vector("w_WS_W", w_WS_W);
-	print_vector("w_g", w_g);
-	print_vector("imu.b_g", imu.b_g);
-	printf("imu.sigma_g_c: %f\n", imu.sigma_g_c);
 
   // Compute accel measurement
   const vec3_t g{0.0, 0.0, imu.g}; // Gravity vector

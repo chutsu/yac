@@ -1,0 +1,120 @@
+#include "calib_nbv.hpp"
+
+namespace yac {
+
+double entropy(const matx_t &covar) {
+  const Eigen::SelfAdjointEigenSolver<matx_t> eig(covar);
+  const auto eigvals = eig.eigenvalues().array();
+  return -1.0 * eigvals.log().sum() / std::log(2);
+}
+
+double info_gain(const matx_t &calib_covar, const double info_prev) {
+  const double info = entropy(calib_covar);
+  return 0.5 * (info - info_prev);
+}
+
+void simulate_imu(const ctraj_t &traj,
+                  const timestamp_t &ts_start,
+                  const timestamp_t &ts_end,
+									const mat4_t &T_BC0,
+									const mat4_t &T_BS,
+                  const imu_params_t &imu_params,
+                  timestamps_t &imu_time,
+                  vec3s_t &imu_accel,
+                  vec3s_t &imu_gyro,
+                  mat4s_t &imu_poses,
+                  vec3s_t &imu_vels) {
+  const timestamp_t imu_dt = sec2ts(1.0 / imu_params.rate);
+  timestamp_t ts_k = ts_start;
+  std::default_random_engine rndeng;
+
+  sim_imu_t sim_imu;
+  sim_imu.rate       = imu_params.rate;
+  // sim_imu.tau_a      = imu_params.tau;
+  // sim_imu.tau_g      = imu_params.tau;
+  sim_imu.sigma_g_c  = imu_params.sigma_g_c;
+  sim_imu.sigma_a_c  = imu_params.sigma_a_c;
+  sim_imu.sigma_gw_c = imu_params.sigma_gw_c;
+  sim_imu.sigma_aw_c = imu_params.sigma_aw_c;
+  sim_imu.g          = imu_params.g;
+
+  while (ts_k <= ts_end) {
+    // Get camera pose, angular velocity and acceleration in camera frame
+    const mat4_t T_WC = ctraj_get_pose(traj, ts_k);
+    const vec3_t v_WC = ctraj_get_velocity(traj, ts_k);
+    const vec3_t a_WC = ctraj_get_acceleration(traj, ts_k);
+    const vec3_t w_WC = ctraj_get_angular_velocity(traj, ts_k);
+
+		// Convert camera frame to sensor frame
+    const mat4_t T_WS_W = T_WC;
+    // const mat4_t T_CW = T_WC.inverse();
+    // const mat4_t T_WS_W = (T_SC * T_CW).inverse();
+    // const mat3_t C_CW = tf_rot(T_CW);
+    // const mat3_t C_SC = tf_rot(T_SC);
+    // const vec3_t w_WS_W = C_SC * (C_CW * w_WC);
+    // const vec3_t a_WS_W = C_SC * (C_CW * a_WC);
+    // const vec3_t v_WS_W = C_SC * (C_CW * v_WC);
+    const vec3_t w_WS_W = w_WC;
+    const vec3_t a_WS_W = a_WC;
+    const vec3_t v_WS_W = v_WC;
+
+    vec3_t a_WS_S{0.0, 0.0, 0.0};
+    vec3_t w_WS_S{0.0, 0.0, 0.0};
+    sim_imu_measurement(
+      sim_imu,
+      rndeng,
+      ts_k,
+      T_WS_W,
+      w_WS_W,
+      a_WS_W,
+      a_WS_S,
+      w_WS_S
+    );
+
+		// printf("ts: %ld\n", ts_k);
+		// print_matrix("T_WS_W", T_WS_W);
+		// print_vector("w_WS_W", w_WS_W);
+		// print_vector("a_WS_W", a_WS_W);
+		// print_vector("a_WS_S", a_WS_S);
+		// print_vector("w_WS_S", w_WS_S);
+
+    imu_time.push_back(ts_k);
+    imu_accel.push_back(a_WS_S);
+    imu_gyro.push_back(w_WS_S);
+    imu_poses.push_back(T_WS_W);
+    imu_vels.push_back(v_WS_W);
+
+    ts_k += imu_dt;
+  }
+}
+
+void nbt_create_timeline(const timestamps_t &imu_ts,
+                      	 const vec3s_t &imu_gyr,
+                      	 const vec3s_t &imu_acc,
+                      	 const std::vector<aprilgrids_t> grid_data,
+                      	 timeline_t &timeline) {
+  // -- Add imu events
+  for (size_t i = 0; i < imu_ts.size(); i++) {
+    const timestamp_t ts = imu_ts[i];
+    const vec3_t a_B = imu_acc[i];
+    const vec3_t w_B = imu_gyr[i];
+    const timeline_event_t event{ts, a_B, w_B};
+    timeline.add(event);
+  }
+
+  // -- Add aprilgrids observed from all cameras
+  for (size_t cam_idx = 0; cam_idx < grid_data.size(); cam_idx++) {
+    const auto grids = grid_data[cam_idx];
+    for (const auto &grid : grids) {
+      if (grid.detected == false) {
+        continue;
+      }
+
+      const auto ts = grid.timestamp;
+      const timeline_event_t event{ts, (int) cam_idx, grid};
+      timeline.add(event);
+    }
+  }
+}
+
+} // namespace yac

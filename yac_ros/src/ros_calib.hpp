@@ -1,3 +1,6 @@
+#ifndef YAC_ROS_CALIB_HPP
+#define YAC_ROS_CALIB_HPP
+
 #include <signal.h>
 #include <thread>
 #include <termios.h>
@@ -6,10 +9,28 @@
 #include <visualization_msgs/Marker.h>
 #include <tf2_ros/transform_broadcaster.h>
 
-#include "ros.hpp"
 #include "yac.hpp"
+#include "ros_utils.hpp"
 
 namespace yac {
+
+void draw_status_text(const std::string &text, cv::Mat &image);
+void draw_detected(const aprilgrid_t &grid, cv::Mat &image);
+bool tf_ok(const mat4_t &pose);
+void update_aprilgrid_model(const ros::Time &ts,
+                            const calib_target_t &target,
+                            ros::Publisher &rviz_pub);
+
+void publish_nbt(const ctraj_t &traj, ros::Publisher &pub);
+void publish_fiducial_tf(const ros::Time &ts,
+                         const calib_target_t &target,
+                         const mat4_t &T_WF,
+                         tf2_ros::TransformBroadcaster &tf_br,
+                         ros::Publisher rviz_pub);
+void publish_tf(const ros::Time &ts,
+                const std::string &pose_name,
+                const mat4_t &pose,
+                tf2_ros::TransformBroadcaster &tf_br);
 
 /* ROS Calibration Configuration */
 struct ros_config_t {
@@ -45,189 +66,9 @@ struct ros_config_t {
   }
 };
 
-static void draw_status_text(const std::string &text, cv::Mat &image) {
-  // Create overlay image
-  const int img_w = image.cols;
-  const int img_h = image.rows;
-  cv::Mat overlay = image.clone();
-
-  // Text properties
-  const int text_font = cv::FONT_HERSHEY_PLAIN;
-  const float text_scale = 4.0;
-  const int text_thickness = 4;
-  const cv::Scalar text_color{0, 255, 0};
-  int baseline = 0;
-  auto text_size = cv::getTextSize(text,
-                                    text_font,
-                                    text_scale,
-                                    text_thickness,
-                                    &baseline);
-  int text_x = (img_w - text_size.width) / 2.0;
-  int text_y = (img_h + text_size.height) / 2.0;
-  const cv::Point text_pos{text_x, text_y}; // Bottom left of text string
-
-  // Overlay properties
-  const int pad = 20;
-  const double alpha = 0.5;
-  const int overlay_x1 = ((img_w - text_size.width) / 2.0) - pad / 2.0;
-  const int overlay_y1 = ((img_h - text_size.height) / 2.0) - pad / 2.0;
-  const int overlay_x2 = overlay_x1 + text_size.width + pad / 2.0;
-  const int overlay_y2 = overlay_y1 + text_size.height + pad / 2.0;
-  const cv::Point2f p0(overlay_x1, overlay_y1);
-  const cv::Point2f p1(overlay_x2, overlay_y2);
-  const cv::Scalar overlay_color{0, 0, 0};
-  cv::rectangle(overlay, p0, p1, overlay_color, -1);
-
-  // Draw overlay and text
-  cv::addWeighted(overlay, alpha, image, 1 - alpha,0, image);
-  cv::putText(image,
-              text,
-              text_pos,
-              text_font,
-              text_scale,
-              text_color,
-              text_thickness,
-              CV_AA);
-}
-
-static void draw_detected(const aprilgrid_t &grid, cv::Mat &image) {
-  // Visualize detected
-  std::string text = "AprilGrid: ";
-  cv::Scalar text_color;
-  if (grid.detected) {
-    text += "detected!";
-    text_color = cv::Scalar(0, 255, 0);
-  } else {
-    text += "not detected!";
-    text_color = cv::Scalar(0, 0, 255);
-  }
-  const cv::Point text_pos{10, 30};
-  const int text_font = cv::FONT_HERSHEY_PLAIN;
-  const float text_scale = 1.0;
-  const int text_thickness = 1;
-  cv::putText(image,
-              text,
-              text_pos,
-              text_font,
-              text_scale,
-              text_color,
-              text_thickness,
-              CV_AA);
-
-  // Visualize detected corners
-  const auto corner_color = cv::Scalar(0, 255, 0);
-  for (const vec2_t &kp : grid.keypoints()) {
-    cv::circle(image, cv::Point(kp(0), kp(1)), 1.0, corner_color, 2, 8);
-  }
-}
-
-bool tf_ok(const mat4_t &pose) {
-  const auto r = tf_trans(pose);
-  if (r.norm() > 100.0) {
-    return false;
-  }
-  return true;
-}
-
-void update_aprilgrid_model(const ros::Time &ts,
-                            const calib_target_t &target,
-                            ros::Publisher &rviz_pub) {
-  visualization_msgs::Marker marker;
-
-  marker.header.frame_id = "T_WF";
-  marker.header.stamp = ts;
-
-  marker.ns = "yac_ros";
-  marker.id = 0;
-  marker.type = visualization_msgs::Marker::MESH_RESOURCE;
-  marker.action = visualization_msgs::Marker::ADD;
-
-  marker.mesh_resource = "package://yac_ros/models/aprilgrid/aprilgrid.dae";
-  marker.mesh_use_embedded_materials = true;
-
-  const double tag_rows = target.tag_rows;
-  const double tag_cols = target.tag_cols;
-  const double tag_spacing = target.tag_spacing;
-  const double tag_size = target.tag_size;
-  const double spacing_x = (tag_cols - 1) * tag_spacing * tag_size;
-  const double spacing_y = (tag_rows - 1) * tag_spacing * tag_size;
-  const double calib_width = tag_cols * tag_size + spacing_x;
-  const double calib_height = tag_rows * tag_size + spacing_y;
-
-  marker.pose.position.x = calib_width / 2.0 - (tag_spacing * tag_size);
-  marker.pose.position.y = calib_height / 2.0 - (tag_spacing * tag_size);
-  marker.pose.position.z = 0;
-
-  marker.pose.orientation.w = 1.0;
-  marker.pose.orientation.x = 0.0;
-  marker.pose.orientation.y = 0.0;
-  marker.pose.orientation.z = 0.0;
-
-  marker.scale.x = calib_width;
-  marker.scale.y = calib_height;
-  marker.scale.z = 0.1;
-
-  marker.color.a = 1.0f;
-  marker.color.r = 0.0f;
-  marker.color.g = 0.0f;
-  marker.color.b = 0.0f;
-
-  rviz_pub.publish(marker);
-}
-
-void publish_nbt(const ctraj_t &traj, ros::Publisher &pub) {
-  auto ts = ros::Time::now();
-  auto frame_id = "map";
-
-  nav_msgs::Path path_msg;
-  path_msg.header.seq = 0;
-  path_msg.header.stamp = ts;
-  path_msg.header.frame_id = frame_id;
-
-  for (size_t i = 0; i < traj.timestamps.size(); i++) {
-    auto pose = tf(traj.orientations[i], traj.positions[i]);
-    auto pose_stamped = msg_build(0, ts, frame_id, pose);
-    path_msg.poses.push_back(pose_stamped);
-  }
-
-  pub.publish(path_msg);
-}
-
-void publish_fiducial_tf(const ros::Time &ts,
-                         const calib_target_t &target,
-                         const mat4_t &T_WF,
-                         tf2_ros::TransformBroadcaster &tf_br,
-                         ros::Publisher rviz_pub) {
-  if (tf_ok(T_WF) == false) {
-    return;
-  }
-
-  const auto msg = build_msg(ts, "map", "T_WF", T_WF);
-  tf_br.sendTransform(msg);
-  update_aprilgrid_model(ts, target, rviz_pub);
-}
-
-void publish_tf(const ros::Time &ts,
-                const std::string &pose_name,
-                const mat4_t &pose,
-                tf2_ros::TransformBroadcaster &tf_br) {
-  if (tf_ok(pose) == false) {
-    return;
-  }
-
-  const auto msg = build_msg(ts, "map", pose_name, pose);
-  tf_br.sendTransform(msg);
-}
-
 /* Stereo NBV calibration */
 template <typename CAMERA>
 struct calib_stereo_nbv_t {
-  enum CALIB_STATE {
-    INITIALIZE = 0,
-    NBV = 1,
-    BATCH = 2
-  };
-
   // ROS
   ros_config_t &config;
   calib_data_t &calib_data;
@@ -240,6 +81,11 @@ struct calib_stereo_nbv_t {
   message_filters::Synchronizer<ImageSyncPolicy> image_sync;
 
   // State
+  enum CALIB_STATE {
+    INITIALIZE = 0,
+    NBV = 1,
+    BATCH = 2
+  };
   int state = INITIALIZE;
   bool keep_running = true;
   bool cam_init = false;
@@ -594,4 +440,229 @@ struct calib_stereo_nbv_t {
   }
 };
 
+struct calib_vi_init_node_t {
+  enum CALIB_STATE {
+    INITIALIZE = 0,
+    NBV = 1,
+    BATCH = 2
+  };
+
+  std::mutex mtx_;
+  bool initialized_ = false;
+  bool optimizing_ = false;
+  bool loop_ = true;
+
+  // ROS
+  ros_config_t &config;
+  calib_data_t &calib_data;
+  // -- IMU subscriber
+  ros::Subscriber imu0_sub_;
+  // -- Image subscribers
+  typedef message_filters::sync_policies::ExactTime<sensor_msgs::Image, sensor_msgs::Image> ImageSyncPolicy;
+  typedef message_filters::Subscriber<sensor_msgs::Image> ImageSubscriber;
+  ImageSubscriber cam0_sub_;
+  ImageSubscriber cam1_sub_;
+  image_transport::Publisher uncertainty_pub_;
+  message_filters::Synchronizer<ImageSyncPolicy> image_sync_;
+  // -- TF broadcaster
+  tf2_ros::TransformBroadcaster tf_br_;
+  // -- Rviz marker publisher
+  ros::Publisher rviz_pub_;
+
+  // Calibrator
+  int state = INITIALIZE;
+  mat4s_t poses_init;
+  std::map<int, std::vector<cv::Mat>> frames_init;
+  double nbv_reproj_error_threshold = 10.0;
+  double nbv_reproj_err = std::numeric_limits<double>::max();
+  aprilgrid_detector_t *detector_ = nullptr;
+  yac::calib_vi_init_t est_;
+
+  // Keyboard event handling
+  struct termios term_config_;
+  struct termios term_config_orig_;
+
+  // Threads
+  std::thread keyboard_thread_;
+
+  calib_vi_init_node_t(ros_config_t &config_, calib_data_t &calib_data_)
+      : config{config_},
+        calib_data{calib_data_},
+        cam0_sub_{*config.ros_nh, config.cam0_topic, 30},
+        cam1_sub_{*config.ros_nh, config.cam1_topic, 30},
+        image_sync_(ImageSyncPolicy(10), cam0_sub_, cam1_sub_) {
+    // Set terminal to be non-blocking
+    tcgetattr(0, &term_config_);
+    term_config_orig_ = term_config_;
+    term_config_.c_lflag &= ~ICANON;
+    term_config_.c_lflag &= ~ECHO;
+    term_config_.c_lflag &= ~ISIG;
+    term_config_.c_cc[VMIN] = 0;
+    term_config_.c_cc[VTIME] = 0;
+    tcsetattr(0, TCSANOW, &term_config_);
+
+    // ROS setup
+    // clang-format off
+    image_transport::ImageTransport it(*config.ros_nh);
+    imu0_sub_ = config.ros_nh->subscribe(config_.imu0_topic, 1000, &calib_vi_init_node_t::imu0_callback, this);
+    image_sync_.registerCallback(&calib_vi_init_node_t::image_callback, this);
+    // clang-format on
+    // -- Rviz marker publisher
+    rviz_pub_ = config.ros_nh->advertise<visualization_msgs::Marker>("/yac_ros/rviz", 0);
+
+    // Configure detector
+    detector_ = new aprilgrid_detector_t(calib_data_.target.tag_rows,
+                                         calib_data_.target.tag_cols,
+                                         calib_data_.target.tag_size,
+                                         calib_data_.target.tag_spacing);
+
+    // Initialize poses
+    poses_init = calib_init_poses<pinhole_radtan4_t>(calib_data.target, calib_data.cam_params[0]);
+
+    // Configure estimator
+    for (size_t i = 0; i < calib_data.cam_params.size(); i++) {
+      const auto res = calib_data.cam_params[i].resolution;
+      const auto proj_model = calib_data.cam_params[i].proj_model;
+      const auto dist_model = calib_data.cam_params[i].dist_model;
+      const vecx_t proj_params = calib_data.cam_params[i].proj_params();
+      const vecx_t dist_params = calib_data.cam_params[i].dist_params();
+      est_.add_camera(i, res, proj_model, dist_model, proj_params, dist_params, true);
+      est_.add_cam_extrinsics(i, calib_data.cam_exts[i].tf(), true);
+    }
+    est_.add_imu(calib_data.imu_params);
+    est_.add_imu_extrinsics(I(4));
+    loop();
+  }
+
+  ~calib_vi_init_node_t() {
+    // Join threads
+		if (keyboard_thread_.joinable()) {
+			keyboard_thread_.join();
+		}
+
+    // Detector
+		if (detector_) {
+      delete detector_;
+		}
+
+    // Clean up (restore blocking keyboard handler)
+    tcsetattr(0, TCSANOW, &term_config_orig_);
+	}
+
+  void event_handler(int key) {
+    if (key == EOF) {
+      return;
+    }
+
+    switch (key) {
+    case 'b':
+      loop_ = false;
+      break;
+    case 'q': // q
+    case 27:  // ESC
+    case 3:   // Control-C
+    case 4:   // Control-D
+      loop_ = false;
+      break;
+    }
+  }
+
+  void visualize(const aprilgrid_t &grid, const cv::Mat &image) {
+    // Draw detected
+    auto image_rgb = gray2rgb(image);
+    draw_detected(grid, image_rgb);
+
+    // Draw NBV
+    switch (state) {
+    case INITIALIZE:
+      if (poses_init.size()) {
+      }
+      break;
+    }
+
+    // Show
+    // cv::imshow("Visualize", image_rgb);
+    // int event = cv::waitKey(1);
+    // event_handler(event);
+  }
+
+  void image_callback(const sensor_msgs::Image &cam0_msg,
+                      const sensor_msgs::Image &cam1_msg) {
+    // Double check image timestamps
+    const auto cam0_ts = cam0_msg.header.stamp;
+    const auto cam1_ts = cam1_msg.header.stamp;
+    if (cam0_ts != cam1_ts) {
+      ROS_FATAL("Images are not synchronized");
+    }
+
+    // Detect AprilGrids
+    // -- Form images
+    const timestamp_t ts = cam0_ts.toNSec();
+    std::vector<cv::Mat> cam_images{
+      cv_bridge::toCvCopy(cam0_msg)->image,
+      cv_bridge::toCvCopy(cam1_msg)->image
+    };
+    // -- Detect
+    std::vector<aprilgrid_t> grids;
+    for (int i = 0; i < (int) est_.nb_cams(); i++) {
+      auto grid = detector_->detect(ts, cam_images[i], true);
+      grid.timestamp = ts;
+      grids.push_back(grid);
+    }
+    if (grids[0].detected == false || grids[1].detected == false) {
+      return;
+    }
+    // -- Add measurement
+		est_.add_measurement(0, grids[0]);
+		est_.add_measurement(1, grids[1]);
+		frames_init[0].push_back(cam_images[0]);
+		frames_init[1].push_back(cam_images[1]);
+
+    // Visualize current sensor pose
+    if (est_.initialized && config.publish_tfs) {
+			const auto ts = cam0_ts;
+			const auto target = calib_data.target;
+			const auto T_WF = est_.get_fiducial_pose();
+			const auto T_WS = est_.get_sensor_pose(-1);
+			const auto T_BS = est_.get_imu_extrinsics();
+			const auto T_BC0 = est_.get_cam_extrinsics(0);
+			const auto T_BC1 = est_.get_cam_extrinsics(1);
+			const auto T_WC0 = T_WS * T_BS.inverse() * T_BC0;
+			const auto T_WC1 = T_WS * T_BS.inverse() * T_BC1;
+			publish_fiducial_tf(ts, target, T_WF, tf_br_, rviz_pub_);
+			publish_tf(ts, "T_WS", T_WS, tf_br_);
+			publish_tf(ts, "T_WC0", T_WC0, tf_br_);
+			publish_tf(ts, "T_WC1", T_WC1, tf_br_);
+    }
+  }
+
+  void imu0_callback(const sensor_msgs::ImuConstPtr &msg) {
+    std::lock_guard<std::mutex> guard(mtx_);
+    const auto gyr = msg->angular_velocity;
+    const auto acc = msg->linear_acceleration;
+    const vec3_t w_m{gyr.x, gyr.y, gyr.z};
+    const vec3_t a_m{acc.x, acc.y, acc.z};
+    const auto ts = msg->header.stamp.toNSec();
+		est_.add_measurement(ts, a_m, w_m);
+  }
+
+  void loop() {
+    // Terminal capture thread
+    keyboard_thread_ = std::thread([&](){
+      while (loop_) {
+        const int key = getchar();
+        event_handler(key);
+      }
+    });
+
+    // ROS loop
+    while (loop_) {
+      ros::spinOnce();
+    }
+
+    est_.solve();
+  }
+};
+
 } // namespace yac
+#endif // YAC_ROS_CALIB_HPP

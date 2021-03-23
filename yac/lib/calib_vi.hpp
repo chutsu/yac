@@ -1254,9 +1254,9 @@ struct calib_vi_init_t {
     add_speed_biases(ts, zeros(9, 1));
     add_fiducial_pose(T_WF);
 
-    LOG_INFO("Initialize:");
-    print_matrix("T_WS", T_WS);
-    print_matrix("T_WF", T_WF);
+    // LOG_INFO("Initialize:");
+    // print_matrix("T_WS", T_WS);
+    // print_matrix("T_WF", T_WF);
 
     initialized = true;
     trim_imu_data(imu_buf, ts);  // Remove imu measurements up to ts
@@ -1447,6 +1447,9 @@ struct calib_vi_t {
   ceres::Problem::Options prob_options;
   ceres::Problem *problem;
   PoseLocalParameterization pose_parameterization;
+
+  int batch_max_iter = 30;
+  bool enable_outlier_rejection = true;
 
   // Marginalization
 	bool enable_marg = false;
@@ -1885,12 +1888,12 @@ struct calib_vi_t {
     add_speed_biases(ts, zeros(9, 1));
     add_fiducial_pose(T_WF);
 
-    LOG_INFO("Initialize:");
-    print_matrix("T_WS", T_WS);
-    print_matrix("T_WF", T_WF);
-    print_matrix("T_BS", T_BS);
-    print_matrix("T_BC0", get_cam_extrinsics(0));
-    print_matrix("T_BC1", get_cam_extrinsics(1));
+    // LOG_INFO("Initialize:");
+    // print_matrix("T_WS", T_WS);
+    // print_matrix("T_WF", T_WF);
+    // print_matrix("T_BS", T_BS);
+    // print_matrix("T_BC0", get_cam_extrinsics(0));
+    // print_matrix("T_BC1", get_cam_extrinsics(1));
 
     initialized = true;
     trim_imu_data(imu_buf, ts);  // Remove imu measurements up to ts
@@ -2137,53 +2140,57 @@ struct calib_vi_t {
   void solve(bool verbose=true) {
     // Optimize problem - first pass
 		{
-		  LOG_INFO("Optimize problem - first pass");
+		  // LOG_INFO("Optimize problem - first pass");
 		  ceres::Solver::Options options;
-		  options.minimizer_progress_to_stdout = true;
-		  options.max_num_iterations = 30;
-		  // options.check_gradients = true;
+		  options.minimizer_progress_to_stdout = verbose;
+		  options.max_num_iterations = batch_max_iter;
+
 		  ceres::Solver::Summary summary;
 		  ceres::Solve(options, problem, &summary);
-      std::cout << summary.FullReport() << std::endl;
-      show_results();
+      std::cout << summary.BriefReport() << std::endl;
+		  if (verbose) {
+        std::cout << summary.BriefReport() << std::endl;
+        show_results();
+      }
 		}
 
 		// Filter outliers
-    LOG_INFO("Filter outliers");
-    int nb_outliers = 0;
-    int nb_inliers = 0;
-		for (int cam_idx = 0; cam_idx < nb_cams(); cam_idx++) {
-			// Obtain all reprojection errors from all views
-			std::vector<double> errs;
-			for (auto &view : sliding_window) {
-				view.calculate_reproj_errors(cam_idx, errs);
-			}
+		if (enable_outlier_rejection) {
+      // LOG_INFO("Filter outliers");
+      int nb_outliers = 0;
+      int nb_inliers = 0;
+      for (int cam_idx = 0; cam_idx < nb_cams(); cam_idx++) {
+        // Obtain all reprojection errors from all views
+        std::vector<double> errs;
+        for (auto &view : sliding_window) {
+          view.calculate_reproj_errors(cam_idx, errs);
+        }
 
-			// Filter outliers from last view
-			const double threshold = 3.0 * stddev(errs);
-			for (auto &view : sliding_window) {
-				nb_outliers += view.filter(cam_idx, threshold);
-				nb_inliers += view.reproj_errors.size();
-			}
-		}
-    LOG_INFO("Removed %d outliers!", nb_outliers);
-    printf("\n");
+        // Filter outliers from last view
+        const double threshold = 3.0 * stddev(errs);
+        for (auto &view : sliding_window) {
+          nb_outliers += view.filter(cam_idx, threshold);
+          nb_inliers += view.reproj_errors.size();
+        }
+      }
+      // LOG_INFO("Removed %d outliers!", nb_outliers);
+      // printf("\n");
 
-    // Optimize problem - second pass
-    {
-		  LOG_INFO("Optimize problem - second pass");
-      // Solver options
-      ceres::Solver::Options options;
-      options.minimizer_progress_to_stdout = true;
-      options.max_num_iterations = 100;
-      // options.check_gradients = true;
+      // Optimize problem - second pass
+      {
+        // LOG_INFO("Optimize problem - second pass");
+        // Solver options
+        ceres::Solver::Options options;
+        options.minimizer_progress_to_stdout = true;
+        options.max_num_iterations = batch_max_iter;
 
-      // Solve
-      ceres::Solver::Summary summary;
-      ceres::Solve(options, problem, &summary);
-      if (verbose) {
-        std::cout << summary.FullReport() << std::endl;
-        show_results();
+        // Solve
+        ceres::Solver::Summary summary;
+        ceres::Solve(options, problem, &summary);
+        if (verbose) {
+          std::cout << summary.FullReport() << std::endl;
+          show_results();
+        }
       }
     }
   }

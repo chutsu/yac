@@ -37,6 +37,7 @@ ADD_LIBRARY(
   lib/calib_data.cpp
   lib/calib_mocap.cpp
   lib/calib_mono.cpp
+  lib/calib_nbv.cpp
   lib/calib_params.cpp
   lib/calib_stereo.cpp
   lib/ceres_utils.cpp

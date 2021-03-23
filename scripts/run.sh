@@ -30,6 +30,7 @@ cd ~/sync/projects/yac \
 && roslaunch yac_ros calib_intel_d435i.launch
 " C-m
 exit
+# && rosrun yac test_calib_nbv --target test_nbt_eval_traj
 # && rosrun yac test_calib_vi --target test_calib_vi_init
 # && rosrun yac test_calib_vi --target test_calib_vi
 # && rosrun yac test_marg_error --target test_marg_error_swe

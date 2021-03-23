@@ -35,24 +35,13 @@ struct OptSettings {
   bool save_costs = false;
 
   size_t window_size = 5;
-  int grid_limit = 20;
+  int grid_limit = 36;
 	size_t nb_iters = 5;
 	size_t nb_threads = 4;
 
   double sigma_vision = 1.0;
   bool fix_intrinsics = false;
 };
-
-typedef Eigen::SparseMatrix<real_t> sp_mat_t;
-typedef Eigen::SparseVector<real_t> sp_vec_t;
-typedef std::unordered_map<long, std::unordered_map<long, real_t>> mat_hash_t;
-typedef std::vector<std::pair<long int, long int>> mat_indicies_t;
-
-real_t covar_recover(const long i, const long l,
-                     const sp_mat_t &L, const vecx_t &diag,
-                     mat_hash_t &hash);
-
-mat_hash_t covar_recover(const matx_t &H, const mat_indicies_t &indicies);
 
 /**
  * Setup speed and bias vector;

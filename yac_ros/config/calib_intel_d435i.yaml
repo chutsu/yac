@@ -20,7 +20,7 @@ calib_target:
   tag_rows: 6               # Number of rows
   tag_cols: 6               # Number of cols
   # tag_size: 0.088           # Size of apriltag, edge to edge [m]
-  tag_size: 0.031           # Size of apriltag, edge to edge [m]
+  tag_size: 0.033           # Size of apriltag, edge to edge [m]
   tag_spacing: 0.3          # Ratio of space between tags to tagSize
                             # Example: tagSize=2m, spacing=0.5m --> tagSpacing=0.25[-]
 

@@ -9,12 +9,12 @@
 
 namespace yac {
 
-void lerp_body_poses(const aprilgrids_t &grids,
-                     const timestamps_t &body_timestamps,
-                     const mat4s_t &body_poses,
-                     aprilgrids_t &lerped_grids,
-                     mat4s_t &lerped_poses,
-                     timestamp_t ts_offset=0) {
+static void lerp_body_poses(const aprilgrids_t &grids,
+                            const timestamps_t &body_timestamps,
+                            const mat4s_t &body_poses,
+                            aprilgrids_t &lerped_grids,
+                            mat4s_t &lerped_poses,
+                            timestamp_t ts_offset=0) {
   // Make sure AprilGrids are between body poses else we can't lerp poses
   timestamps_t grid_timestamps;
   for (const auto &grid : grids) {

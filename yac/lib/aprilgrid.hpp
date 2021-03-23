@@ -296,21 +296,24 @@ struct aprilgrid_t {
     remove(tag_id, 3);
   }
 
-	cv::Mat draw(const cv::Mat &image) const {
+	cv::Mat draw(const cv::Mat &image,
+               const int marker_size=2,
+               const cv::Scalar &color=cv::Scalar{0, 0, 255}) const {
     cv::Mat image_rgb = gray2rgb(image);
-    const cv::Scalar red{0, 0, 255};
 
     for (const vec2_t &kp : keypoints()) {
       cv::Point2f p(kp(0), kp(1));
-      cv::circle(image_rgb, p, 1, red, -1);
+      cv::circle(image_rgb, p, marker_size, color, -1);
     }
 
 		return image_rgb;
 	}
 
-	cv::Mat draw(const cv::Mat &image) {
+	cv::Mat draw(const cv::Mat &image,
+               const int marker_size=2,
+               const cv::Scalar &color=cv::Scalar{0, 0, 255}) {
 		assert(init == true);
-    return static_cast<const aprilgrid_t>(*this).draw(image);
+    return static_cast<const aprilgrid_t>(*this).draw(image, marker_size, color);
 	}
 
   void imshow(const std::string &title, const cv::Mat &image) const {

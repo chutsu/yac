@@ -4,8 +4,8 @@
   <!-- Record ROS bag -->
   <!-- <node pkg="rosbag" type="record" name="record" output="screen" args="&#45;a &#45;o /tmp/calib_vi.bag"/> -->
 
-  <!-- <!&#45;&#45; Play ROS bag &#45;&#45;> -->
-  <!-- <node pkg="rosbag" type="play" name="record" output="screen" args="&#45;q &#45;&#45;pause /data/intel_d435i/calib_vi&#45;210303.bag"/> -->
+  <!-- Play ROS bag -->
+  <!-- <node pkg="rosbag" type="play" name="record" output="screen" args="&#45;q /data/intel_d435i/calib_vi&#45;210303.bag"/> -->
 
   <!-- Intel realsense D435i-->
   <node pkg="rs4se"

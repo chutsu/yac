@@ -1,5 +1,5 @@
-#ifndef YAC_ROS_ROS_HPP
-#define YAC_ROS_ROS_HPP
+#ifndef YAC_ROS_UTILS_HPP
+#define YAC_ROS_UTILS_HPP
 
 #include <functional>
 
@@ -175,36 +175,9 @@ void gyro_message_handler(const rosbag::MessageInstance &msg,
     return 0;                                                                  \
   }
 
-std::string ros_node_name(int argc, char *argv[]) {
-  for (int i = 1; i < argc; i++) {
-    std::string arg(argv[i]);
-    if (arg.find("__name:=") != std::string::npos) {
-      return arg.substr(8);
-    }
-  }
-  FATAL("Failed to find node name?");
-}
-
+std::string ros_node_name(int argc, char *argv[]);
 void ros_topic_subscribed(const ros::Subscriber &sub,
-                          const std::string &topic) {
-  // First check if subscriber connected with any publishers.
-  if (sub.getNumPublishers() > 0) {
-    return;
-  }
-
-  // Spin for 2 seconds
-  for (int i = 0; i < 2; i++) {
-    sleep(1);
-    ros::spinOnce();
-  }
-
-  // Check again
-  if (sub.getNumPublishers() == 0) {
-    FATAL("No data detected in ros topic [%s]!", topic.c_str());
-  } else {
-    LOG_INFO("Subscribed to ros topic [%s]", topic.c_str());
-  }
-}
+                          const std::string &topic);
 
 struct ros_node_t {
   bool configured_ = false;
@@ -331,4 +304,4 @@ struct ros_node_t {
 };
 
 } // namespace yac
-#endif // YAC_ROS_ROS_HPP
+#endif // YAC_ROS_UTILS_HPP

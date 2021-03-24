@@ -96,8 +96,8 @@ public:
   uint64_t imu_exts_id_;
   std::map<int, uint64_t> camera_param_ids_;
   std::map<int, uint64_t> camera_exts_ids_;
-  std::vector<uint64_t> sensor_pose_param_ids_;
-  std::vector<uint64_t> speed_bias_param_ids_;
+  std::deque<uint64_t> sensor_pose_param_ids_;
+  std::deque<uint64_t> speed_bias_param_ids_;
 
   // Parameter blocks
   std::shared_ptr<TimeDelayParameterBlock> time_delay_block_;
@@ -109,18 +109,18 @@ public:
   std::map<uint64_t, std::shared_ptr<SpeedAndBiasParameterBlock>> sb_blocks_;
 
   // Residual collection
-  struct ResidualCollection {
-    std::vector<std::shared_ptr<ImuError2>> imu_errors;
-    std::vector<std::shared_ptr<SpeedAndBiasError>> sb_errors;
-    std::vector<std::shared_ptr<CalibReprojError<PinholeRadtan>>> reproj_errors;
-    std::vector<::ceres::ResidualBlockId> batch_reproj_error_ids;
-  };
-  ResidualCollection residual_collection_;
+  // struct ResidualCollection {
+  //   std::deque<std::shared_ptr<ImuError2>> imu_errors;
+  //   std::deque<std::shared_ptr<SpeedAndBiasError>> sb_errors;
+  //   std::deque<std::shared_ptr<CalibReprojError<PinholeRadtan>>> reproj_errors;
+  //   std::deque<::ceres::ResidualBlockId> batch_reproj_error_ids;
+  // };
+  // ResidualCollection residual_collection_;
 
   // Sliding window residual blocks
-  std::deque<std::pair<::ceres::ResidualBlockId, std::shared_ptr<ImuError2>>> imu_errors_;
-  std::deque<std::pair<::ceres::ResidualBlockId, std::shared_ptr<SpeedAndBiasError>>> sb_errors_;
-  std::deque<std::pair<::ceres::ResidualBlockId, std::shared_ptr<CalibReprojError<PinholeRadtan>>>> reproj_errors_;
+  // std::deque<std::pair<::ceres::ResidualBlockId, std::shared_ptr<ImuError2>>> imu_errors_;
+  // std::deque<std::pair<::ceres::ResidualBlockId, std::shared_ptr<SpeedAndBiasError>>> sb_errors_;
+  // std::deque<std::pair<::ceres::ResidualBlockId, std::shared_ptr<CalibReprojError<PinholeRadtan>>>> reproj_errors_;
 
   // Optimization
   OptSettings opt_config_;
@@ -348,15 +348,15 @@ public:
     sb_blocks_.clear();
 
     // Residual collection
-    residual_collection_.imu_errors.clear();;
-    residual_collection_.sb_errors.clear();;
-    residual_collection_.reproj_errors.clear();;
-    residual_collection_.batch_reproj_error_ids.clear();;
+    // residual_collection_.imu_errors.clear();;
+    // residual_collection_.sb_errors.clear();;
+    // residual_collection_.reproj_errors.clear();;
+    // residual_collection_.batch_reproj_error_ids.clear();;
 
     // Sliding window residual blocks
-    imu_errors_.clear();
-    sb_errors_.clear();
-    reproj_errors_.clear();
+    // imu_errors_.clear();
+    // sb_errors_.clear();
+    // reproj_errors_.clear();
 
     // Optimization
     delete problem_;
@@ -595,6 +595,18 @@ public:
 
   size_t nb_cams() { return camera_param_ids_.size(); }
 
+  void popOldest() {
+    auto pose_id = sensor_pose_param_ids_.front();
+    auto sb_id = speed_bias_param_ids_.front();
+    sensor_pose_param_ids_.pop_front();
+    speed_bias_param_ids_.pop_front();
+
+    pose_blocks_.erase(pose_id);
+    sb_blocks_.erase(sb_id);
+
+    // residual_collection_.
+  }
+
   ::ceres::ResidualBlockId addImuError(const ImuMeasurementDeque & imu_data,
                                        std::vector<uint64_t> &imu_error_param_ids) {
     const auto nb_poses = sensor_pose_param_ids_.size();
@@ -642,8 +654,8 @@ public:
       problem_->parameterBlockPtr(sb1_id)
       // problem_->parameterBlockPtr(td_id_)
     );
-    residual_collection_.imu_errors.push_back(imu_error);
-    imu_errors_.push_back({imu_error_id, imu_error});
+    // residual_collection_.imu_errors.push_back(imu_error);
+    // imu_errors_.push_back({imu_error_id, imu_error});
     // clang-format on
 
     return imu_error_id;
@@ -666,7 +678,7 @@ public:
     auto sb_error_id = problem_->addResidualBlock(
       sb_error, nullptr, problem_->parameterBlockPtr(sb_param_id));
 
-    sb_errors_.push_back({sb_error_id, sb_error});
+    // sb_errors_.push_back({sb_error_id, sb_error});
     return sb_error_id;
   }
 
@@ -696,17 +708,17 @@ public:
 			grid_j.get_measurements(tag_ids, corner_indicies, grid_j_keypoints, object_points);
 			grid_i_keypoints = grid_j_keypoints;
 
-      // Random indicies
-      std::set<int> indicies;
-      int nb_tag_ids = tag_ids.size();
-      for (size_t i = 0; i < std::min(nb_tag_ids, 10 * 4); i++) {
-        auto idx = randi(0, nb_tag_ids);
-        if (indicies.count(idx) == 0) {
-          indicies.insert(idx);
-        } else {
-          i--;
-        }
-      }
+      // // Random indicies
+      // std::set<int> indicies;
+      // int nb_tag_ids = tag_ids.size();
+      // for (size_t i = 0; i < std::min(nb_tag_ids, 10 * 4); i++) {
+      //   auto idx = randi(0, nb_tag_ids);
+      //   if (indicies.count(idx) == 0) {
+      //     indicies.insert(idx);
+      //   } else {
+      //     i--;
+      //   }
+      // }
 
       // std::vector<int> tag_ids;
       // std::vector<int> corner_indicies;
@@ -721,8 +733,8 @@ public:
 			// printf("nb_tag_ids: %ld\n", tag_ids.size());
 
       // Add reprojection errors for real time
-      // for (size_t i = 0; i < tag_ids.size(); i++) {
-      for (auto i : indicies) {
+      for (size_t i = 0; i < tag_ids.size(); i++) {
+      // for (auto i : indicies) {
         auto tag_id = tag_ids[i];
         auto corner_idx = corner_indicies[i];
         vec2_t z_i = grid_i_keypoints[i];
@@ -785,7 +797,7 @@ public:
         reproj_error_param_ids.push_back(params);
 
         // Keep track of this CalibReprojError
-        reproj_errors_.push_back({reproj_error_id, error});
+        // reproj_errors_.push_back({reproj_error_id, error});
       }
     }
   }

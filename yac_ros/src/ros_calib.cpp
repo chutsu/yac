@@ -2,6 +2,55 @@
 
 namespace yac {
 
+void draw_hcentered_text(const std::string &text,
+                         const float text_scale,
+                         const int text_thickness,
+                         const int text_ypos,
+                         cv::Mat &image) {
+  // Create overlay image
+  const int img_w = image.cols;
+  // const int img_h = image.rows;
+  cv::Mat overlay = image.clone();
+
+  // Text properties
+  const int text_font = cv::FONT_HERSHEY_PLAIN;
+  const cv::Scalar text_color{0, 255, 0};
+  int baseline = 0;
+  auto text_size = cv::getTextSize(text,
+                                    text_font,
+                                    text_scale,
+                                    text_thickness,
+                                    &baseline);
+  int text_x = (img_w - text_size.width) / 2.0;
+  // int text_y = (img_h + text_size.height) / 2.0;
+  int text_y = text_ypos;
+  const cv::Point text_pos{text_x, text_y}; // Bottom left of text string
+
+  // Overlay properties
+  const int pad = 20;
+  const int hpad = pad / 2;
+  const double alpha = 0.5;
+  const int overlay_x1 = text_x - hpad;
+  const int overlay_y1 = text_y - (text_size.height / 2.0) - hpad;
+  const int overlay_x2 = text_x + text_size.width + hpad;
+  const int overlay_y2 = text_y + (text_size.height / 2.0);
+  const cv::Point2f p0(overlay_x1, overlay_y1);
+  const cv::Point2f p1(overlay_x2, overlay_y2);
+  const cv::Scalar overlay_color{0, 0, 0};
+  cv::rectangle(overlay, p0, p1, overlay_color, -1);
+
+  // Draw overlay and text
+  cv::addWeighted(overlay, alpha, image, 1 - alpha, 0, image);
+  cv::putText(image,
+              text,
+              text_pos,
+              text_font,
+              text_scale,
+              text_color,
+              text_thickness,
+              CV_AA);
+}
+
 void draw_status_text(const std::string &text, cv::Mat &image) {
   // Create overlay image
   const int img_w = image.cols;

@@ -97,13 +97,13 @@ INSTALL(
 # # ROS NODES
 # ADD_EXECUTABLE(calib_capture_node src/nodes/calib_capture_node.cpp)
 # TARGET_LINK_LIBRARIES(calib_capture_node ${DEPS})
-#
-# ADD_EXECUTABLE(calib_mocap_capture_node src/nodes/calib_mocap_capture_node.cpp)
-# TARGET_LINK_LIBRARIES(calib_mocap_capture_node ${DEPS})
-#
-# ADD_EXECUTABLE(calib_mocap_node src/nodes/calib_mocap_node.cpp)
-# TARGET_LINK_LIBRARIES(calib_mocap_node ${DEPS})
-#
+
+ADD_EXECUTABLE(calib_mocap_capture_node src/nodes/calib_mocap_capture_node.cpp)
+TARGET_LINK_LIBRARIES(calib_mocap_capture_node ${DEPS})
+
+ADD_EXECUTABLE(calib_mocap_node src/nodes/calib_mocap_node.cpp)
+TARGET_LINK_LIBRARIES(calib_mocap_node ${DEPS})
+
 # ADD_EXECUTABLE(calib_mono_node src/nodes/calib_mono_node.cpp)
 # TARGET_LINK_LIBRARIES(calib_mono_node ${DEPS})
 #

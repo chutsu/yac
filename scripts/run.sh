@@ -23,13 +23,13 @@ set -e
 #   --network="host" \
 #   -it --rm yac_docker
 
-tmux send-keys -t dev -R "\
-cd ~/sync/projects/yac \
-&& make release \
-&& source ~/catkin_ws/devel/setup.bash \
-&& roslaunch yac_ros calib_intel_d435i.launch
-" C-m
-exit
+# tmux send-keys -t dev -R "\
+# cd ~/sync/projects/yac \
+# && make release \
+# && source ~/catkin_ws/devel/setup.bash \
+# && roslaunch yac_ros calib_intel_d435i.launch
+# " C-m
+# exit
 # && rosrun yac test_calib_nbv --target test_nbt_eval_traj
 # && rosrun yac test_calib_vi --target test_calib_vi_init
 # && rosrun yac test_calib_vi --target test_calib_vi
@@ -53,7 +53,7 @@ exit
 # make
 # make lib
 # make lib_debug
-# make release
+make release
 # make debug
 # make tests
 source ~/catkin_ws/devel/setup.bash

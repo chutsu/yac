@@ -26,7 +26,7 @@ Panels:
     Experimental: false
     Name: Time
     SyncMode: 0
-    SyncSource: Image
+    SyncSource: ""
 Preferences:
   PromptSaveOnExit: false
 Toolbars:
@@ -57,13 +57,31 @@ Visualization Manager:
       Frame Timeout: 10000
       Frames:
         All Enabled: false
+        T_WC0:
+          Value: true
+        T_WC1:
+          Value: true
+        T_WF:
+          Value: true
+        T_WS:
+          Value: true
+        map:
+          Value: true
       Marker Scale: 0.15000000596046448
       Name: TF
       Show Arrows: false
       Show Axes: true
       Show Names: true
       Tree:
-        {}
+        map:
+          T_WC0:
+            {}
+          T_WC1:
+            {}
+          T_WF:
+            {}
+          T_WS:
+            {}
       Update Interval: 0
       Value: true
     - Class: rviz/Marker
@@ -71,7 +89,7 @@ Visualization Manager:
       Marker Topic: /yac_ros/rviz
       Name: Marker
       Namespaces:
-        {}
+        yac_ros: true
       Queue Size: 1
       Value: true
     - Class: rviz/Image
@@ -137,7 +155,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 8.124848365783691
+      Distance: 1.5420198440551758
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -175,5 +193,5 @@ Window Geometry:
   Views:
     collapsed: true
   Width: 636
-  X: 640
+  X: 2560
   Y: 37

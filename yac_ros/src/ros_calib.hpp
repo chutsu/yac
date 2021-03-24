@@ -14,6 +14,11 @@
 
 namespace yac {
 
+void draw_hcentered_text(const std::string &text,
+                         const float text_scale,
+                         const int text_thickness,
+                         const int text_ypos,
+                         cv::Mat &image);
 void draw_status_text(const std::string &text, cv::Mat &image);
 void draw_detected(const aprilgrid_t &grid, cv::Mat &image);
 bool tf_ok(const mat4_t &pose);

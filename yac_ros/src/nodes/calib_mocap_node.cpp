@@ -1,6 +1,6 @@
 #include <signal.h>
 #include "yac.hpp"
-#include "ros.hpp"
+#include "../ros_utils.hpp"
 
 using namespace yac;
 std::string test_out_path = "/tmp/mocap_test";

@@ -40,11 +40,12 @@ public:
 
   // State
   enum CALIB_STATE {
+    IDEL = -1,
     INITIALIZE = 0,
     CALIB_ORIGIN = 1,
     NBT = 2
   };
-  int state_ = INITIALIZE;
+  int state_ = IDEL;
   size_t frame_idx_ = 0;
 
   // ROS
@@ -66,10 +67,23 @@ public:
   // -- NBT publisher
   ros::Publisher nbt_pub_;
 
+  // Visualization
+  int viz_width = 800;
+  int viz_height = 600;
+
   // Calibrator
-  mat4_t calib_origin_;  // Calibration origin (X) w.r.t camera frame(C): T_CX
+  calib_target_t target_;
+  camera_params_t cam0_params_;
   aprilgrid_detector_t *detector_ = nullptr;
   Estimator est_;
+
+  // NBV
+  mat4_t calib_origin_;  // Calibration origin (X) w.r.t camera frame(C): T_XC
+  aprilgrid_t *target_grid = nullptr;
+  double nbv_reproj_error_threshold = 10.0;
+  double nbv_hold_threshold = 1.0;
+  double nbv_reproj_err = std::numeric_limits<double>::max();
+  struct timespec nbv_hold_tic = (struct timespec){0, 0};
 
   // NBT
   bool nbt_precomputing_ = false;
@@ -114,14 +128,19 @@ public:
     nbt_pub_ = config_.ros_nh->advertise<nav_msgs::Path>("/yac_ros/nbt", 0);
 
 		// Setup detector
-    detector_ = new aprilgrid_detector_t(calib_data_.target.tag_rows,
-                                         calib_data_.target.tag_cols,
-                                         calib_data_.target.tag_size,
-                                         calib_data_.target.tag_spacing);
+		target_ = calib_data_.target;
+		cam0_params_ = calib_data_.cam_params[0];
+    detector_ = new aprilgrid_detector_t(target_.tag_rows,
+                                         target_.tag_cols,
+                                         target_.tag_size,
+                                         target_.tag_spacing);
 
-    // Setup initial pose
-    calib_origin_ = calib_init_poses<pinhole_radtan4_t>(calib_data_.target,
-												                                calib_data_.cam_params[0])[0];
+    // Setup calibration origin
+    calib_origin_ = calib_init_poses<pinhole_radtan4_t>(target_, cam0_params_)[0];
+    if (target_grid != nullptr) {
+      delete target_grid;
+    }
+    target_grid = nbv_target_grid<pinhole_radtan4_t>(target_, cam0_params_, calib_origin_);
 
     // Configure estimator
     est_.configure(calib_data_);
@@ -161,6 +180,7 @@ public:
       break;
     case 'r':
       LOG_INFO("Resetting Estimator!");
+      state_ = IDEL;
       est_.resetProblem();
       break;
     case 'f':
@@ -176,9 +196,117 @@ public:
     }
   }
 
-  void mode_init() {
+  void draw_nbv(const mat4_t &T_FC0, cv::Mat &image) {
+    // Draw NBV
+    nbv_draw<pinhole_radtan4_t>(calib_data_.target,
+                                calib_data_.cam_params[0],
+                                T_FC0,
+                                image);
 
+    // Show NBV Reproj Error
+    {
+      // Create NBV Reproj Error str (1 decimal places)
+      std::ostringstream out;
+      out.precision(1);
+      out << std::fixed << nbv_reproj_err;
+      out.str();
 
+      const std::string text = "NBV Reproj Error: " + out.str() + " [px]";
+      cv::Scalar text_color;
+      if (nbv_reproj_err > 20) {
+        text_color = cv::Scalar(0, 0, 255);
+      } else {
+        text_color = cv::Scalar(0, 255, 0);
+      }
+
+      const cv::Point text_pos{10, 50};
+      const int text_font = cv::FONT_HERSHEY_PLAIN;
+      const float text_scale = 1.0;
+      const int text_thickness = 1;
+      cv::putText(image,
+                  text,
+                  text_pos,
+                  text_font,
+                  text_scale,
+                  text_color,
+                  text_thickness,
+                  CV_AA);
+    }
+
+    // Show NBV status
+    if (nbv_reproj_err < (nbv_reproj_error_threshold * 1.5)) {
+      std::string text = "Nearly There!";
+      if (nbv_reproj_err <= nbv_reproj_error_threshold) {
+        text = "HOLD IT!";
+      }
+      draw_status_text(text, image);
+    }
+  }
+
+  bool nbv_reached(const aprilgrid_t &grid) {
+    // Check if target grid is created
+    if (target_grid == nullptr) {
+      return false;
+    }
+
+    // Get grid measurements
+    std::vector<int> tag_ids;
+    std::vector<int> corner_indicies;
+    vec2s_t keypoints;
+    vec3s_t object_points;
+    grid.get_measurements(tag_ids, corner_indicies, keypoints, object_points);
+
+    // See if measured grid matches any NBV grid keypoints
+    std::vector<double> reproj_errors;
+    for (size_t i = 0; i < tag_ids.size(); i++) {
+      const int tag_id = tag_ids[i];
+      const int corner_idx = corner_indicies[i];
+      if (target_grid->has(tag_id, corner_idx) == false) {
+        continue;
+      }
+
+      const vec2_t z_measured = keypoints[i];
+      const vec2_t z_desired = target_grid->keypoint(tag_id, corner_idx);
+      reproj_errors.push_back((z_desired - z_measured).norm());
+    }
+
+    // Check if NBV is reached using reprojection errors
+    nbv_reproj_err = mean(reproj_errors);
+    if (nbv_reproj_err > nbv_reproj_error_threshold) {
+      nbv_hold_tic = (struct timespec){0, 0}; // Reset hold timer
+      return false;
+    }
+
+    // Start NBV hold timer
+    if (nbv_hold_tic.tv_sec == 0) {
+      nbv_hold_tic = tic();
+    }
+
+    // If hold threshold not met
+    if (toc(&nbv_hold_tic) < nbv_hold_threshold) {
+      return false;
+    }
+
+    return true;
+  }
+
+  void mode_idel(const aprilgrid_t &grid, cv::Mat &image) {
+    auto text = "Go to calib origin!";
+    draw_hcentered_text(text, 2.0, 1.0, 100, image);
+    draw_nbv(calib_origin_, image);
+
+    if (nbv_reached(grid)) {
+      LOG_INFO("Initializing estimator!");
+      state_ = INITIALIZE;
+    }
+  }
+
+  void mode_init(const aprilgrid_t &grid, cv::Mat &image) {
+    // nbv_draw<pinhole_radtan4_t>(calib_data_.target,
+    //                             calib_data_.cam_params[0],
+    //                             calib_origin_,
+    //                             image);
+    // draw_status_text("Turn your camera!", image);
   }
 
   void visualize(const aprilgrid_t &grid, const cv::Mat &image) {
@@ -186,21 +314,34 @@ public:
     auto image_rgb = gray2rgb(image);
     draw_detected(grid, image_rgb);
 
-    // Draw NBV
+    // State machine
     switch (state_) {
-    case INITIALIZE:
-      nbv_draw<pinhole_radtan4_t>(calib_data_.target,
-                                  calib_data_.cam_params[0],
-                                  calib_origin_,
-                                  image_rgb);
-      draw_status_text("Turn your camera!", image_rgb);
-      break;
+    case IDEL: mode_idel(grid, image_rgb); break;
+    case INITIALIZE: mode_init(grid, image_rgb); break;
     }
 
     // Show
-    cv::imshow("Visualize", image_rgb);
+    cv::resize(image_rgb, image_rgb, cv::Size(viz_width, viz_height));
+    cv::imshow("Visualization", image_rgb);
     int event = cv::waitKey(1);
     event_handler(event);
+
+    // Rviz
+    if (est_.initialized_ && config_.publish_tfs) {
+			const auto ts = ros::Time{ts2sec(grid.timestamp)};
+			const auto target = est_.target_params_;
+			const auto T_WF = est_.getFiducialPoseEstimate();
+			const auto T_WS = est_.getSensorPoseEstimate(-1);
+			const auto T_BS = est_.getImuExtrinsicsEstimate();
+			const auto T_BC0 = est_.getCameraExtrinsicsEstimate(0);
+			const auto T_BC1 = est_.getCameraExtrinsicsEstimate(1);
+			const auto T_WC0 = T_WS * T_BS.inverse() * T_BC0;
+			const auto T_WC1 = T_WS * T_BS.inverse() * T_BC1;
+			publish_fiducial_tf(ts, target, T_WF, tf_br_, rviz_pub_);
+			publish_tf(ts, "T_WS", T_WS, tf_br_);
+			publish_tf(ts, "T_WC0", T_WC0, tf_br_);
+			publish_tf(ts, "T_WC1", T_WC1, tf_br_);
+    }
   }
 
   void image_callback(const sensor_msgs::Image &cam0_msg,
@@ -209,7 +350,6 @@ public:
 
     // Pre-check
     // if (state_ == INITIALIZE && ((frame_idx_ % 5) != 0)) {
-    //   // The idea is to only sample every 5 frames
     //   return;
     // }
 
@@ -238,82 +378,11 @@ public:
       return;
     }
     // -- Add measurement
-		est_.addMeasurement(0, grids[0]);
-		est_.addMeasurement(1, grids[1]);
-    visualize(grids[0], cam_images[0]);
-
-    if (est_.initialized_ && config_.publish_tfs) {
-			const auto ts = cam0_ts;
-			const auto target = est_.target_params_;
-			const auto T_WF = est_.getFiducialPoseEstimate();
-			const auto T_WS = est_.getSensorPoseEstimate(-1);
-			const auto T_BS = est_.getImuExtrinsicsEstimate();
-			const auto T_BC0 = est_.getCameraExtrinsicsEstimate(0);
-			const auto T_BC1 = est_.getCameraExtrinsicsEstimate(1);
-			const auto T_WC0 = T_WS * T_BS.inverse() * T_BC0;
-			const auto T_WC1 = T_WS * T_BS.inverse() * T_BC1;
-			publish_fiducial_tf(ts, target, T_WF, tf_br_, rviz_pub_);
-			publish_tf(ts, "T_WS", T_WS, tf_br_);
-			publish_tf(ts, "T_WC0", T_WC0, tf_br_);
-			publish_tf(ts, "T_WC1", T_WC1, tf_br_);
+    if (state_ != IDEL) {
+      est_.addMeasurement(0, grids[0]);
+      est_.addMeasurement(1, grids[1]);
     }
-
-    // // Visualize current sensor pose
-    // if (est_.initialized_ && config_.publish_tfs) {
-		// 	const auto ts = cam0_ts;
-		// 	const auto target = est_.target_params_;
-		// 	const auto T_WF = est_.getFiducialPoseEstimate();
-		// 	const auto T_WS = est_.getSensorPoseEstimate(-1);
-		// 	const auto T_BS = est_.getImuExtrinsicsEstimate();
-		// 	const auto T_BC0 = est_.getCameraExtrinsicsEstimate(0);
-		// 	const auto T_BC1 = est_.getCameraExtrinsicsEstimate(1);
-		// 	const auto T_WC0 = T_WS * T_BS.inverse() * T_BC0;
-		// 	const auto T_WC1 = T_WS * T_BS.inverse() * T_BC1;
-		// 	publish_fiducial_tf(ts, target, T_WF, tf_br_, rviz_pub_);
-		// 	publish_tf(ts, "T_WS", T_WS, tf_br_);
-		// 	publish_tf(ts, "T_WC0", T_WC0, tf_br_);
-		// 	publish_tf(ts, "T_WC1", T_WC1, tf_br_);
-    //
-		// 	auto img = cam_images[0];
-		// 	auto grid = grids[0];
-		// 	auto cam0 = est_.getCamera(0);
-		// 	img = grid.draw(img);
-    //
-		// 	const mat4_t T_C0B = T_BC0.inverse();
-		// 	const mat4_t T_SW = T_WS.inverse();
-		// 	const mat4_t T_C0F = T_C0B * T_BS * T_SW * T_WF;
-    //
-    //   std::vector<int> tag_ids;
-    //   std::vector<int> corner_indicies;
-    //   vec2s_t keypoints;
-    //   vec3s_t object_points;
-		// 	grid.get_measurements(tag_ids, corner_indicies, keypoints, object_points);
-    //
-		// 	std::vector<double> reproj_errors;
-		// 	for (int i = 0; i < (int) tag_ids.size(); i++) {
-		// 		const vec2_t z = keypoints[i];
-		// 	  const vec3_t r_FFi = object_points[i];
-		// 		const vec3_t r_C0Fi = tf_point(T_C0F, r_FFi);
-    //
-		// 		vec2_t zhat;
-		// 		if (cam0.project(r_C0Fi, zhat) == 0) {
-		// 			reproj_errors.push_back((z - zhat).norm());
-		// 		}
-    //
-		// 		const cv::Scalar green{0, 255, 0};
-		// 		cv::Point2f p(zhat(0), zhat(1));
-		// 		cv::circle(img, p, 2, green, -1);
-		// 	}
-    //
-		// 	// print_matrix("T_BS", T_BS);
-    //
-		// 	// printf("reproj error: [%f, %f, %f] (rmse, mean, median) \n",
-		// 	// 			 rmse(reproj_errors),
-		// 	// 			 mean(reproj_errors),
-		// 	// 			 median(reproj_errors));
-		// 	cv::imshow("Visual-Inertial Calibration", img);
-		// 	cv::waitKey(1);
-    // }
+    visualize(grids[0], cam_images[0]);
   }
 
   void imu0_callback(const sensor_msgs::ImuConstPtr &msg) {
@@ -324,7 +393,9 @@ public:
     const vec3_t w_m{gyr.x, gyr.y, gyr.z};
     const vec3_t a_m{acc.x, acc.y, acc.z};
     const auto ts = Time{msg->header.stamp.toSec()};
-		est_.addMeasurement(ts, w_m, a_m);
+    if (state_ != IDEL) {
+      est_.addMeasurement(ts, w_m, a_m);
+    }
   }
 
 	void compute_nbt() {
@@ -392,12 +463,6 @@ public:
       while (loop_) {
         const int key = getchar();
         event_handler(key);
-
-        switch (state_) {
-          case INITIALIZE: mode_init(); break;
-          // case NBV: mode_nbv(); break;
-          // case BATCH: mode_batch(); break;
-        }
       }
     });
 

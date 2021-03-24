@@ -126,31 +126,32 @@ struct calib_mocap_data_t {
     // Set covariance matrix
     covar = I(2) * (1 / pow(sigma_vision, 2));
 
+    // Setup AprilGrid detector
+    aprilgrid_detector_t detector(calib_target.tag_rows,
+                                  calib_target.tag_cols,
+                                  calib_target.tag_size,
+                                  calib_target.tag_spacing);
+    std::vector<std::string> image_paths;
+    if (list_dir(cam0_path, image_paths) != 0) {
+      FATAL("Failed to traverse dir [%s]!", cam0_path.c_str());
+    }
+    std::sort(image_paths.begin(), image_paths.end());
+
+    // Detect AprilGrids
+    aprilgrids_t cam0_grids;
+    for (const auto &image_path : image_paths) {
+      const auto ts = std::stoull(parse_fname(image_path));
+      const auto image = cv::imread(paths_join(cam0_path, image_path));
+      const auto grid = detector.detect(ts, image);
+      grid.save(grid0_path + "/" + std::to_string(ts) + ".csv");
+      cam0_grids.push_back(grid);
+    }
+
     // Load camera params
     if (yaml_has_key(config, "cam0.proj_params") == false) {
       // Perform intrinsics calibration
       LOG_INFO("Camera parameters unknown!");
       LOG_INFO("Calibrating camera intrinsics!");
-
-      // -- Setup AprilGrid detector
-      aprilgrid_detector_t detector(calib_target.tag_rows,
-                                    calib_target.tag_cols,
-                                    calib_target.tag_size,
-                                    calib_target.tag_spacing);
-      std::vector<std::string> image_paths;
-      if (list_dir(cam0_path, image_paths) != 0) {
-        FATAL("Failed to traverse dir [%s]!", cam0_path.c_str());
-      }
-      std::sort(image_paths.begin(), image_paths.end());
-
-      // -- Detect AprilGrids
-      aprilgrids_t cam0_grids;
-      for (const auto &image_path : image_paths) {
-        const auto ts = std::stoull(parse_fname(image_path));
-        const auto image = cv::imread(paths_join(cam0_path, image_path));
-        const auto grid = detector.detect(ts, image);
-        cam0_grids.push_back(grid);
-      }
 
       // -- Initialize camera parameters
       const int cam_idx = 0;
@@ -332,10 +333,11 @@ struct calib_mocap_residual_t : public ceres::SizedCostFunction<2, 7, 7, 7, 8> {
 };
 
 template <typename T>
-static int process_aprilgrid(const size_t frame_idx,
-                             const mat2_t &covar,
-                             calib_mocap_data_t &data,
-                             ceres::Problem &problem) {
+static void process_aprilgrid(const size_t frame_idx,
+                              const mat2_t &covar,
+                              calib_mocap_data_t &data,
+                              ceres::Problem &problem,
+                              std::vector<ceres::ResidualBlockId> &block_ids) {
   const int *cam_res = data.cam0.resolution;
   const auto &grid = data.grids[frame_idx];
 
@@ -352,15 +354,14 @@ static int process_aprilgrid(const size_t frame_idx,
     const vec3_t r_FFi = object_points[i];
 
     auto cost_fn = new calib_mocap_residual_t<T>{cam_res, r_FFi, z, covar};
-    problem.AddResidualBlock(cost_fn,
-                              NULL,
-                              data.T_WF.param.data(),
-                              data.T_WM[frame_idx].param.data(),
-                              data.T_MC0.param.data(),
-                              data.cam0.param.data());
+    auto block_id = problem.AddResidualBlock(cost_fn,
+                                             NULL,
+                                             data.T_WF.param.data(),
+                                             data.T_WM[frame_idx].param.data(),
+                                             data.T_MC0.param.data(),
+                                             data.cam0.param.data());
+    block_ids.push_back(block_id);
   }
-
-  return 0;
 }
 
 template <typename CAMERA_TYPE>
@@ -569,11 +570,9 @@ int calib_mocap_solve(calib_mocap_data_t &data) {
 
   // Process all aprilgrid data
   const mat2_t covar = I(2) * (1 / pow(0.5, 2));
+  std::vector<ceres::ResidualBlockId> block_ids;
   for (size_t i = 0; i < data.grids.size(); i++) {
-    if (process_aprilgrid<CAMERA_TYPE>(i, covar, data, problem) != 0) {
-      LOG_ERROR("Failed to add AprilGrid measurements to problem!");
-      return -1;
-    }
+    process_aprilgrid<CAMERA_TYPE>(i, covar, data, problem, block_ids);
 
     // Set pose parameterization
     problem.SetParameterization(data.T_WM[i].param.data(),
@@ -612,6 +611,37 @@ int calib_mocap_solve(calib_mocap_data_t &data) {
   // Solve
   LOG_INFO("Calibrating mocap-marker to camera extrinsics ...");
   ceres::Solver::Summary summary;
+  ceres::Solve(options, &problem, &summary);
+  // std::cout << summary.FullReport() << std::endl;
+  std::cout << summary.BriefReport() << std::endl;
+  std::cout << std::endl;
+
+  // Reject outliers
+  LOG_INFO("Rejecting outliers...");
+  std::deque<pose_t> poses;
+  for (int i = 0; i < (int) data.grids.size(); i++) {
+    const mat4_t T_WF = data.T_WF.tf();
+    const mat4_t T_C0M = data.T_MC0.tf().inverse();
+    const mat4_t T_MW = data.T_WM[i].tf().inverse();
+    const mat4_t T_C0F = T_C0M * T_MW * T_WF;
+    poses.emplace_back(0, 0, T_C0F);
+  }
+  std::vector<double> errs;
+  reproj_errors<CAMERA_TYPE>(data.grids, data.cam0, poses, errs);
+
+  const auto nb_res_before = problem.NumResidualBlocks();
+  const auto threshold = 3.0 * stddev(errs);
+  for (int i = 0; i < (int) errs.size(); i++) {
+    if (errs[i] > threshold) {
+      problem.RemoveResidualBlock(block_ids[i]);
+    }
+  }
+  const auto nb_res_after = problem.NumResidualBlocks();
+  const auto res_diff = nb_res_before - nb_res_after;
+  LOG_INFO("Removed: %d residuals out of %d", res_diff, nb_res_before);
+
+  // Second pass
+  LOG_INFO("Performing second pass ...");
   ceres::Solve(options, &problem, &summary);
   // std::cout << summary.FullReport() << std::endl;
   std::cout << summary.BriefReport() << std::endl;

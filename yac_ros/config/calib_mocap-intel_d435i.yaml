@@ -1,6 +1,7 @@
 ros:
   # rosbag: "/data/aabm/calib/200115-vicon-train.bag"
-  rosbag: "/data/aabm/calib/201123-vicon.bag"
+  # rosbag: "/data/aabm/calib/201123-vicon.bag"
+  rosbag: "/home/chutsu/Downloads/mocap_data.bag"
   cam0_topic: "/cam0/image"
   body0_topic: "/body0/pose"
   target0_topic: "/target0/pose"

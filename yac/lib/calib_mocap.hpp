@@ -569,7 +569,7 @@ int calib_mocap_solve(calib_mocap_data_t &data) {
   PoseLocalParameterization pose_parameterization;
 
   // Process all aprilgrid data
-  const mat2_t covar = I(2) * (1 / pow(0.5, 2));
+  const mat2_t covar = I(2) * (1 / pow(1, 2));
   std::vector<ceres::ResidualBlockId> block_ids;
   for (size_t i = 0; i < data.grids.size(); i++) {
     process_aprilgrid<CAMERA_TYPE>(i, covar, data, problem, block_ids);
@@ -630,7 +630,7 @@ int calib_mocap_solve(calib_mocap_data_t &data) {
   reproj_errors<CAMERA_TYPE>(data.grids, data.cam0, poses, errs);
 
   const auto nb_res_before = problem.NumResidualBlocks();
-  const auto threshold = 3.0 * stddev(errs);
+  const auto threshold = 4.0 * stddev(errs);
   for (int i = 0; i < (int) errs.size(); i++) {
     if (errs[i] > threshold) {
       problem.RemoveResidualBlock(block_ids[i]);

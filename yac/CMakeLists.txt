@@ -40,6 +40,7 @@ ADD_LIBRARY(
   lib/calib_nbv.cpp
   lib/calib_params.cpp
   lib/calib_stereo.cpp
+  lib/calib_vi.cpp
   lib/ceres_utils.cpp
   lib/core.cpp
 )

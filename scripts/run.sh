@@ -23,13 +23,13 @@ set -e
 #   --network="host" \
 #   -it --rm yac_docker
 
-# tmux send-keys -t dev -R "\
-# cd ~/sync/projects/yac \
-# && make release \
-# && source ~/catkin_ws/devel/setup.bash \
-# && roslaunch yac_ros calib_intel_d435i.launch
-# " C-m
-# exit
+tmux send-keys -t dev -R "\
+cd ~/sync/projects/yac \
+&& make release \
+&& source ~/catkin_ws/devel/setup.bash \
+&& roslaunch yac_ros calib_intel_d435i.launch
+" C-m
+exit
 # && rosrun yac test_calib_nbv --target test_nbt_eval_traj
 # && rosrun yac test_calib_vi --target test_calib_vi_init
 # && rosrun yac test_calib_vi --target test_calib_vi
@@ -51,10 +51,10 @@ set -e
 
 
 # make
-# make lib
 # make lib_debug
-make release
 # make debug
+# make lib
+make release
 # make tests
 source ~/catkin_ws/devel/setup.bash
 # rm -rf /tmp/aprilgrid_test
@@ -103,6 +103,7 @@ source ~/catkin_ws/devel/setup.bash
 # rosrun yac test_calib_stereo_inc --target test_calib_stereo_inc_solve
 
 # -- VISUAL-INERTIAL CALIBRATION
+# rosrun yac test_calib_vi --target test_calib_vi_init_poses
 # rosrun yac test_calib_vi --target test_reproj_error
 # rosrun yac test_calib_vi --target test_calib_vi_sim
 # rosrun yac test_calib_vi --target test_calib_vi
@@ -111,10 +112,15 @@ source ~/catkin_ws/devel/setup.bash
 # rosrun yac test_calib_nbv --target test_calib_target_origin
 # rosrun yac test_calib_nbv --target test_calib_init_poses
 # rosrun yac test_calib_nbv --target test_calib_nbv_poses
+# rosrun yac test_calib_nbv --target test_calib_orbit_trajs
+# rosrun yac test_calib_nbv --target test_calib_pan_trajs
 # rosrun yac test_calib_nbv --target test_nbv_draw
 # rosrun yac test_calib_nbv --target test_nbv_test_grid
 # rosrun yac test_calib_nbv --target test_nbv_find
 # rosrun yac test_calib_nbv --target test_nbv_find2
+# rosrun yac test_calib_nbv --target test_simulate_cameras
+# rosrun yac test_calib_nbv --target test_simulate_imu
+# rosrun yac test_calib_nbv --target test_nbt_eval_traj
 
 # -- MARG ERROR
 # rosrun yac test_marg_error --target test_marg_block
@@ -137,8 +143,11 @@ source ~/catkin_ws/devel/setup.bash
 # done
 # python3 scripts/analyze_calibs.py
 
-# octave-cli scripts/octave/plot_calib_poses.m
-# octave-cli scripts/octave/plot_biases.m
-# octave-cli scripts/octave/plot_calib_vi.m
-# octave-cli scripts/octave/plot_calib_vi_sim.m
+cd scripts/octave
+# octave-cli plot_calib_poses.m
+# octave-cli plot_biases.m
+# octave-cli plot_calib_vi.m
+# octave-cli plot_calib_vi_sim.m
+# octave-cli plot_calib_vi_init_poses.m
+# octave-cli plot_nbt_trajs.m
 # python3 scripts/analyze_detections.py

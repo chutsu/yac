@@ -51,8 +51,8 @@ struct calib_data_t {
   config_t config;
 
   // Problem
-	ceres::Problem::Options prob_options;
-	ceres::Problem *problem = nullptr;
+  ceres::Problem::Options prob_options;
+  ceres::Problem *problem = nullptr;
   ceres::LossFunction *loss = nullptr;
   PoseLocalParameterization pose_plus;
   std::map<int, std::vector<double>> vision_errors;
@@ -74,10 +74,10 @@ struct calib_data_t {
 
   calib_data_t() {
     // Problem
-		prob_options.local_parameterization_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
-		prob_options.cost_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
-		prob_options.enable_fast_removal = true;
-		problem = new ceres::Problem(prob_options);
+    prob_options.local_parameterization_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
+    prob_options.cost_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
+    prob_options.enable_fast_removal = true;
+    problem = new ceres::Problem(prob_options);
   }
 
   calib_data_t(const std::string &config_file)
@@ -85,10 +85,10 @@ struct calib_data_t {
       nb_cams{config_nb_cameras(config_file)},
       nb_imus{config_nb_imus(config_file)} {
     // Problem
-		prob_options.local_parameterization_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
-		prob_options.cost_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
-		prob_options.enable_fast_removal = true;
-		problem = new ceres::Problem(prob_options);
+    prob_options.local_parameterization_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
+    prob_options.cost_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
+    prob_options.enable_fast_removal = true;
+    problem = new ceres::Problem(prob_options);
 
     // Calibration target
     if (calib_target_load(target, config_file, "calib_target") != 0) {
@@ -112,7 +112,7 @@ struct calib_data_t {
   }
 
   ~calib_data_t() {
-	  if (problem) {
+    if (problem) {
       delete problem;
       problem = nullptr;
     }
@@ -168,7 +168,7 @@ struct calib_data_t {
     const double size = target.tag_size;
     const double spacing = target.tag_spacing;
 
-	  // Track aprilgrids for each camera and all timestamps
+    // Track aprilgrids for each camera and all timestamps
     std::set<timestamp_t> timestamps;
     std::map<int, std::map<timestamp_t, aprilgrid_t>> grid_tracker;
     for (int cam_idx = 0; cam_idx < nb_cams; cam_idx++) {

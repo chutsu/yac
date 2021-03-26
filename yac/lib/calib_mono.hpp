@@ -16,8 +16,8 @@ namespace yac {
 
 /* Monocular Camera Calibration Data */
 struct calib_mono_data_t {
-	ceres::Problem::Options prob_options;
-	ceres::Problem *problem;
+  ceres::Problem::Options prob_options;
+  ceres::Problem *problem;
   PoseLocalParameterization pose_plus;
 
   aprilgrids_t grids;
@@ -25,25 +25,25 @@ struct calib_mono_data_t {
   std::deque<pose_t> poses;
   mat2_t covar = I(2);
 
-	calib_mono_data_t(const aprilgrids_t &grids_,
-									  camera_params_t &cam_params_,
-					 	 	 	 	  const mat2_t &covar_=I(2))
-			: grids{grids_}, cam_params{cam_params_}, covar{covar_} {
-		prob_options.local_parameterization_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
-		prob_options.cost_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
-		prob_options.enable_fast_removal = true;
-		problem = new ceres::Problem(prob_options);
-	}
+  calib_mono_data_t(const aprilgrids_t &grids_,
+                    camera_params_t &cam_params_,
+                        const mat2_t &covar_=I(2))
+      : grids{grids_}, cam_params{cam_params_}, covar{covar_} {
+    prob_options.local_parameterization_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
+    prob_options.cost_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
+    prob_options.enable_fast_removal = true;
+    problem = new ceres::Problem(prob_options);
+  }
 
-	~calib_mono_data_t() {
-		delete problem;
-	}
-
-	void reset() {
+  ~calib_mono_data_t() {
     delete problem;
-		problem = new ceres::Problem(prob_options);
-		poses.clear();
-	}
+  }
+
+  void reset() {
+    delete problem;
+    problem = new ceres::Problem(prob_options);
+    poses.clear();
+  }
 };
 
 /** Monocular Camera Residual */
@@ -275,7 +275,7 @@ void process_grid(const aprilgrid_t &grid,
 template <typename CAMERA_TYPE>
 int calib_mono_solve(calib_mono_data_t &data) {
   // Calibration data
-	ceres::Problem *problem = data.problem;
+  ceres::Problem *problem = data.problem;
   mat2_t &covar = data.covar;
   aprilgrids_t &grids = data.grids;
   camera_params_t &cam_params = data.cam_params;
@@ -292,17 +292,17 @@ int calib_mono_solve(calib_mono_data_t &data) {
   const vecx_t dist_params = cam_params.dist_params();
   const CAMERA_TYPE cam{cam_res, proj_params, dist_params};
 
-	// Drop AprilGrids that are not detected
-	auto it = grids.begin();
+  // Drop AprilGrids that are not detected
+  auto it = grids.begin();
   while (it != grids.end()) {
-		if ((*it).detected == false) {
-			it = grids.erase(it);
-		} else {
-			it++;
-		}
-	}
+    if ((*it).detected == false) {
+      it = grids.erase(it);
+    } else {
+      it++;
+    }
+  }
 
-	// Build Problem
+  // Build Problem
   for (const auto &grid : grids) {
     // Estimate relative pose
     mat4_t T_CF_k;
@@ -482,17 +482,17 @@ int calib_mono_inc_solve(calib_mono_data_t &data) {
   aprilgrids_t &grids = data.grids;
   camera_params_t &cam_params = data.cam_params;
   std::deque<pose_t> &poses = data.poses;
-	auto problem = data.problem;
+  auto problem = data.problem;
 
-	// Drop AprilGrids that are not detected
-	auto it = grids.begin();
+  // Drop AprilGrids that are not detected
+  auto it = grids.begin();
   while (it != grids.end()) {
-		if ((*it).detected == false) {
-			it = grids.erase(it);
-		} else {
-			it++;
-		}
-	}
+    if ((*it).detected == false) {
+      it = grids.erase(it);
+    } else {
+      it++;
+    }
+  }
 
   // Create random index vector (same length as grids)
   // -- Create indicies vector
@@ -535,9 +535,9 @@ int calib_mono_inc_solve(calib_mono_data_t &data) {
 
     // Add AprilGrid to problem
     process_grid<CAMERA_TYPE>(grid, covar, cam_params,
-						 		 	 	 	 	 	 	  poses.back(), *problem,
+                                     poses.back(), *problem,
                               view.res_ids, view.cost_fns,
-				 	 	 	 		 	 	 	 	    data.pose_plus);
+                                      data.pose_plus);
     views.push_back(view);
 
     // Solve

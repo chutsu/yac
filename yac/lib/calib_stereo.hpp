@@ -388,9 +388,9 @@ static void show_results(const calib_data_t &data) {
 template <typename T>
 int calib_stereo_solve(calib_data_t &data) {
   // Map out data
-	ceres::Problem *problem = data.problem;
+  ceres::Problem *problem = data.problem;
   ceres::LossFunction *loss = data.loss;
-	PoseLocalParameterization &pose_plus = data.pose_plus;
+  PoseLocalParameterization &pose_plus = data.pose_plus;
   aprilgrids_t &cam0_grids = data.cam_grids[0];
   aprilgrids_t &cam1_grids = data.cam_grids[1];
   mat2_t &covar = data.covar;

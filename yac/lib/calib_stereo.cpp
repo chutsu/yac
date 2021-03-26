@@ -261,12 +261,12 @@ int calib_stereo_solve(const std::string &config_file) {
   }
 
   // Load calibration data
-	aprilgrids_t grids0;
-	aprilgrids_t grids1;
-	if (load_stereo_calib_data(cam0_data_path, cam1_data_path, grids0, grids1) != 0) {
-		LOG_ERROR("Failed to local calibration data!");
-		return -1;
-	}
+  aprilgrids_t grids0;
+  aprilgrids_t grids1;
+  if (load_stereo_calib_data(cam0_data_path, cam1_data_path, grids0, grids1) != 0) {
+    LOG_ERROR("Failed to local calibration data!");
+    return -1;
+  }
 
   // Calibrate stereo
   LOG_INFO("Calibrating stereo camera!");

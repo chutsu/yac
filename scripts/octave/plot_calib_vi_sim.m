@@ -233,101 +233,101 @@ function C = so3_exp(phi)
 endfunction
 
 function plot_imu_data(imu_ts, imu_acc, imu_gyr)
-	t = [];
-	acc_x = [];
-	acc_y = [];
-	acc_z = [];
-	gyr_x = [];
-	gyr_y = [];
-	gyr_z = [];
+  t = [];
+  acc_x = [];
+  acc_y = [];
+  acc_z = [];
+  gyr_x = [];
+  gyr_y = [];
+  gyr_z = [];
 
-	for i = 1:length(imu_ts)
-		t = [t; imu_ts{i} * 1e-9];
-		acc_x = [acc_x; imu_acc{i}(1)];
-		acc_y = [acc_y; imu_acc{i}(2)];
-		acc_z = [acc_z; imu_acc{i}(3)];
-		gyr_x = [gyr_x; imu_gyr{i}(1)];
-		gyr_y = [gyr_y; imu_gyr{i}(2)];
-		gyr_z = [gyr_z; imu_gyr{i}(3)];
-	endfor
+  for i = 1:length(imu_ts)
+    t = [t; imu_ts{i} * 1e-9];
+    acc_x = [acc_x; imu_acc{i}(1)];
+    acc_y = [acc_y; imu_acc{i}(2)];
+    acc_z = [acc_z; imu_acc{i}(3)];
+    gyr_x = [gyr_x; imu_gyr{i}(1)];
+    gyr_y = [gyr_y; imu_gyr{i}(2)];
+    gyr_z = [gyr_z; imu_gyr{i}(3)];
+  endfor
 
-	figure(1);
-	subplot(211);
-	hold on;
-	plot(t, acc_x, 'r-');
-	plot(t, acc_y, 'g-');
-	plot(t, acc_z, 'b-');
-	xlabel("Time [s]");
-	ylabel("Acceleration [ms^-2]");
-	xlim([0, max(t)]);
+  figure(1);
+  subplot(211);
+  hold on;
+  plot(t, acc_x, 'r-');
+  plot(t, acc_y, 'g-');
+  plot(t, acc_z, 'b-');
+  xlabel("Time [s]");
+  ylabel("Acceleration [ms^-2]");
+  xlim([0, max(t)]);
 
-	subplot(212);
-	hold on;
-	plot(t, gyr_x, 'r-');
-	plot(t, gyr_y, 'g-');
-	plot(t, gyr_z, 'b-');
-	xlabel("Time [s]");
-	ylabel("Angular Velocity [rad s^-1]");
-	xlim([0, max(t)]);
+  subplot(212);
+  hold on;
+  plot(t, gyr_x, 'r-');
+  plot(t, gyr_y, 'g-');
+  plot(t, gyr_z, 'b-');
+  xlabel("Time [s]");
+  ylabel("Angular Velocity [rad s^-1]");
+  xlim([0, max(t)]);
 
-	ginput();
+  ginput();
 endfunction
 
 function plot_sensor_poses(ts, T_WS)
-	t = [];
-	x = [];
-	y = [];
-	z = [];
-	for i = 1:100:length(T_WS)
-		r_WS = T_WS{i}(1:3, 4);
-		t = [t; ts{i} * 1e-9];
-		x = [x; r_WS(1)];
-		y = [y; r_WS(2)];
-		z = [z; r_WS(3)];
-	endfor
+  t = [];
+  x = [];
+  y = [];
+  z = [];
+  for i = 1:100:length(T_WS)
+    r_WS = T_WS{i}(1:3, 4);
+    t = [t; ts{i} * 1e-9];
+    x = [x; r_WS(1)];
+    y = [y; r_WS(2)];
+    z = [z; r_WS(3)];
+  endfor
 
-	figure(1);
-	hold on;
-	plot(t, x, 'r-');
-	plot(t, y, 'g-');
-	plot(t, z, 'b-');
-	xlabel("Time [s]");
-	ylabel("Displacement [m]");
-	ginput();
+  figure(1);
+  hold on;
+  plot(t, x, 'r-');
+  plot(t, y, 'g-');
+  plot(t, z, 'b-');
+  xlabel("Time [s]");
+  ylabel("Displacement [m]");
+  ginput();
 endfunction
 
 function plot_scene(T_WS, T_WC, T_WF)
-	figure(1);
-	hold on;
+  figure(1);
+  hold on;
 
-	% C_SC = euler321(deg2rad([-90, 0, -90]))
-	% r_SC = [0.0; 0.0; 0.1];
-	% T_SC = tf(C_SC, r_SC);
-	% T_WS = tf(eye(3), zeros(3, 1));
-	% draw_frame(T_WS);
-	% draw_frame(T_WS * T_SC);
+  % C_SC = euler321(deg2rad([-90, 0, -90]))
+  % r_SC = [0.0; 0.0; 0.1];
+  % T_SC = tf(C_SC, r_SC);
+  % T_WS = tf(eye(3), zeros(3, 1));
+  % draw_frame(T_WS);
+  % draw_frame(T_WS * T_SC);
 
-	% C_WF = euler321(deg2rad([90, 0, -90]))
-	% T_WF = tf(C_WF, zeros(3, 1));
-	% draw_frame(T_WF);
+  % C_WF = euler321(deg2rad([90, 0, -90]))
+  % T_WF = tf(C_WF, zeros(3, 1));
+  % draw_frame(T_WF);
 
-	draw_frame(T_WF);
+  draw_frame(T_WF);
 
-	% % for i = 1:100:length(T_WS)
-	for i = 1:10:1000
-	  draw_frame(T_WS{i});
-	endfor
+  % % for i = 1:100:length(T_WS)
+  for i = 1:10:1000
+    draw_frame(T_WS{i});
+  endfor
 
-	% for i = 1:10:length(T_WC)
-	%   draw_frame(T_WC{i});
-	% endfor
+  % for i = 1:10:length(T_WC)
+  %   draw_frame(T_WC{i});
+  % endfor
 
-	xlabel "x";
-	ylabel "y";
-	zlabel "z";
-	axis 'equal';
-	view(3);
-	ginput();
+  xlabel "x";
+  ylabel "y";
+  zlabel "z";
+  axis 'equal';
+  view(3);
+  ginput();
 endfunction
 
 % Load data
@@ -387,22 +387,22 @@ ts_k = 0;
 dt = (1.0 / 200.0);
 for k = 2:length(imu_ts)
 % for k = 2:N
-	% Calculate dt
-	% ts_k = imu_ts{k} * 1e-9;
-	% dt = ts_k - ts_km1;
+  % Calculate dt
+  % ts_k = imu_ts{k} * 1e-9;
+  % dt = ts_k - ts_km1;
 
-	% Propagate IMU state
-	acc = imu_acc{k};
-	gyr = imu_gyr{k};
-	x_imu = imu_update(x_imu, acc, gyr, dt);
+  % Propagate IMU state
+  acc = imu_acc{k};
+  gyr = imu_gyr{k};
+  x_imu = imu_update(x_imu, acc, gyr, dt);
 
-	% Update
-	traj_time = [traj_time; ts_k];
-	traj_pos = [traj_pos, x_imu.p_WS];
-	traj_vel = [traj_vel, x_imu.v_WS];
-	traj_att = [traj_att, rot2euler(x_imu.C_WS)];
-	ts_km1 = ts_k;
-	ts_k += dt;
+  % Update
+  traj_time = [traj_time; ts_k];
+  traj_pos = [traj_pos, x_imu.p_WS];
+  traj_vel = [traj_vel, x_imu.v_WS];
+  traj_att = [traj_att, rot2euler(x_imu.C_WS)];
+  ts_km1 = ts_k;
+  ts_k += dt;
 endfor
 
 %
@@ -410,10 +410,10 @@ endfor
 % y = [];
 % z = [];
 % for i = 1:length(T_WS)
-% 	r_WS = T_WS{i}(1:3, 4);
-% 	x = [x; r_WS(1)];
-% 	y = [y; r_WS(2)];
-% 	z = [z; r_WS(3)];
+%   r_WS = T_WS{i}(1:3, 4);
+%   x = [x; r_WS(1)];
+%   y = [y; r_WS(2)];
+%   z = [z; r_WS(3)];
 % endfor
 
 

@@ -9,8 +9,8 @@ std::vector<camera_params_t> setup_cameras(const test_data_t &data) {
   const int img_w = 752;
   const int img_h = 480;
   const int res[2] = {img_w, img_h};
-	const std::string proj_model = "pinhole";
-	const std::string dist_model = "radtan4";
+  const std::string proj_model = "pinhole";
+  const std::string dist_model = "radtan4";
   camera_params_t cam0{0, 0, res, proj_model, dist_model, 4, 4};
   camera_params_t cam1{1, 1, res, proj_model, dist_model, 4, 4};
 
@@ -21,7 +21,7 @@ std::vector<camera_params_t> setup_cameras(const test_data_t &data) {
     FATAL("Failed to inialize camera!");
   }
 
-	return {cam0, cam1};
+  return {cam0, cam1};
 }
 
 int test_reproj_error() {
@@ -141,47 +141,47 @@ int test_reproj_error() {
 
 aprilgrids_t filter_aprilgrids(aprilgrids_t &grids) {
 
-	aprilgrids_t filtered_grids;
-	auto grid_i = grids[0];
+  aprilgrids_t filtered_grids;
+  auto grid_i = grids[0];
 
-	for (size_t j = 1; j < grids.size(); j++) {
-		auto grid_j = grids[j];
+  for (size_t j = 1; j < grids.size(); j++) {
+    auto grid_j = grids[j];
 
-		std::vector<int> tag_ids;
-		std::vector<int> corner_indicies;
-		vec2s_t grid_i_keypoints;
-		vec2s_t grid_j_keypoints;
-		vec3s_t object_points;
-		aprilgrid_t::common_measurements(grid_i, grid_j,
-																		 tag_ids, corner_indicies,
-																		 grid_i_keypoints,
-																		 grid_j_keypoints,
-																		 object_points);
+    std::vector<int> tag_ids;
+    std::vector<int> corner_indicies;
+    vec2s_t grid_i_keypoints;
+    vec2s_t grid_j_keypoints;
+    vec3s_t object_points;
+    aprilgrid_t::common_measurements(grid_i, grid_j,
+                                     tag_ids, corner_indicies,
+                                     grid_i_keypoints,
+                                     grid_j_keypoints,
+                                     object_points);
 
-		aprilgrid_t new_grid{grid_i.timestamp, 6, 6, 0.088, 0.3};
-		for (size_t i = 0; i < tag_ids.size(); i++) {
-			new_grid.add(tag_ids[i], corner_indicies[i], grid_i_keypoints[i]);
-		}
-		filtered_grids.push_back(new_grid);
+    aprilgrid_t new_grid{grid_i.timestamp, 6, 6, 0.088, 0.3};
+    for (size_t i = 0; i < tag_ids.size(); i++) {
+      new_grid.add(tag_ids[i], corner_indicies[i], grid_i_keypoints[i]);
+    }
+    filtered_grids.push_back(new_grid);
 
-		if ((j + 1) == grids.size()) {
-			aprilgrid_t new_grid{grid_j.timestamp, 6, 6, 0.088, 0.3};
-			for (size_t i = 0; i < tag_ids.size(); i++) {
-				new_grid.add(tag_ids[i], corner_indicies[i], grid_j_keypoints[i]);
-			}
-			filtered_grids.push_back(new_grid);
-		}
+    if ((j + 1) == grids.size()) {
+      aprilgrid_t new_grid{grid_j.timestamp, 6, 6, 0.088, 0.3};
+      for (size_t i = 0; i < tag_ids.size(); i++) {
+        new_grid.add(tag_ids[i], corner_indicies[i], grid_j_keypoints[i]);
+      }
+      filtered_grids.push_back(new_grid);
+    }
 
-		grid_i = grid_j;
-	}
+    grid_i = grid_j;
+  }
 
-	return filtered_grids;
+  return filtered_grids;
 }
 
 int test_calib_stereo_solve() {
   // Test data
   test_data_t test_data = setup_test_data();
-	auto cameras = setup_cameras(test_data);
+  auto cameras = setup_cameras(test_data);
 
   calib_data_t data;
   data.add_calib_target(test_data.target);

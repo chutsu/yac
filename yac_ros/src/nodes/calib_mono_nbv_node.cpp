@@ -110,11 +110,11 @@ struct calib_mono_nbv_t {
       return;
     }
 
-		// Setup initial calibration poses
+    // Setup initial calibration poses
     poses_init = calib_init_poses<CAMERA>(target, cam_params);
 
     LOG_INFO("Camera initialized!");
-		cam_init = true;
+    cam_init = true;
   }
 
   void draw_status_text(const std::string &text, cv::Mat &image) {

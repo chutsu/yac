@@ -16,8 +16,8 @@ namespace yac {
 
 /* Camera Calibration Data */
 struct calib_data_t {
-	ceres::Problem::Options prob_options;
-	ceres::Problem *problem;
+  ceres::Problem::Options prob_options;
+  ceres::Problem *problem;
   PoseLocalParameterization pose_plus;
 
   aprilgrids_t grids;
@@ -25,32 +25,32 @@ struct calib_data_t {
   std::deque<pose_t> poses;
   mat2_t covar = I(2);
 
-	calib_data_t() {
-		prob_options.local_parameterization_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
-		prob_options.cost_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
-		prob_options.enable_fast_removal = true;
-		problem = new ceres::Problem(prob_options);
-	}
+  calib_data_t() {
+    prob_options.local_parameterization_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
+    prob_options.cost_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
+    prob_options.enable_fast_removal = true;
+    problem = new ceres::Problem(prob_options);
+  }
 
-	calib_data_t(const aprilgrids_t &grids_,
-									  const camera_params_t &cam_params_,
-					 	 	 	 	  const mat2_t covar_=I(2))
-			: grids{grids_}, cam_params{cam_params_}, covar{covar_} {
-		prob_options.local_parameterization_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
-		prob_options.cost_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
-		prob_options.enable_fast_removal = true;
-		problem = new ceres::Problem(prob_options);
-	}
+  calib_data_t(const aprilgrids_t &grids_,
+                    const camera_params_t &cam_params_,
+                        const mat2_t covar_=I(2))
+      : grids{grids_}, cam_params{cam_params_}, covar{covar_} {
+    prob_options.local_parameterization_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
+    prob_options.cost_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
+    prob_options.enable_fast_removal = true;
+    problem = new ceres::Problem(prob_options);
+  }
 
-	~calib_data_t() {
-		delete problem;
-	}
-
-	void reset() {
+  ~calib_data_t() {
     delete problem;
-		problem = new ceres::Problem(prob_options);
-		poses.clear();
-	}
+  }
+
+  void reset() {
+    delete problem;
+    problem = new ceres::Problem(prob_options);
+    poses.clear();
+  }
 };
 
 /** Monocular Camera Residual */
@@ -70,11 +70,11 @@ struct reproj_error_t : public ceres::SizedCostFunction<2, 7, 8> {
   mutable matxs_t J_min;
 
   reproj_error_t(const int cam_res[2],
-           	 	 	 const int tag_id,
-           	 	 	 const int corner_idx,
-           	 	 	 const vec3_t &r_FFi,
-           	 	 	 const vec2_t &z,
-           	 	 	 const mat2_t &covar)
+                    const int tag_id,
+                    const int corner_idx,
+                    const vec3_t &r_FFi,
+                    const vec2_t &z,
+                    const mat2_t &covar)
       : cam_res_{cam_res[0], cam_res[1]},
         tag_id_{tag_id}, corner_idx_{corner_idx},
         r_FFi_{r_FFi}, z_{z},
@@ -235,20 +235,20 @@ struct calib_view_t {
 /* Camera Calibration Views */
 template <typename CAMERA_TYPE>
 struct calib_views_t {
-	std::deque<calib_view_t<CAMERA_TYPE>> views;
+  std::deque<calib_view_t<CAMERA_TYPE>> views;
 
-	void add(const calib_view_t<CAMERA_TYPE> &view) {
-		views.push_back(view);
-	}
-
-	void errors(std::vector<double> &errs,
-              std::vector<std::pair<int, int>> *tags_meta=nullptr) const {
-		for (const auto &view : views) {
-			view.errors(errs, tags_meta);
-		}
+  void add(const calib_view_t<CAMERA_TYPE> &view) {
+    views.push_back(view);
   }
 
-	void errors(std::vector<double> &errs,
+  void errors(std::vector<double> &errs,
+              std::vector<std::pair<int, int>> *tags_meta=nullptr) const {
+    for (const auto &view : views) {
+      view.errors(errs, tags_meta);
+    }
+  }
+
+  void errors(std::vector<double> &errs,
               std::vector<std::pair<int, int>> *tags_meta=nullptr) {
     static_cast<const calib_views_t>(*this).errors(errs, tags_meta);
   }
@@ -300,7 +300,7 @@ void process_grid(const aprilgrid_t &grid,
 // template <typename CAMERA_TYPE>
 // int calib_camera_solve(calib_data_t &data) {
 //   // Calibration data
-// 	ceres::Problem *problem = data.problem;
+//   ceres::Problem *problem = data.problem;
 //   mat2_t &covar = data.covar;
 //   aprilgrids_t &grids = data.grids;
 //   camera_params_t &cam_params = data.cam_params;
@@ -317,17 +317,17 @@ void process_grid(const aprilgrid_t &grid,
 //   const vecx_t dist_params = cam_params.dist_params();
 //   const CAMERA_TYPE cam{cam_res, proj_params, dist_params};
 //
-// 	// Drop AprilGrids that are not detected
-// 	auto it = grids.begin();
+//   // Drop AprilGrids that are not detected
+//   auto it = grids.begin();
 //   while (it != grids.end()) {
-// 		if ((*it).detected == false) {
-// 			it = grids.erase(it);
-// 		} else {
-// 			it++;
-// 		}
-// 	}
+//     if ((*it).detected == false) {
+//       it = grids.erase(it);
+//     } else {
+//       it++;
+//     }
+//   }
 //
-// 	// Build Problem
+//   // Build Problem
 //   for (const auto &grid : grids) {
 //     // Estimate relative pose
 //     mat4_t T_CF_k;
@@ -507,17 +507,17 @@ void process_grid(const aprilgrid_t &grid,
 //   aprilgrids_t &grids = data.grids;
 //   camera_params_t &cam_params = data.cam_params;
 //   std::deque<pose_t> &poses = data.poses;
-// 	auto problem = data.problem;
+//   auto problem = data.problem;
 //
-// 	// Drop AprilGrids that are not detected
-// 	auto it = grids.begin();
+//   // Drop AprilGrids that are not detected
+//   auto it = grids.begin();
 //   while (it != grids.end()) {
-// 		if ((*it).detected == false) {
-// 			it = grids.erase(it);
-// 		} else {
-// 			it++;
-// 		}
-// 	}
+//     if ((*it).detected == false) {
+//       it = grids.erase(it);
+//     } else {
+//       it++;
+//     }
+//   }
 //
 //   // Create random index vector (same length as grids)
 //   // -- Create indicies vector
@@ -560,9 +560,9 @@ void process_grid(const aprilgrid_t &grid,
 //
 //     // Add AprilGrid to problem
 //     process_grid<CAMERA_TYPE>(grid, covar, cam_params,
-// 						 		 	 	 	 	 	 	  poses.back(), *problem,
+//                                      poses.back(), *problem,
 //                               view.res_ids, view.cost_fns,
-// 				 	 	 	 		 	 	 	 	    data.pose_plus);
+//                                       data.pose_plus);
 //     views.push_back(view);
 //
 //     // Solve

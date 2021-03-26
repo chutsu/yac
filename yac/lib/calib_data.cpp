@@ -83,15 +83,15 @@ int preprocess_camera_data(const calib_target_t &target,
     const auto image_path = paths_join(image_dir, image_paths[i]);
     const cv::Mat frame = cv::imread(image_path, CV_LOAD_IMAGE_GRAYSCALE);
 
-		// cv::Mat image;
-		// clahe->setClipLimit(2);
-		// clahe->apply(frame, image);
+    // cv::Mat image;
+    // clahe->setClipLimit(2);
+    // clahe->apply(frame, image);
 
-		// cv::Mat image;
-		// cv::GaussianBlur(frame, image, cv::Size(0, 0), 3);
-		// cv::addWeighted(frame, 1.5, image, -0.5, 0, image);
+    // cv::Mat image;
+    // cv::GaussianBlur(frame, image, cv::Size(0, 0), 3);
+    // cv::addWeighted(frame, 1.5, image, -0.5, 0, image);
 
-		// cv::Mat image_compare;
+    // cv::Mat image_compare;
     // cv::hconcat(frame, image, image_compare);
     // cv::imshow("Image", image_compare);
     // cv::waitKey(1);

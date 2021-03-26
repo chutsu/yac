@@ -163,10 +163,10 @@ struct calib_stereo_nbv_t {
       }
     }
 
-		// Setup initial calibration poses
+    // Setup initial calibration poses
     poses_init = calib_init_poses<CAMERA>(calib_data.target, calib_data.cam_params[0]);
     LOG_INFO("Camera initialized!");
-		cam_init = true;
+    cam_init = true;
   }
 
 
@@ -541,18 +541,18 @@ struct calib_vi_init_node_t {
 
   ~calib_vi_init_node_t() {
     // Join threads
-		if (keyboard_thread_.joinable()) {
-			keyboard_thread_.join();
-		}
+    if (keyboard_thread_.joinable()) {
+      keyboard_thread_.join();
+    }
 
     // Detector
-		if (detector_) {
+    if (detector_) {
       delete detector_;
-		}
+    }
 
     // Clean up (restore blocking keyboard handler)
     tcsetattr(0, TCSANOW, &term_config_orig_);
-	}
+  }
 
   void event_handler(int key) {
     if (key == EOF) {
@@ -618,26 +618,26 @@ struct calib_vi_init_node_t {
       return;
     }
     // -- Add measurement
-		est_.add_measurement(0, grids[0]);
-		est_.add_measurement(1, grids[1]);
-		frames_init[0].push_back(cam_images[0]);
-		frames_init[1].push_back(cam_images[1]);
+    est_.add_measurement(0, grids[0]);
+    est_.add_measurement(1, grids[1]);
+    frames_init[0].push_back(cam_images[0]);
+    frames_init[1].push_back(cam_images[1]);
 
     // Visualize current sensor pose
     if (est_.initialized && config.publish_tfs) {
-			const auto ts = cam0_ts;
-			const auto target = calib_data.target;
-			const auto T_WF = est_.get_fiducial_pose();
-			const auto T_WS = est_.get_sensor_pose(-1);
-			const auto T_BS = est_.get_imu_extrinsics();
-			const auto T_BC0 = est_.get_cam_extrinsics(0);
-			const auto T_BC1 = est_.get_cam_extrinsics(1);
-			const auto T_WC0 = T_WS * T_BS.inverse() * T_BC0;
-			const auto T_WC1 = T_WS * T_BS.inverse() * T_BC1;
-			publish_fiducial_tf(ts, target, T_WF, tf_br_, rviz_pub_);
-			publish_tf(ts, "T_WS", T_WS, tf_br_);
-			publish_tf(ts, "T_WC0", T_WC0, tf_br_);
-			publish_tf(ts, "T_WC1", T_WC1, tf_br_);
+      const auto ts = cam0_ts;
+      const auto target = calib_data.target;
+      const auto T_WF = est_.get_fiducial_pose();
+      const auto T_WS = est_.get_sensor_pose(-1);
+      const auto T_BS = est_.get_imu_extrinsics();
+      const auto T_BC0 = est_.get_cam_extrinsics(0);
+      const auto T_BC1 = est_.get_cam_extrinsics(1);
+      const auto T_WC0 = T_WS * T_BS.inverse() * T_BC0;
+      const auto T_WC1 = T_WS * T_BS.inverse() * T_BC1;
+      publish_fiducial_tf(ts, target, T_WF, tf_br_, rviz_pub_);
+      publish_tf(ts, "T_WS", T_WS, tf_br_);
+      publish_tf(ts, "T_WC0", T_WC0, tf_br_);
+      publish_tf(ts, "T_WC1", T_WC1, tf_br_);
     }
   }
 
@@ -648,7 +648,7 @@ struct calib_vi_init_node_t {
     const vec3_t w_m{gyr.x, gyr.y, gyr.z};
     const vec3_t a_m{acc.x, acc.y, acc.z};
     const auto ts = msg->header.stamp.toNSec();
-		est_.add_measurement(ts, a_m, w_m);
+    est_.add_measurement(ts, a_m, w_m);
   }
 
   void loop() {

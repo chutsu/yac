@@ -84,17 +84,17 @@ public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
   fiducial_t();
   fiducial_t(const id_t id_,
-			 	 	 	 const mat4_t &T_WF_,
+                const mat4_t &T_WF_,
              const bool fixed_=false);
 
   void plus(const vecx_t &dx);
   void minus(const vecx_t &dx);
   void perturb(const int i, const real_t step_size);
-	void update();
-	mat4_t estimate();
+  void update();
+  mat4_t estimate();
 
 private:
-	mat4_t T_WF;
+  mat4_t T_WF;
 };
 
 #elif FIDUCIAL_PARAMS_SIZE == 7
@@ -103,10 +103,10 @@ public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
   fiducial_t();
   fiducial_t(const id_t id_,
-			 	 	 	 const mat4_t &T_WF_,
+                const mat4_t &T_WF_,
              const bool fixed_=false);
 
-	mat4_t estimate();
+  mat4_t estimate();
 };
 #endif
 

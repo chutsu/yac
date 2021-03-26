@@ -8,23 +8,23 @@ namespace yac {
 static std::vector<camera_params_t> setup_cameras() {
   const int img_w = 640;
   const int img_h = 480;
-	const int cam_res[2] = {img_w, img_h};
-	const std::string proj_model = "pinhole";
-	const std::string dist_model = "radtan4";
+  const int cam_res[2] = {img_w, img_h};
+  const std::string proj_model = "pinhole";
+  const std::string dist_model = "radtan4";
 
   const double fx = pinhole_focal(img_w, 69.4);
   const double fy = pinhole_focal(img_h, 42.5);
   const double cx = 640.0 / 2.0;
   const double cy = 480.0 / 2.0;
-	const vec4_t proj_params{fx, fy, cx, cy};
-	const vec4_t dist_params{0.01, 0.001, 0.001, 0.001};
+  const vec4_t proj_params{fx, fy, cx, cy};
+  const vec4_t dist_params{0.01, 0.001, 0.001, 0.001};
 
-	camera_params_t cam0{0, 0, cam_res,
-											 proj_model, dist_model,
-											 proj_params, dist_params};
-	camera_params_t cam1{1, 1, cam_res,
-											 proj_model, dist_model,
-											 proj_params, dist_params};
+  camera_params_t cam0{0, 0, cam_res,
+                       proj_model, dist_model,
+                       proj_params, dist_params};
+  camera_params_t cam1{1, 1, cam_res,
+                       proj_model, dist_model,
+                       proj_params, dist_params};
 
   return {cam0, cam1};
 }
@@ -34,7 +34,7 @@ static void setup_calib_target(const camera_params_t &cam,
                                mat4_t &T_FO,
                                mat4_t *T_WF=nullptr) {
   // Create calibration origin
-	target = calib_target_t{"aprilgrid", 6, 6, 0.088, 0.3};
+  target = calib_target_t{"aprilgrid", 6, 6, 0.088, 0.3};
   T_FO = calib_target_origin<pinhole_radtan4_t>(target, cam);
 
   // Calibration target pose
@@ -57,10 +57,10 @@ int test_calib_target_origin() {
   const double cy = cam_res[1] / 2.0;
   const vec4_t proj_params{fx, fy, cx, cy};
   const vec4_t dist_params{0.0, 0.0, 0.0, 0.0};
-	camera_params_t cam_params{0, 0, cam_res,
-														 proj_model, dist_model,
-													   proj_params, dist_params};
-	const mat4_t T_FO = calib_target_origin<pinhole_radtan4_t>(target, cam_params);
+  camera_params_t cam_params{0, 0, cam_res,
+                             proj_model, dist_model,
+                             proj_params, dist_params};
+  const mat4_t T_FO = calib_target_origin<pinhole_radtan4_t>(target, cam_params);
   // const mat4_t origin = calib_target_origin(target, cam_res, hfov);
   print_matrix("T_FO", T_FO);
 
@@ -79,9 +79,9 @@ int test_calib_init_poses() {
   const double cy = cam_res[1] / 2.0;
   const vec4_t proj_params{fx, fy, cx, cy};
   const vec4_t dist_params{0.0, 0.0, 0.0, 0.0};
-	camera_params_t cam_params{0, 0, cam_res,
-														 proj_model, dist_model,
-													   proj_params, dist_params};
+  camera_params_t cam_params{0, 0, cam_res,
+                             proj_model, dist_model,
+                             proj_params, dist_params};
 
   const mat4s_t poses = calib_init_poses<pinhole_radtan4_t>(target, cam_params);
   const std::string save_path = "/tmp/calib_poses.csv";
@@ -102,9 +102,9 @@ int test_calib_nbv_poses() {
   const double cy = cam_res[1] / 2.0;
   const vec4_t proj_params{fx, fy, cx, cy};
   const vec4_t dist_params{0.0, 0.0, 0.0, 0.0};
-	camera_params_t cam_params{0, 0, cam_res,
-														 proj_model, dist_model,
-													   proj_params, dist_params};
+  camera_params_t cam_params{0, 0, cam_res,
+                             proj_model, dist_model,
+                             proj_params, dist_params};
 
   const mat4s_t poses = calib_nbv_poses<pinhole_radtan4_t>(target, cam_params);
   const std::string save_path = "/tmp/calib_poses.csv";
@@ -132,10 +132,10 @@ int test_calib_orbit_trajs() {
   const timestamp_t ts_start = 0;
   const timestamp_t ts_end = 5e9;
   calib_orbit_trajs<pinhole_radtan4_t>(target, cameras[0], cameras[1],
-																			 T_BC0, T_BC1,
-																			 T_WF, T_FO,
-																			 ts_start, ts_end,
-																			 trajs);
+                                       T_BC0, T_BC1,
+                                       T_WF, T_FO,
+                                       ts_start, ts_end,
+                                       trajs);
 
   // Save trajectories
   int index = 0;
@@ -149,7 +149,7 @@ int test_calib_orbit_trajs() {
     index++;
   }
 
-	return 0;
+  return 0;
 }
 
 int test_calib_pan_trajs() {
@@ -170,12 +170,12 @@ int test_calib_pan_trajs() {
   const timestamp_t ts_start = 0;
   const timestamp_t ts_end = 5e9;
   calib_pan_trajs<pinhole_radtan4_t>(target,
-																		 cameras[0],
-																		 cameras[1],
-																		 T_C0C1,
-																		 T_WF, T_FO,
-																		 ts_start, ts_end,
-																		 trajs);
+                                     cameras[0],
+                                     cameras[1],
+                                     T_C0C1,
+                                     T_WF, T_FO,
+                                     ts_start, ts_end,
+                                     trajs);
 
   // Save trajectories
   int index = 0;
@@ -189,20 +189,20 @@ int test_calib_pan_trajs() {
     index++;
   }
 
-	return 0;
+  return 0;
 }
 
 int test_nbv_draw() {
-	// Setup Camera
-	const id_t id = 0;
-	const int cam_idx = 0;
-	const int img_w = 752;
-	const int img_h = 480;
-	const int cam_res[2] = {img_w, img_h};
-	const double lens_hfov = 90.0;
-	const double lens_vfov = 90.0;
-	const std::string proj_model = "pinhole";
-	const std::string dist_model = "radtan4";
+  // Setup Camera
+  const id_t id = 0;
+  const int cam_idx = 0;
+  const int img_w = 752;
+  const int img_h = 480;
+  const int cam_res[2] = {img_w, img_h};
+  const double lens_hfov = 90.0;
+  const double lens_vfov = 90.0;
+  const std::string proj_model = "pinhole";
+  const std::string dist_model = "radtan4";
   const double fx = pinhole_focal(img_w, lens_hfov);
   const double fy = pinhole_focal(img_h, lens_vfov);
   const double cx = img_w / 2.0;
@@ -210,8 +210,8 @@ int test_nbv_draw() {
   const vec4_t proj_params{fx, fy, cx, cy};
   const vec4_t dist_params{0.01, 0.0001, 0.0001, 0.0001};
   const camera_params_t cam_params{id, cam_idx, cam_res,
-														  	 	 proj_model, dist_model,
-														  	 	 proj_params, dist_params};
+                                    proj_model, dist_model,
+                                    proj_params, dist_params};
 
   // Setup nbv poses
   const calib_target_t target{"aprilgrid", 6, 6, 0.088, 0.3};
@@ -230,29 +230,29 @@ int test_nbv_draw() {
 }
 
 int test_nbv_test_grid() {
-	// Setup Camera
-	const int img_w = 752;
-	const int img_h = 480;
-	const int cam_res[2] = {img_w, img_h};
-	const double lens_hfov = 90.0;
-	const double lens_vfov = 90.0;
+  // Setup Camera
+  const int img_w = 752;
+  const int img_h = 480;
+  const int cam_res[2] = {img_w, img_h};
+  const double lens_hfov = 90.0;
+  const double lens_vfov = 90.0;
   const double fx = pinhole_focal(img_w, lens_hfov);
   const double fy = pinhole_focal(img_h, lens_vfov);
   const double cx = img_w / 2.0;
   const double cy = img_h / 2.0;
   const vec4_t proj_params{fx, fy, cx, cy};
   const vec4_t dist_params{0.01, 0.0001, 0.0001, 0.0001};
-	pinhole_radtan4_t camera{cam_res, proj_params, dist_params};
+  pinhole_radtan4_t camera{cam_res, proj_params, dist_params};
 
-	// NBV test grid
-	nbv_test_grid_t test_grid(camera);
+  // NBV test grid
+  nbv_test_grid_t test_grid(camera);
 
-	for (size_t i = 0; i < test_grid.nb_points; i++) {
-		const vec3_t p = test_grid.object_points[i];
-		const vec2_t z = test_grid.keypoints[i];
-		printf("r_FFi: [%f, %f, %f] ", p(0), p(1), p(2));
-		printf("z: [%f, %f]\n", z(0), z(1));
-	}
+  for (size_t i = 0; i < test_grid.nb_points; i++) {
+    const vec3_t p = test_grid.object_points[i];
+    const vec2_t z = test_grid.keypoints[i];
+    printf("r_FFi: [%f, %f, %f] ", p(0), p(1), p(2));
+    printf("z: [%f, %f]\n", z(0), z(1));
+  }
 
   return 0;
 }
@@ -261,7 +261,7 @@ int test_nbv_find() {
   test_data_t test_data = setup_test_data();
 
   // Calibration target
-	calib_target_t target{"aprilgrid", 6, 6, 0.088, 0.3};
+  calib_target_t target{"aprilgrid", 6, 6, 0.088, 0.3};
 
   // Camera
   const id_t id = 0;
@@ -276,10 +276,10 @@ int test_nbv_find() {
   const vec4_t proj_params{fx, fy, cx, cy};
   const vec4_t dist_params{0.0, 0.0, 0.0, 0.0};
   camera_params_t cam_params{id, cam_idx, cam_res,
-														 proj_model, dist_model,
-														 proj_params, dist_params};
+                             proj_model, dist_model,
+                             proj_params, dist_params};
 
-	// Optimize
+  // Optimize
   aprilgrids_t grids0;
   for (const auto &grid : test_data.grids0) {
     if (grid.detected) {
@@ -289,7 +289,7 @@ int test_nbv_find() {
       break;
     }
   }
-	calib_mono_data_t data{grids0, cam_params};
+  calib_mono_data_t data{grids0, cam_params};
   calib_mono_solve<pinhole_radtan4_t>(data);
 
   // Find NBV
@@ -304,7 +304,7 @@ int test_nbv_find2() {
   test_data_t test_data = setup_test_data();
 
   // Calibration target
-	calib_target_t target{"aprilgrid", 6, 6, 0.088, 0.3};
+  calib_target_t target{"aprilgrid", 6, 6, 0.088, 0.3};
 
   // Camera
   const int cam_res[2] = {752, 480};
@@ -317,13 +317,13 @@ int test_nbv_find2() {
   const vec4_t proj_params{fx, fy, cx, cy};
   const vec4_t dist_params{0.0, 0.0, 0.0, 0.0};
   camera_params_t cam0{0, 0, cam_res,
-											 proj_model, dist_model,
-											 proj_params, dist_params};
+                       proj_model, dist_model,
+                       proj_params, dist_params};
   camera_params_t cam1{1, 1, cam_res,
-											 proj_model, dist_model,
-											 proj_params, dist_params};
-	extrinsics_t cam0_exts{2};
-	extrinsics_t cam1_exts{3};
+                       proj_model, dist_model,
+                       proj_params, dist_params};
+  extrinsics_t cam0_exts{2};
+  extrinsics_t cam1_exts{3};
 
   // Prep data
   aprilgrids_t grids0;
@@ -354,7 +354,7 @@ int test_nbv_find2() {
     }
   }
 
-	// Optimize
+  // Optimize
   calib_data_t data;
   data.add_calib_target(target);
   data.add_camera(cam0);
@@ -393,9 +393,9 @@ int test_simulate_cameras() {
   const timestamp_t ts_end = 5e9;
   ctrajs_t trajs;
   calib_orbit_trajs<pinhole_radtan4_t>(target,
-				 	 	 	 	 	  	 	 	 		 	 	 	 	 cameras[0], cameras[1],
-			 	 	 		 	 	  	 	 	 		 	 	 	 	 T_BC0, T_BC1, T_WF, T_FO,
-					 		 	    	 	 	 		 	 	 	 	 ts_start, ts_end, trajs);
+                                                   cameras[0], cameras[1],
+                                                   T_BC0, T_BC1, T_WF, T_FO,
+                                                ts_start, ts_end, trajs);
 
   // Save trajectories
   int index = 0;
@@ -420,11 +420,11 @@ int test_simulate_cameras() {
     aprilgrids_t grids1;
     mat4s_t T_WC0;
     simulate_cameras<pinhole_radtan4_t>(trajs[traj_idx], target,
-                     	 	 	 	 	 	 	 	 	  cameras[0], cameras[1], cam_rate,
-                     	 	 	 	 	 	 	 	 	  T_WF, T_BC0, T_BC1,
-                     	 	 	 	 	 	 	 	 	  ts_start, ts_end,
-                     	 	 	 	 	 	 	 	 	  grids0, grids1,
-                     	 	 	 	 	 	 	 	 	  T_WC0);
+                                                 cameras[0], cameras[1], cam_rate,
+                                                 T_WF, T_BC0, T_BC1,
+                                                 ts_start, ts_end,
+                                                 grids0, grids1,
+                                                 T_WC0);
     MU_CHECK(T_WC0.size() == grids0.size());
     MU_CHECK(T_WC0.size() == grids1.size());
     // clang-format on
@@ -466,11 +466,11 @@ int test_simulate_cameras() {
     // EXPECT_EQ(grids0.size(), 5 * nbt.cam0_.rate - 1);
     // EXPECT_EQ(grids1.size(), 5 * nbt.cam1_.rate - 1);
   }
-	return 0;
+  return 0;
 }
 
 int test_simulate_imu() {
-	// Cameras
+  // Cameras
   auto cameras = setup_cameras();
   const mat4_t T_C0C1 = tf(I(3), vec3_t{0.1, 0.0, 0.0});
   const mat4_t T_BC0 = tf(I(3), zeros(3, 1));
@@ -487,9 +487,9 @@ int test_simulate_imu() {
   const timestamp_t ts_end = 5e9;
   ctrajs_t trajs;
   calib_orbit_trajs<pinhole_radtan4_t>(target,
-				 	 	 	 	 	  	 	 	 		 	 	 	 	 cameras[0], cameras[1],
-			 	 	 		 	 	  	 	 	 		 	 	 	 	 T_BC0, T_BC1, T_WF, T_FO,
-					 		 	    	 	 	 		 	 	 	 	 ts_start, ts_end, trajs);
+                                                   cameras[0], cameras[1],
+                                                   T_BC0, T_BC1, T_WF, T_FO,
+                                                ts_start, ts_end, trajs);
 
   // Simulate IMU
   imu_params_t imu_params;
@@ -550,20 +550,20 @@ int test_simulate_imu() {
     // EXPECT_EQ(imu_gyro.size(), 5 * imu_params.rate + 1);
   }
 
-	return 0;
+  return 0;
 }
 
 int test_nbt_eval_traj() {
-	// Cameras
+  // Cameras
   auto cameras = setup_cameras();
-	auto cam0 = cameras[0];
-	auto cam1 = cameras[1];
-	auto cam_rate = 20.0;
+  auto cam0 = cameras[0];
+  auto cam1 = cameras[1];
+  auto cam_rate = 20.0;
   const mat4_t T_C0C1 = tf(I(3), vec3_t{0.1, 0.0, 0.0});
   const mat4_t T_BC0 = tf(I(3), zeros(3, 1));
   const mat4_t T_BC1 = T_BC0 * T_C0C1;
 
-	// Imu
+  // Imu
   // const auto rpy_SC = deg2rad(vec3_t{-90.0, 0.0, -90.0});
   const auto rpy_BS = deg2rad(vec3_t{0.0, 0.0, 0.0});
   const auto C_BS = euler321(rpy_BS);
@@ -580,8 +580,8 @@ int test_nbt_eval_traj() {
   const timestamp_t ts_end = 2e9;
   ctrajs_t trajs;
   calib_orbit_trajs<pinhole_radtan4_t>(target, cameras[0], cameras[1],
-			 	 	 		 	 	  	 	 	 		 	 	 	 	 T_BC0, T_BC1, T_WF, T_FO,
-					 		 	    	 	 	 		 	 	 	 	 ts_start, ts_end, trajs);
+                                                   T_BC0, T_BC1, T_WF, T_FO,
+                                                ts_start, ts_end, trajs);
 
   // Simulate IMU
   imu_params_t imu_params;
@@ -595,18 +595,18 @@ int test_nbt_eval_traj() {
 
   #pragma omp parallel for
   for (size_t traj_idx = 0; traj_idx < trajs.size(); traj_idx++) {
-		matx_t calib_covar;
-		int retval = nbt_eval_traj<pinhole_radtan4_t>(trajs[traj_idx],
-												 	 	 	 	 		 	 	 	 	 	 	  target,
-												 	 	 	 	 		 	 	 	 	 	 	  ts_start, ts_end,
-												 	 	 	 	 		 	 	 	 	 	 	  imu_params, cam0, cam1,
-												 	 	 	 	 		 	 	 	 	 	 	  cam_rate,
-												 	 	 	 	 		 	 	 	 	 	 	  T_WF, T_BC0, T_BC1, T_BS,
-												 	 	 	 	 		 	 	 	 	 	 	  calib_covar);
-		printf("retval: %d, full_rank(calib_covar): %d\n", retval, full_rank(calib_covar));
-	}
+    matx_t calib_covar;
+    int retval = nbt_eval_traj<pinhole_radtan4_t>(trajs[traj_idx],
+                                                             target,
+                                                             ts_start, ts_end,
+                                                             imu_params, cam0, cam1,
+                                                             cam_rate,
+                                                             T_WF, T_BC0, T_BC1, T_BS,
+                                                             calib_covar);
+    printf("retval: %d, full_rank(calib_covar): %d\n", retval, full_rank(calib_covar));
+  }
 
-	return 0;
+  return 0;
 }
 
 void test_suite() {

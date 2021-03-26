@@ -10,8 +10,8 @@ std::vector<camera_params_t> setup_cameras(const aprilgrids_t &grids0,
   const int img_w = 752;
   const int img_h = 480;
   const int cam_res[2] = {img_w, img_h};
-	const std::string proj_model = "pinhole";
-	const std::string dist_model = "radtan4";
+  const std::string proj_model = "pinhole";
+  const std::string dist_model = "radtan4";
   camera_params_t cam0{0, 0, cam_res, proj_model, dist_model, 4, 4};
   camera_params_t cam1{1, 1, cam_res, proj_model, dist_model, 4, 4};
 
@@ -22,7 +22,7 @@ std::vector<camera_params_t> setup_cameras(const aprilgrids_t &grids0,
     FATAL("Failed to inialize camera!");
   }
 
-	return {cam0, cam1};
+  return {cam0, cam1};
 }
 
 int test_calib_stereo_inc_solve() {
@@ -33,11 +33,11 @@ int test_calib_stereo_inc_solve() {
   const auto target = test_data.target;
   auto grids0 = test_data.grids0;
   auto grids1 = test_data.grids1;
-	auto cameras = setup_cameras(grids0, grids1);
+  auto cameras = setup_cameras(grids0, grids1);
   std::map<timestamp_t, pose_t> poses;  // T_BF
-	auto cam0 = cameras[0];
-	auto cam1 = cameras[1];
-	mat2_t covar = I(2);
+  auto cam0 = cameras[0];
+  auto cam1 = cameras[1];
+  mat2_t covar = I(2);
 
   calib_data_t data;
   data.add_calib_target(data.target);

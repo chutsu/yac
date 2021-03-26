@@ -130,9 +130,9 @@ public:
     rviz_pub_ = config_.ros_nh->advertise<visualization_msgs::Marker>("/yac_ros/rviz", 0);
     nbt_pub_ = config_.ros_nh->advertise<nav_msgs::Path>("/yac_ros/nbt", 0);
 
-		// Setup detector
-		target_ = calib_data_.target;
-		cam0_params_ = calib_data_.cam_params[0];
+    // Setup detector
+    target_ = calib_data_.target;
+    cam0_params_ = calib_data_.cam_params[0];
     detector_ = new aprilgrid_detector_t(target_.tag_rows,
                                          target_.tag_cols,
                                          target_.tag_size,
@@ -152,22 +152,22 @@ public:
 
   ~calib_vi_node_t() {
     // Join threads
-		if (keyboard_thread_.joinable()) {
-			keyboard_thread_.join();
-		}
-		if (nbt_thread_.joinable()) {
-			nbt_thread_.join();
-		}
+    if (keyboard_thread_.joinable()) {
+      keyboard_thread_.join();
+    }
+    if (nbt_thread_.joinable()) {
+      nbt_thread_.join();
+    }
 
     // Clean up (restore blocking keyboard handler)
     tcsetattr(0, TCSANOW, &term_config_orig_);
-	}
+  }
 
-	void print_usage() {
+  void print_usage() {
     printf("Press:\n");
     printf("  'r' to reset the estimator\n");
     printf("  'q', ESC, Ctrl-c or Ctrl-d to terminate\n");
-	}
+  }
 
   void event_handler(int key) {
     if (key == EOF) {
@@ -347,19 +347,19 @@ public:
 
     // Rviz
     if (est_.initialized_ && config_.publish_tfs) {
-			const auto ts = ros::Time{ts2sec(grid.timestamp)};
-			const auto target = est_.target_params_;
-			const auto T_WF = est_.getFiducialPoseEstimate();
-			const auto T_WS = est_.getSensorPoseEstimate(-1);
-			const auto T_BS = est_.getImuExtrinsicsEstimate();
-			const auto T_BC0 = est_.getCameraExtrinsicsEstimate(0);
-			const auto T_BC1 = est_.getCameraExtrinsicsEstimate(1);
-			const auto T_WC0 = T_WS * T_BS.inverse() * T_BC0;
-			const auto T_WC1 = T_WS * T_BS.inverse() * T_BC1;
-			publish_fiducial_tf(ts, target, T_WF, tf_br_, rviz_pub_);
-			publish_tf(ts, "T_WS", T_WS, tf_br_);
-			publish_tf(ts, "T_WC0", T_WC0, tf_br_);
-			publish_tf(ts, "T_WC1", T_WC1, tf_br_);
+      const auto ts = ros::Time{ts2sec(grid.timestamp)};
+      const auto target = est_.target_params_;
+      const auto T_WF = est_.getFiducialPoseEstimate();
+      const auto T_WS = est_.getSensorPoseEstimate(-1);
+      const auto T_BS = est_.getImuExtrinsicsEstimate();
+      const auto T_BC0 = est_.getCameraExtrinsicsEstimate(0);
+      const auto T_BC1 = est_.getCameraExtrinsicsEstimate(1);
+      const auto T_WC0 = T_WS * T_BS.inverse() * T_BC0;
+      const auto T_WC1 = T_WS * T_BS.inverse() * T_BC1;
+      publish_fiducial_tf(ts, target, T_WF, tf_br_, rviz_pub_);
+      publish_tf(ts, "T_WS", T_WS, tf_br_);
+      publish_tf(ts, "T_WC0", T_WC0, tf_br_);
+      publish_tf(ts, "T_WC1", T_WC1, tf_br_);
     }
   }
 
@@ -412,33 +412,33 @@ public:
     // }
   }
 
-	void compute_nbt() {
+  void compute_nbt() {
     auto cam_rate = 30.0;
-		auto cam0 = est_.getCameraParameters(0);
-		auto cam1 = est_.getCameraParameters(1);
-		auto T_WF = est_.getFiducialPoseEstimate();
-		auto T_BS = est_.getImuExtrinsicsEstimate();
-		auto T_BC0 = est_.getCameraExtrinsicsEstimate(0);
-		auto T_BC1 = est_.getCameraExtrinsicsEstimate(1);
+    auto cam0 = est_.getCameraParameters(0);
+    auto cam1 = est_.getCameraParameters(1);
+    auto T_WF = est_.getFiducialPoseEstimate();
+    auto T_BS = est_.getImuExtrinsicsEstimate();
+    auto T_BC0 = est_.getCameraExtrinsicsEstimate(0);
+    auto T_BC1 = est_.getCameraExtrinsicsEstimate(1);
 
-		nbt_compute<pinhole_radtan4_t>(est_.target_params_,
-																	 est_.imu_params_,
-																	 cam0, cam1, cam_rate,
-																	 T_WF, T_BC0, T_BC1, T_BS,
-																	 nbt_trajs_, nbt_calib_infos_);
+    nbt_compute<pinhole_radtan4_t>(est_.target_params_,
+                                   est_.imu_params_,
+                                   cam0, cam1, cam_rate,
+                                   T_WF, T_BC0, T_BC1, T_BS,
+                                   nbt_trajs_, nbt_calib_infos_);
 
-		nbt_precomputing_ = false;
+    nbt_precomputing_ = false;
     nbt_precomputed_ = true;
-	}
+  }
 
-	void find_nbt() {
-	  finding_nbt_ = true;
+  void find_nbt() {
+    finding_nbt_ = true;
 
     // Find NBT
-		if (est_.estimating_) {
-			nbt_trajs_.clear();
-			nbt_calib_infos_.clear();
-			compute_nbt();
+    if (est_.estimating_) {
+      nbt_trajs_.clear();
+      nbt_calib_infos_.clear();
+      compute_nbt();
 
       // Obtain calibration covariance
       // The mutex lock is needed because we need to block the estimator from
@@ -446,29 +446,29 @@ public:
       std::lock_guard<std::mutex> guard(mtx_);
       matx_t calib_covar;
       est_.recoverCalibCovariance(calib_covar);
-			print_vector("calib_covar", calib_covar.diagonal());
+      print_vector("calib_covar", calib_covar.diagonal());
 
       // mat2_t fiducial_covar;
       // est_.recoverFiducialCovariance(fiducial_covar);
-			// print_vector("fiducial_covar", fiducial_covar.diagonal());
+      // print_vector("fiducial_covar", fiducial_covar.diagonal());
 
-			auto cam0 = est_.getCamera(0);
-			auto T_BC0 = est_.getCameraExtrinsicsEstimate(0);
-			auto T_BS = est_.getImuExtrinsicsEstimate();
+      auto cam0 = est_.getCamera(0);
+      auto T_BC0 = est_.getCameraExtrinsicsEstimate(0);
+      auto T_BS = est_.getImuExtrinsicsEstimate();
       int retval = nbt_find(cam0, T_BC0, T_BS,
                             calib_covar,
                             nbt_trajs_,
                             nbt_calib_infos_);
-			if (retval != -1) {
+      if (retval != -1) {
         publish_nbt(nbt_trajs_[retval], nbt_pub_);
-			}
-		} else {
+      }
+    } else {
       LOG_ERROR("No NBT to evaluate! Did you forget to precompute them?");
       FATAL("IMPLEMENTATION ERROR!");
-		}
+    }
 
-	  finding_nbt_ = false;
-	}
+    finding_nbt_ = false;
+  }
 
   void loop() {
     // Terminal capture thread

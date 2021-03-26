@@ -16,8 +16,8 @@ double info_gain(const matx_t &calib_covar, const double info_prev);
 void simulate_imu(const ctraj_t &traj,
                   const timestamp_t &ts_start,
                   const timestamp_t &ts_end,
-									const mat4_t &T_BC0,
-									const mat4_t &T_BS,
+                  const mat4_t &T_BC0,
+                  const mat4_t &T_BS,
                   const imu_params_t &imu_params,
                   timestamps_t &imu_time,
                   vec3s_t &imu_accel,
@@ -25,40 +25,40 @@ void simulate_imu(const ctraj_t &traj,
                   mat4s_t &imu_poses,
                   vec3s_t &imu_vels);
 void nbt_create_timeline(const timestamps_t &imu_ts,
-                      	 const vec3s_t &imu_gyr,
-                      	 const vec3s_t &imu_acc,
-                      	 const std::vector<aprilgrids_t> grid_data,
-                      	 timeline_t &timeline);
+                         const vec3s_t &imu_gyr,
+                         const vec3s_t &imu_acc,
+                         const std::vector<aprilgrids_t> grid_data,
+                         timeline_t &timeline);
 
 // Check number of apriltags observed by camera
 template <typename CAMERA>
 bool check_fully_observable(const calib_target_t &target,
-													  const camera_params_t &cam_params,
-														const mat4_t &T_FC) {
-	const int tag_rows = target.tag_rows;
-	const int tag_cols = target.tag_cols;
-	const double tag_size = target.tag_size;
-	const double tag_spacing = target.tag_spacing;
+                            const camera_params_t &cam_params,
+                            const mat4_t &T_FC) {
+  const int tag_rows = target.tag_rows;
+  const int tag_cols = target.tag_cols;
+  const double tag_size = target.tag_size;
+  const double tag_spacing = target.tag_spacing;
   aprilgrid_t grid{0, tag_rows, tag_cols, tag_size, tag_spacing};
 
-	const auto cam_res = cam_params.resolution;
-	const auto proj_params = cam_params.proj_params();
-	const auto dist_params = cam_params.dist_params();
-	CAMERA camera{cam_res, proj_params, dist_params};
+  const auto cam_res = cam_params.resolution;
+  const auto proj_params = cam_params.proj_params();
+  const auto dist_params = cam_params.dist_params();
+  CAMERA camera{cam_res, proj_params, dist_params};
 
-	const mat4_t T_CF = T_FC.inverse();
+  const mat4_t T_CF = T_FC.inverse();
   const int nb_tags = (grid.tag_rows * grid.tag_cols);
 
   for (int tag_id = 0; tag_id < nb_tags; tag_id++) {
-		for (int corner_idx = 0; corner_idx < 4; corner_idx++) {
-			const vec3_t r_FFi = grid.object_point(tag_id, corner_idx);
-			const vec3_t r_CFi = tf_point(T_CF, r_FFi);
+    for (int corner_idx = 0; corner_idx < 4; corner_idx++) {
+      const vec3_t r_FFi = grid.object_point(tag_id, corner_idx);
+      const vec3_t r_CFi = tf_point(T_CF, r_FFi);
 
-			vec2_t z_hat;
-			if (camera.project(r_CFi, z_hat) != 0) {
-				return false;
-			}
-		}
+      vec2_t z_hat;
+      if (camera.project(r_CFi, z_hat) != 0) {
+        return false;
+      }
+    }
   }
 
   return true;
@@ -98,8 +98,8 @@ aprilgrid_t *nbv_target_grid(const calib_target_t &target,
 /** Calculate target origin (O) w.r.t. fiducial (F) T_FO **/
 template <typename CAMERA>
 mat4_t calib_target_origin(const calib_target_t &target,
-													 const camera_params_t &cam_params,
-												   const double target_scale=0.5) {
+                           const camera_params_t &cam_params,
+                           const double target_scale=0.5) {
   // Calculate target center
   const double tag_rows = target.tag_rows;
   const double tag_cols = target.tag_cols;
@@ -112,7 +112,7 @@ mat4_t calib_target_origin(const calib_target_t &target,
   const double target_height = tag_rows * tag_size + spacing_y;
   const vec2_t center{target_width / 2.0, target_height / 2.0};
 
-	double scale = target_scale;
+  double scale = target_scale;
   int retry = 5;
 start:
   // Calculate distance away from target center
@@ -146,13 +146,13 @@ start:
 
 template <typename CAMERA>
 mat4s_t calib_init_poses(const calib_target_t &target,
-												 const camera_params_t &cam_params) {
+                         const camera_params_t &cam_params) {
   // Target
-	const mat4_t T_FO = calib_target_origin<CAMERA>(target, cam_params, 0.5);
-	const vec3_t r_FO = tf_trans(T_FO);
-	const double target_width = r_FO(0) * 2;
-	const double target_height = r_FO(1) * 2;
-	const vec3_t target_center{target_width / 2.0, target_height / 2.0, 0.0};
+  const mat4_t T_FO = calib_target_origin<CAMERA>(target, cam_params, 0.5);
+  const vec3_t r_FO = tf_trans(T_FO);
+  const double target_width = r_FO(0) * 2;
+  const double target_height = r_FO(1) * 2;
+  const vec3_t target_center{target_width / 2.0, target_height / 2.0, 0.0};
 
   // Pose settings
   const double h_width = target_width / 2.0;
@@ -162,7 +162,7 @@ mat4s_t calib_init_poses(const calib_target_t &target,
   const double range_h[2] = {-h_height * xy_scale, h_height * xy_scale};
   const auto x_range = linspace(range_w[0], range_w[1], 2);
   const auto y_range = linspace(range_h[0], range_h[1], 2);
-	const double z = r_FO(2);
+  const double z = r_FO(2);
   mat4s_t poses;
 
   // Push first pose to be infront of target center
@@ -195,11 +195,11 @@ mat4s_t calib_nbv_poses(const calib_target_t &target,
                         const int range_y_size = 5,
                         const int range_z_size = 5) {
   // Target
-	const mat4_t T_FO = calib_target_origin<CAMERA>(target, cam_params, 0.8);
-	const vec3_t r_FO = tf_trans(T_FO);
-	const double target_width = r_FO(0) * 2;
-	const double target_height = r_FO(1) * 2;
-	const vec3_t target_center{target_width / 2.0, target_height / 2.0, 0.0};
+  const mat4_t T_FO = calib_target_origin<CAMERA>(target, cam_params, 0.8);
+  const vec3_t r_FO = tf_trans(T_FO);
+  const double target_width = r_FO(0) * 2;
+  const double target_height = r_FO(1) * 2;
+  const vec3_t target_center{target_width / 2.0, target_height / 2.0, 0.0};
 
   // Pose settings
   const double xy_scale = 2.0;
@@ -289,9 +289,9 @@ start:
   // calibration target center. The trajectory would go from the pole of the
   // sphere to the sides of the sphere. While following the trajectory in a
   // tangent manner the camera view focuses on the target center.
-	const auto nb_trajs = 8.0;
-	const auto dlat = lat_max / nb_trajs;
-	auto lat = lat_min;
+  const auto nb_trajs = 8.0;
+  const auto dlat = lat_max / nb_trajs;
+  auto lat = lat_min;
   for (int i = 0; i < nb_trajs; i++) {
     vec3s_t positions;
     quats_t attitudes;
@@ -330,7 +330,7 @@ start:
     // Update
     const auto timestamps = linspace(ts_start, ts_end, 10);
     orbit_trajs.emplace_back(timestamps, positions, attitudes);
-		lat += dlat;
+    lat += dlat;
   }
 
   // Append to results
@@ -342,7 +342,7 @@ start:
 template <typename T>
 void calib_pan_trajs(const calib_target_t &target,
                      const camera_params_t &cam0,
-										 const camera_params_t &cam1,
+                     const camera_params_t &cam1,
                      const mat4_t &T_C0C1,
                      const mat4_t &T_WF,
                      const mat4_t &T_FO,
@@ -394,9 +394,9 @@ void calib_pan_trajs(const calib_target_t &target,
     vec3s_t positions;
     quats_t attitudes;
 
-		for (const auto &r: linspace(0.0, pan_length, nb_control_points)) {
-			const vec2_t x = circle(r, theta);
-			const vec3_t p{x(0), x(1), 0.0};
+    for (const auto &r: linspace(0.0, pan_length, nb_control_points)) {
+      const vec2_t x = circle(r, theta);
+      const vec3_t p{x(0), x(1), 0.0};
 
       const vec3_t r_FJ = tf_point(calib_origin, p);
       const mat4_t T_FC0 = lookat(r_FJ, r_FFc);
@@ -422,9 +422,9 @@ void calib_pan_trajs(const calib_target_t &target,
       //   goto start;
       // }
 
-			positions.emplace_back(tf_trans(T_WC0));
-			attitudes.emplace_back(tf_rot(T_WC0));
-		}
+      positions.emplace_back(tf_trans(T_WC0));
+      attitudes.emplace_back(tf_rot(T_WC0));
+    }
 
     // Add to trajectories
     const auto timestamps = linspace(ts_start, ts_end, nb_control_points);
@@ -465,7 +465,7 @@ vec2s_t nbv_draw(const calib_target_t &target,
   const auto cam_res = cam_params.resolution;
   const vec4_t proj_params = cam_params.proj_params();
   const vec4_t dist_params = cam_params.dist_params();
-	CAMERA camera{cam_res, proj_params, dist_params};
+  CAMERA camera{cam_res, proj_params, dist_params};
 
   vec2_t p0;
   vec2_t p1;
@@ -501,10 +501,10 @@ aprilgrid_t calib_simulate(const calib_target_t &target,
                            const mat4_t &T_FC0,
                            const camera_params_t &cam_params,
                            const mat4_t &T_C0Ci=I(4)) {
-	const auto cam_res = cam_params.resolution;
-	const auto proj_params = cam_params.proj_params();
-	const auto dist_params = cam_params.dist_params();
-	const CAMERA camera{cam_res, proj_params, dist_params};
+  const auto cam_res = cam_params.resolution;
+  const auto proj_params = cam_params.proj_params();
+  const auto dist_params = cam_params.dist_params();
+  const CAMERA camera{cam_res, proj_params, dist_params};
 
   const int tag_rows = target.tag_rows;
   const int tag_cols = target.tag_cols;
@@ -512,21 +512,21 @@ aprilgrid_t calib_simulate(const calib_target_t &target,
   const double tag_spacing = target.tag_spacing;
   const mat4_t T_CiC0 = T_C0Ci.inverse();
 
-	aprilgrid_t grid(0, tag_rows, tag_cols, tag_size, tag_spacing);
-	const mat4_t T_C0F = T_FC0.inverse();
+  aprilgrid_t grid(0, tag_rows, tag_cols, tag_size, tag_spacing);
+  const mat4_t T_C0F = T_FC0.inverse();
 
-	for (int tag_id = 0; tag_id < (tag_rows * tag_cols); tag_id++) {
-		for (int corner_idx = 0; corner_idx < 4; corner_idx++) {
-			const vec3_t r_FFi = grid.object_point(tag_id, corner_idx);
-			const vec3_t r_C0Fi = tf_point(T_C0F, r_FFi);
-			const vec3_t r_CiFi = tf_point(T_CiC0, r_C0Fi);
+  for (int tag_id = 0; tag_id < (tag_rows * tag_cols); tag_id++) {
+    for (int corner_idx = 0; corner_idx < 4; corner_idx++) {
+      const vec3_t r_FFi = grid.object_point(tag_id, corner_idx);
+      const vec3_t r_C0Fi = tf_point(T_C0F, r_FFi);
+      const vec3_t r_CiFi = tf_point(T_CiC0, r_C0Fi);
 
-			vec2_t z_hat{0.0, 0.0};
-			if (camera.project(r_CiFi, z_hat) == 0) {
-				grid.add(tag_id, corner_idx, z_hat);
-			}
-		}
-	}
+      vec2_t z_hat{0.0, 0.0};
+      if (camera.project(r_CiFi, z_hat) == 0) {
+        grid.add(tag_id, corner_idx, z_hat);
+      }
+    }
+  }
 
   return grid;
 }
@@ -538,7 +538,7 @@ aprilgrids_t calib_simulate(const calib_target_t &target,
                             const mat4_t &T_C0Ci=I(4)) {
   aprilgrids_t grids;
   for (const mat4_t &T_FC0 : rel_poses) {
-		grids.push_back(calib_simulate<CAMERA>(target, T_FC0, cam_params, T_C0Ci));
+    grids.push_back(calib_simulate<CAMERA>(target, T_FC0, cam_params, T_C0Ci));
   }
 
   return grids;
@@ -770,7 +770,7 @@ void simulate_cameras(const ctraj_t &traj,
                       aprilgrids_t &grids1,
                       mat4s_t &T_WC0_sim) {
   // Simulate camera measurements with AprilGrids that will be observed
-	const mat4_t T_C0C1 = T_BC0.inverse() * T_BC1;
+  const mat4_t T_C0C1 = T_BC0.inverse() * T_BC1;
   const timestamp_t cam_dt = sec2ts(1.0 / cam_rate);
   timestamp_t ts_k = ts_start;
 
@@ -782,8 +782,8 @@ void simulate_cameras(const ctraj_t &traj,
 
     // Create an AprilGrid that represents what the camera would see if it was
     // positioned at T_C0F
-		auto grid0 = calib_simulate<T>(target, T_FC0, cam0);
-		auto grid1 = calib_simulate<T>(target, T_FC0, cam1, T_C0C1);
+    auto grid0 = calib_simulate<T>(target, T_FC0, cam0);
+    auto grid1 = calib_simulate<T>(target, T_FC0, cam1, T_C0C1);
     grid0.timestamp = ts_k;
     grid1.timestamp = ts_k;
 
@@ -802,7 +802,7 @@ int nbt_eval_traj(const ctraj_t &traj,
                   const timestamp_t &ts_end,
                   const imu_params_t &imu_params,
                   const camera_params_t &cam0,
-			 	 	 		    const camera_params_t &cam1,
+                     const camera_params_t &cam1,
                   const double cam_rate,
                   const mat4_t T_WF,
                   const mat4_t T_BC0,
@@ -810,18 +810,18 @@ int nbt_eval_traj(const ctraj_t &traj,
                   const mat4_t T_BS,
                   matx_t &calib_covar,
                   bool save=false,
-							    const std::string save_dir="/tmp/nbt") {
+                  const std::string save_dir="/tmp/nbt") {
   // Simulate camera frames
   // clang-format off
   aprilgrids_t grids0;
   aprilgrids_t grids1;
   mat4s_t T_WC_sim;
   simulate_cameras<T>(traj, target,
-                    	cam0, cam1, cam_rate,
-                    	T_WF, T_BC0, T_BC1,
-                    	ts_start, ts_end,
-                    	grids0, grids1,
-                    	T_WC_sim);
+                      cam0, cam1, cam_rate,
+                      T_WF, T_BC0, T_BC1,
+                      ts_start, ts_end,
+                      grids0, grids1,
+                      T_WC_sim);
   // -- Save data
   if (save) {
     const std::string cam0_save_dir = save_dir + "/cam0";
@@ -831,14 +831,14 @@ int nbt_eval_traj(const ctraj_t &traj,
 
     for (const auto &grid : grids0) {
       const auto ts = grid.timestamp;
-			auto save_path = cam0_save_dir + "/" + std::to_string(ts) + ".csv";
-			grid.save(save_path);
+      auto save_path = cam0_save_dir + "/" + std::to_string(ts) + ".csv";
+      grid.save(save_path);
     }
 
     for (const auto &grid : grids1) {
       const auto ts = grid.timestamp;
-			auto save_path = cam1_save_dir + "/" + std::to_string(ts) + ".csv";
-			grid.save(save_path);
+      auto save_path = cam1_save_dir + "/" + std::to_string(ts) + ".csv";
+      grid.save(save_path);
     }
   }
   // clang-format on
@@ -868,32 +868,32 @@ int nbt_eval_traj(const ctraj_t &traj,
   timeline_t timeline;
   nbt_create_timeline(imu_time, imu_gyro, imu_accel, {grids0, grids1}, timeline);
 
-	// Setup calibration
-	calib_vi_t calib;
-	calib.batch_max_iter = 1;
-	calib.enable_outlier_rejection = false;
-	// -- Add imu
-	calib.add_imu(imu_params);
-	// -- Add cameras
-	{
-		const int res[2] = {cam0.resolution[0], cam0.resolution[1]};
-		const auto proj_model = cam0.proj_model;
-		const auto dist_model = cam0.dist_model;
-		const auto proj = cam0.proj_params();
-		const auto dist = cam0.dist_params();
-		const auto fix = true;
-		calib.add_camera(0, res, proj_model, dist_model, proj, dist, fix);
-	}
-	{
-		const int res[2] = {cam1.resolution[0], cam1.resolution[1]};
-		const auto proj_model = cam1.proj_model;
-		const auto dist_model = cam1.dist_model;
-		const auto proj = cam1.proj_params();
-		const auto dist = cam1.dist_params();
-		const auto fix = true;
-		calib.add_camera(1, res, proj_model, dist_model, proj, dist, fix);
-	}
-	// -- Add extrinsics
+  // Setup calibration
+  calib_vi_t calib;
+  calib.batch_max_iter = 1;
+  calib.enable_outlier_rejection = false;
+  // -- Add imu
+  calib.add_imu(imu_params);
+  // -- Add cameras
+  {
+    const int res[2] = {cam0.resolution[0], cam0.resolution[1]};
+    const auto proj_model = cam0.proj_model;
+    const auto dist_model = cam0.dist_model;
+    const auto proj = cam0.proj_params();
+    const auto dist = cam0.dist_params();
+    const auto fix = true;
+    calib.add_camera(0, res, proj_model, dist_model, proj, dist, fix);
+  }
+  {
+    const int res[2] = {cam1.resolution[0], cam1.resolution[1]};
+    const auto proj_model = cam1.proj_model;
+    const auto dist_model = cam1.dist_model;
+    const auto proj = cam1.proj_params();
+    const auto dist = cam1.dist_params();
+    const auto fix = true;
+    calib.add_camera(1, res, proj_model, dist_model, proj, dist, fix);
+  }
+  // -- Add extrinsics
   calib.add_cam_extrinsics(0, T_BC0, true);
   calib.add_cam_extrinsics(1, T_BC1, true);
   calib.add_imu_extrinsics(T_BS);
@@ -906,7 +906,7 @@ int nbt_eval_traj(const ctraj_t &traj,
       const auto event = it->second;
       // Camera event
       if (event.type == APRILGRID_EVENT) {
-				calib.add_measurement(event.camera_index, event.grid);
+        calib.add_measurement(event.camera_index, event.grid);
       }
 
       // Imu event
@@ -914,12 +914,12 @@ int nbt_eval_traj(const ctraj_t &traj,
         const auto ts = event.ts;
         const vec3_t w_m = event.w_m;
         const vec3_t a_m = event.a_m;
-				calib.add_measurement(ts, a_m, w_m);
+        calib.add_measurement(ts, a_m, w_m);
       }
     }
   }
-	calib.solve(false);
-	return calib.recover_calib_covar(calib_covar);
+  calib.solve(false);
+  return calib.recover_calib_covar(calib_covar);
 }
 
 struct nbv_test_grid_t {
@@ -932,8 +932,8 @@ struct nbv_test_grid_t {
 
   template <typename T>
   nbv_test_grid_t(const T &cam) {
-		const int img_w = cam.resolution[0];
-		const int img_h = cam.resolution[1];
+    const int img_w = cam.resolution[0];
+    const int img_h = cam.resolution[1];
     const double dx = img_w / (grid_cols + 1);
     const double dy = img_h / (grid_rows + 1);
     double kp_x = 0;
@@ -965,17 +965,17 @@ struct nbv_test_grid_t {
 //                 const camera_params_t &cam1,
 //                 const pose_t &extrinsics,
 //                 cv::Mat *covar_map=nullptr) {
-// 	// Setup
-// 	// -- cam0
-// 	const auto cam_res = cam0.resolution;
-// 	const auto cam0_proj = cam0.proj_params();
-// 	const auto cam0_dist = cam0.dist_params();
-// 	const pinhole_radtan4_t cam0_geom{cam_res, cam0_proj, cam0_dist};
-// 	// -- cam1
-// 	const auto cam1_proj = cam1.proj_params();
-// 	const auto cam1_dist = cam1.dist_params();
-// 	const pinhole_radtan4_t cam1_geom{cam_res, cam1_proj, cam1_dist};
-// 	// -- Test grid
+//   // Setup
+//   // -- cam0
+//   const auto cam_res = cam0.resolution;
+//   const auto cam0_proj = cam0.proj_params();
+//   const auto cam0_dist = cam0.dist_params();
+//   const pinhole_radtan4_t cam0_geom{cam_res, cam0_proj, cam0_dist};
+//   // -- cam1
+//   const auto cam1_proj = cam1.proj_params();
+//   const auto cam1_dist = cam1.dist_params();
+//   const pinhole_radtan4_t cam1_geom{cam_res, cam1_proj, cam1_dist};
+//   // -- Test grid
 //   const nbv_test_grid_t test_grid(cam0_geom);
 //
 //   if (covar_map) {
@@ -1004,7 +1004,7 @@ struct nbv_test_grid_t {
 //     mat_t<2, 8> Jx = J_cam0_params;
 //
 //     // Output covariance (First order error progagtion)
-// 		const matx_t covar_x = calib_covar;
+//     const matx_t covar_x = calib_covar;
 //     const matx_t covar_y = Jx * covar_x * Jx.transpose();
 //
 //     // Check covar_y
@@ -1014,8 +1014,8 @@ struct nbv_test_grid_t {
 //       return INFINITY;
 //     }
 //
-// 		// Find max eigen-value. The largest eigen-value represents the largest
-// 		// "spread" or variance.
+//     // Find max eigen-value. The largest eigen-value represents the largest
+//     // "spread" or variance.
 //     Eigen::SelfAdjointEigenSolver<matx_t> eigensolver(covar_y);
 //     max_eigval = std::max(max_eigval, eigensolver.eigenvalues().maxCoeff());
 //

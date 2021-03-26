@@ -30,14 +30,14 @@ struct CameraParameters {
 };
 
 struct OptSettings {
-	bool verbose = false;
+  bool verbose = false;
   bool save_estimates = false;
   bool save_costs = false;
 
   size_t window_size = 5;
   int grid_limit = 36;
-	size_t nb_iters = 5;
-	size_t nb_threads = 4;
+  size_t nb_iters = 5;
+  size_t nb_threads = 4;
 
   double sigma_vision = 1.0;
   bool fix_intrinsics = false;

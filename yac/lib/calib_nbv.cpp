@@ -16,8 +16,8 @@ double info_gain(const matx_t &calib_covar, const double info_prev) {
 void simulate_imu(const ctraj_t &traj,
                   const timestamp_t &ts_start,
                   const timestamp_t &ts_end,
-									const mat4_t &T_BC0,
-									const mat4_t &T_BS,
+                  const mat4_t &T_BC0,
+                  const mat4_t &T_BS,
                   const imu_params_t &imu_params,
                   timestamps_t &imu_time,
                   vec3s_t &imu_accel,
@@ -45,7 +45,7 @@ void simulate_imu(const ctraj_t &traj,
     const vec3_t a_WC = ctraj_get_acceleration(traj, ts_k);
     const vec3_t w_WC = ctraj_get_angular_velocity(traj, ts_k);
 
-		// Convert camera frame to sensor frame
+    // Convert camera frame to sensor frame
     const mat4_t T_WS_W = T_WC;
     // const mat4_t T_CW = T_WC.inverse();
     // const mat4_t T_WS_W = (T_SC * T_CW).inverse();
@@ -71,12 +71,12 @@ void simulate_imu(const ctraj_t &traj,
       w_WS_S
     );
 
-		// printf("ts: %ld\n", ts_k);
-		// print_matrix("T_WS_W", T_WS_W);
-		// print_vector("w_WS_W", w_WS_W);
-		// print_vector("a_WS_W", a_WS_W);
-		// print_vector("a_WS_S", a_WS_S);
-		// print_vector("w_WS_S", w_WS_S);
+    // printf("ts: %ld\n", ts_k);
+    // print_matrix("T_WS_W", T_WS_W);
+    // print_vector("w_WS_W", w_WS_W);
+    // print_vector("a_WS_W", a_WS_W);
+    // print_vector("a_WS_S", a_WS_S);
+    // print_vector("w_WS_S", w_WS_S);
 
     imu_time.push_back(ts_k);
     imu_accel.push_back(a_WS_S);
@@ -89,10 +89,10 @@ void simulate_imu(const ctraj_t &traj,
 }
 
 void nbt_create_timeline(const timestamps_t &imu_ts,
-                      	 const vec3s_t &imu_gyr,
-                      	 const vec3s_t &imu_acc,
-                      	 const std::vector<aprilgrids_t> grid_data,
-                      	 timeline_t &timeline) {
+                         const vec3s_t &imu_gyr,
+                         const vec3s_t &imu_acc,
+                         const std::vector<aprilgrids_t> grid_data,
+                         timeline_t &timeline) {
   // -- Add imu events
   for (size_t i = 0; i < imu_ts.size(); i++) {
     const timestamp_t ts = imu_ts[i];

@@ -86,7 +86,7 @@ int calib_mono_solve(const std::string &config_file) {
   LOG_INFO("Calibrating camera!");
   std::vector<double> errs;
 
-	calib_mono_data_t data{grids, cam, I(2) * pow(sigma_vision, 2)};
+  calib_mono_data_t data{grids, cam, I(2) * pow(sigma_vision, 2)};
   if (proj_model == "pinhole" && dist_model == "radtan4") {
     calib_mono_solve<pinhole_radtan4_t>(data);
     reproj_errors<pinhole_radtan4_t>(data.grids, data.cam_params, data.poses, errs);

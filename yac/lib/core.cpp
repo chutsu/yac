@@ -469,22 +469,22 @@ bool all_true(const std::vector<bool> x) {
 }
 
 void save_data(const std::string &save_path,
-							 const timestamps_t &ts,
-							 const vec3s_t &y) {
-	std::ofstream file{save_path};
-	if (file.good() != true) {
-		printf("Failed to open file for output!");
-		exit(-1);
-	}
+               const timestamps_t &ts,
+               const vec3s_t &y) {
+  std::ofstream file{save_path};
+  if (file.good() != true) {
+    printf("Failed to open file for output!");
+    exit(-1);
+  }
 
-	for (size_t i = 0; i < ts.size(); i++) {
-		file << ts[i] << ",";
-		file << y[i](0) << ",";
-		file << y[i](1) << ",";
-		file << y[i](2) << std::endl;
-	}
+  for (size_t i = 0; i < ts.size(); i++) {
+    file << ts[i] << ",";
+    file << y[i](0) << ",";
+    file << y[i](1) << ",";
+    file << y[i](2) << std::endl;
+  }
 
-	file.close();
+  file.close();
 };
 
 void save_features(const std::string &path, const vec3s_t &features) {
@@ -548,11 +548,11 @@ void save_poses(const std::string &path, const mat4s_t &poses) {
 }
 
 void save_poses(const std::string &path,
-								const timestamps_t &timestamps,
-								const mat4s_t &poses) {
+                const timestamps_t &timestamps,
+                const mat4s_t &poses) {
   FILE *csv = fopen(path.c_str(), "w");
   for (size_t k = 0; k < timestamps.size(); k++) {
-		const auto ts = timestamps[k];
+    const auto ts = timestamps[k];
     const auto &q = tf_quat(poses[k]);
     const auto &r = tf_trans(poses[k]);
 
@@ -612,9 +612,9 @@ void save_pose(const std::string &path,
 }
 
 void save_imu_data(const std::string &path,
-							     const timestamps_t &imu_ts,
-								   const vec3s_t &imu_acc,
-								   const vec3s_t &imu_gyr) {
+                   const timestamps_t &imu_ts,
+                   const vec3s_t &imu_acc,
+                   const vec3s_t &imu_gyr) {
   assert(imu_ts.size() == imu_acc.size());
   assert(imu_ts.size() == imu_gyr.size());
 
@@ -1796,11 +1796,11 @@ long int rank(const matx_t &A) {
 }
 
 bool full_rank(const matx_t &A) {
-	if (rank(A) != A.rows() || rank(A) != A.cols()) {
-		return false;
-	}
+  if (rank(A) != A.rows() || rank(A) != A.cols()) {
+    return false;
+  }
 
-	return true;
+  return true;
 }
 
 int schurs_complement(matx_t &H, vecx_t &b,

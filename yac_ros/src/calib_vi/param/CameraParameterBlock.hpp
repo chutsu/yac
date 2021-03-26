@@ -18,22 +18,22 @@ public:
   typedef CameraParams estimate_t;
 
   /// \brief Default constructor (assumes not fixed).
-	CameraParameterBlock() : base_t::ParameterBlockSized() {
-		setFixed(false);
-	}
+  CameraParameterBlock() : base_t::ParameterBlockSized() {
+    setFixed(false);
+  }
 
   /// \brief Constructor with estimate and time.
   /// @param[in] params The camera parameter estimates.
   /// @param[in] id The (unique) ID of this block.
   /// @param[in] timestamp The timestamp of this state.
-	CameraParameterBlock(const CameraParams &camera_params,
-											 uint64_t id,
-											 const yac::Time &timestamp=Time{0}) {
-		setEstimate(camera_params);
-		setId(id);
-		setTimestamp(timestamp);
-		setFixed(false);
-	}
+  CameraParameterBlock(const CameraParams &camera_params,
+                       uint64_t id,
+                       const yac::Time &timestamp=Time{0}) {
+    setEstimate(camera_params);
+    setId(id);
+    setTimestamp(timestamp);
+    setFixed(false);
+  }
 
   /// \brief Trivial destructor.
   virtual ~CameraParameterBlock() {}
@@ -42,9 +42,9 @@ public:
   /// @brief Set estimate of this parameter block.
   /// @param[in] params The estimate to set this to.
   virtual void setEstimate(const CameraParams &params) {
-		for (int i = 0; i < base_t::Dimension; ++i)
-			parameters_[i] = params[i];
-	}
+    for (int i = 0; i < base_t::Dimension; ++i)
+      parameters_[i] = params[i];
+  }
 
   /// \brief Set the time.
   /// @param[in] timestamp The timestamp of this state.
@@ -54,11 +54,11 @@ public:
   /// @brief Get estimate.
   /// \return The estimate.
   virtual CameraParams estimate() const {
-		CameraParams camera_params;
-		for (int i = 0; i < base_t::Dimension; ++i)
-			camera_params[i] = parameters_[i];
-		return camera_params;
-	}
+    CameraParams camera_params;
+    for (int i = 0; i < base_t::Dimension; ++i)
+      camera_params[i] = parameters_[i];
+    return camera_params;
+  }
 
   /// \brief Get the time.
   /// \return The timestamp of this state.

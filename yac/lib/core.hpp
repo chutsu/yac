@@ -531,8 +531,8 @@ private:
 
 /* Save vector of size 3 `y` with timestamps `ts` to `save_path`. */
 void save_data(const std::string &save_path,
-							 const timestamps_t &ts,
-							 const vec3s_t &y);
+               const timestamps_t &ts,
+               const vec3s_t &y);
 
 /**
  * Save 3D features to csv file defined in `path`.
@@ -569,8 +569,8 @@ void save_poses(const std::string &path, const mat4s_t &poses);
  * Save poses to csv file in `path`.
  */
 void save_poses(const std::string &path,
-							  const timestamps_t &timestamps,
-								const mat4s_t &poses);
+                const timestamps_t &timestamps,
+                const mat4s_t &poses);
 
 /**
  * Save pose to csv file in `path`.
@@ -588,9 +588,9 @@ void save_pose(const std::string &path,
  * Save IMU measurements
  */
 void save_imu_data(const std::string &path,
-							     const timestamps_t &imu_ts,
-								   const vec3s_t &imu_acc,
-								   const vec3s_t &imu_gyr);
+                   const timestamps_t &imu_ts,
+                   const vec3s_t &imu_acc,
+                   const vec3s_t &imu_gyr);
 
 /** Load pose */
 mat4_t load_pose(const std::string &fpath);
@@ -3567,7 +3567,7 @@ struct pinhole_t : projection_t<DM> {
 
   int back_project(const vec2_t &kp, vec3_t &ray) {
     return static_cast<const pinhole_t &>(*this).back_project(kp, ray);
-	}
+  }
 
   int back_project(const vec2_t &kp, vec3_t &ray) const {
     const real_t px = (kp(0) - cx()) / fx();

@@ -74,8 +74,8 @@ public:
   bool added_fiducial_pose_ = false;
   bool added_imu_exts_ = false;
   bool added_cam_exts_ = false;
-	bool initialized_ = false;
-	bool estimating_ = false;
+  bool initialized_ = false;
+  bool estimating_ = false;
 
   calib_data_t calib_data_;
   std::map<int, PinholeRadtan> cameras_;
@@ -403,8 +403,8 @@ public:
 
     // LOG_INFO("Adding time delay parameter [%ld]", id);
     problem_->addParameterBlock(block, Map::Trivial);
-		// problem_->problem_->SetParameterLowerBound(block->parameters(), 0, -0.01);
-		// problem_->problem_->SetParameterUpperBound(block->parameters(), 0, 0.01);
+    // problem_->problem_->SetParameterLowerBound(block->parameters(), 0, -0.01);
+    // problem_->problem_->SetParameterUpperBound(block->parameters(), 0, 0.01);
 
     // Keep track of time delay parameter
     td_id_ = id;
@@ -524,21 +524,21 @@ public:
   camera_params_t getCameraParameters(const int cam_idx) {
     const int img_w = cameras_[cam_idx].imageWidth();
     const int img_h = cameras_[cam_idx].imageHeight();
-		const int res[2] = {img_w, img_h};
+    const int res[2] = {img_w, img_h};
     const auto params = getCameraParameterEstimate(cam_idx);
 
-		const auto proj = "pinhole";
-		const auto dist = "radtan4";
-		const vec4_t proj_params = params.head(4);
-		const vec4_t dist_params = params.tail(4);
+    const auto proj = "pinhole";
+    const auto dist = "radtan4";
+    const vec4_t proj_params = params.head(4);
+    const vec4_t dist_params = params.tail(4);
 
-		return camera_params_t{0, 0, res, proj, dist, proj_params, dist_params};
+    return camera_params_t{0, 0, res, proj, dist, proj_params, dist_params};
   }
 
   pinhole_radtan4_t getCamera(const int cam_idx) {
-		const auto params = getCameraParameters(cam_idx);
-		return pinhole_radtan4_t{params.resolution, params.param};
-	}
+    const auto params = getCameraParameters(cam_idx);
+    return pinhole_radtan4_t{params.resolution, params.param};
+  }
 
   vecx_t getCameraParameterEstimate(const size_t cam_idx) {
     auto param_block = cam_blocks_[cam_idx];
@@ -705,8 +705,8 @@ public:
       vec2s_t grid_i_keypoints;
       vec2s_t grid_j_keypoints;
       vec3s_t object_points;
-			grid_j.get_measurements(tag_ids, corner_indicies, grid_j_keypoints, object_points);
-			grid_i_keypoints = grid_j_keypoints;
+      grid_j.get_measurements(tag_ids, corner_indicies, grid_j_keypoints, object_points);
+      grid_i_keypoints = grid_j_keypoints;
 
       // // Random indicies
       // std::set<int> indicies;
@@ -730,7 +730,7 @@ public:
       //                                  grid_i_keypoints,
       //                                  grid_j_keypoints,
       //                                  object_points);
-			// printf("nb_tag_ids: %ld\n", tag_ids.size());
+      // printf("nb_tag_ids: %ld\n", tag_ids.size());
 
       // Add reprojection errors for real time
       for (size_t i = 0; i < tag_ids.size(); i++) {
@@ -1013,7 +1013,7 @@ public:
 
     // // Add speed bias factor
     // auto sb_error_id = addSpeedBiasError(sb_param_id);
-		::ceres::ResidualBlockId sb_error_id;
+    ::ceres::ResidualBlockId sb_error_id;
 
     // Add vision factors
     std::vector<::ceres::ResidualBlockId> reproj_error_ids;
@@ -1027,17 +1027,17 @@ public:
 
     // Optimize sliding window
     if ((int) sliding_window_.size() >= max_window_size_) {
-			// mat2_t fiducial_covar;
-			// recoverFiducialCovariance(fiducial_covar);
-			// print_vector("fiducial_covar", fiducial_covar.diagonal());
-			// printf("window size: %ld\n", sliding_window_.size());
-			// if (fiducial_covar(0) < 1.0) {
-			// 	marginalize();
-			// }
+      // mat2_t fiducial_covar;
+      // recoverFiducialCovariance(fiducial_covar);
+      // print_vector("fiducial_covar", fiducial_covar.diagonal());
+      // printf("window size: %ld\n", sliding_window_.size());
+      // if (fiducial_covar(0) < 1.0) {
+      //   marginalize();
+      // }
 
-			marginalize();
+      marginalize();
       optimize();
-			estimating_ = true;
+      estimating_ = true;
     }
 
     // Finish up
@@ -1102,48 +1102,48 @@ public:
     std::vector<bool> keep_params;
 
     // size_t drop = sliding_window_.size() - max_window_size_;
-		// for (size_t i = 0; i < drop; i++) {
-			::ceres::ResidualBlockId imu_error_id;
-			std::vector<uint64_t> imu_error_param_ids;
-			::ceres::ResidualBlockId sb_error_id;
-			uint64_t sb_error_param_id;
-			std::vector<::ceres::ResidualBlockId> reproj_error_ids;
-			std::vector<std::vector<uint64_t>> reproj_error_param_ids;
-			sliding_window_.pop(imu_error_id,
-													imu_error_param_ids,
-													sb_error_id,
-													sb_error_param_id,
-													reproj_error_ids,
-													reproj_error_param_ids);
+    // for (size_t i = 0; i < drop; i++) {
+      ::ceres::ResidualBlockId imu_error_id;
+      std::vector<uint64_t> imu_error_param_ids;
+      ::ceres::ResidualBlockId sb_error_id;
+      uint64_t sb_error_param_id;
+      std::vector<::ceres::ResidualBlockId> reproj_error_ids;
+      std::vector<std::vector<uint64_t>> reproj_error_param_ids;
+      sliding_window_.pop(imu_error_id,
+                          imu_error_param_ids,
+                          sb_error_id,
+                          sb_error_param_id,
+                          reproj_error_ids,
+                          reproj_error_param_ids);
 
-			// -- Add ImuError to MarginalizationError
-			// if (state.imu_error_id) {
-			if (imu_error_id) {
-				auto pose0_param = imu_error_param_ids[0];
-				auto sb0_param = imu_error_param_ids[1];
+      // -- Add ImuError to MarginalizationError
+      // if (state.imu_error_id) {
+      if (imu_error_id) {
+        auto pose0_param = imu_error_param_ids[0];
+        auto sb0_param = imu_error_param_ids[1];
 
-				// marg_error_->addResidualBlock(error_id);
-				marg_error_->addResidualBlock(imu_error_id);
-				marg_params.push_back(pose0_param);
-				marg_params.push_back(sb0_param);
-				keep_params.push_back(false);
-				keep_params.push_back(false);
-			}
-			// // -- Add SpeedBiasError to MarginalizationError
-			// if (sb_error_id) {
-			//   marg_error_->addResidualBlock(sb_error_id);
-			//   marg_params.push_back(sb_error_param_id);
-			//   keep_params.push_back(false);
-			// }
-			// -- Add CalibReprojError to MarginalizationError
-			for (size_t i = 0; i < reproj_error_ids.size(); i++) {
-				auto &error_id = reproj_error_ids[i];
-				auto &error_param_ids = reproj_error_param_ids[i];
-				marg_error_->addResidualBlock(error_id);
-				marg_params.push_back(error_param_ids[0]);
-				keep_params.push_back(false);
-			}
-		// }
+        // marg_error_->addResidualBlock(error_id);
+        marg_error_->addResidualBlock(imu_error_id);
+        marg_params.push_back(pose0_param);
+        marg_params.push_back(sb0_param);
+        keep_params.push_back(false);
+        keep_params.push_back(false);
+      }
+      // // -- Add SpeedBiasError to MarginalizationError
+      // if (sb_error_id) {
+      //   marg_error_->addResidualBlock(sb_error_id);
+      //   marg_params.push_back(sb_error_param_id);
+      //   keep_params.push_back(false);
+      // }
+      // -- Add CalibReprojError to MarginalizationError
+      for (size_t i = 0; i < reproj_error_ids.size(); i++) {
+        auto &error_id = reproj_error_ids[i];
+        auto &error_param_ids = reproj_error_param_ids[i];
+        marg_error_->addResidualBlock(error_id);
+        marg_params.push_back(error_param_ids[0]);
+        keep_params.push_back(false);
+      }
+    // }
 
     // Marginalize out terms
     if (marg_error_->marginalizeOut(marg_params, keep_params) == false) {
@@ -1242,7 +1242,7 @@ public:
     }
 
     return 0;
-	}
+  }
 
   int recoverCalibCovariance(matx_t &calib_covar) {
     // Recover calibration covariance
@@ -1276,7 +1276,7 @@ public:
     // calib_covar = zeros(7, 7);
     // calib_covar.block(0, 0, 6, 6) = T_BS_covar;
     // calib_covar.block(6, 6, 1, 1) = td_covar;
-		// print_matrix("calib_covar", calib_covar);
+    // print_matrix("calib_covar", calib_covar);
     calib_covar = T_BS_covar;
 
     // Check if calib_covar is full-rank?
@@ -1306,10 +1306,10 @@ public:
 };
 
 static void create_timeline(const timestamps_t &imu_ts,
-                      	 	  const vec3s_t &imu_acc,
-                      	 	  const vec3s_t &imu_gyr,
-                      	 	  const std::vector<aprilgrids_t> grid_data,
-                      	 	  timeline_t &timeline) {
+                             const vec3s_t &imu_acc,
+                             const vec3s_t &imu_gyr,
+                             const std::vector<aprilgrids_t> grid_data,
+                             timeline_t &timeline) {
   // -- Add imu events
   for (size_t i = 0; i < imu_ts.size(); i++) {
     const timestamp_t ts = imu_ts[i];
@@ -1336,30 +1336,30 @@ static void create_timeline(const timestamps_t &imu_ts,
 
 template <typename T>
 static int eval_traj(const ctraj_t &traj,
-              	 	   const calib_target_t &target,
-              	 	   const timestamp_t &ts_start,
-              	 	   const timestamp_t &ts_end,
-              	 	   const yac::ImuParameters &imu_params,
-              	 	   const camera_params_t &cam0_params,
-							 		 	 const camera_params_t &cam1_params,
-              	 	   const double cam_rate,
-              	 	   const mat4_t T_WF,
-              	 	   const mat4_t T_BC0,
-              	 	   const mat4_t T_BC1,
-              	 	   const mat4_t T_BS,
-              	 	   matx_t &calib_info) {
+                      const calib_target_t &target,
+                      const timestamp_t &ts_start,
+                      const timestamp_t &ts_end,
+                      const yac::ImuParameters &imu_params,
+                      const camera_params_t &cam0_params,
+                       const camera_params_t &cam1_params,
+                      const double cam_rate,
+                      const mat4_t T_WF,
+                      const mat4_t T_BC0,
+                      const mat4_t T_BC1,
+                      const mat4_t T_BS,
+                      matx_t &calib_info) {
   // Simulate camera frames
   aprilgrids_t grids0;
   aprilgrids_t grids1;
   mat4s_t T_WC_sim;
   simulate_cameras<T>(traj, target,
-                    	cam0_params,
-				 	 	 	 	 	 	  cam1_params,
-											cam_rate,
-                    	T_WF, T_BC0, T_BC1,
-                    	ts_start, ts_end,
-                    	grids0, grids1,
-                    	T_WC_sim);
+                      cam0_params,
+                            cam1_params,
+                      cam_rate,
+                      T_WF, T_BC0, T_BC1,
+                      ts_start, ts_end,
+                      grids0, grids1,
+                      T_WC_sim);
 
   // Simulate imu measurements
   imu_params_t imu_params_;
@@ -1389,42 +1389,42 @@ static int eval_traj(const ctraj_t &traj,
   create_timeline(imu_time, imu_accel, imu_gyro, {grids0, grids1}, timeline);
 
 
-	// Setup Camera
-	PinholeRadtan cam0;
-	{
-		const int img_w = cam0_params.resolution[0];
-		const int img_h = cam0_params.resolution[1];
-		const auto fx = cam0_params.param(0);
-		const auto fy = cam0_params.param(1);
-		const auto cx = cam0_params.param(2);
-		const auto cy = cam0_params.param(3);
-		const auto k1 = cam0_params.param(4);
-		const auto k2 = cam0_params.param(5);
-		const auto p1 = cam0_params.param(6);
-		const auto p2 = cam0_params.param(7);
-		cam0 = PinholeRadtan{img_w, img_h, fx, fy, cx, cy, {k1, k2, p1, p2}};
-	}
-	PinholeRadtan cam1;
-	{
-		const int img_w = cam1_params.resolution[0];
-		const int img_h = cam1_params.resolution[1];
-		const auto fx = cam1_params.param(0);
-		const auto fy = cam1_params.param(1);
-		const auto cx = cam1_params.param(2);
-		const auto cy = cam1_params.param(3);
-		const auto k1 = cam1_params.param(4);
-		const auto k2 = cam1_params.param(5);
-		const auto p1 = cam1_params.param(6);
-		const auto p2 = cam1_params.param(7);
-		cam1 = PinholeRadtan{img_w, img_h, fx, fy, cx, cy, {k1, k2, p1, p2}};
-	}
+  // Setup Camera
+  PinholeRadtan cam0;
+  {
+    const int img_w = cam0_params.resolution[0];
+    const int img_h = cam0_params.resolution[1];
+    const auto fx = cam0_params.param(0);
+    const auto fy = cam0_params.param(1);
+    const auto cx = cam0_params.param(2);
+    const auto cy = cam0_params.param(3);
+    const auto k1 = cam0_params.param(4);
+    const auto k2 = cam0_params.param(5);
+    const auto p1 = cam0_params.param(6);
+    const auto p2 = cam0_params.param(7);
+    cam0 = PinholeRadtan{img_w, img_h, fx, fy, cx, cy, {k1, k2, p1, p2}};
+  }
+  PinholeRadtan cam1;
+  {
+    const int img_w = cam1_params.resolution[0];
+    const int img_h = cam1_params.resolution[1];
+    const auto fx = cam1_params.param(0);
+    const auto fy = cam1_params.param(1);
+    const auto cx = cam1_params.param(2);
+    const auto cy = cam1_params.param(3);
+    const auto k1 = cam1_params.param(4);
+    const auto k2 = cam1_params.param(5);
+    const auto p1 = cam1_params.param(6);
+    const auto p2 = cam1_params.param(7);
+    cam1 = PinholeRadtan{img_w, img_h, fx, fy, cx, cy, {k1, k2, p1, p2}};
+  }
 
   // Setup Estimator
   Estimator est;
   est.addCalibTarget(target);
   est.addImu(imu_params);
   est.addImuTimeDelay(0.0);
-	est.addImuExtrinsics(T_BS);
+  est.addImuExtrinsics(T_BS);
   est.addCamera(0, cam0);
   est.addCamera(1, cam1);
   est.addCameraExtrinsics(0, T_BC0);
@@ -1450,34 +1450,34 @@ static int eval_traj(const ctraj_t &traj,
       }
     }
   }
-	// est.optimize(5, 1, false);
+  // est.optimize(5, 1, false);
 
-	matx_t calib_covar;
+  matx_t calib_covar;
   est.recoverCalibCovariance(calib_covar);
-	calib_info = calib_covar.inverse();
+  calib_info = calib_covar.inverse();
 
   return 0;
 }
 
 template <typename T>
 static void nbt_compute(const calib_target_t &target,
-                 	 	 	  const ImuParameters &imu_params,
-                 	 	 	  const camera_params_t &cam0,
-                 	 	 	  const camera_params_t &cam1,
-                 	 	 	  const double cam_rate,
-                 	 	 	  const mat4_t &T_WF,
-                 	 	 	  const mat4_t &T_BC0,
-                 	 	 	  const mat4_t &T_BC1,
-                 	 	 	  const mat4_t &T_BS,
-                 	 	 	  ctrajs_t &trajs,
-                 	 	 	  std::vector<matx_t> &calib_infos) {
+                           const ImuParameters &imu_params,
+                           const camera_params_t &cam0,
+                           const camera_params_t &cam1,
+                           const double cam_rate,
+                           const mat4_t &T_WF,
+                           const mat4_t &T_BC0,
+                           const mat4_t &T_BC1,
+                           const mat4_t &T_BS,
+                           ctrajs_t &trajs,
+                           std::vector<matx_t> &calib_infos) {
   // Generate trajectories
   const mat4_t T_FO = calib_target_origin<T>(target, cam0);
   const timestamp_t ts_start = 0;
   const timestamp_t ts_end = sec2ts(2.0);
   calib_orbit_trajs<T>(target, cam0, cam1,
-					 	 	 	 		   T_BC0, T_BC1, T_WF, T_FO,
-											 ts_start, ts_end, trajs);
+                           T_BC0, T_BC1, T_WF, T_FO,
+                       ts_start, ts_end, trajs);
 
   // Evaluate trajectory
   calib_infos.resize(trajs.size());
@@ -1503,8 +1503,8 @@ struct nbv_test_grid_t {
 
   template <typename T>
   nbv_test_grid_t(const T &cam) {
-		const int img_w = cam.resolution[0];
-		const int img_h = cam.resolution[1];
+    const int img_w = cam.resolution[0];
+    const int img_h = cam.resolution[1];
     const double dx = img_w / (grid_cols + 1);
     const double dy = img_h / (grid_rows + 1);
     double kp_x = 0;
@@ -1531,15 +1531,15 @@ struct nbv_test_grid_t {
 
 template <typename T>
 int nbt_find(const T &cam0,
-						 const mat4_t &T_BC0,
-						 const mat4_t &T_BS,
+             const mat4_t &T_BC0,
+             const mat4_t &T_BS,
              const matx_t calib_covar,
              const ctrajs_t &nbt_trajs,
              const std::vector<matx_t> &nbt_calib_infos) {
-	nbv_test_grid_t test_grid{cam0};
-	const mat4_t T_C0B = T_BC0.inverse();
-	const mat3_t C_C0B = tf_rot(T_C0B);
-	const mat3_t C_BS = tf_rot(T_BS);
+  nbv_test_grid_t test_grid{cam0};
+  const mat4_t T_C0B = T_BC0.inverse();
+  const mat3_t C_C0B = tf_rot(T_C0B);
+  const mat3_t C_BS = tf_rot(T_BS);
 
   // Pre-check
   if (nbt_trajs.size() != nbt_calib_infos.size()) {
@@ -1550,56 +1550,56 @@ int nbt_find(const T &cam0,
   }
 
   // Obtaining the calib information matrix by inverting the covariance matrix
-	const matx_t H0 = calib_covar.inverse();
+  const matx_t H0 = calib_covar.inverse();
   if (rank(H0) != H0.rows()) {
     FATAL("H0 is not full rank!");
   }
 
   // Find next best trajectory
-	const double info_prev = entropy(calib_covar);
+  const double info_prev = entropy(calib_covar);
   size_t best_index = 0;
   double best_info_gain = 0;
   double best_info_new = 0;
 
   printf("--\n");
   for (size_t i = 0; i < nbt_trajs.size(); i++) {
-		// Calculate information gain
-		const matx_t H_nbt = nbt_calib_infos[i];
+    // Calculate information gain
+    const matx_t H_nbt = nbt_calib_infos[i];
     const matx_t H_new = H0 + H_nbt;
     const matx_t calib_covar_nbt = H_new.ldlt().solve(I(H_new.rows()));
-		const double info_new = entropy(calib_covar_nbt);
-		const double info_gain = 0.5 * (info_new - info_prev);
+    const double info_new = entropy(calib_covar_nbt);
+    const double info_gain = 0.5 * (info_new - info_prev);
 
-		// std::vector<double> reproj_covars;
-		// for (size_t i = 0; i < test_grid.nb_points; i++) {
-		// 	const vec3_t p_C = test_grid.object_points[i];
-		// 	const vec2_t kp = test_grid.keypoints[i];
-		// 	const vec3_t r_SFi = tf_point(T_BS.inverse() * T_BC0, p_C);
+    // std::vector<double> reproj_covars;
+    // for (size_t i = 0; i < test_grid.nb_points; i++) {
+    //   const vec3_t p_C = test_grid.object_points[i];
+    //   const vec2_t kp = test_grid.keypoints[i];
+    //   const vec3_t r_SFi = tf_point(T_BS.inverse() * T_BC0, p_C);
     //
-		// 	mat_t<2, 6, row_major_t> Jx;
-		// 	Jx.setZero();
-		// 	Jx.block(0, 0, 2, 3) = C_C0B * I(3);
-		// 	Jx.block(0, 3, 2, 3) = C_C0B * -skew(C_BS * r_SFi);
+    //   mat_t<2, 6, row_major_t> Jx;
+    //   Jx.setZero();
+    //   Jx.block(0, 0, 2, 3) = C_C0B * I(3);
+    //   Jx.block(0, 3, 2, 3) = C_C0B * -skew(C_BS * r_SFi);
     //
-		// 	const matx_t covar_y = Jx * calib_covar_nbt * Jx.transpose();
-		// 	reproj_covars.push_back(sqrt(covar_y(0, 0)));
-		// 	reproj_covars.push_back(sqrt(covar_y(1, 1)));
-		// }
+    //   const matx_t covar_y = Jx * calib_covar_nbt * Jx.transpose();
+    //   reproj_covars.push_back(sqrt(covar_y(0, 0)));
+    //   reproj_covars.push_back(sqrt(covar_y(1, 1)));
+    // }
 
-		printf("[%ld] ", i);
-		printf("info_prev: %f, ", info_prev);
-		printf("info gain: %f, ", info_gain);
-		printf("info_new: %f, ", info_new);
-		// printf("reproj_covar: [%f, %f, %f](rmse, mean, median)\n",
-		// 			 rmse(reproj_covars),
-		// 			 mean(reproj_covars),
-		// 			 median(reproj_covars));
+    printf("[%ld] ", i);
+    printf("info_prev: %f, ", info_prev);
+    printf("info gain: %f, ", info_gain);
+    printf("info_new: %f, ", info_new);
+    // printf("reproj_covar: [%f, %f, %f](rmse, mean, median)\n",
+    //        rmse(reproj_covars),
+    //        mean(reproj_covars),
+    //        median(reproj_covars));
 
     // Keep track of best stddev
     if (info_gain > best_info_gain) {
       best_index = i;
       best_info_gain = info_gain;
-			best_info_new = info_new;
+      best_info_new = info_new;
     }
   }
   printf("best_index: %ld\n", best_index);

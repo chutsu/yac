@@ -350,7 +350,7 @@ int test_aprilgrid_sample() {
 
   const size_t n = 144;
   std::vector<int> tag_ids;
-	std::vector<int> corner_indicies;
+  std::vector<int> corner_indicies;
   vec2s_t keypoints;
   vec3s_t object_points;
   grid.sample(n, tag_ids, corner_indicies, keypoints, object_points);
@@ -449,24 +449,24 @@ int test_aprilgrid_detect() {
 }
 
 cv::Mat obtainIregularROI(cv::Mat& origImag,
-													cv::Point2f topLeft,
-			 										cv::Point2f topRight,
-													cv::Point2f botLeft,
-													cv::Point2f botRight){
-	cv::Mat black(origImag.rows, origImag.cols, origImag.type(), cv::Scalar::all(0));
-	cv::Mat mask(origImag.rows, origImag.cols, CV_8UC1, cv::Scalar(0));
+                          cv::Point2f topLeft,
+                           cv::Point2f topRight,
+                          cv::Point2f botLeft,
+                          cv::Point2f botRight){
+  cv::Mat black(origImag.rows, origImag.cols, origImag.type(), cv::Scalar::all(0));
+  cv::Mat mask(origImag.rows, origImag.cols, CV_8UC1, cv::Scalar(0));
 
-	std::vector<std::vector<cv::Point>> co_ordinates;
-	co_ordinates.push_back(std::vector<cv::Point>());
-	co_ordinates[0].push_back(topLeft);
-	co_ordinates[0].push_back(botLeft);
-	co_ordinates[0].push_back(botRight);
-	co_ordinates[0].push_back(topRight);
+  std::vector<std::vector<cv::Point>> co_ordinates;
+  co_ordinates.push_back(std::vector<cv::Point>());
+  co_ordinates[0].push_back(topLeft);
+  co_ordinates[0].push_back(botLeft);
+  co_ordinates[0].push_back(botRight);
+  co_ordinates[0].push_back(topRight);
 
-	cv::drawContours(mask, co_ordinates, 0, cv::Scalar(255), CV_FILLED, 8);
-	origImag.copyTo(black, mask);
+  cv::drawContours(mask, co_ordinates, 0, cv::Scalar(255), CV_FILLED, 8);
+  origImag.copyTo(black, mask);
 
-	return black;
+  return black;
 }
 
 int test_aprilgrid_detect2() {
@@ -498,55 +498,55 @@ int test_aprilgrid_detect2() {
       vec3_t r_CF2 = tf_point(T_CF, r_FF2);
       vec3_t r_CF3 = tf_point(T_CF, r_FF3);
 
-			vec2_t z0;
-			vec2_t z1;
-			vec2_t z2;
-			vec2_t z3;
+      vec2_t z0;
+      vec2_t z1;
+      vec2_t z2;
+      vec2_t z3;
       cam.project(r_CF0, z0);
       cam.project(r_CF1, z1);
       cam.project(r_CF2, z2);
       cam.project(r_CF3, z3);
 
-			int padding = 0;
-			double yaw = rad2deg(quat2euler(tf_quat(T_CF))(2));
-			printf("yaw: %f\n", yaw);
-			if (yaw > -90.0 && yaw < 90.0) {
-				padding = 10.0;
-			} else {
-				padding = -10.0;
-			}
+      int padding = 0;
+      double yaw = rad2deg(quat2euler(tf_quat(T_CF))(2));
+      printf("yaw: %f\n", yaw);
+      if (yaw > -90.0 && yaw < 90.0) {
+        padding = 10.0;
+      } else {
+        padding = -10.0;
+      }
 
-			z0.x() = (z0.x() < 0) ? 0 : z0.x() - padding;
-			z0.x() = (z0.x() > image.cols) ? image.cols : z0.x();
-			z0.y() = (z0.y() < 0) ? 0 : z0.y() + padding;
-			z0.y() = (z0.y() > image.rows) ? image.rows: z0.y();
+      z0.x() = (z0.x() < 0) ? 0 : z0.x() - padding;
+      z0.x() = (z0.x() > image.cols) ? image.cols : z0.x();
+      z0.y() = (z0.y() < 0) ? 0 : z0.y() + padding;
+      z0.y() = (z0.y() > image.rows) ? image.rows: z0.y();
 
-			z1.x() = (z1.x() < 0) ? 0 : z1.x() + padding;
-			z1.x() = (z1.x() > image.cols) ? image.cols : z1.x();
-			z1.y() = (z1.y() < 0) ? 0 : z1.y() + padding;
-			z1.y() = (z1.y() > image.rows) ? image.rows: z1.y();
+      z1.x() = (z1.x() < 0) ? 0 : z1.x() + padding;
+      z1.x() = (z1.x() > image.cols) ? image.cols : z1.x();
+      z1.y() = (z1.y() < 0) ? 0 : z1.y() + padding;
+      z1.y() = (z1.y() > image.rows) ? image.rows: z1.y();
 
-			z2.x() = (z2.x() < 0) ? 0 : z2.x() + padding;
-			z2.x() = (z2.x() > image.cols) ? image.cols : z2.x();
-			z2.y() = (z2.y() < 0) ? 0 : z2.y() - padding;
-			z2.y() = (z2.y() > image.rows) ? image.rows: z2.y();
+      z2.x() = (z2.x() < 0) ? 0 : z2.x() + padding;
+      z2.x() = (z2.x() > image.cols) ? image.cols : z2.x();
+      z2.y() = (z2.y() < 0) ? 0 : z2.y() - padding;
+      z2.y() = (z2.y() > image.rows) ? image.rows: z2.y();
 
-			z3.x() = (z3.x() < 0) ? 0 : z3.x() - padding;
-			z3.x() = (z3.x() > image.cols) ? image.cols : z3.x();
-			z3.y() = (z3.y() < 0) ? 0 : z3.y() - padding;
-			z3.y() = (z3.y() > image.rows) ? image.rows: z3.y();
+      z3.x() = (z3.x() < 0) ? 0 : z3.x() - padding;
+      z3.x() = (z3.x() > image.cols) ? image.cols : z3.x();
+      z3.y() = (z3.y() < 0) ? 0 : z3.y() - padding;
+      z3.y() = (z3.y() > image.rows) ? image.rows: z3.y();
 
-			cv::Point2f top_left;
-			cv::Point2f top_right;
-			cv::Point2f bot_left;
-			cv::Point2f bot_right;
-			bot_left = cv::Point2f(z0.x(), z0.y());
-			bot_right = cv::Point2f(z1.x(), z1.y());
-			top_right = cv::Point2f(z2.x(), z2.y());
-			top_left = cv::Point2f(z3.x(), z3.y());
+      cv::Point2f top_left;
+      cv::Point2f top_right;
+      cv::Point2f bot_left;
+      cv::Point2f bot_right;
+      bot_left = cv::Point2f(z0.x(), z0.y());
+      bot_right = cv::Point2f(z1.x(), z1.y());
+      top_right = cv::Point2f(z2.x(), z2.y());
+      top_left = cv::Point2f(z3.x(), z3.y());
 
 
-			cv::Mat image_roi = obtainIregularROI(image, top_left, top_right, bot_left, bot_right);
+      cv::Mat image_roi = obtainIregularROI(image, top_left, top_right, bot_left, bot_right);
 
       cv::Mat image_laplacian;
       cv::Laplacian(image_roi, image_laplacian, CV_64F);
@@ -557,8 +557,8 @@ int test_aprilgrid_detect2() {
       double var = stddev.val[0] * stddev.val[0];
       printf("variance: %f\n", var);
 
-			cv::imshow("Image", image);
-			cv::imshow("AprilGrid detection", image_roi);
+      cv::imshow("Image", image);
+      cv::imshow("AprilGrid detection", image_roi);
       cv::waitKey(0);
 
       // grid.imshow("AprilGrid detection", image);
@@ -615,7 +615,7 @@ int test_aprilgrid_detect3() {
     // cv::imshow("Image", image);
     // cv::waitKey(1);
   }
-	exit(0);
+  exit(0);
 
   // for (std::string image_path : cam1_images) {
   //   auto timestamp = strip_end(image_path, ".png");

@@ -30,7 +30,7 @@ struct aprilgrid_t {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 
   // Grid properties
-	bool init = false;
+  bool init = false;
   timestamp_t timestamp = 0;
   int tag_rows = 0;
   int tag_cols = 0;
@@ -45,9 +45,9 @@ struct aprilgrid_t {
   aprilgrid_t() {}
 
   aprilgrid_t(const std::string &csv_path)
-			: init{true} {
-		load(csv_path);
-	}
+      : init{true} {
+    load(csv_path);
+  }
 
   aprilgrid_t(const timestamp_t &timestamp,
               const int tag_rows,
@@ -55,7 +55,7 @@ struct aprilgrid_t {
               const double tag_size,
               const double tag_spacing)
       : init{true},
-				timestamp{timestamp},
+        timestamp{timestamp},
         tag_rows{tag_rows}, tag_cols{tag_cols},
         tag_size{tag_size}, tag_spacing{tag_spacing},
         data{zeros(tag_rows * tag_cols * 4, 6)} {}
@@ -63,7 +63,7 @@ struct aprilgrid_t {
   ~aprilgrid_t() {}
 
   void clear() {
-		assert(init == true);
+    assert(init == true);
 
     detected = false;
     nb_detections = 0;
@@ -71,12 +71,12 @@ struct aprilgrid_t {
   }
 
   bool fully_observable() const {
-		assert(init == true);
+    assert(init == true);
     return (nb_detections == (tag_rows * tag_cols * 4));
   }
 
   bool fully_observable() {
-		assert(init == true);
+    assert(init == true);
     return static_cast<const aprilgrid_t>(*this).fully_observable();
   }
 
@@ -91,12 +91,12 @@ struct aprilgrid_t {
   }
 
   bool has(const int tag_id, const int corner_idx) {
-		assert(init == true);
+    assert(init == true);
     return static_cast<const aprilgrid_t>(*this).has(tag_id, corner_idx);
   }
 
   vec2_t center() const {
-		assert(init == true);
+    assert(init == true);
 
     double x = ((tag_cols / 2.0) * tag_size);
     x +=  (((tag_cols / 2.0) - 1) * tag_spacing * tag_size);
@@ -110,12 +110,12 @@ struct aprilgrid_t {
   }
 
   vec2_t center() {
-		assert(init == true);
+    assert(init == true);
     return static_cast<const aprilgrid_t>(*this).center();
   }
 
   void grid_index(const int tag_id, int &i, int &j) const {
-		assert(init == true);
+    assert(init == true);
 
     if (tag_id > (tag_rows * tag_cols)) {
       FATAL("tag_id > (tag_rows * tag_cols)!");
@@ -128,13 +128,13 @@ struct aprilgrid_t {
   }
 
   void grid_index(const int tag_id, int &i, int &j) {
-		assert(init == true);
+    assert(init == true);
 
     static_cast<const aprilgrid_t>(*this).grid_index(tag_id, i, j);
   }
 
   vec3_t object_point(const int tag_id, const int corner_idx) const {
-		assert(init == true);
+    assert(init == true);
 
     // Calculate the AprilGrid index using tag id
     int i = 0;
@@ -168,12 +168,12 @@ struct aprilgrid_t {
   }
 
   vec3_t object_point(const int tag_id, const int corner_idx) {
-		assert(init == true);
+    assert(init == true);
     return static_cast<const aprilgrid_t>(*this).object_point(tag_id, corner_idx);
   }
 
   vec3s_t object_points() const {
-		assert(init == true);
+    assert(init == true);
     vec3s_t object_points_;
 
     for (int i = 0; i < (tag_rows * tag_cols * 4); i++) {
@@ -186,12 +186,12 @@ struct aprilgrid_t {
   }
 
   vec3s_t object_points() {
-		assert(init == true);
+    assert(init == true);
     return static_cast<const aprilgrid_t>(*this).object_points();
   }
 
   vec2_t keypoint(const int tag_id, const int corner_idx) const {
-		assert(init == true);
+    assert(init == true);
     const int data_row = (tag_id * 4) + corner_idx;
     if (data(data_row, 0) > 0) {
       return data.block(data_row, 1, 1, 2).transpose();
@@ -202,12 +202,12 @@ struct aprilgrid_t {
   }
 
   vec2_t keypoint(const int tag_id, const int corner_idx) {
-		assert(init == true);
+    assert(init == true);
     return static_cast<const aprilgrid_t>(*this).keypoint(tag_id, corner_idx);
   }
 
   vec2s_t keypoints() const {
-		assert(init == true);
+    assert(init == true);
     vec2s_t keypoints_;
 
     for (int i = 0; i < (tag_rows * tag_cols * 4); i++) {
@@ -220,7 +220,7 @@ struct aprilgrid_t {
   }
 
   vec2s_t keypoints() {
-		assert(init == true);
+    assert(init == true);
     return static_cast<const aprilgrid_t>(*this).keypoints();
   }
 
@@ -228,11 +228,11 @@ struct aprilgrid_t {
                         std::vector<int> &corner_indicies,
                         vec2s_t &keypoints,
                         vec3s_t &object_points) const {
-		assert(init == true);
+    assert(init == true);
 
-		if (detected == false) {
+    if (detected == false) {
       return;
-		}
+    }
 
     for (int i = 0; i < (tag_rows * tag_cols * 4); i++) {
       if (data(i, 0) > 0) {
@@ -245,7 +245,7 @@ struct aprilgrid_t {
   }
 
   std::vector<int> tag_ids() const {
-		assert(init == true);
+    assert(init == true);
     std::set<int> tag_ids_;
     for (int i = 0; i < (tag_rows * tag_cols * 4); i++) {
       if (data(i, 0)) {
@@ -257,12 +257,12 @@ struct aprilgrid_t {
   }
 
   std::vector<int> tag_ids() {
-		assert(init == true);
+    assert(init == true);
     return static_cast<const aprilgrid_t>(*this).tag_ids();
   }
 
   void add(const int tag_id, const int corner_idx, const vec2_t &kp) {
-		assert(init == true);
+    assert(init == true);
 
     // Set AprilGrid as detected
     detected = true;
@@ -277,7 +277,7 @@ struct aprilgrid_t {
   }
 
   void remove(const int tag_id, const int corner_idx) {
-		assert(init == true);
+    assert(init == true);
 
     const int data_row = (tag_id * 4) + corner_idx;
     if (data(data_row, 0) > 0) {
@@ -288,7 +288,7 @@ struct aprilgrid_t {
   }
 
   void remove(const int tag_id) {
-		assert(init == true);
+    assert(init == true);
 
     remove(tag_id, 0);
     remove(tag_id, 1);
@@ -296,7 +296,7 @@ struct aprilgrid_t {
     remove(tag_id, 3);
   }
 
-	cv::Mat draw(const cv::Mat &image,
+  cv::Mat draw(const cv::Mat &image,
                const int marker_size=2,
                const cv::Scalar &color=cv::Scalar{0, 0, 255}) const {
     cv::Mat image_rgb = gray2rgb(image);
@@ -306,30 +306,30 @@ struct aprilgrid_t {
       cv::circle(image_rgb, p, marker_size, color, -1);
     }
 
-		return image_rgb;
-	}
+    return image_rgb;
+  }
 
-	cv::Mat draw(const cv::Mat &image,
+  cv::Mat draw(const cv::Mat &image,
                const int marker_size=2,
                const cv::Scalar &color=cv::Scalar{0, 0, 255}) {
-		assert(init == true);
+    assert(init == true);
     return static_cast<const aprilgrid_t>(*this).draw(image, marker_size, color);
-	}
+  }
 
   void imshow(const std::string &title, const cv::Mat &image) const {
-		assert(init == true);
+    assert(init == true);
     cv::imshow(title, draw(image));
     cv::waitKey(1);
   }
 
   void imshow(const std::string &title, const cv::Mat &image) {
-		assert(init == true);
+    assert(init == true);
     static_cast<const aprilgrid_t>(*this).imshow(title, image);
   }
 
   template <typename CAMERA_TYPE>
   int estimate(const CAMERA_TYPE &cam, mat4_t &T_CF) const {
-		assert(init == true);
+    assert(init == true);
 
     // Check if we actually have data to work with
     if (nb_detections == 0) {
@@ -351,12 +351,12 @@ struct aprilgrid_t {
 
   template <typename CAMERA_TYPE>
   int estimate(const CAMERA_TYPE &cam, mat4_t &T_CF) {
-		assert(init == true);
+    assert(init == true);
     return static_cast<const aprilgrid_t>(*this).estimate(cam, T_CF);
   }
 
   int save(const std::string &save_path) const {
-		assert(init == true);
+    assert(init == true);
 
     // Check save dir
     const std::string dir_path = dir_name(save_path);
@@ -422,12 +422,12 @@ struct aprilgrid_t {
   }
 
   int save(const std::string &save_path) {
-		assert(init == true);
+    assert(init == true);
     return static_cast<const aprilgrid_t>(*this).save(save_path);
   }
 
   int load(const std::string &data_path) {
-		assert(init == true);
+    assert(init == true);
     // Open file for loading
     int nb_rows = 0;
     FILE *fp = file_open(data_path, "r", &nb_rows);
@@ -511,7 +511,7 @@ struct aprilgrid_t {
   }
 
   int equal(const aprilgrid_t &grid1) const {
-		assert(init == true);
+    assert(init == true);
     bool timestamp_ok = (this->timestamp == grid1.timestamp);
     bool tag_rows_ok = (this->tag_rows == grid1.tag_rows);
     bool tag_cols_ok = (this->tag_cols == grid1.tag_cols);
@@ -560,72 +560,72 @@ struct aprilgrid_t {
   }
 
   int equal(const aprilgrid_t &grid1) {
-		assert(init == true);
+    assert(init == true);
     return static_cast<const aprilgrid_t>(*this).equal(grid1);
   }
 
   void intersect(aprilgrid_t &grid1) {
-		assert(init == true);
-		// Get rows in data that are detected
-		std::vector<int> grid0_rows;
-		std::vector<int> grid1_rows;
-		for (int i = 0; i < (tag_rows * tag_cols * 4); i++) {
-			if (data(i, 0)) grid0_rows.push_back(i);
-			if (grid1.data(i, 0)) grid1_rows.push_back(i);
-		}
+    assert(init == true);
+    // Get rows in data that are detected
+    std::vector<int> grid0_rows;
+    std::vector<int> grid1_rows;
+    for (int i = 0; i < (tag_rows * tag_cols * 4); i++) {
+      if (data(i, 0)) grid0_rows.push_back(i);
+      if (grid1.data(i, 0)) grid1_rows.push_back(i);
+    }
 
-		// For rows that are different set to zero (remove)
-		for (auto i : set_symmetric_diff(grid0_rows, grid1_rows)) {
-			if (data(i, 0) > 0) {
-				data.block(i, 0, 1, 6).setZero();
-				nb_detections--;
-			}
+    // For rows that are different set to zero (remove)
+    for (auto i : set_symmetric_diff(grid0_rows, grid1_rows)) {
+      if (data(i, 0) > 0) {
+        data.block(i, 0, 1, 6).setZero();
+        nb_detections--;
+      }
 
-			if (grid1.data(i, 0) > 0) {
-				grid1.data.block(i, 0, 1, 6).setZero();
-				grid1.nb_detections--;
-			}
-		}
+      if (grid1.data(i, 0) > 0) {
+        grid1.data.block(i, 0, 1, 6).setZero();
+        grid1.nb_detections--;
+      }
+    }
   }
 
   static void intersect(std::vector<aprilgrid_t *> &grids) {
-		const int nb_grids = grids.size();
-		std::map<int, int> row_counter;
+    const int nb_grids = grids.size();
+    std::map<int, int> row_counter;
 
-		// Initialize row_counter
-	  for (int i = 0; i < (grids[0]->tag_rows * grids[0]->tag_cols * 4); i++) {
-			row_counter[i] = 0;
-		}
-
-		// For all AprilGrids, book keep rows that are non-zero
-    for (aprilgrid_t *grid : grids) {
-			for (int i = 0; i < (grid->tag_rows * grid->tag_cols * 4); i++) {
-				if (grid->data(i, 0)) {
-					row_counter[i] = row_counter[i] + 1;
-				}
-			}
+    // Initialize row_counter
+    for (int i = 0; i < (grids[0]->tag_rows * grids[0]->tag_cols * 4); i++) {
+      row_counter[i] = 0;
     }
 
-		// Find which rows are not common amonst all AprilGrids
-		std::vector<int> rows_remove;
-		for (auto &kv : row_counter) {
-			const int row_index = kv.first;
-			const int count = kv.second;
+    // For all AprilGrids, book keep rows that are non-zero
+    for (aprilgrid_t *grid : grids) {
+      for (int i = 0; i < (grid->tag_rows * grid->tag_cols * 4); i++) {
+        if (grid->data(i, 0)) {
+          row_counter[i] = row_counter[i] + 1;
+        }
+      }
+    }
 
-			if (count != nb_grids) {
-				rows_remove.push_back(row_index);
-			}
-		}
+    // Find which rows are not common amonst all AprilGrids
+    std::vector<int> rows_remove;
+    for (auto &kv : row_counter) {
+      const int row_index = kv.first;
+      const int count = kv.second;
 
-		// Remove
-		for (aprilgrid_t *grid : grids) {
-			for (const int row_index : rows_remove) {
-				if (grid->data(row_index, 0)) {
-				  grid->data.block(row_index, 0, 1, 6).setZero();
-					grid->nb_detections--;
-				}
-			}
-		}
+      if (count != nb_grids) {
+        rows_remove.push_back(row_index);
+      }
+    }
+
+    // Remove
+    for (aprilgrid_t *grid : grids) {
+      for (const int row_index : rows_remove) {
+        if (grid->data(row_index, 0)) {
+          grid->data.block(row_index, 0, 1, 6).setZero();
+          grid->nb_detections--;
+        }
+      }
+    }
   }
 
   void sample(const size_t n,
@@ -633,7 +633,7 @@ struct aprilgrid_t {
               std::vector<int> &sample_corner_indicies,
               vec2s_t &sample_keypoints,
               vec3s_t &sample_object_points) {
-		assert(init == true);
+    assert(init == true);
     if (nb_detections == 0) {
       return;
     }
@@ -651,17 +651,17 @@ struct aprilgrid_t {
       if (std::count(sample_list.begin(), sample_list.end(), sample_id)) {
         continue;
       }
-			sample_list.insert(sample_id);
+      sample_list.insert(sample_id);
 
       // Add to samples if detected
       const int i = (tag_id * 4) + corner_idx;
 
-			if (data(i, 0)) {
-				sample_tag_ids.push_back(tag_id);
-				sample_corner_indicies.push_back(corner_idx);
-				sample_keypoints.emplace_back(data(i, 1), data(i, 2));
-				sample_object_points.emplace_back(data(i, 3), data(i, 4), data(i, 5));
-			}
+      if (data(i, 0)) {
+        sample_tag_ids.push_back(tag_id);
+        sample_corner_indicies.push_back(corner_idx);
+        sample_keypoints.emplace_back(data(i, 1), data(i, 2));
+        sample_object_points.emplace_back(data(i, 3), data(i, 4), data(i, 5));
+      }
     }
   }
 
@@ -999,9 +999,9 @@ struct aprilgrid_detector_t {
         return (a.id < b.id);
       });
       // -- Setup data
-			const double min_border_dist = 4.0;
-			const float img_rows = image_gray.rows;
-			const float img_cols = image_gray.cols;
+      const double min_border_dist = 4.0;
+      const float img_rows = image_gray.rows;
+      const float img_cols = image_gray.cols;
 
       std::vector<int> tag_ids;
       std::vector<int> corner_indicies;
@@ -1010,14 +1010,14 @@ struct aprilgrid_detector_t {
       for (const auto &tag : tags) {
         if (tag.good) {
           for (int i = 0; i < 4; i++) {
-						bool remove = false;
-						remove |= tag.p[i].first < min_border_dist;
-						remove |= tag.p[i].first > img_cols - min_border_dist;
-						remove |= tag.p[i].second < min_border_dist;
-						remove |= tag.p[i].second > img_rows - min_border_dist;
-						if (remove) {
-							continue;
-						}
+            bool remove = false;
+            remove |= tag.p[i].first < min_border_dist;
+            remove |= tag.p[i].first > img_cols - min_border_dist;
+            remove |= tag.p[i].second < min_border_dist;
+            remove |= tag.p[i].second > img_rows - min_border_dist;
+            if (remove) {
+              continue;
+            }
 
             tag_ids.push_back(tag.id);
             corner_indicies.push_back(i);
@@ -1036,7 +1036,7 @@ struct aprilgrid_detector_t {
       for (size_t i = 0; i < tag_ids.size(); i++) {
         grid.add(tag_ids[i], corner_indicies[i], keypoints[i]);
       }
-		}
+    }
 
     return grid;
   }

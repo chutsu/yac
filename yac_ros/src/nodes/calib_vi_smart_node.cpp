@@ -40,9 +40,8 @@ public:
 
   // State
   enum CALIB_STATE {
-    IDEL = -1,
-    INITIALIZE = 0,
-    CALIB_ORIGIN = 1,
+    IDEL = 0,
+    INITIALIZE = 1,
     NBT = 2
   };
   int state_ = IDEL;
@@ -70,16 +69,20 @@ public:
   // Visualization
   int viz_width = 800;
   int viz_height = 600;
+  aprilgrid_t *target_grid_ = nullptr;
+
+  // Initialize
+  int init_idx_ = 0;
+  mat4s_t init_poses_;
 
   // Calibrator
   calib_target_t target_;
   camera_params_t cam0_params_;
   aprilgrid_detector_t *detector_ = nullptr;
+  mat4_t calib_origin_;  // Calibration origin (X) w.r.t camera frame(C): T_XC
   Estimator est_;
 
   // NBV
-  mat4_t calib_origin_;  // Calibration origin (X) w.r.t camera frame(C): T_XC
-  aprilgrid_t *target_grid = nullptr;
   double nbv_reproj_error_threshold = 10.0;
   double nbv_hold_threshold = 1.0;
   double nbv_reproj_err = std::numeric_limits<double>::max();
@@ -137,10 +140,10 @@ public:
 
     // Setup calibration origin
     calib_origin_ = calib_init_poses<pinhole_radtan4_t>(target_, cam0_params_)[0];
-    if (target_grid != nullptr) {
-      delete target_grid;
-    }
-    target_grid = nbv_target_grid<pinhole_radtan4_t>(target_, cam0_params_, calib_origin_);
+    target_grid_ = nbv_target_grid<pinhole_radtan4_t>(target_, cam0_params_, calib_origin_);
+
+    // Setup initial poses
+    calib_vi_init_poses(target_, calib_origin_, init_poses_);
 
     // Configure estimator
     est_.configure(calib_data_);
@@ -162,7 +165,7 @@ public:
 
 	void print_usage() {
     printf("Press:\n");
-    printf("  'b' to perform batch calbration\n");
+    printf("  'r' to reset the estimator\n");
     printf("  'q', ESC, Ctrl-c or Ctrl-d to terminate\n");
 	}
 
@@ -245,7 +248,7 @@ public:
 
   bool nbv_reached(const aprilgrid_t &grid) {
     // Check if target grid is created
-    if (target_grid == nullptr) {
+    if (target_grid_ == nullptr) {
       return false;
     }
 
@@ -261,12 +264,12 @@ public:
     for (size_t i = 0; i < tag_ids.size(); i++) {
       const int tag_id = tag_ids[i];
       const int corner_idx = corner_indicies[i];
-      if (target_grid->has(tag_id, corner_idx) == false) {
+      if (target_grid_->has(tag_id, corner_idx) == false) {
         continue;
       }
 
       const vec2_t z_measured = keypoints[i];
-      const vec2_t z_desired = target_grid->keypoint(tag_id, corner_idx);
+      const vec2_t z_desired = target_grid_->keypoint(tag_id, corner_idx);
       reproj_errors.push_back((z_desired - z_measured).norm());
     }
 
@@ -298,15 +301,30 @@ public:
     if (nbv_reached(grid)) {
       LOG_INFO("Initializing estimator!");
       state_ = INITIALIZE;
+
+      delete target_grid_;
+      const mat4_t T_FC = init_poses_[init_idx_++];
+      target_grid_ = nbv_target_grid<pinhole_radtan4_t>(target_, cam0_params_, T_FC);
     }
   }
 
   void mode_init(const aprilgrid_t &grid, cv::Mat &image) {
-    // nbv_draw<pinhole_radtan4_t>(calib_data_.target,
-    //                             calib_data_.cam_params[0],
-    //                             calib_origin_,
-    //                             image);
-    // draw_status_text("Turn your camera!", image);
+    draw_nbv(init_poses_[init_idx_], image);
+
+    if (nbv_reached(grid) && (size_t) init_idx_ < init_poses_.size()) {
+      LOG_INFO("Moving to initial pose [%d]", init_idx_);
+      delete target_grid_;
+      const mat4_t T_FC = init_poses_[init_idx_++];
+      target_grid_ = nbv_target_grid<pinhole_radtan4_t>(target_, cam0_params_, T_FC);
+
+    } else if (init_idx_ == 3) {
+      LOG_INFO("Transitioning to NBT mode!");
+      state_ = NBT;
+    }
+  }
+
+  void mode_nbt(const aprilgrid_t &grid, cv::Mat &image) {
+
   }
 
   void visualize(const aprilgrid_t &grid, const cv::Mat &image) {
@@ -315,13 +333,14 @@ public:
     draw_detected(grid, image_rgb);
 
     // State machine
-    switch (state_) {
-    case IDEL: mode_idel(grid, image_rgb); break;
-    case INITIALIZE: mode_init(grid, image_rgb); break;
-    }
+    // switch (state_) {
+    // case IDEL: mode_idel(grid, image_rgb); break;
+    // case INITIALIZE: mode_init(grid, image_rgb); break;
+    // case NBT: mode_nbt(grid, image_rgb); break;
+    // }
 
     // Show
-    cv::resize(image_rgb, image_rgb, cv::Size(viz_width, viz_height));
+    // cv::resize(image_rgb, image_rgb, cv::Size(viz_width, viz_height));
     cv::imshow("Visualization", image_rgb);
     int event = cv::waitKey(1);
     event_handler(event);
@@ -348,11 +367,6 @@ public:
                       const sensor_msgs::Image &cam1_msg) {
     frame_idx_++;
 
-    // Pre-check
-    // if (state_ == INITIALIZE && ((frame_idx_ % 5) != 0)) {
-    //   return;
-    // }
-
     // Double check image timestamps
     const auto cam0_ts = cam0_msg.header.stamp;
     const auto cam1_ts = cam1_msg.header.stamp;
@@ -378,10 +392,10 @@ public:
       return;
     }
     // -- Add measurement
-    if (state_ != IDEL) {
+    // if (state_ != IDEL) {
       est_.addMeasurement(0, grids[0]);
       est_.addMeasurement(1, grids[1]);
-    }
+    // }
     visualize(grids[0], cam_images[0]);
   }
 
@@ -393,9 +407,9 @@ public:
     const vec3_t w_m{gyr.x, gyr.y, gyr.z};
     const vec3_t a_m{acc.x, acc.y, acc.z};
     const auto ts = Time{msg->header.stamp.toSec()};
-    if (state_ != IDEL) {
+    // if (state_ != IDEL) {
       est_.addMeasurement(ts, w_m, a_m);
-    }
+    // }
   }
 
 	void compute_nbt() {
@@ -421,13 +435,14 @@ public:
 	  finding_nbt_ = true;
 
     // Find NBT
-		// if (nbt_trajs_.size() && nbt_calib_infos_.size() && est_.estimating_) {
 		if (est_.estimating_) {
 			nbt_trajs_.clear();
 			nbt_calib_infos_.clear();
 			compute_nbt();
 
       // Obtain calibration covariance
+      // The mutex lock is needed because we need to block the estimator from
+      // optimizing whilst recovering the calibration covariance matrix
       std::lock_guard<std::mutex> guard(mtx_);
       matx_t calib_covar;
       est_.recoverCalibCovariance(calib_covar);

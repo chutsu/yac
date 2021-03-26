@@ -2,6 +2,7 @@
 #include "euroc.hpp"
 #include "calib_mono.hpp"
 #include "calib_vi.hpp"
+#include "calib_nbv.hpp"
 
 namespace yac {
 
@@ -72,6 +73,34 @@ test_data_t setup_test_data() {
 	printf("\n");
 
 	return test_data;
+}
+
+int test_calib_vi_init_poses() {
+  const int img_w = 640;
+  const int img_h = 480;
+	const int cam_res[2] = {img_w, img_h};
+	const std::string proj_model = "pinhole";
+	const std::string dist_model = "radtan4";
+
+  const double fx = pinhole_focal(img_w, 69.4);
+  const double fy = pinhole_focal(img_h, 42.5);
+  const double cx = 640.0 / 2.0;
+  const double cy = 480.0 / 2.0;
+	const vec4_t proj_params{fx, fy, cx, cy};
+	const vec4_t dist_params{0.01, 0.001, 0.001, 0.001};
+
+	const camera_params_t cam0{0, 0, cam_res,
+											       proj_model, dist_model,
+											       proj_params, dist_params};
+	const calib_target_t target{"aprilgrid", 6, 6, 0.088, 0.3};
+  const mat4_t T_FO = calib_target_origin<pinhole_radtan4_t>(target, cam0);
+
+  mat4s_t init_poses;
+  calib_vi_init_poses(target, T_FO, init_poses);
+
+  save_poses("/tmp/calib_vi_init_poses.csv", init_poses);
+
+  return 0;
 }
 
 int test_reproj_error_td() {
@@ -851,6 +880,7 @@ int test_calib_vi() {
 }
 
 void test_suite() {
+  MU_ADD_TEST(test_calib_vi_init_poses);
   MU_ADD_TEST(test_reproj_error_td);
   // MU_ADD_TEST(test_imu_propagate);
   // MU_ADD_TEST(test_calib_vi_sim);

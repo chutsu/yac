@@ -24,6 +24,7 @@ void simulate_imu(const ctraj_t &traj,
                   vec3s_t &imu_gyro,
                   mat4s_t &imu_poses,
                   vec3s_t &imu_vels) {
+  const mat4_t T_SC0 = T_BS.inverse() * T_BC0;
   const timestamp_t imu_dt = sec2ts(1.0 / imu_params.rate);
   timestamp_t ts_k = ts_start;
   std::default_random_engine rndeng;
@@ -47,13 +48,6 @@ void simulate_imu(const ctraj_t &traj,
 
     // Convert camera frame to sensor frame
     const mat4_t T_WS_W = T_WC;
-    // const mat4_t T_CW = T_WC.inverse();
-    // const mat4_t T_WS_W = (T_SC * T_CW).inverse();
-    // const mat3_t C_CW = tf_rot(T_CW);
-    // const mat3_t C_SC = tf_rot(T_SC);
-    // const vec3_t w_WS_W = C_SC * (C_CW * w_WC);
-    // const vec3_t a_WS_W = C_SC * (C_CW * a_WC);
-    // const vec3_t v_WS_W = C_SC * (C_CW * v_WC);
     const vec3_t w_WS_W = w_WC;
     const vec3_t a_WS_W = a_WC;
     const vec3_t v_WS_W = v_WC;

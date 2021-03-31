@@ -547,6 +547,25 @@ void save_poses(const std::string &path, const mat4s_t &poses) {
   fclose(csv);
 }
 
+void save_poses(const std::string &path, const std::deque<mat4_t> &poses) {
+  FILE *csv = fopen(path.c_str(), "w");
+  for (const auto &pose : poses) {
+    const auto &q = tf_quat(pose);
+    const auto &r = tf_trans(pose);
+
+    fprintf(csv, "%f,", r(0));
+    fprintf(csv, "%f,", r(1));
+    fprintf(csv, "%f,", r(2));
+
+    fprintf(csv, "%f,", q.w());
+    fprintf(csv, "%f,", q.x());
+    fprintf(csv, "%f,", q.y());
+    fprintf(csv, "%f\n", q.z());
+  }
+  fflush(csv);
+  fclose(csv);
+}
+
 void save_poses(const std::string &path,
                 const timestamps_t &timestamps,
                 const mat4s_t &poses) {

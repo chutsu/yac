@@ -4,6 +4,7 @@
 #include <iostream>
 #include <string>
 #include <memory>
+#include <deque>
 
 #include <ceres/ceres.h>
 
@@ -19,7 +20,7 @@ namespace yac {
 /* Form initial poses for visual-inertial calibration */
 void calib_vi_init_poses(const calib_target_t &target,
                          const mat4_t &T_FO,
-                         mat4s_t &init_poses);
+                         std::deque<mat4_t> &init_poses);
 
 struct pose_error_t : public ceres::SizedCostFunction<6, 7> {
   pose_t pose_meas_;

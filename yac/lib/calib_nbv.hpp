@@ -343,7 +343,8 @@ template <typename T>
 void calib_pan_trajs(const calib_target_t &target,
                      const camera_params_t &cam0,
                      const camera_params_t &cam1,
-                     const mat4_t &T_C0C1,
+                     const mat4_t &T_BC0,
+                     const mat4_t &T_BC1,
                      const mat4_t &T_WF,
                      const mat4_t &T_FO,
                      const timestamp_t &ts_start,
@@ -351,7 +352,8 @@ void calib_pan_trajs(const calib_target_t &target,
                      ctrajs_t &trajs) {
   UNUSED(cam0);
   UNUSED(cam1);
-  UNUSED(T_C0C1);
+  UNUSED(T_BC0);
+  UNUSED(T_BC1);
 
   // Tag width
   const double tag_rows = target.tag_rows;
@@ -384,7 +386,7 @@ void calib_pan_trajs(const calib_target_t &target,
   // Trajectory parameters
   const int nb_trajs = 4;
   const int nb_control_points = 5;
-  const double pan_length = (calib_width / 2.0) * scale;
+  const double pan_length = calib_width * scale;
   const double theta_min = deg2rad(0.0);
   const double theta_max = deg2rad(270.0);
 
@@ -437,6 +439,74 @@ void calib_pan_trajs(const calib_target_t &target,
   }
 }
 
+template <typename T>
+void calib_figure8_trajs(const calib_target_t &target,
+                         const camera_params_t &cam0,
+				 	 	 		 	 	 	 	 const camera_params_t &cam1,
+                         const mat4_t &T_BC0,
+                         const mat4_t &T_BC1,
+                         const mat4_t &T_WF,
+                         const mat4_t &T_FO,
+                         const timestamp_t &ts_start,
+                         const timestamp_t &ts_end,
+                         ctrajs_t &trajs) {
+  // Tag width
+  const double tag_rows = target.tag_rows;
+  const double tag_cols = target.tag_cols;
+  const double tag_spacing = target.tag_spacing;
+  const double tag_size = target.tag_size;
+  const double spacing_x = (tag_cols - 1) * tag_spacing * tag_size;
+  const double spacing_y = (tag_rows - 1) * tag_spacing * tag_size;
+  const double calib_width = tag_cols * tag_size + spacing_x;
+  const double calib_height = tag_rows * tag_size + spacing_y;
+
+  // Target center (Fc) w.r.t. Target origin (F)
+  const vec3_t r_FFc{calib_width / 2.0, calib_height / 2.0, 0.0};
+
+  // Parameters for figure 8
+  double a = calib_width / 2.0;
+
+  // Create trajectory control points
+  const size_t nb_control_points = 100;
+  vec3s_t positions;
+  quats_t attitudes;
+  // -- R.H.S
+  for (const auto t : linspace(0.0, M_PI, nb_control_points / 2.0)) {
+    const auto x = a * sin(t);
+    const auto y = a * sin(t) * cos(t);
+    const auto z = 0.0;
+    const vec3_t r_OC{x, y, z};  // Position of camera relative to calib origin
+
+    const vec3_t r_FT = tf_point(T_FO, r_OC);
+    const mat4_t T_FC0 = lookat(r_FT, r_FFc);
+    const vec3_t r_WC0 = tf_trans(T_WF * T_FC0);
+    const mat3_t C_WC0 = tf_rot(T_WF * T_FC0);
+
+    // Add control point to spline
+    positions.emplace_back(r_WC0);
+    attitudes.emplace_back(C_WC0);
+  }
+  // -- L.H.S
+  for (const auto t : linspace(M_PI, 2 * M_PI, nb_control_points / 2.0)) {
+    const auto x = a * sin(t);
+    const auto y = a * sin(t) * cos(t);
+    const auto z = 0.0;
+    const vec3_t r_OC{x, y, z};  // Position of camera relative to calib origin
+
+    const vec3_t r_FT = tf_point(T_FO, r_OC);
+    const mat4_t T_FC0 = lookat(r_FT, r_FFc);
+    const vec3_t r_WC0 = tf_trans(T_WF * T_FC0);
+    const mat3_t C_WC0 = tf_rot(T_WF * T_FC0);
+
+    // Add control point to spline
+    positions.emplace_back(r_WC0);
+    attitudes.emplace_back(C_WC0);
+  }
+  // -- Create spline
+  const auto timestamps = linspace(ts_start, ts_end, nb_control_points);
+  trajs.emplace_back(timestamps, positions, attitudes);
+}
+
 template <typename CAMERA>
 vec2s_t nbv_draw(const calib_target_t &target,
                  const camera_params_t &cam_params,
@@ -487,11 +557,20 @@ vec2s_t nbv_draw(const calib_target_t &target,
   cv::line(image, pt2, pt3, color, thickness);
   cv::line(image, pt3, pt0, color, thickness);
 
-  const auto corner_color = cv::Scalar(0, 0, 255);
-  cv::circle(image, pt0, 1.0, corner_color, 5, 8);
-  cv::circle(image, pt1, 1.0, corner_color, 5, 8);
-  cv::circle(image, pt2, 1.0, corner_color, 5, 8);
-  cv::circle(image, pt3, 1.0, corner_color, 5, 8);
+  // const auto corner_color = cv::Scalar(0, 0, 255);
+  // cv::circle(image, pt0, 1.0, corner_color, 5, 8);
+  // cv::circle(image, pt1, 1.0, corner_color, 5, 8);
+  // cv::circle(image, pt2, 1.0, corner_color, 5, 8);
+  // cv::circle(image, pt3, 1.0, corner_color, 5, 8);
+
+  const auto red = cv::Scalar(0, 0, 255);
+  const auto green = cv::Scalar(0, 255, 0);
+  const auto blue = cv::Scalar(255, 0, 0);
+  const auto yellow = cv::Scalar(0, 255, 255);
+  cv::circle(image, pt0, 3.0, red, 5, 8);    // bottom left
+  cv::circle(image, pt1, 3.0, green, 5, 8);  // bottom right
+  cv::circle(image, pt2, 3.0, blue, 5, 8);   // top right
+  cv::circle(image, pt3, 3.0, yellow, 5, 8); // top left
 
   return {p0, p1, p2, p3};
 }

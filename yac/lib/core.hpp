@@ -568,6 +568,11 @@ void save_poses(const std::string &path, const mat4s_t &poses);
 /**
  * Save poses to csv file in `path`.
  */
+void save_poses(const std::string &path, const std::deque<mat4_t> &poses);
+
+/**
+ * Save poses to csv file in `path`.
+ */
 void save_poses(const std::string &path,
                 const timestamps_t &timestamps,
                 const mat4s_t &poses);

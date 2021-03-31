@@ -95,10 +95,10 @@ int test_calib_vi_init_poses() {
   const calib_target_t target{"aprilgrid", 6, 6, 0.088, 0.3};
   const mat4_t T_FO = calib_target_origin<pinhole_radtan4_t>(target, cam0);
 
-  mat4s_t init_poses;
-  calib_vi_init_poses(target, T_FO, init_poses);
+  std::deque<mat4_t> poses;
+  calib_vi_init_poses(target, T_FO, poses);
 
-  save_poses("/tmp/calib_vi_init_poses.csv", init_poses);
+  // save_poses("/tmp/calib_vi_init_poses.csv", poses);
 
   return 0;
 }

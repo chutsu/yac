@@ -257,6 +257,7 @@ public:
 
     // Calibration target
     addCalibTarget(calib_data.target);
+    setOptimizationTimeLimit(0.02, 1);
 
     // IMU
     // -- Parameters
@@ -359,11 +360,18 @@ public:
     // reproj_errors_.clear();
 
     // Optimization
+    delete ceres_cb_;
     delete problem_;
     delete batch_problem_;
     delete cauchyLossFunctionPtr_;
     delete huberLossFunctionPtr_;
-    delete ceres_cb_;
+
+    ceres_cb_ = nullptr;
+    problem_ = nullptr;
+    batch_problem_ = nullptr;
+    cauchyLossFunctionPtr_ = nullptr;
+    huberLossFunctionPtr_ = nullptr;
+
     problem_ = new Map();
     batch_problem_ = new Map();
     cauchyLossFunctionPtr_ = new ::ceres::CauchyLoss(1);
@@ -708,17 +716,17 @@ public:
       grid_j.get_measurements(tag_ids, corner_indicies, grid_j_keypoints, object_points);
       grid_i_keypoints = grid_j_keypoints;
 
-      // // Random indicies
-      // std::set<int> indicies;
-      // int nb_tag_ids = tag_ids.size();
-      // for (size_t i = 0; i < std::min(nb_tag_ids, 10 * 4); i++) {
-      //   auto idx = randi(0, nb_tag_ids);
-      //   if (indicies.count(idx) == 0) {
-      //     indicies.insert(idx);
-      //   } else {
-      //     i--;
-      //   }
-      // }
+      // Random indicies
+      std::set<int> indicies;
+      int nb_tag_ids = tag_ids.size();
+      for (int i = 0; i < std::min(nb_tag_ids, 10 * 4); i++) {
+        auto idx = randi(0, nb_tag_ids);
+        if (indicies.count(idx) == 0) {
+          indicies.insert(idx);
+        } else {
+          i--;
+        }
+      }
 
       // std::vector<int> tag_ids;
       // std::vector<int> corner_indicies;
@@ -733,8 +741,8 @@ public:
       // printf("nb_tag_ids: %ld\n", tag_ids.size());
 
       // Add reprojection errors for real time
-      for (size_t i = 0; i < tag_ids.size(); i++) {
-      // for (auto i : indicies) {
+      // for (size_t i = 0; i < tag_ids.size(); i++) {
+      for (auto i : indicies) {
         auto tag_id = tag_ids[i];
         auto corner_idx = corner_indicies[i];
         vec2_t z_i = grid_i_keypoints[i];
@@ -957,7 +965,7 @@ public:
       FATAL("No fiducials detected!");
     }
 
-    for (int cam_idx = 0; cam_idx < nb_cams(); cam_idx++) {
+    for (int cam_idx = 0; cam_idx < (int) nb_cams(); cam_idx++) {
       // Skip if not detected
       if (grids.at(cam_idx).detected == false) {
         continue;
@@ -1167,49 +1175,27 @@ public:
     return true;
   }
 
-  bool setOptimizationTimeLimit(double timeLimit, int minIterations) {
-    if (ceres_cb_ != nullptr) {
-      if (timeLimit < 0.0) {
-        // no time limit => set minimum iterations to maximum iterations
-        ceres_cb_->setMinimumIterations(problem_->options.max_num_iterations);
-        return true;
-      }
-      ceres_cb_->setTimeLimit(timeLimit);
-      ceres_cb_->setMinimumIterations(minIterations);
-      return true;
-
-    } else if (timeLimit >= 0.0) {
+  void setOptimizationTimeLimit(double timeLimit, int minIterations) {
+    if (ceres_cb_ == nullptr) {
       ceres_cb_ = new CeresIterationCallback(timeLimit,minIterations);
       problem_->options.callbacks.push_back(ceres_cb_);
-      return true;
-
     }
-    // no callback yet registered with ceres.
-    // but given time limit is lower than 0, so no callback needed
-    return true;
+    ceres_cb_->setTimeLimit(timeLimit);
+    ceres_cb_->setMinimumIterations(minIterations);
   }
 
-  void optimize(const size_t numIter=2,
+  void optimize(const size_t numIter=3,
                 const size_t numThreads=4,
                 const bool verbose=false) {
-    // printf("nb_residual_blocks: %d\n", problem_->problem_->NumResidualBlocks());
-    // printf("nb_param_blocks: %d\n", problem_->problem_->NumParameterBlocks());
-
-    // Call solver
     problem_->options.minimizer_progress_to_stdout = verbose;
     problem_->options.num_threads = numThreads;
     problem_->options.max_num_iterations = numIter;
     problem_->solve();
 
-    // matx_t calib_covar;
-    // recoverCalibCovariance(calib_covar);
-    // printf("trace(calib_covar): %f\n", calib_covar.trace());
-
     // Summary output
     if (verbose) {
       LOG(INFO) << problem_->summary.FullReport();
     }
-    // printf("time_delay: %f\t", getTimeDelayEstimate());
     // std::cout << problem_->summary.BriefReport() << std::endl;
   }
 
@@ -1354,7 +1340,7 @@ static int eval_traj(const ctraj_t &traj,
   mat4s_t T_WC_sim;
   simulate_cameras<T>(traj, target,
                       cam0_params,
-                            cam1_params,
+                      cam1_params,
                       cam_rate,
                       T_WF, T_BC0, T_BC1,
                       ts_start, ts_end,
@@ -1476,8 +1462,14 @@ static void nbt_compute(const calib_target_t &target,
   const timestamp_t ts_start = 0;
   const timestamp_t ts_end = sec2ts(2.0);
   calib_orbit_trajs<T>(target, cam0, cam1,
-                           T_BC0, T_BC1, T_WF, T_FO,
+                       T_BC0, T_BC1, T_WF, T_FO,
                        ts_start, ts_end, trajs);
+  calib_pan_trajs<T>(target, cam0, cam1,
+                     T_BC0, T_BC1, T_WF, T_FO,
+                     ts_start, ts_end, trajs);
+  calib_figure8_trajs<T>(target, cam0, cam1,
+                         T_BC0, T_BC1, T_WF, T_FO,
+                         ts_start, ts_end, trajs);
 
   // Evaluate trajectory
   calib_infos.resize(trajs.size());
@@ -1493,41 +1485,41 @@ static void nbt_compute(const calib_target_t &target,
   }
 }
 
-struct nbv_test_grid_t {
-  const int grid_rows = 5;
-  const int grid_cols = 5;
-  const double grid_depth = 1.0;
-  const size_t nb_points = grid_rows * grid_cols;
-  vec3s_t object_points;
-  vec2s_t keypoints;
-
-  template <typename T>
-  nbv_test_grid_t(const T &cam) {
-    const int img_w = cam.resolution[0];
-    const int img_h = cam.resolution[1];
-    const double dx = img_w / (grid_cols + 1);
-    const double dy = img_h / (grid_rows + 1);
-    double kp_x = 0;
-    double kp_y = 0;
-
-    for (int i = 1; i < (grid_cols + 1); i++) {
-      kp_y += dy;
-      for (int j = 1; j < (grid_rows + 1); j++) {
-        kp_x += dx;
-
-        // Keypoint
-        const vec2_t kp{kp_x, kp_y};
-        keypoints.push_back(kp);
-
-        // Object point
-        vec3_t ray;
-        cam.back_project(kp, ray);
-        object_points.push_back(ray * grid_depth);
-      }
-      kp_x = 0;
-    }
-  }
-};
+// struct nbv_test_grid_t {
+//   const int grid_rows = 5;
+//   const int grid_cols = 5;
+//   const double grid_depth = 1.0;
+//   const size_t nb_points = grid_rows * grid_cols;
+//   vec3s_t object_points;
+//   vec2s_t keypoints;
+//
+//   template <typename T>
+//   nbv_test_grid_t(const T &cam) {
+//     const int img_w = cam.resolution[0];
+//     const int img_h = cam.resolution[1];
+//     const double dx = img_w / (grid_cols + 1);
+//     const double dy = img_h / (grid_rows + 1);
+//     double kp_x = 0;
+//     double kp_y = 0;
+//
+//     for (int i = 1; i < (grid_cols + 1); i++) {
+//       kp_y += dy;
+//       for (int j = 1; j < (grid_rows + 1); j++) {
+//         kp_x += dx;
+//
+//         // Keypoint
+//         const vec2_t kp{kp_x, kp_y};
+//         keypoints.push_back(kp);
+//
+//         // Object point
+//         vec3_t ray;
+//         cam.back_project(kp, ray);
+//         object_points.push_back(ray * grid_depth);
+//       }
+//       kp_x = 0;
+//     }
+//   }
+// };
 
 template <typename T>
 int nbt_find(const T &cam0,
@@ -1566,9 +1558,11 @@ int nbt_find(const T &cam0,
     // Calculate information gain
     const matx_t H_nbt = nbt_calib_infos[i];
     const matx_t H_new = H0 + H_nbt;
-    const matx_t calib_covar_nbt = H_new.ldlt().solve(I(H_new.rows()));
+    // const matx_t calib_covar_nbt = H_new.ldlt().solve(I(H_new.rows()));
+    const matx_t calib_covar_nbt = H_new.inverse();
     const double info_new = entropy(calib_covar_nbt);
     const double info_gain = 0.5 * (info_new - info_prev);
+
 
     // std::vector<double> reproj_covars;
     // for (size_t i = 0; i < test_grid.nb_points; i++) {
@@ -1590,6 +1584,7 @@ int nbt_find(const T &cam0,
     printf("info_prev: %f, ", info_prev);
     printf("info gain: %f, ", info_gain);
     printf("info_new: %f, ", info_new);
+    printf("shannon entropy: %f\n", 0.5 * log(pow(2 * M_PI * exp(1), calib_covar_nbt.rows()) * calib_covar_nbt.determinant()));
     // printf("reproj_covar: [%f, %f, %f](rmse, mean, median)\n",
     //        rmse(reproj_covars),
     //        mean(reproj_covars),

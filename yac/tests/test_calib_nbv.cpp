@@ -163,19 +163,57 @@ int test_calib_pan_trajs() {
   setup_calib_target(cameras[0], target, T_FO, &T_WF);
 
   // Stereo camera extrinsics
-  mat4_t T_C0C1 = tf(I(3), vec3_t{0.1, 0.0, 0.0});
+  const mat4_t T_BC0 = tf(I(3), vec3_t{0.0, 0.0, 0.0});
+  const mat4_t T_BC1 = tf(I(3), vec3_t{0.1, 0.0, 0.0});
 
   // Generate trajectories
   ctrajs_t trajs;
   const timestamp_t ts_start = 0;
   const timestamp_t ts_end = 5e9;
-  calib_pan_trajs<pinhole_radtan4_t>(target,
-                                     cameras[0],
-                                     cameras[1],
-                                     T_C0C1,
+  calib_pan_trajs<pinhole_radtan4_t>(target, cameras[0], cameras[1],
+                                     T_BC0, T_BC1,
                                      T_WF, T_FO,
                                      ts_start, ts_end,
                                      trajs);
+
+  // Save trajectories
+  int index = 0;
+  remove_dir("/tmp/nbt/traj");
+  dir_create("/tmp/nbt/traj");
+  for (const auto &traj : trajs) {
+    char buffer[1024];
+    snprintf(buffer, sizeof(buffer), "/tmp/nbt/traj/traj_%d.csv", index);
+    printf("saving trajectory to [%s]\n", buffer);
+    ctraj_save(traj, std::string{buffer});
+    index++;
+  }
+
+  return 0;
+}
+
+int test_calib_figure8_trajs() {
+  // Cameras
+  auto cameras = setup_cameras();
+
+  // Calibration target
+  calib_target_t target;
+  mat4_t T_FO;
+  mat4_t T_WF;
+  setup_calib_target(cameras[0], target, T_FO, &T_WF);
+
+  // Stereo camera extrinsics
+  const mat4_t T_BC0 = tf(I(3), vec3_t{0.0, 0.0, 0.0});
+  const mat4_t T_BC1 = tf(I(3), vec3_t{0.1, 0.0, 0.0});
+
+  // Generate trajectories
+  ctrajs_t trajs;
+  const timestamp_t ts_start = 0;
+  const timestamp_t ts_end = 5e9;
+  calib_figure8_trajs<pinhole_radtan4_t>(target, cameras[0], cameras[1],
+                                     	 	 T_BC0, T_BC1,
+                                     	 	 T_WF, T_FO,
+                                     	 	 ts_start, ts_end,
+                                     	 	 trajs);
 
   // Save trajectories
   int index = 0;
@@ -615,6 +653,7 @@ void test_suite() {
   MU_ADD_TEST(test_calib_nbv_poses);
   MU_ADD_TEST(test_calib_orbit_trajs);
   MU_ADD_TEST(test_calib_pan_trajs);
+  MU_ADD_TEST(test_calib_figure8_trajs);
   MU_ADD_TEST(test_nbv_draw);
   MU_ADD_TEST(test_nbv_test_grid);
   MU_ADD_TEST(test_nbv_find);

@@ -310,6 +310,7 @@ public:
     finding_nbt_ = false;
 
     // Reset target pose to calib origin
+    init_poses_.clear();
     calib_vi_init_poses(target_, calib_origin_, init_poses_);
     updateTargetPose(init_poses_.front());
     init_poses_.pop_front();
@@ -339,39 +340,90 @@ public:
       init_poses_.pop_front();
 
     } else {
-      LOG_INFO("Transitioning to NBT mode!");
-
       // Fidicual uncertainty
       mat2_t fiducial_covar;
       est_.recoverFiducialCovariance(fiducial_covar);
-      print_vector("fiducial_covar", fiducial_covar.diagonal());
+      print_matrix("fiducial_covar", fiducial_covar);
+      {
+        const Eigen::SelfAdjointEigenSolver<matx_t> eig(fiducial_covar);
+        const auto eigvals = eig.eigenvalues().array();
+        const auto threshold = deg2rad(0.2);
+        if (eigvals(0) > threshold || eigvals(1) > threshold) {
+          LOG_WARN("Fiducal: %f, %f [deg]",
+                   rad2deg(eigvals(0)),
+                   rad2deg(eigvals(1)));
+          LOG_WARN("Resetting estimator! Initial fiducial covar too big!");
+          reset();
+          return;
+        }
+      }
 
       // Calibration uncertainty
       matx_t calib_covar;
       est_.recoverCalibCovariance(calib_covar);
-      print_vector("calib_covar", calib_covar.diagonal());
+      print_matrix("calib_covar", calib_covar);
+      {
+        const Eigen::SelfAdjointEigenSolver<matx_t> eig(calib_covar);
+        const auto eigvals = eig.eigenvalues().array();
+        const auto rot_threshold = deg2rad(0.1);
+        const auto trans_threshold = 0.02;
 
-      // Compute NBTs
-      if (nbt_precompute_thread_.joinable()) {
-        nbt_precompute_thread_.join();
+        for (int i = 0; i < 6; i++) {
+          if (i < 3 && eigvals(i) > rot_threshold) {
+            LOG_WARN("Rot: %f, %f, %f [deg]",
+                     rad2deg(eigvals(0)),
+                     rad2deg(eigvals(1)),
+                     rad2deg(eigvals(2)));
+            LOG_WARN("Resetting estimator! Initial calib covar too big!");
+            reset();
+            return;
+          } else if (i >= 3 && eigvals(i) > trans_threshold) {
+            LOG_WARN("Trans: %f, %f, %f [m]",
+                     rad2deg(eigvals(3)),
+                     rad2deg(eigvals(4)),
+                     rad2deg(eigvals(5)));
+            LOG_WARN("Resetting estimator! Initial calib covar too big!");
+            reset();
+            return;
+          }
+        }
       }
-      nbt_precompute_thread_ = std::thread([&](){
-        nbt_trajs_.clear();
-        nbt_calib_infos_.clear();
-        auto cam_rate = 30.0;
-        auto cam0 = est_.getCameraParameters(0);
-        auto cam1 = est_.getCameraParameters(1);
-        auto T_WF = est_.getFiducialPoseEstimate();
-        auto T_BS = est_.getImuExtrinsicsEstimate();
-        auto T_BC0 = est_.getCameraExtrinsicsEstimate(0);
-        auto T_BC1 = est_.getCameraExtrinsicsEstimate(1);
-        nbt_compute<pinhole_radtan4_t>(est_.target_params_,
-                                      est_.imu_params_,
-                                      cam0, cam1, cam_rate,
-                                      T_WF, T_BC0, T_BC1, T_BS,
-                                      nbt_trajs_, nbt_calib_infos_);
-        nbt_computed_ = true;
-      });
+
+      // Sanity check T_BS
+      {
+        const auto T_BS = est_.getImuExtrinsicsEstimate();
+        const auto r_BS = tf_trans(T_BS);
+        print_matrix("T_BS", T_BS);
+
+        if (r_BS.norm() > 1.0) {
+          LOG_WARN("Resetting estimator! Initial T_BS too far off!");
+          reset();
+          return;
+        }
+      }
+
+      // // Compute NBTs
+      // LOG_INFO("Transitioning to NBT mode!");
+      // if (nbt_precompute_thread_.joinable()) {
+      //   nbt_precompute_thread_.join();
+      // }
+      // nbt_precompute_thread_ = std::thread([&](){
+      //   nbt_trajs_.clear();
+      //   nbt_calib_infos_.clear();
+      //   auto cam_rate = 30.0;
+      //   auto cam0 = est_.getCameraParameters(0);
+      //   auto cam1 = est_.getCameraParameters(1);
+      //   auto T_WF = est_.getFiducialPoseEstimate();
+      //   auto T_BS = est_.getImuExtrinsicsEstimate();
+      //   auto T_BC0 = est_.getCameraExtrinsicsEstimate(0);
+      //   auto T_BC1 = est_.getCameraExtrinsicsEstimate(1);
+      //   nbt_compute<pinhole_radtan4_t>(est_.target_params_,
+      //                                 est_.imu_params_,
+      //                                 cam0, cam1, cam_rate,
+      //                                 T_WF, T_BC0, T_BC1, T_BS,
+      //                                 nbt_trajs_, nbt_calib_infos_);
+      //   nbt_computed_ = true;
+      // });
 
       // Set target pose to calibration origin
       // updateTargetPose(calib_origin_);
@@ -459,6 +511,11 @@ public:
       cv_bridge::toCvCopy(cam0_msg)->image,
       cv_bridge::toCvCopy(cam1_msg)->image
     };
+    // -- Tresholding
+    // cv::threshold(cam_images[0], cam_images[0], 100, 255, cv::THRESH_BINARY);
+    // cv::threshold(cam_images[1], cam_images[1], 100, 255, cv::THRESH_BINARY);
+    // cv::adaptiveThreshold(cam_images[0], cam_images[0], 100, cv::ADAPTIVE_THRESH_GAUSSIAN_C, cv::THRESH_BINARY_INV, 7, 0);
+    // cv::adaptiveThreshold(cam_images[1], cam_images[1], 100, cv::ADAPTIVE_THRESH_GAUSSIAN_C, cv::THRESH_BINARY_INV, 7, 0);
     // -- Detect
     std::vector<aprilgrid_t> grids;
     for (int i = 0; i < (int) est_.nb_cams(); i++) {
@@ -550,21 +607,21 @@ public:
       return;
     }
 
-    // // Compute NBTs
-    // nbt_trajs_.clear();
-    // nbt_calib_infos_.clear();
-    // auto cam_rate = 30.0;
-    // auto cam0 = est_.getCameraParameters(0);
-    // auto cam1 = est_.getCameraParameters(1);
-    // auto T_WF = est_.getFiducialPoseEstimate();
-    // auto T_BS = est_.getImuExtrinsicsEstimate();
-    // auto T_BC0 = est_.getCameraExtrinsicsEstimate(0);
-    // auto T_BC1 = est_.getCameraExtrinsicsEstimate(1);
-    // nbt_compute<pinhole_radtan4_t>(est_.target_params_,
-    //                                est_.imu_params_,
-    //                                cam0, cam1, cam_rate,
-    //                                T_WF, T_BC0, T_BC1, T_BS,
-    //                                nbt_trajs_, nbt_calib_infos_);
+    // Compute NBTs
+    nbt_trajs_.clear();
+    nbt_calib_infos_.clear();
+    auto cam_rate = 30.0;
+    auto cam0 = est_.getCameraParameters(0);
+    auto cam1 = est_.getCameraParameters(1);
+    auto T_WF = est_.getFiducialPoseEstimate();
+    auto T_BS = est_.getImuExtrinsicsEstimate();
+    auto T_BC0 = est_.getCameraExtrinsicsEstimate(0);
+    auto T_BC1 = est_.getCameraExtrinsicsEstimate(1);
+    nbt_compute<pinhole_radtan4_t>(est_.target_params_,
+                                   est_.imu_params_,
+                                   cam0, cam1, cam_rate,
+                                   T_WF, T_BC0, T_BC1, T_BS,
+                                   nbt_trajs_, nbt_calib_infos_);
 
     // Obtain calibration covariance
     // The mutex lock is needed because we need to block the estimator from
@@ -575,8 +632,8 @@ public:
 
     // Find NBT
     auto cam0_geom = est_.getCamera(0);
-    auto T_BC0 = est_.getCameraExtrinsicsEstimate(0);
-    auto T_BS = est_.getImuExtrinsicsEstimate();
+    // auto T_BC0 = est_.getCameraExtrinsicsEstimate(0);
+    // auto T_BS = est_.getImuExtrinsicsEstimate();
     int retval = nbt_find(cam0_geom,
                           T_BC0, T_BS,
                           calib_covar,

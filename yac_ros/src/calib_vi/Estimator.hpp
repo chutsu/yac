@@ -1035,14 +1035,6 @@ public:
 
     // Optimize sliding window
     if ((int) sliding_window_.size() >= max_window_size_) {
-      // mat2_t fiducial_covar;
-      // recoverFiducialCovariance(fiducial_covar);
-      // print_vector("fiducial_covar", fiducial_covar.diagonal());
-      // printf("window size: %ld\n", sliding_window_.size());
-      // if (fiducial_covar(0) < 1.0) {
-      //   marginalize();
-      // }
-
       marginalize();
       optimize();
       estimating_ = true;
@@ -1322,18 +1314,18 @@ static void create_timeline(const timestamps_t &imu_ts,
 
 template <typename T>
 static int eval_traj(const ctraj_t &traj,
-                      const calib_target_t &target,
-                      const timestamp_t &ts_start,
-                      const timestamp_t &ts_end,
-                      const yac::ImuParameters &imu_params,
-                      const camera_params_t &cam0_params,
-                       const camera_params_t &cam1_params,
-                      const double cam_rate,
-                      const mat4_t T_WF,
-                      const mat4_t T_BC0,
-                      const mat4_t T_BC1,
-                      const mat4_t T_BS,
-                      matx_t &calib_info) {
+                     const calib_target_t &target,
+                     const timestamp_t &ts_start,
+                     const timestamp_t &ts_end,
+                     const yac::ImuParameters &imu_params,
+                     const camera_params_t &cam0_params,
+                     const camera_params_t &cam1_params,
+                     const double cam_rate,
+                     const mat4_t T_WF,
+                     const mat4_t T_BC0,
+                     const mat4_t T_BC1,
+                     const mat4_t T_BS,
+                     matx_t &calib_info) {
   // Simulate camera frames
   aprilgrids_t grids0;
   aprilgrids_t grids1;
@@ -1373,7 +1365,6 @@ static int eval_traj(const ctraj_t &traj,
   // Create timeline
   timeline_t timeline;
   create_timeline(imu_time, imu_accel, imu_gyro, {grids0, grids1}, timeline);
-
 
   // Setup Camera
   PinholeRadtan cam0;
@@ -1437,6 +1428,8 @@ static int eval_traj(const ctraj_t &traj,
     }
   }
   // est.optimize(5, 1, false);
+  // printf("nb params: %ld, ", est.problem_->problem_->NumParameterBlocks());
+  // printf("nb residual blocks: %ld\n", est.problem_->problem_->NumResidualBlocks());
 
   matx_t calib_covar;
   est.recoverCalibCovariance(calib_covar);
@@ -1447,16 +1440,16 @@ static int eval_traj(const ctraj_t &traj,
 
 template <typename T>
 static void nbt_compute(const calib_target_t &target,
-                           const ImuParameters &imu_params,
-                           const camera_params_t &cam0,
-                           const camera_params_t &cam1,
-                           const double cam_rate,
-                           const mat4_t &T_WF,
-                           const mat4_t &T_BC0,
-                           const mat4_t &T_BC1,
-                           const mat4_t &T_BS,
-                           ctrajs_t &trajs,
-                           std::vector<matx_t> &calib_infos) {
+                        const ImuParameters &imu_params,
+                        const camera_params_t &cam0,
+                        const camera_params_t &cam1,
+                        const double cam_rate,
+                        const mat4_t &T_WF,
+                        const mat4_t &T_BC0,
+                        const mat4_t &T_BC1,
+                        const mat4_t &T_BS,
+                        ctrajs_t &trajs,
+                        std::vector<matx_t> &calib_infos) {
   // Generate trajectories
   const mat4_t T_FO = calib_target_origin<T>(target, cam0);
   const timestamp_t ts_start = 0;

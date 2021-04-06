@@ -17,10 +17,11 @@ void calib_vi_init_poses(const calib_target_t &target,
   const vec3_t r_FFc{calib_width / 2.0, calib_height / 2.0, 0.0};
 
   // Create initial poses
-  const auto angle = 20.0;
+  const auto angle = 30.0;
   // -- First position (left of calibration origin)
   {
-    const vec3_t r_OP{-calib_width / 2.0, 0.0, 0.0};
+    // const vec3_t r_OP{-calib_width / 2.0, 0.0, 0.0};
+    const vec3_t r_OP{0.0, 0.0, 0.0};
     const vec3_t r_FJ = tf_point(T_FO, r_OP);
     const mat4_t T_FC0 = lookat(r_FJ, r_FFc);
     const mat3_t C = euler321(deg2rad(vec3_t{0.0, 0.0, -angle}));
@@ -29,7 +30,8 @@ void calib_vi_init_poses(const calib_target_t &target,
   }
   // -- Second position (at calibration origin)
   {
-    const vec3_t r_OP{calib_width / 2.0, 0.0, 0.0};
+    // const vec3_t r_OP{calib_width / 2.0, 0.0, 0.0};
+    const vec3_t r_OP{0.0, 0.0, 0.0};
     const vec3_t r_FJ = tf_point(T_FO, r_OP);
     const mat4_t T_FC0 = lookat(r_FJ, r_FFc);
     const mat3_t C = euler321(deg2rad(vec3_t{0.0, 0.0, angle}));

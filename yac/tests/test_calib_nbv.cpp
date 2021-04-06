@@ -136,6 +136,81 @@ int test_calib_orbit_trajs() {
                                        T_WF, T_FO,
                                        ts_start, ts_end,
                                        trajs);
+  // -- Simulate imu measurements
+  std::default_random_engine rndeng;
+
+  sim_imu_t imu;
+  imu.rate = 400;
+  imu.tau_a = 3600;
+  imu.tau_g = 3600;
+  imu.sigma_g_c = 0.0;
+  imu.sigma_a_c = 0.0;
+  imu.sigma_gw_c = 0;
+  imu.sigma_aw_c = 0;
+  imu.g = 9.81007;
+
+  const timestamp_t dt = (1 / imu.rate) * 1e9;
+  // auto traj = trajs[0];
+  for (auto traj : trajs) {
+    // Initialize position, velocity and attidue
+    auto T_WS = ctraj_get_pose(traj, 0);
+    vec3_t r_WS = tf_trans(T_WS);
+    mat3_t C_WS = tf_rot(T_WS);
+    vec3_t v_WS = ctraj_get_velocity(traj, 0);
+
+    timestamp_t ts_k = 0;
+    int index = 0;
+    while (ts_k <= ts_end) {
+      const auto T_WS_W = ctraj_get_pose(traj, ts_k);
+      const auto w_WS_W = ctraj_get_angular_velocity(traj, ts_k);
+      const auto a_WS_W = ctraj_get_acceleration(traj, ts_k);
+      vec3_t a_WS_S;
+      vec3_t w_WS_S;
+      sim_imu_measurement(imu,
+                          rndeng,
+                          ts_k,
+                          T_WS_W,
+                          w_WS_W,
+                          a_WS_W,
+                          a_WS_S,
+                          w_WS_S);
+
+      // Propagate simulated IMU measurements
+      const real_t dt_s = ts2sec(dt);
+      const real_t dt_s_sq = dt_s * dt_s;
+      const vec3_t g{0.0, 0.0, -imu.g};
+      // -- Position at time k
+      const vec3_t b_a = ones(3, 1) * imu.b_a;
+      const vec3_t n_a = ones(3, 1) * imu.sigma_a_c;
+      r_WS += v_WS * dt_s;
+      r_WS += 0.5 * g * dt_s_sq;
+      r_WS += 0.5 * C_WS * (a_WS_S - b_a - n_a) * dt_s_sq;
+      // -- velocity at time k
+      v_WS += C_WS * (a_WS_S - b_a - n_a) * dt_s + g * dt_s;
+      // -- Attitude at time k
+      const vec3_t b_g = ones(3, 1) * imu.b_g;
+      const vec3_t n_g = ones(3, 1) * imu.sigma_g_c;
+      C_WS = C_WS * lie::Exp((w_WS_S - b_g - n_g) * ts2sec(dt));
+
+      // Reocord IMU measurments
+      // pos_prop.push_back(r_WS);
+      // vel_prop.push_back(v_WS);
+      // att_prop.emplace_back(quat_t{C_WS});
+      // imu_ts.push_back(ts_k);
+      // imu_accel.push_back(a_WS_S);
+      // imu_gyro.push_back(w_WS_S);
+
+      ts_k += dt;
+      index++;
+    }
+
+    T_WS = tf(C_WS, r_WS);
+    // print_matrix("[ctraj] T_WS", ctraj_get_pose(traj, ts_end));
+    // print_matrix("[imu]   T_WS", T_WS);
+    printf("[%d] ", index);
+    printf("trans diff: %f\t", (tf_trans(T_WS) - tf_trans(ctraj_get_pose(traj, ts_end))).norm());
+    printf("rot   diff: %f\n", (quat2euler(tf_quat(T_WS)) - quat2euler(tf_quat(ctraj_get_pose(traj, ts_end)))).norm());
+  }
 
   // Save trajectories
   int index = 0;
@@ -618,8 +693,8 @@ int test_nbt_eval_traj() {
   const timestamp_t ts_end = 2e9;
   ctrajs_t trajs;
   calib_orbit_trajs<pinhole_radtan4_t>(target, cameras[0], cameras[1],
-                                                   T_BC0, T_BC1, T_WF, T_FO,
-                                                ts_start, ts_end, trajs);
+                                       T_BC0, T_BC1, T_WF, T_FO,
+                                       ts_start, ts_end, trajs);
 
   // Simulate IMU
   imu_params_t imu_params;
@@ -635,12 +710,12 @@ int test_nbt_eval_traj() {
   for (size_t traj_idx = 0; traj_idx < trajs.size(); traj_idx++) {
     matx_t calib_covar;
     int retval = nbt_eval_traj<pinhole_radtan4_t>(trajs[traj_idx],
-                                                             target,
-                                                             ts_start, ts_end,
-                                                             imu_params, cam0, cam1,
-                                                             cam_rate,
-                                                             T_WF, T_BC0, T_BC1, T_BS,
-                                                             calib_covar);
+                                                  target,
+                                                  ts_start, ts_end,
+                                                  imu_params, cam0, cam1,
+                                                  cam_rate,
+                                                  T_WF, T_BC0, T_BC1, T_BS,
+                                                  calib_covar);
     printf("retval: %d, full_rank(calib_covar): %d\n", retval, full_rank(calib_covar));
   }
 

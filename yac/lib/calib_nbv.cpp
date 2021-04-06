@@ -24,7 +24,9 @@ void simulate_imu(const ctraj_t &traj,
                   vec3s_t &imu_gyro,
                   mat4s_t &imu_poses,
                   vec3s_t &imu_vels) {
-  const mat4_t T_SC0 = T_BS.inverse() * T_BC0;
+  // const mat4_t T_C0S = T_BC0.inverse() * T_BS;
+  // const mat3_t C_C0S = tf_rot(T_C0S);
+  // const vec3_t r_C0S = tf_trans(T_C0S);
   const timestamp_t imu_dt = sec2ts(1.0 / imu_params.rate);
   timestamp_t ts_k = ts_start;
   std::default_random_engine rndeng;
@@ -33,15 +35,20 @@ void simulate_imu(const ctraj_t &traj,
   sim_imu.rate       = imu_params.rate;
   // sim_imu.tau_a      = imu_params.tau;
   // sim_imu.tau_g      = imu_params.tau;
-  sim_imu.sigma_g_c  = imu_params.sigma_g_c;
-  sim_imu.sigma_a_c  = imu_params.sigma_a_c;
-  sim_imu.sigma_gw_c = imu_params.sigma_gw_c;
-  sim_imu.sigma_aw_c = imu_params.sigma_aw_c;
+  // sim_imu.sigma_g_c  = imu_params.sigma_g_c;
+  // sim_imu.sigma_a_c  = imu_params.sigma_a_c;
+  // sim_imu.sigma_gw_c = imu_params.sigma_gw_c;
+  // sim_imu.sigma_aw_c = imu_params.sigma_aw_c;
+  sim_imu.sigma_g_c  = 0.0;
+  sim_imu.sigma_a_c  = 0.0;
+  sim_imu.sigma_gw_c = 0.0;
+  sim_imu.sigma_aw_c = 0.0;
   sim_imu.g          = imu_params.g;
 
   while (ts_k <= ts_end) {
     // Get camera pose, angular velocity and acceleration in camera frame
     const mat4_t T_WC = ctraj_get_pose(traj, ts_k);
+    // const mat3_t C_WC = tf_rot(T_WC);
     const vec3_t v_WC = ctraj_get_velocity(traj, ts_k);
     const vec3_t a_WC = ctraj_get_acceleration(traj, ts_k);
     const vec3_t w_WC = ctraj_get_angular_velocity(traj, ts_k);
@@ -51,6 +58,10 @@ void simulate_imu(const ctraj_t &traj,
     const vec3_t w_WS_W = w_WC;
     const vec3_t a_WS_W = a_WC;
     const vec3_t v_WS_W = v_WC;
+    // const mat4_t T_WS_W = T_WC * T_C0S;
+    // const vec3_t v_WS_W = v_WC + C_WC * (w_WC.cross(r_C0S));
+    // const vec3_t w_WS_W = C_C0S.transpose() * w_WC;
+    // const vec3_t a_WS_W = a_WC * C_C0S;
 
     vec3_t a_WS_S{0.0, 0.0, 0.0};
     vec3_t w_WS_S{0.0, 0.0, 0.0};

@@ -7,7 +7,7 @@
 #include <Eigen/Core>
 #include <ceres/ceres.h>
 
-#include "core.hpp"
+#include "yac.hpp"
 #include "../common/Measurements.hpp"
 #include "../common/Variables.hpp"
 #include "../common/Transformation.hpp"

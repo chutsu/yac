@@ -6,7 +6,7 @@
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
 
-#include "core.hpp"
+#include "yac.hpp"
 #include "calib_data.hpp"
 #include "common/Parameters.hpp"
 #include "common/Measurements.hpp"

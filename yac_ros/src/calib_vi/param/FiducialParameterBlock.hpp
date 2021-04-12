@@ -3,7 +3,7 @@
 
 #include <Eigen/Core>
 
-#include "core.hpp"
+#include "yac.hpp"
 
 #include "../common/Time.hpp"
 #include "../common/Transformation.hpp"

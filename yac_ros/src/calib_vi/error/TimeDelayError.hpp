@@ -6,7 +6,7 @@
 
 #include <ceres/ceres.h>
 
-#include "core.hpp"
+#include "yac.hpp"
 // #include "yac/util/assert_macros.hpp"
 #include "ErrorInterface.hpp"
 

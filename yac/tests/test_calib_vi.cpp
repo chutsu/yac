@@ -1,5 +1,5 @@
 #include "munit.hpp"
-#include "euroc.hpp"
+#include "util/euroc.hpp"
 #include "calib_mono.hpp"
 #include "calib_vi.hpp"
 #include "calib_nbv.hpp"

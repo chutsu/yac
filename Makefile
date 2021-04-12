@@ -19,22 +19,22 @@ deps:
 lib_debug: ${CATKIN_WS} ${YAC_PATH}
 	@cd ${CATKIN_WS} && \
 		. /opt/ros/melodic/setup.sh && \
-		catkin build yac -DCMAKE_BUILD_TYPE=RelWithDebInfo -j2
+		catkin build yac -DCMAKE_BUILD_TYPE=RelWithDebInfo -j4
 
 lib: ${CATKIN_WS} ${YAC_PATH}
 	@cd ${CATKIN_WS} && \
 		. /opt/ros/melodic/setup.sh && \
-		catkin build yac -DCMAKE_BUILD_TYPE=Release -j2
+		catkin build yac -DCMAKE_BUILD_TYPE=Release -j4
 
 debug: ${CATKIN_WS} ${YAC_PATH}
 	@cd ${CATKIN_WS} && \
 		. /opt/ros/melodic/setup.sh && \
-		catkin build yac yac_ros -DCMAKE_BUILD_TYPE=Debug -j2
+		catkin build yac yac_ros -DCMAKE_BUILD_TYPE=Debug -j4
 
 release: ${CATKIN_WS} ${YAC_PATH}
 	@cd ${CATKIN_WS} && \
 		. /opt/ros/melodic/setup.sh && \
-		catkin build yac yac_ros -DCMAKE_BUILD_TYPE=RelWithDebInfo -j2
+		catkin build yac yac_ros -DCMAKE_BUILD_TYPE=Release -j4
 
 download_test_data:
 	@bash ./scripts/download_test_data.bash

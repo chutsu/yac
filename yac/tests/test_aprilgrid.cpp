@@ -1,7 +1,7 @@
 #include <limits>
 #include "munit.hpp"
-#include "aprilgrid.hpp"
-#include "euroc.hpp"
+#include "util/aprilgrid.hpp"
+#include "util/euroc.hpp"
 
 namespace yac {
 

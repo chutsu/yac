@@ -5,7 +5,7 @@
 #include <memory>
 #include <ceres/ceres.h>
 
-#include "core.hpp"
+#include "yac.hpp"
 #include "../common/Time.hpp"
 #include "../common/operators.hpp"
 #include "../common/Transformation.hpp"

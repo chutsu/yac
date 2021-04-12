@@ -3,7 +3,7 @@
 
 #include <ceres/ceres.h>
 
-#include "core.hpp"
+#include "util/util.hpp"
 #include "calib_data.hpp"
 #include "calib_mono.hpp"
 

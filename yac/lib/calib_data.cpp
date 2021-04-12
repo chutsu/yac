@@ -20,6 +20,334 @@ int calib_target_load(calib_target_t &ct,
   return 0;
 }
 
+calib_data_t::calib_data_t() {
+  // Problem
+  prob_options.local_parameterization_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
+  prob_options.cost_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
+  prob_options.enable_fast_removal = true;
+  problem = new ceres::Problem(prob_options);
+}
+
+calib_data_t::calib_data_t(const std::string &config_file)
+  : config{config_file},
+    nb_cams{config_nb_cameras(config_file)},
+    nb_imus{config_nb_imus(config_file)} {
+  // Problem
+  prob_options.local_parameterization_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
+  prob_options.cost_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
+  prob_options.enable_fast_removal = true;
+  problem = new ceres::Problem(prob_options);
+
+  // Calibration target
+  if (calib_target_load(target, config_file, "calib_target") != 0) {
+    FATAL("Failed to load calib target [%s]!", config_file.c_str());
+  }
+
+  // Load Imu
+  if (nb_imus > 1) {
+    FATAL("YAC currently does not support more than 1 IMU!");
+  } else if (nb_imus == 1) {
+    imu_params = load_imu_params(config, 0, true);
+    imu_exts[0] = extrinsics_t{param_counter++};
+  }
+
+  // Load cameras
+  for (int cam_idx = 0; cam_idx < nb_cams; cam_idx++) {
+    cam_params[cam_idx] = load_cam_params(config, cam_idx, true);
+    cam_exts[cam_idx] = load_cam_exts(config, cam_idx, true);
+    vision_errors[cam_idx] = std::vector<double>();
+  }
+}
+
+calib_data_t::~calib_data_t() {
+  if (problem) {
+    delete problem;
+    problem = nullptr;
+  }
+  if (loss) {
+    delete loss;
+    loss = nullptr;
+  }
+}
+
+void calib_data_t::add_calib_target(const calib_target_t &target_) {
+  target = target_;
+}
+
+void calib_data_t::add_imu(const imu_params_t &params) {
+  imu_params = params;
+}
+
+void calib_data_t::add_camera(const camera_params_t &params) {
+  cam_params[params.cam_index] = params;
+  nb_cams += 1;
+  vision_errors[params.cam_index] = std::vector<double>();
+}
+
+void calib_data_t::add_camera_extrinsics(const int cam_idx, const extrinsics_t &params) {
+  cam_exts[cam_idx] = params;
+}
+
+void calib_data_t::add_camera_extrinsics(const int cam_idx, const mat4_t &ext) {
+  cam_exts[cam_idx] = extrinsics_t{param_counter++, ext};
+}
+
+void calib_data_t::add_imu_extrinsics(const int imu_idx, const extrinsics_t &params) {
+  imu_exts[imu_idx] = params;
+  nb_imus += 1;
+}
+
+void calib_data_t::add_imu_extrinsics(const int imu_idx, const mat4_t &ext) {
+  imu_exts[imu_idx] = extrinsics_t{param_counter++, ext};
+  nb_imus += 1;
+}
+
+void calib_data_t::add_grids(const int cam_idx, const aprilgrids_t &grids) {
+  cam_grids[cam_idx] = grids;
+}
+
+void calib_data_t::add_pose(const timestamp_t &ts, const pose_t &pose) {
+  poses[ts] = pose;
+}
+
+void calib_data_t::preprocess_data() {
+  const int rows = target.tag_rows;
+  const int cols = target.tag_cols;
+  const double size = target.tag_size;
+  const double spacing = target.tag_spacing;
+
+  // Track aprilgrids for each camera and all timestamps
+  std::set<timestamp_t> timestamps;
+  std::map<int, std::map<timestamp_t, aprilgrid_t>> grid_tracker;
+  for (int cam_idx = 0; cam_idx < nb_cams; cam_idx++) {
+    for (auto &grid : cam_grids[cam_idx]) {
+      grid_tracker[cam_idx][grid.timestamp] = grid;
+      timestamps.insert(grid.timestamp);
+    }
+  }
+
+  // Preprocess vision data
+  std::map<int, aprilgrids_t> prep_grids;
+  for (const auto &ts : timestamps) {
+    for (int cam_idx = 0; cam_idx < nb_cams; cam_idx++) {
+      if (grid_tracker[cam_idx].count(ts) == 0) {
+        prep_grids[cam_idx].emplace_back(ts, rows, cols, size, spacing);
+      } else {
+        prep_grids[cam_idx].push_back(grid_tracker[cam_idx][ts]);
+      }
+    }
+  }
+
+  cam_grids.clear();
+  cam_grids = prep_grids;
+}
+
+void calib_data_t::check_data() {
+  bool ok = true;
+
+  auto nb_grids = cam_grids[0].size();
+  for (int cam_idx = 0; cam_idx < nb_cams; cam_idx++) {
+    if (nb_grids != cam_grids[cam_idx].size()) {
+      FATAL("grids[%d].size() != nb_grids!", cam_idx);
+      ok = false;
+    }
+  }
+
+  std::vector<timestamp_t> timestamps;
+  for (int cam_idx = 0; cam_idx < nb_cams; cam_idx++) {
+    for (auto &grid : cam_grids[cam_idx]) {
+      timestamps.push_back(grid.timestamp);
+    }
+  }
+
+  for (int cam_idx = 0; cam_idx < nb_cams; cam_idx++) {
+    for (size_t i = 0; i < cam_grids[cam_idx].size(); i++) {
+      auto &grid = cam_grids[cam_idx][i];
+      if (grid.timestamp != timestamps[i]) {
+        LOG_ERROR("grid.timestamp != timestamps[i]!");
+        ok = false;
+        break;
+      }
+
+      if (grid.tag_rows != target.tag_rows) {
+        LOG_ERROR("grid.timestamp: %ld", grid.timestamp);
+        LOG_ERROR("grid.tag_rows != target.tag_rows!");
+        ok = false;
+        break;
+      } else if (grid.tag_cols != target.tag_cols) {
+        LOG_ERROR("grid.timestamp: %ld", grid.timestamp);
+        LOG_ERROR("grid.tag_cols != target.tag_cols!");
+        ok = false;
+        break;
+      } else if (grid.tag_size != target.tag_size) {
+        LOG_ERROR("grid.timestamp: %ld", grid.timestamp);
+        LOG_ERROR("grid.tag_size != target.tag_size!");
+        ok = false;
+        break;
+      } else if (grid.tag_spacing != target.tag_spacing) {
+        LOG_ERROR("grid.timestamp: %ld", grid.timestamp);
+        LOG_ERROR("grid.tag_spacing != target.tag_spacing!");
+        ok = false;
+        break;
+      }
+    }
+  }
+
+  if (ok == false) {
+    FATAL("Bad data!");
+  }
+}
+
+int calib_data_t::config_nb_cameras(const std::string &config_file) {
+  config_t config{config_file};
+
+  const int max_cameras = 100;
+  for (int i = 0; i < max_cameras; i++) {
+    const std::string key = "cam" + std::to_string(i);
+    if (yaml_has_key(config, key) == 0) {
+      return i;
+    }
+  }
+
+  return 0;
+}
+
+int calib_data_t::config_nb_imus(const std::string &config_file) {
+  config_t config{config_file};
+
+  const int max_imus = 100;
+  for (int i = 0; i < max_imus; i++) {
+    const std::string key = "imu" + std::to_string(i);
+    if (yaml_has_key(config, key) == 0) {
+      return i;
+    }
+  }
+
+  return 0;
+}
+
+void calib_data_t::load_calib_target_params(const config_t &config,
+                                            calib_target_t &params,
+                                            bool verbose) {
+  parse(config, "calib_target.target_type", params.target_type);
+  parse(config, "calib_target.tag_rows", params.tag_rows);
+  parse(config, "calib_target.tag_cols", params.tag_cols);
+  parse(config, "calib_target.tag_size", params.tag_size);
+  parse(config, "calib_target.tag_spacing", params.tag_spacing);
+
+  if (verbose) {
+    LOG_INFO("Calibration Target Parameters");
+    LOG_INFO("----------------------------------------");
+    LOG_INFO("target type: %s", params.target_type.c_str());
+    LOG_INFO("tag rows: %d", params.tag_rows);
+    LOG_INFO("tag cols: %d", params.tag_cols);
+    LOG_INFO("tag size: %f", params.tag_size);
+    LOG_INFO("tag spacing: %f", params.tag_spacing);
+    LOG_INFO("");
+  }
+}
+
+camera_params_t calib_data_t::load_cam_params(const config_t &config,
+                                              const int cam_idx,
+                                              bool verbose) {
+  // Load camera calibration
+  const std::string cam_str = "cam" + std::to_string(cam_idx);
+  std::vector<int> cam_res;
+  std::string proj_model;
+  std::string dist_model;
+  vec4_t proj_params = zeros(4, 1);
+  vec4_t dist_params = zeros(4, 1);
+  // -- Parse resolution, camera and distortion model
+  parse(config, cam_str + ".resolution", cam_res);
+  parse(config, cam_str + ".proj_model", proj_model);
+  parse(config, cam_str + ".dist_model", dist_model);
+  // -- Parse intrinsics
+  if (yaml_has_key(config, cam_str + ".proj_params")) {
+    parse(config, cam_str + ".proj_params", proj_params);
+  }
+  // -- Parse distortion
+  if (yaml_has_key(config, cam_str + ".dist_params")) {
+    parse(config, cam_str + ".dist_params", dist_params);
+  }
+
+  if (verbose) {
+    LOG_INFO("Camera[%d] Parameters", cam_idx);
+    LOG_INFO("----------------------------------------");
+    LOG_INFO("proj_params: [%f, %f, %f, %f]",
+              proj_params(0),
+              proj_params(1),
+              proj_params(2),
+              proj_params(3));
+    LOG_INFO("dist_params: [%f, %f, %f, %f]",
+              dist_params(0),
+              dist_params(1),
+              dist_params(2),
+              dist_params(3));
+    LOG_INFO("");
+  }
+
+  return camera_params_t{param_counter++,
+                          cam_idx, cam_res.data(),
+                          proj_model, dist_model,
+                          proj_params, dist_params};
+}
+
+imu_params_t calib_data_t::load_imu_params(const config_t &config,
+                                           const int index,
+                                           bool verbose) {
+  imu_params_t imu_params;
+  const std::string imu_key = "imu" + std::to_string(index);
+  parse(config, imu_key + ".rate", imu_params.rate);
+  parse(config, imu_key + ".a_max", imu_params.a_max);
+  parse(config, imu_key + ".g_max", imu_params.g_max);
+  parse(config, imu_key + ".sigma_g_c", imu_params.sigma_g_c);
+  parse(config, imu_key + ".sigma_a_c", imu_params.sigma_a_c);
+  parse(config, imu_key + ".sigma_gw_c", imu_params.sigma_gw_c);
+  parse(config, imu_key + ".sigma_aw_c", imu_params.sigma_aw_c);
+  parse(config, imu_key + ".g", imu_params.g);
+
+  if (verbose) {
+    LOG_INFO("IMU Parameters");
+    LOG_INFO("----------------------------------------");
+    LOG_INFO("rate: %f", imu_params.rate);
+    LOG_INFO("a_max: %f", imu_params.a_max);
+    LOG_INFO("g_max: %f", imu_params.g_max);
+    LOG_INFO("sigma_g_c: %f", imu_params.sigma_g_c);
+    LOG_INFO("sigma_a_c: %f", imu_params.sigma_a_c);
+    LOG_INFO("sigma_gw_c: %f", imu_params.sigma_gw_c);
+    LOG_INFO("sigma_aw_c: %f", imu_params.sigma_aw_c);
+    LOG_INFO("sigma_ba: %f", imu_params.sigma_ba);
+    LOG_INFO("sigma_bg: %f", imu_params.sigma_bg);
+    LOG_INFO("g: %f", imu_params.g);
+    LOG_INFO("");
+  }
+
+  return imu_params;
+}
+
+extrinsics_t calib_data_t::load_cam_exts(const config_t &config,
+                                         const int cam_idx,
+                                         bool verbose) {
+  const std::string cam_key = "cam" + std::to_string(cam_idx);
+  const std::string key = "T_body0_" + cam_key;
+  mat4_t exts = I(4);
+  if (yaml_has_key(config, key)) {
+    parse(config, key, exts);
+  }
+
+  if (verbose) {
+    LOG_INFO("Camera Extrinsics: T_BC%d", cam_idx);
+    LOG_INFO("----------------------------------------");
+    LOG_INFO("[%f, %f, %f, %f,", exts(0, 0), exts(0, 1), exts(0, 2), exts(0, 3));
+    LOG_INFO(" %f, %f, %f, %f,", exts(1, 0), exts(1, 1), exts(1, 2), exts(1, 3));
+    LOG_INFO(" %f, %f, %f, %f,", exts(2, 0), exts(2, 1), exts(2, 2), exts(2, 3));
+    LOG_INFO(" %f, %f, %f, %f]", exts(3, 0), exts(3, 1), exts(3, 2), exts(3, 3));
+    LOG_INFO("");
+  }
+
+  return extrinsics_t{param_counter++, exts};
+}
+
 static int get_camera_image_paths(const std::string &image_dir,
                                   std::vector<std::string> &image_paths) {
   // Check image dir

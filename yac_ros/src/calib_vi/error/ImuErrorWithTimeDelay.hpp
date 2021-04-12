@@ -8,7 +8,7 @@
 #include <ceres/ceres.h>
 #include <glog/logging.h>
 
-#include "core.hpp"
+#include "yac.hpp"
 
 #include "../common/Time.hpp"
 #include "../common/Measurements.hpp"

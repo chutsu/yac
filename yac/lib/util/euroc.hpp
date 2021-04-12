@@ -6,6 +6,7 @@
 #include <inttypes.h>
 
 #include "core.hpp"
+#include "config.hpp"
 #include "timeline.hpp"
 
 namespace yac {
@@ -99,25 +100,25 @@ struct euroc_imu_t {
   }
 
   ~euroc_imu_t() {}
+
+  /**
+  * EuRoC IMU data to output stream
+  */
+  friend std::ostream &operator<<(std::ostream &os, const euroc_imu_t &data) {
+    // clang-format off
+    os << "sensor_type: " << data.sensor_type << std::endl;
+    os << "comment: " << data.comment << std::endl;
+    os << "T_BS:\n" << data.T_BS << std::endl;
+    os << "rate_hz: " << data.rate_hz << std::endl;
+    os << "gyroscope_noise_density: " << data.gyro_noise_density << std::endl;
+    os << "gyroscope_random_walk: " << data.gyro_random_walk << std::endl;
+    os << "accelerometer_noise_density: " << data.accel_noise_density << std::endl;
+    os << "accelerometer_random_walk: " << data.accel_random_walk << std::endl;
+    // clang-format on
+
+    return os;
+  }
 };
-
-/**
- * EuRoC IMU data to output stream
- */
-std::ostream &operator<<(std::ostream &os, const euroc_imu_t &data) {
-  // clang-format off
-  os << "sensor_type: " << data.sensor_type << std::endl;
-  os << "comment: " << data.comment << std::endl;
-  os << "T_BS:\n" << data.T_BS << std::endl;
-  os << "rate_hz: " << data.rate_hz << std::endl;
-  os << "gyroscope_noise_density: " << data.gyro_noise_density << std::endl;
-  os << "gyroscope_random_walk: " << data.gyro_random_walk << std::endl;
-  os << "accelerometer_noise_density: " << data.accel_noise_density << std::endl;
-  os << "accelerometer_random_walk: " << data.accel_random_walk << std::endl;
-  // clang-format on
-
-  return os;
-}
 
 /*****************************************************************************
  * euroc_camera_t
@@ -211,26 +212,26 @@ struct euroc_camera_t {
   }
 
   ~euroc_camera_t() {}
+
+  /**
+  * EuRoC camera to output stream
+  */
+  friend std::ostream &operator<<(std::ostream &os, const euroc_camera_t &data) {
+    // clang-format off
+    os << "sensor_type: " << data.sensor_type << std::endl;
+    os << "comment: " << data.comment << std::endl;
+    os << "T_BS:\n" << data.T_BS << std::endl;
+    os << "rate_hz: " << data.rate_hz << std::endl;
+    os << "resolution: " << data.resolution.transpose() << std::endl;
+    os << "camera_model: " << data.camera_model << std::endl;
+    os << "intrinsics: " << data.intrinsics.transpose() << std::endl;
+    os << "distortion_model: " << data.distortion_model << std::endl;
+    os << "distortion_coefficients: " << data.distortion_coefficients.transpose() << std::endl;
+    // clang-format on
+
+    return os;
+  }
 };
-
-/**
- * EuRoC camera to output stream
- */
-std::ostream &operator<<(std::ostream &os, const euroc_camera_t &data) {
-  // clang-format off
-  os << "sensor_type: " << data.sensor_type << std::endl;
-  os << "comment: " << data.comment << std::endl;
-  os << "T_BS:\n" << data.T_BS << std::endl;
-  os << "rate_hz: " << data.rate_hz << std::endl;
-  os << "resolution: " << data.resolution.transpose() << std::endl;
-  os << "camera_model: " << data.camera_model << std::endl;
-  os << "intrinsics: " << data.intrinsics.transpose() << std::endl;
-  os << "distortion_model: " << data.distortion_model << std::endl;
-  os << "distortion_coefficients: " << data.distortion_coefficients.transpose() << std::endl;
-  // clang-format on
-
-  return os;
-}
 
 /*****************************************************************************
  * euroc_ground_truth_t
@@ -487,19 +488,17 @@ struct euroc_target_t {
   }
 
   ~euroc_target_t() {}
+
+  friend std::ostream &operator<<(std::ostream &os, const euroc_target_t &target) {
+    os << "target_type: " << target.type << std::endl;
+    os << "tag_rows: " << target.tag_rows << std::endl;
+    os << "tag_cols: " << target.tag_cols << std::endl;
+    os << "tag_size: " << target.tag_size << std::endl;
+    os << "tag_spacing: " << target.tag_spacing << std::endl;
+    return os;
+  }
 };
 
-/**
- * EuRoC target to output stream
- */
-std::ostream &operator<<(std::ostream &os, const euroc_target_t &target) {
-  os << "target_type: " << target.type << std::endl;
-  os << "tag_rows: " << target.tag_rows << std::endl;
-  os << "tag_cols: " << target.tag_cols << std::endl;
-  os << "tag_size: " << target.tag_size << std::endl;
-  os << "tag_spacing: " << target.tag_spacing << std::endl;
-  return os;
-}
 
 /*****************************************************************************
  * euroc_calib_t

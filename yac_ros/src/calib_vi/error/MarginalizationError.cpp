@@ -39,7 +39,7 @@
 #include <functional>
 
 // #include "yac/util/assert_macros.hpp"
-#include "core.hpp"
+// #include "yac.hpp"
 #include "../Map.hpp"
 #include "../param/LocalParamizationAdditionalInterfaces.hpp"
 #include "MarginalizationError.hpp"

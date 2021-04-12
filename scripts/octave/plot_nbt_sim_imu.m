@@ -12,6 +12,33 @@ ts = accel(:, 1) * 1e-9;
 accel = accel(:, 2:4);;
 gyro = gyro(:, 2:4);;
 
+% figure(1);
+% hold on;
+%
+% for i = 0:3
+%   traj_dir = strcat("/tmp/nbt/traj_", num2str(i), "/");
+%   cam0_grids_path = strcat(traj_dir, "cam0");
+%   accel = csvread(strcat(traj_dir, "imu/accel.csv"));
+%   gyro = csvread(strcat(traj_dir, "imu/gyro.csv"));
+%   traj = csvread(strcat(traj_dir, "imu/poses.csv"));
+%
+%   ts = accel(:, 1) * 1e-9;
+%   accel = accel(:, 2:4);;
+%   gyro = gyro(:, 2:4);;
+%
+%   rows(accel)
+%   a_norm = [];
+%   for i = 1:rows(accel)
+%     a = accel(i, 1:3);
+%     a_norm = [a_norm; abs(9.81 - norm(a))];
+%   endfor
+%   plot(ts, a_norm, 'linewidth', 2.0);
+%
+% endfor
+% legend("0", "1", "2", "3");
+% % legend("0", "1", "2", "3", "4", "5", "6", "7");
+% ginput();
+
 function hp = homogeneous(p)
   hp = [p; ones(1, columns(p))];
 endfunction

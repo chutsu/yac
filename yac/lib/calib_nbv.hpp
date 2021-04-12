@@ -1,13 +1,12 @@
 #ifndef YAC_CALIB_NBV_HPP
 #define YAC_CALIB_NBV_HPP
 
-#include "core.hpp"
+#include "util/util.hpp"
 #include "calib_data.hpp"
 #include "calib_params.hpp"
 #include "calib_mono.hpp"
 #include "calib_stereo.hpp"
 #include "calib_vi.hpp"
-#include "timeline.hpp"
 
 namespace yac {
 
@@ -289,10 +288,15 @@ start:
   // calibration target center. The trajectory would go from the pole of the
   // sphere to the sides of the sphere. While following the trajectory in a
   // tangent manner the camera view focuses on the target center.
-  const auto nb_trajs = 8.0;
+  const auto nb_trajs = 8;
   const auto dlat = lat_max / nb_trajs;
   auto lat = lat_min;
   for (int i = 0; i < nb_trajs; i++) {
+    if (i == 0 || (i % 2) == 0) {
+      lat += dlat;
+      continue;
+    }
+
     vec3s_t positions;
     quats_t attitudes;
 
@@ -327,8 +331,14 @@ start:
       attitudes.emplace_back(tf_rot(T_WC0));
     }
 
+    // Create return journey
+    for (int i = (int) (positions.size() - 1); i >= 0; i--) {
+      positions.push_back(positions[i]);
+      attitudes.push_back(attitudes[i]);
+    }
+
     // Update
-    const auto timestamps = linspace(ts_start, ts_end, 10);
+    const auto timestamps = linspace(ts_start, ts_end, positions.size());
     orbit_trajs.emplace_back(timestamps, positions, attitudes);
     lat += dlat;
   }

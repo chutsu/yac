@@ -7,7 +7,7 @@
 
 #include <ceres/ceres.h>
 
-#include "core.hpp"
+#include "util/core.hpp"
 #include "calib_data.hpp"
 #include "ceres_utils.hpp"
 #include "calib_params.hpp"

@@ -55,8 +55,8 @@ exit
 # make
 # make lib_debug
 # make debug
-# make lib
-make release
+make lib
+# make release
 # make tests
 source ~/catkin_ws/devel/setup.bash
 # rm -rf /tmp/aprilgrid_test
@@ -151,5 +151,6 @@ cd scripts/octave
 # octave-cli plot_calib_vi.m
 # octave-cli plot_calib_vi_sim.m
 # octave-cli plot_calib_vi_init_poses.m
+octave-cli plot_nbt_sim_imu.m
 # octave-cli plot_nbt_trajs.m
 # python3 scripts/analyze_detections.py

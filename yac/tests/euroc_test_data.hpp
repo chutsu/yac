@@ -1,4 +1,4 @@
-#include "euroc.hpp"
+#include "util/euroc.hpp"
 #include "calib_data.hpp"
 
 namespace yac {

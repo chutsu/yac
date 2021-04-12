@@ -506,9 +506,9 @@ int test_simulate_cameras() {
   const timestamp_t ts_end = 5e9;
   ctrajs_t trajs;
   calib_orbit_trajs<pinhole_radtan4_t>(target,
-                                                   cameras[0], cameras[1],
-                                                   T_BC0, T_BC1, T_WF, T_FO,
-                                                ts_start, ts_end, trajs);
+                                       cameras[0], cameras[1],
+                                       T_BC0, T_BC1, T_WF, T_FO,
+                                       ts_start, ts_end, trajs);
 
   // Save trajectories
   int index = 0;
@@ -600,9 +600,9 @@ int test_simulate_imu() {
   const timestamp_t ts_end = 5e9;
   ctrajs_t trajs;
   calib_orbit_trajs<pinhole_radtan4_t>(target,
-                                                   cameras[0], cameras[1],
-                                                   T_BC0, T_BC1, T_WF, T_FO,
-                                                ts_start, ts_end, trajs);
+                                       cameras[0], cameras[1],
+                                       T_BC0, T_BC1, T_WF, T_FO,
+                                       ts_start, ts_end, trajs);
 
   // Simulate IMU
   imu_params_t imu_params;

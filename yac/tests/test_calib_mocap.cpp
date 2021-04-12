@@ -1,5 +1,4 @@
 #include "munit.hpp"
-#include "core.hpp"
 #include "calib_mocap.hpp"
 
 namespace yac {

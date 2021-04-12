@@ -7,7 +7,7 @@
 #include <ceres/ceres.h>
 
 // #include "yac/util/assert_macros.hpp"
-#include "core.hpp"
+#include "yac.hpp"
 #include "ErrorInterface.hpp"
 
 namespace yac {

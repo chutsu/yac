@@ -11,8 +11,7 @@
 
 #include <ceres/ceres.h>
 
-#include "core.hpp"
-#include "aprilgrid.hpp"
+#include "yac.hpp"
 #include "calib_nbv.hpp"
 
 #include "common/Transformation.hpp"
@@ -1457,12 +1456,12 @@ static void nbt_compute(const calib_target_t &target,
   calib_orbit_trajs<T>(target, cam0, cam1,
                        T_BC0, T_BC1, T_WF, T_FO,
                        ts_start, ts_end, trajs);
-  calib_pan_trajs<T>(target, cam0, cam1,
-                     T_BC0, T_BC1, T_WF, T_FO,
-                     ts_start, ts_end, trajs);
-  calib_figure8_trajs<T>(target, cam0, cam1,
-                         T_BC0, T_BC1, T_WF, T_FO,
-                         ts_start, ts_end, trajs);
+  // calib_pan_trajs<T>(target, cam0, cam1,
+  //                    T_BC0, T_BC1, T_WF, T_FO,
+  //                    ts_start, ts_end, trajs);
+  // calib_figure8_trajs<T>(target, cam0, cam1,
+  //                        T_BC0, T_BC1, T_WF, T_FO,
+  //                        ts_start, ts_end, trajs);
 
   // Evaluate trajectory
   calib_infos.resize(trajs.size());
@@ -1555,7 +1554,6 @@ int nbt_find(const T &cam0,
     const matx_t calib_covar_nbt = H_new.inverse();
     const double info_new = entropy(calib_covar_nbt);
     const double info_gain = 0.5 * (info_new - info_prev);
-
 
     // std::vector<double> reproj_covars;
     // for (size_t i = 0; i < test_grid.nb_points; i++) {

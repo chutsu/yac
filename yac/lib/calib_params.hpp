@@ -1,8 +1,7 @@
 #ifndef YAC_CALIB_PARAMS_HPP
 #define YAC_CALIB_PARAMS_HPP
 
-#include "core.hpp"
-#include "aprilgrid.hpp"
+#include "util/util.hpp"
 // #include "calib_data.hpp"
 
 namespace yac {

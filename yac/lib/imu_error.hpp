@@ -5,8 +5,7 @@
 
 #include <ceres/ceres.h>
 
-#include "core.hpp"
-#include "ceres_utils.hpp"
+#include "util/util.hpp"
 #include "calib_params.hpp"
 
 namespace yac {

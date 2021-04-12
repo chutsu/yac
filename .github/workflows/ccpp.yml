@@ -12,4 +12,4 @@ jobs:
     - name: download test data
       run: sudo make download_test_data
     - name: run tests
-      run: make tests
+      run: sudo make tests

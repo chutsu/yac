@@ -292,10 +292,10 @@ start:
   const auto dlat = lat_max / nb_trajs;
   auto lat = lat_min;
   for (int i = 0; i < nb_trajs; i++) {
-    if (i == 0 || (i % 2) == 0) {
-      lat += dlat;
-      continue;
-    }
+    // if (i == 0 || (i % 2) == 0) {
+    //   lat += dlat;
+    //   continue;
+    // }
 
     vec3s_t positions;
     quats_t attitudes;
@@ -474,7 +474,7 @@ void calib_figure8_trajs(const calib_target_t &target,
   const vec3_t r_FFc{calib_width / 2.0, calib_height / 2.0, 0.0};
 
   // Parameters for figure 8
-  double a = calib_width / 2.0;
+  double a = calib_width / 3.4;
 
   // Create trajectory control points
   const size_t nb_control_points = 100;

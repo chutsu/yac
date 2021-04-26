@@ -1837,6 +1837,8 @@ int ctraj_save(const ctraj_t &ctraj, const std::string &save_path) {
 
   // Output trajectory timestamps, positions and orientations as csv
   for (size_t i = 0; i < ctraj.timestamps.size(); i++) {
+    const vec3_t v = ctraj_get_velocity(ctraj, ctraj.timestamps[i]);
+
     file << ctraj.timestamps[i] << ",";
     file << ctraj.positions[i](0) << ",";
     file << ctraj.positions[i](1) << ",";
@@ -1844,7 +1846,10 @@ int ctraj_save(const ctraj_t &ctraj, const std::string &save_path) {
     file << ctraj.orientations[i].w() << ",";
     file << ctraj.orientations[i].x() << ",";
     file << ctraj.orientations[i].y() << ",";
-    file << ctraj.orientations[i].z() << std::endl;
+    file << ctraj.orientations[i].z() << ",";
+    file << v.x() << ",";
+    file << v.y() << ",";
+    file << v.z() << std::endl;
   }
 
   // Close file

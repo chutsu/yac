@@ -99,6 +99,8 @@ struct calib_data_t {
   extrinsics_t load_cam_exts(const config_t &config,
                              const int cam_idx,
                              bool verbose=false);
+
+  void show_results();
 };
 
 /**

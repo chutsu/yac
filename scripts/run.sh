@@ -23,13 +23,13 @@ set -e
 #   --network="host" \
 #   -it --rm yac_docker
 
-tmux send-keys -t dev -R "\
-cd ~/sync/projects/yac \
-&& make release \
-&& source ~/catkin_ws/devel/setup.bash \
-&& roslaunch yac_ros calib_intel_d435i.launch
-" C-m
-exit
+# tmux send-keys -t dev -R "\
+# cd ~/sync/projects/yac \
+# && make release \
+# && source ~/catkin_ws/devel/setup.bash \
+# && roslaunch yac_ros calib_intel_d435i.launch
+# " C-m
+# exit
 # && rosrun yac test_calib_nbv --target test_calib_orbit_trajs
 # && cd scripts/octave; octave-cli plot_nbt_trajs.m
 
@@ -55,7 +55,7 @@ exit
 # make
 # make lib_debug
 # make debug
-make lib
+# make lib
 # make release
 # make tests
 source ~/catkin_ws/devel/setup.bash
@@ -146,11 +146,12 @@ source ~/catkin_ws/devel/setup.bash
 # python3 scripts/analyze_calibs.py
 
 cd scripts/octave
-# octave-cli plot_calib_poses.m
+octave-cli nbt.m
+# # octave-cli plot_calib_poses.m
 # octave-cli plot_biases.m
 # octave-cli plot_calib_vi.m
 # octave-cli plot_calib_vi_sim.m
 # octave-cli plot_calib_vi_init_poses.m
-octave-cli plot_nbt_sim_imu.m
+# octave-cli plot_nbt_sim_imu.m
 # octave-cli plot_nbt_trajs.m
 # python3 scripts/analyze_detections.py

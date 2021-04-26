@@ -1,3 +1,3 @@
 function hp = homogeneous(p)
-  hp = [p; 1];
+  hp = [p; ones(1, columns(p))];
 endfunction

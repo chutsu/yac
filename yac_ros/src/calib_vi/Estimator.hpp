@@ -1459,9 +1459,9 @@ static void nbt_compute(const calib_target_t &target,
   // calib_pan_trajs<T>(target, cam0, cam1,
   //                    T_BC0, T_BC1, T_WF, T_FO,
   //                    ts_start, ts_end, trajs);
-  // calib_figure8_trajs<T>(target, cam0, cam1,
-  //                        T_BC0, T_BC1, T_WF, T_FO,
-  //                        ts_start, ts_end, trajs);
+  calib_figure8_trajs<T>(target, cam0, cam1,
+                         T_BC0, T_BC1, T_WF, T_FO,
+                         ts_start, ts_end, trajs);
 
   // Evaluate trajectory
   calib_infos.resize(trajs.size());

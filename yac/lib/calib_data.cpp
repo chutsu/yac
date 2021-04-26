@@ -348,6 +348,38 @@ extrinsics_t calib_data_t::load_cam_exts(const config_t &config,
   return extrinsics_t{param_counter++, exts};
 }
 
+void calib_data_t::show_results() {
+  // Show results
+  const auto cam0_errs = vision_errors.at(0);
+  const auto cam1_errs = vision_errors.at(1);
+  const auto &cam0 = cam_params.at(0);
+  const auto &cam1 = cam_params.at(1);
+  const mat4_t T_BC0 = cam_exts.at(0).tf();
+  const mat4_t T_BC1 = cam_exts.at(1).tf();
+  const mat4_t T_C1C0 = T_BC1.inverse() * T_BC0;
+
+  printf("Optimization results:\n");
+  printf("---------------------\n");
+  for (int cam_idx = 0; cam_idx < nb_cams; cam_idx++) {
+    const auto errs = vision_errors.at(cam_idx);
+    printf("cam%d reproj_error [px]", cam_idx);
+    printf("[");
+    printf("rmse: %f, ", rmse(errs));
+    printf("mean: %f, ", mean(errs));
+    printf("median: %f", median(errs));
+    printf("]\n");
+  }
+  printf("\n");
+
+  print_vector("cam0.proj_params", cam0.proj_params());
+  print_vector("cam0.dist_params", cam0.dist_params());
+  print_vector("cam1.proj_params", cam1.proj_params());
+  print_vector("cam1.dist_params", cam1.dist_params());
+  printf("\n");
+  print_matrix("T_C1C0", T_C1C0);
+  printf("\n");
+}
+
 static int get_camera_image_paths(const std::string &image_dir,
                                   std::vector<std::string> &image_paths) {
   // Check image dir

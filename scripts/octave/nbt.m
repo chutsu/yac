@@ -99,8 +99,8 @@ function [traj, data] = calib_orbit_traj(direction, aprilgrid, T_WF, T_FO, cam_r
   rpy_BC0 = deg2rad([-90.0, 0.0, -90.0]);
   % rpy_BC0 = deg2rad([0.0, 0.0, 0.0]);
   C_BC0 = euler321(rpy_BC0);
-  r_BC0 = zeros(3, 1);
-  % r_BC0 = [0; 0.0; 0.1];
+  % r_BC0 = zeros(3, 1);
+  r_BC0 = [0; 0.0; 0.1];
 	T_BC0 = tf(C_BC0, r_BC0);
 
   T_WFc = T_WF * T_FFc;
@@ -201,11 +201,11 @@ function [traj, data] = calib_orbit_traj(direction, aprilgrid, T_WF, T_FO, cam_r
 		% a_C0_WC0 = C_BC0' * a_B_WB;
 		% imu_acc = [imu_acc, a_C0_WC0];
 
-    g = [0;0;0];
-    % g = [0;0;9.81];
-		a_W_WB = C_WFc * a_FcB + g;
+    % g_W = [0;0;0];
+    g_W = [0.0; 0.0; 9.81];
+		a_W_WB = (C_WFc * a_FcB);
 		a_W_WC0 = a_W_WB + C_WB * cross(w_B_WB, cross(w_B_WB, r_BC0));
-		a_C0_WC0 = C_WC0' * a_W_WC0;
+		a_C0_WC0 = C_WC0' * a_W_WC0 + C_WC0' * g_W;
 		imu_acc = [imu_acc, a_C0_WC0];
 
     theta += w * dt;
@@ -522,8 +522,8 @@ function x_imu = imu_state_init()
   x_imu.C_WS = eye(3);
   x_imu.ba = zeros(3, 1);
   x_imu.bg = zeros(3, 1);
-  % x_imu.g = [0; 0; 9.81];
-  x_imu.g = [0; 0; 0];
+  x_imu.g = [0; 0; 9.81];
+  % x_imu.g = [0; 0; 0];
 endfunction
 
 function x_imu = imu_rk4_update(x_imu, acc, gyr, dt)

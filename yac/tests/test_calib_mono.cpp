@@ -31,7 +31,7 @@ int test_calib_mono_solve() {
 
   // Test
   calib_mono_data_t data{test_data.grids0, cam};
-  MU_CHECK(calib_mono_solve<pinhole_equi4_t>(data) == 0);
+  MU_CHECK(calib_mono_solve<pinhole_radtan4_t>(data) == 0);
 
   // Make sure the estimated camera parameters are not far from EuRoC
   vec4_t gnd_proj_params{458.654, 457.296, 367.215, 248.375};

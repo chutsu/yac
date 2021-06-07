@@ -386,19 +386,10 @@ struct distortion_t {
 
   virtual ~distortion_t() {}
 
-  virtual vec2_t distort(const vec2_t &p) = 0;
   virtual vec2_t distort(const vec2_t &p) const = 0;
-
-  virtual vec2_t undistort(const vec2_t &p) = 0;
   virtual vec2_t undistort(const vec2_t &p) const = 0;
-
-  virtual mat2_t J_point(const vec2_t &p) = 0;
   virtual mat2_t J_point(const vec2_t &p) const = 0;
-
-  virtual matx_t J_dist(const vec2_t &p) = 0;
   virtual matx_t J_dist(const vec2_t &p) const = 0;
-
-  // virtual void operator=(const distortion_t &src) throw() = 0;
 };
 
 /**
@@ -412,33 +403,17 @@ struct nodist_t : distortion_t {
   nodist_t(const real_t *) {}
   ~nodist_t() {}
 
-  vec2_t distort(const vec2_t &p) {
-    return static_cast<const nodist_t &>(*this).distort(p);
-  }
-
   vec2_t distort(const vec2_t &p) const {
     return p;
-  }
-
-  vec2_t undistort(const vec2_t &p) {
-    return static_cast<const nodist_t &>(*this).undistort(p);
   }
 
   vec2_t undistort(const vec2_t &p) const {
     return p;
   }
 
-  mat2_t J_point(const vec2_t &p) {
-    return static_cast<const nodist_t &>(*this).J_point(p);
-  }
-
   mat2_t J_point(const vec2_t &p) const {
     UNUSED(p);
     return I(2);
-  }
-
-  matx_t J_dist(const vec2_t &p) {
-    return static_cast<const nodist_t &>(*this).J_dist(p);
   }
 
   matx_t J_dist(const vec2_t &p) const {
@@ -471,18 +446,10 @@ struct radtan4_t : distortion_t {
 
   virtual ~radtan4_t() {}
 
-  real_t k1() { return static_cast<const radtan4_t &>(*this).k1(); }
-  real_t k2() { return static_cast<const radtan4_t &>(*this).k2(); }
-  real_t p1() { return static_cast<const radtan4_t &>(*this).p1(); }
-  real_t p2() { return static_cast<const radtan4_t &>(*this).p2(); }
   real_t k1() const { return params(0); }
   real_t k2() const { return params(1); }
   real_t p1() const { return params(2); }
   real_t p2() const { return params(3); }
-
-  vec2_t distort(const vec2_t &p) {
-    return static_cast<const radtan4_t &>(*this).distort(p);
-  }
 
   vec2_t distort(const vec2_t &p) const {
     const real_t x = p(0);
@@ -503,10 +470,6 @@ struct radtan4_t : distortion_t {
     const real_t y_ddash = y_dash + (p1() * (r2 + 2 * y2) + 2 * p2() * xy);
 
     return vec2_t{x_ddash, y_ddash};
-  }
-
-  vec2_t undistort(const vec2_t &p0) {
-    return static_cast<const radtan4_t &>(*this).undistort(p0);
   }
 
   vec2_t undistort(const vec2_t &p0) const {
@@ -530,10 +493,6 @@ struct radtan4_t : distortion_t {
     }
 
     return p;
-  }
-
-  mat2_t J_point(const vec2_t &p) {
-    return static_cast<const radtan4_t &>(*this).J_point(p);
   }
 
   mat2_t J_point(const vec2_t &p) const {
@@ -561,10 +520,6 @@ struct radtan4_t : distortion_t {
     // Above is generated using sympy
 
     return J_point;
-  }
-
-  matx_t J_dist(const vec2_t &p) {
-    return static_cast<const radtan4_t &>(*this).J_dist(p);
   }
 
   matx_t J_dist(const vec2_t &p) const {
@@ -618,19 +573,10 @@ struct equi4_t : distortion_t {
 
   ~equi4_t() {}
 
-  real_t k1() { return static_cast<const equi4_t &>(*this).k1(); }
-  real_t k2() { return static_cast<const equi4_t &>(*this).k2(); }
-  real_t k3() { return static_cast<const equi4_t &>(*this).k3(); }
-  real_t k4() { return static_cast<const equi4_t &>(*this).k4(); }
-
   real_t k1() const { return this->params(0); }
   real_t k2() const { return this->params(1); }
   real_t k3() const { return this->params(2); }
   real_t k4() const { return this->params(3); }
-
-  vec2_t distort(const vec2_t &p) {
-    return static_cast<const equi4_t &>(*this).distort(p);
-  }
 
   vec2_t distort(const vec2_t &p) const {
     const real_t r = p.norm();
@@ -651,10 +597,6 @@ struct equi4_t : distortion_t {
     return vec2_t{x_dash, y_dash};
   }
 
-  vec2_t undistort(const vec2_t &p) {
-    return static_cast<const equi4_t &>(*this).undistort(p);
-  }
-
   vec2_t undistort(const vec2_t &p) const {
     const real_t thd = sqrt(p(0) * p(0) + p(1) * p(1));
 
@@ -669,10 +611,6 @@ struct equi4_t : distortion_t {
 
     const real_t scaling = tan(th) / thd;
     return vec2_t{p(0) * scaling, p(1) * scaling};
-  }
-
-  mat2_t J_point(const vec2_t &p) {
-    return static_cast<const equi4_t &>(*this).J_point(p);
   }
 
   mat2_t J_point(const vec2_t &p) const {
@@ -704,10 +642,6 @@ struct equi4_t : distortion_t {
     J_point(1, 1) = s + y * s_r * r_y;
 
     return J_point;
-  }
-
-  matx_t J_dist(const vec2_t &p) {
-    return static_cast<const equi4_t &>(*this).J_dist(p);
   }
 
   matx_t J_dist(const vec2_t &p) const {
@@ -764,13 +698,8 @@ struct projection_t {
 
   ~projection_t() {}
 
-  virtual mat2_t J_point() = 0;
   virtual mat2_t J_point() const = 0;
-
-  virtual matx_t J_proj(const vec2_t &p) = 0;
   virtual matx_t J_proj(const vec2_t &p) const = 0;
-
-  virtual matx_t J_dist(const vec2_t &p) = 0;
   virtual matx_t J_dist(const vec2_t &p) const = 0;
 };
 
@@ -801,36 +730,19 @@ struct pinhole_t : projection_t<DM> {
             const real_t cy)
       : projection_t<DM>{resolution, vec4_t{fx, fy, cx, cy}, zeros(0)} {}
 
-  ~pinhole_t() {}
-
-  real_t fx() { return static_cast<const pinhole_t &>(*this).fx(); }
-  real_t fy() { return static_cast<const pinhole_t &>(*this).fy(); }
-  real_t cx() { return static_cast<const pinhole_t &>(*this).cx(); }
-  real_t cy() { return static_cast<const pinhole_t &>(*this).cy(); }
+  virtual ~pinhole_t() {}
 
   real_t fx() const { return this->params(0); }
   real_t fy() const { return this->params(1); }
   real_t cx() const { return this->params(2); }
   real_t cy() const { return this->params(3); }
 
-  vecx_t proj_params() {
-    return static_cast<const pinhole_t &>(*this).proj_params();
-  }
-
   vecx_t proj_params() const {
     return this->params;
   }
 
-  vecx_t dist_params() {
-    return static_cast<const pinhole_t &>(*this).dist_params();
-  }
-
   vecx_t dist_params() const {
     return this->distortion.params;
-  }
-
-  mat3_t K() {
-    return static_cast<const pinhole_t &>(*this).K();
   }
 
   mat3_t K() const {
@@ -841,10 +753,6 @@ struct pinhole_t : projection_t<DM> {
     K(1, 2) = cy();
     K(2, 2) = 1.0;
     return K;
-  }
-
-  int project(const vec3_t &p_C, vec2_t &z_hat) {
-    return static_cast<const pinhole_t &>(*this).project(p_C, z_hat);
   }
 
   int project(const vec3_t &p_C, vec2_t &z_hat) const {
@@ -872,10 +780,6 @@ struct pinhole_t : projection_t<DM> {
     return 0;
   }
 
-  int project(const vec3_t &p_C, vec2_t &z_hat, mat_t<2, 3> &J_h) {
-    return static_cast<const pinhole_t &>(*this).project(p_C, z_hat, J_h);
-  }
-
   int project(const vec3_t &p_C, vec2_t &z_hat, mat_t<2, 3> &J_h) const {
     int retval = project(p_C, z_hat);
 
@@ -897,10 +801,6 @@ struct pinhole_t : projection_t<DM> {
     return retval;
   }
 
-  int back_project(const vec2_t &kp, vec3_t &ray) {
-    return static_cast<const pinhole_t &>(*this).back_project(kp, ray);
-  }
-
   int back_project(const vec2_t &kp, vec3_t &ray) const {
     const real_t px = (kp(0) - cx()) / fx();
     const real_t py = (kp(1) - cy()) / fy();
@@ -912,10 +812,6 @@ struct pinhole_t : projection_t<DM> {
     ray(2) = 1.0;
 
     return 0;
-  }
-
-  vec2_t undistort_keypoint(const vec2_t &z) {
-    return static_cast<const pinhole_t &>(*this).undistort(z);
   }
 
   vec2_t undistort_keypoint(const vec2_t &z) const {
@@ -933,19 +829,11 @@ struct pinhole_t : projection_t<DM> {
     return z_undist;
   }
 
-  mat2_t J_point() {
-    return static_cast<const pinhole_t &>(*this).J_point();
-  }
-
   mat2_t J_point() const {
     mat2_t J_K = zeros(2, 2);
     J_K(0, 0) = fx();
     J_K(1, 1) = fy();
     return J_K;
-  }
-
-  matx_t J_proj(const vec2_t &p) {
-    return static_cast<const pinhole_t &>(*this).J_proj(p);
   }
 
   matx_t J_proj(const vec2_t &p) const {
@@ -961,16 +849,8 @@ struct pinhole_t : projection_t<DM> {
     return J_proj;
   }
 
-  matx_t J_dist(const vec2_t &p) {
-    return static_cast<const pinhole_t &>(*this).J_dist(p);
-  }
-
   matx_t J_dist(const vec2_t &p) const {
     return J_point() * this->distortion.J_dist(p);
-  }
-
-  matx_t J_params(const vec2_t &p) {
-    return static_cast<const pinhole_t &>(*this).J_params(p);
   }
 
   matx_t J_params(const vec2_t &p) const {

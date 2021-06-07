@@ -66,23 +66,28 @@ source ~/catkin_ws/devel/setup.bash
 # --prefix 'gdb -ex run'
 # --prefix 'gdb -ex run -args'
 
-# -- APRILGRID
-# rosrun yac test_aprilgrid --target test_aprilgrid_constructor
-# rosrun yac test_aprilgrid --target test_aprilgrid_grid_index
-# rosrun yac test_aprilgrid --target test_aprilgrid_object_point
-# rosrun yac test_aprilgrid --target test_aprilgrid_keypoint
-# rosrun yac test_aprilgrid --target test_aprilgrid_keypoints
-# rosrun yac test_aprilgrid --target test_aprilgrid_add
-# rosrun yac test_aprilgrid --target test_aprilgrid_remove
-# rosrun yac test_aprilgrid --target test_aprilgrid_estimate
-# rosrun yac test_aprilgrid --target test_aprilgrid_intersect
-# rosrun yac test_aprilgrid --target test_aprilgrid_intersect2
-# rosrun yac test_aprilgrid --target test_aprilgrid_sample
-# rosrun yac test_aprilgrid --target test_aprilgrid_save_and_load
-# rosrun yac test_aprilgrid --target test_aprilgrid_print
-# rosrun yac test_aprilgrid --target test_aprilgrid_detect
-# rosrun yac test_aprilgrid --target test_aprilgrid_detect2
-# rosrun yac test_aprilgrid --target test_aprilgrid_detect3
+# UTIL
+# rosrun yac test_util_aprilgrid --target test_aprilgrid_constructor
+# rosrun yac test_util_aprilgrid --target test_aprilgrid_grid_index
+# rosrun yac test_util_aprilgrid --target test_aprilgrid_object_point
+# rosrun yac test_util_aprilgrid --target test_aprilgrid_keypoint
+# rosrun yac test_util_aprilgrid --target test_aprilgrid_keypoints
+# rosrun yac test_util_aprilgrid --target test_aprilgrid_add
+# rosrun yac test_util_aprilgrid --target test_aprilgrid_remove
+# rosrun yac test_util_aprilgrid --target test_aprilgrid_estimate
+# rosrun yac test_util_aprilgrid --target test_aprilgrid_intersect
+# rosrun yac test_util_aprilgrid --target test_aprilgrid_intersect2
+# rosrun yac test_util_aprilgrid --target test_aprilgrid_sample
+# rosrun yac test_util_aprilgrid --target test_aprilgrid_save_and_load
+# rosrun yac test_util_aprilgrid --target test_aprilgrid_print
+# rosrun yac test_util_aprilgrid --target test_aprilgrid_detect
+# rosrun yac test_util_aprilgrid --target test_aprilgrid_detect2
+# rosrun yac test_util_aprilgrid --target test_aprilgrid_detect3
+# rosrun yac test_util_config
+rosrun yac test_util_cv
+# rosrun yac test_util_data
+# rosrun yac test_util_fs
+# rosrun yac test_util_net
 
 # -- CALIBRATION DATA
 # rosrun yac test_calib_data
@@ -91,7 +96,7 @@ source ~/catkin_ws/devel/setup.bash
 # rosrun yac test_calib_mocap
 
 # -- MONOCULAR-CAMERA CALIBRATION
-rosrun yac test_calib_mono
+# rosrun yac test_calib_mono
 # rosrun yac test_calib_mono --target test_calib_mono_solve
 # rosrun yac test_calib_mono --target test_calib_mono_inc_solve
 
@@ -145,8 +150,8 @@ rosrun yac test_calib_mono
 # done
 # python3 scripts/analyze_calibs.py
 
-cd scripts/octave
-octave-cli nbt.m
+# cd scripts/octave
+# octave-cli nbt.m
 # # octave-cli plot_calib_poses.m
 # octave-cli plot_biases.m
 # octave-cli plot_calib_vi.m

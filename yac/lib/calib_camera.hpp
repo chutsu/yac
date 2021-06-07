@@ -43,15 +43,15 @@ struct reproj_error_t : public ceres::SizedCostFunction<2, 7, 7, 8> {
                 double *residuals,
                 double **jacobians) const {
     // Map parameters out
-    const mat4_t T_BF = tf(params[0]);
-    const mat4_t T_BCi = tf(params[1]);
+    const mat4_t T_C0F = tf(params[0]);
+    const mat4_t T_C0Ci = tf(params[1]);
     Eigen::Map<const vecx_t> cam_params(params[2], 8);
 
     // Transform and project point to image plane
     bool valid = true;
     // -- Transform point from fiducial frame to camera-n
-    const mat4_t T_CiB = T_BCi.inverse();
-    const vec3_t r_CiFi = tf_point(T_CiB * T_BF, r_FFi_);
+    const mat4_t T_CiC0 = T_C0Ci.inverse();
+    const vec3_t r_CiFi = tf_point(T_CiC0 * T_C0F, r_FFi_);
     // -- Project point from camera frame to image plane
     mat_t<2, 3> cam_Jh;
     vec2_t z_hat;
@@ -70,30 +70,30 @@ struct reproj_error_t : public ceres::SizedCostFunction<2, 7, 7, 8> {
     const matx_t Jh_weighted = -1 * sqrt_info_ * cam_Jh;
 
     if (jacobians) {
-      // Jacobians w.r.t T_BF
+      // Jacobians w.r.t T_C0F
       if (jacobians[0]) {
-        const mat3_t C_CiB = tf_rot(T_CiB);
-        const mat3_t C_BF = tf_rot(T_BF);
+        const mat3_t C_CiC0 = tf_rot(T_CiC0);
+        const mat3_t C_BF = tf_rot(T_C0F);
 
         Eigen::Map<mat_t<2, 7, row_major_t>> J(jacobians[0]);
         J.setZero();
-        J.block(0, 0, 2, 3) = Jh_weighted * C_CiB * I(3);
-        J.block(0, 3, 2, 3) = Jh_weighted * C_CiB * -skew(C_BF * r_FFi_);
+        J.block(0, 0, 2, 3) = Jh_weighted * C_CiC0 * I(3);
+        J.block(0, 3, 2, 3) = Jh_weighted * C_CiC0 * -skew(C_BF * r_FFi_);
         if (valid == false) {
           J.setZero();
         }
       }
 
-      // Jacobians w.r.t T_BCi
+      // Jacobians w.r.t T_C0Ci
       if (jacobians[1]) {
-        const mat3_t C_CiB = tf_rot(T_CiB);
-        const mat3_t C_BCi = C_CiB.transpose();
-        const vec3_t r_CiFi = tf_point(T_CiB * T_BF, r_FFi_);
+        const mat3_t C_CiC0 = tf_rot(T_CiC0);
+        const mat3_t C_C0Ci = C_CiC0.transpose();
+        const vec3_t r_CiFi = tf_point(T_CiC0 * T_C0F, r_FFi_);
 
         Eigen::Map<mat_t<2, 7, row_major_t>> J(jacobians[1]);
         J.setZero();
-        J.block(0, 0, 2, 3) = -1 * Jh_weighted * C_CiB * I(3);
-        J.block(0, 3, 2, 3) = -1 * Jh_weighted * C_CiB * -skew(C_BCi * r_CiFi);
+        J.block(0, 0, 2, 3) = -1 * Jh_weighted * C_CiC0 * I(3);
+        J.block(0, 3, 2, 3) = -1 * Jh_weighted * C_CiC0 * -skew(C_C0Ci * r_CiFi);
         if (valid == false) {
           J.setZero();
         }
@@ -113,65 +113,64 @@ struct reproj_error_t : public ceres::SizedCostFunction<2, 7, 7, 8> {
   }
 };
 
-template <typename CAMERA>
-class calib_camera_solver_t {
+// /* Calibration View */
+// struct calib_view_t {
+//   int camera_index = -1;
+//   aprilgrid_t grid;
+//   mat2_t covar;
+//   pose_t &T_BF;
+//   pose_t &T_C0Ci;
+//   camera_params_t &cam;
+//
+//   std::vector<ceres::ResidualBlockId> res_ids;
+//   std::vector<reproj_error_t<CAMERA> *> cost_fns;
+//
+//   calib_view_t(const int camera_index_,
+//                 const aprilgrid_t &grid_,
+//                 const mat2_t &covar_,
+//                 camera_params_t &cam_,
+//                 pose_t &T_BF_,
+//                 pose_t &T_C0Ci_)
+//     : camera_index{camera_index_},
+//       grid{grid_},
+//       covar{covar_},
+//       cam{cam_},
+//       T_BF{T_BF_},
+//       T_C0Ci{T_C0Ci_} {}
+//
+//   ~calib_view_t() {}
+// };
+
+struct calib_camera_t {
   calib_data_t &data;
   ceres::Problem *problem;
 
-  /* Calibration View */
-  struct calib_view_t {
-    int camera_index = -1;
-    aprilgrid_t grid;
-    mat2_t covar;
-    pose_t &T_BF;
-    pose_t &T_BCi;
-    camera_params_t &cam;
-
-    std::vector<ceres::ResidualBlockId> res_ids;
-    std::vector<reproj_error_t<CAMERA> *> cost_fns;
-
-    calib_view_t(const int camera_index_,
-                 const aprilgrid_t &grid_,
-                 const mat2_t &covar_,
-                 camera_params_t &cam_,
-                 pose_t &T_BF_,
-                 pose_t &T_BCi_)
-      : camera_index{camera_index_},
-        grid{grid_},
-        covar{covar_},
-        cam{cam_},
-        T_BF{T_BF_},
-        T_BCi{T_BCi_} {}
-
-    ~calib_view_t() {}
-  };
-
-  calib_camera_solver_t(calib_data_t &data_)
+  calib_camera_t(calib_data_t &data_)
       : data{data_}, problem{data_.problem} {
-    // Setting cam0 to be body frame B
-    extrinsics_t &cam0_exts = data.cam_exts[0];
-    cam0_exts.set_tf(I(3), zeros(3, 1));
-    problem->AddParameterBlock(cam0_exts.param.data(), 7);
-    problem->SetParameterBlockConstant(cam0_exts.param.data());
+    // // Setting cam0 to be body frame B
+    // extrinsics_t &cam0_exts = data.cam_exts[0];
+    // cam0_exts.set_tf(I(3), zeros(3, 1));
+    // problem->AddParameterBlock(cam0_exts.param.data(), 7);
+    // problem->SetParameterBlockConstant(cam0_exts.param.data());
   }
 
-  ~calib_camera_solver_t() {}
+  ~calib_camera_t() {}
 
-  static mat4_t estimate_pose(const camera_params_t &cam,
-                              const aprilgrid_t &grid,
-                              const mat4_t &T_BCi=I(4)) {
-    mat4_t T_CiF_k;
-    const int *cam_res = cam.resolution;
-    const vecx_t proj_params = cam.proj_params();
-    const vecx_t dist_params = cam.dist_params();
-    const CAMERA cam_geom{cam_res, proj_params, dist_params};
-    if (grid.estimate(cam_geom, T_CiF_k) != 0) {
-      FATAL("Failed to estimate relative pose!");
-    }
-
-    const mat4_t T_BF = T_BCi * T_CiF_k;
-    return T_BF;
-  }
+  // static mat4_t estimate_pose(const camera_params_t &cam,
+  //                             const aprilgrid_t &grid,
+  //                             const mat4_t &T_C0Ci=I(4)) {
+  //   mat4_t T_CiF_k;
+  //   const int *cam_res = cam.resolution;
+  //   const vecx_t proj_params = cam.proj_params();
+  //   const vecx_t dist_params = cam.dist_params();
+  //   const C cam_geom{cam_res, proj_params, dist_params};
+  //   if (grid.estimate(cam_geom, T_CiF_k) != 0) {
+  //     FATAL("Failed to estimate relative pose!");
+  //   }
+  //
+  //   const mat4_t T_BF = T_C0Ci * T_CiF_k;
+  //   return T_BF;
+  // }
 };
 
 } //  namespace yac

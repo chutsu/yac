@@ -43,13 +43,14 @@ ADD_LIBRARY(
   lib/util/fs.cpp
   lib/util/net.cpp
   lib/util/sim.cpp
-  lib/calib_data.cpp
-  lib/calib_mocap.cpp
-  lib/calib_mono.cpp
-  lib/calib_nbv.cpp
-  lib/calib_params.cpp
-  lib/calib_stereo.cpp
-  lib/calib_vi.cpp
+  # lib/calib_camera.cpp
+  # lib/calib_data.cpp
+  # lib/calib_mocap.cpp
+  # lib/calib_mono.cpp
+  # lib/calib_nbv.cpp
+  # lib/calib_params.cpp
+  # lib/calib_stereo.cpp
+  # lib/calib_vi.cpp
 )
 
 # TESTS
@@ -58,32 +59,50 @@ FILE(COPY tests/test_data DESTINATION ${TEST_BIN_PATH})
 FILE(COPY tests/test_data/mocap_data DESTINATION /tmp)
 ADD_DEFINITIONS(-DTEST_PATH="${TEST_BIN_PATH}")
 
-ADD_EXECUTABLE(test_aprilgrid tests/test_aprilgrid.cpp)
-TARGET_LINK_LIBRARIES(test_aprilgrid yac ${DEPS})
+ADD_EXECUTABLE(test_util_aprilgrid tests/util/test_aprilgrid.cpp)
+TARGET_LINK_LIBRARIES(test_util_aprilgrid yac ${DEPS})
+
+ADD_EXECUTABLE(test_util_config tests/util/test_config.cpp)
+TARGET_LINK_LIBRARIES(test_util_config yac ${DEPS})
+
+ADD_EXECUTABLE(test_util_cv tests/util/test_cv.cpp)
+TARGET_LINK_LIBRARIES(test_util_cv yac ${DEPS})
+
+ADD_EXECUTABLE(test_util_data tests/util/test_data.cpp)
+TARGET_LINK_LIBRARIES(test_util_data yac ${DEPS})
+
+ADD_EXECUTABLE(test_util_fs tests/util/test_fs.cpp)
+TARGET_LINK_LIBRARIES(test_util_fs yac ${DEPS})
+
+ADD_EXECUTABLE(test_util_net tests/util/test_net.cpp)
+TARGET_LINK_LIBRARIES(test_util_net yac ${DEPS})
+
+# ADD_EXECUTABLE(test_calib_camera tests/test_calib_camera.cpp)
+# TARGET_LINK_LIBRARIES(test_calib_camera yac ${DEPS})
 
 # ADD_EXECUTABLE(test_core tests/test_core.cpp)
 # TARGET_LINK_LIBRARIES(test_core yac ${DEPS})
 
-ADD_EXECUTABLE(test_calib_mocap tests/test_calib_mocap.cpp)
-TARGET_LINK_LIBRARIES(test_calib_mocap yac ${DEPS})
+# ADD_EXECUTABLE(test_calib_mocap tests/test_calib_mocap.cpp)
+# TARGET_LINK_LIBRARIES(test_calib_mocap yac ${DEPS})
 
-ADD_EXECUTABLE(test_calib_mono tests/test_calib_mono.cpp)
-TARGET_LINK_LIBRARIES(test_calib_mono yac ${DEPS})
+# ADD_EXECUTABLE(test_calib_mono tests/test_calib_mono.cpp)
+# TARGET_LINK_LIBRARIES(test_calib_mono yac ${DEPS})
 
-ADD_EXECUTABLE(test_calib_nbv tests/test_calib_nbv.cpp)
-TARGET_LINK_LIBRARIES(test_calib_nbv yac ${DEPS})
-
-ADD_EXECUTABLE(test_calib_data tests/test_calib_data.cpp)
-TARGET_LINK_LIBRARIES(test_calib_data yac ${DEPS})
-
-ADD_EXECUTABLE(test_calib_stereo tests/test_calib_stereo.cpp)
-TARGET_LINK_LIBRARIES(test_calib_stereo yac ${DEPS})
-
-ADD_EXECUTABLE(test_calib_stereo_inc tests/test_calib_stereo_inc.cpp)
-TARGET_LINK_LIBRARIES(test_calib_stereo_inc yac ${DEPS})
-
-ADD_EXECUTABLE(test_calib_vi tests/test_calib_vi.cpp)
-TARGET_LINK_LIBRARIES(test_calib_vi yac ${DEPS})
-
-ADD_EXECUTABLE(test_marg_error tests/test_marg_error.cpp)
-TARGET_LINK_LIBRARIES(test_marg_error yac ${DEPS})
+# ADD_EXECUTABLE(test_calib_nbv tests/test_calib_nbv.cpp)
+# TARGET_LINK_LIBRARIES(test_calib_nbv yac ${DEPS})
+#
+# ADD_EXECUTABLE(test_calib_data tests/test_calib_data.cpp)
+# TARGET_LINK_LIBRARIES(test_calib_data yac ${DEPS})
+#
+# ADD_EXECUTABLE(test_calib_stereo tests/test_calib_stereo.cpp)
+# TARGET_LINK_LIBRARIES(test_calib_stereo yac ${DEPS})
+#
+# ADD_EXECUTABLE(test_calib_stereo_inc tests/test_calib_stereo_inc.cpp)
+# TARGET_LINK_LIBRARIES(test_calib_stereo_inc yac ${DEPS})
+#
+# ADD_EXECUTABLE(test_calib_vi tests/test_calib_vi.cpp)
+# TARGET_LINK_LIBRARIES(test_calib_vi yac ${DEPS})
+#
+# ADD_EXECUTABLE(test_marg_error tests/test_marg_error.cpp)
+# TARGET_LINK_LIBRARIES(test_marg_error yac ${DEPS})

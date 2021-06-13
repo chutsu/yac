@@ -57,28 +57,13 @@ struct aprilgrid_t {
   void clear();
 
   bool fully_observable() const;
-  bool fully_observable();
-
   bool has(const int tag_id, const int corner_idx) const;
-  bool has(const int tag_id, const int corner_idx);
-
   vec2_t center() const;
-  vec2_t center();
-
   void grid_index(const int tag_id, int &i, int &j) const;
-  void grid_index(const int tag_id, int &i, int &j);
-
   vec3_t object_point(const int tag_id, const int corner_idx) const;
-  vec3_t object_point(const int tag_id, const int corner_idx);
-
   vec3s_t object_points() const;
-  vec3s_t object_points();
-
   vec2_t keypoint(const int tag_id, const int corner_idx) const;
-  vec2_t keypoint(const int tag_id, const int corner_idx);
-
   vec2s_t keypoints() const;
-  vec2s_t keypoints();
 
   void get_measurements(std::vector<int> &tag_ids,
                         std::vector<int> &corner_indicies,
@@ -86,58 +71,25 @@ struct aprilgrid_t {
                         vec3s_t &object_points) const;
 
   std::vector<int> tag_ids() const;
-  std::vector<int> tag_ids();
 
   void add(const int tag_id, const int corner_idx, const vec2_t &kp);
-
   void remove(const int tag_id, const int corner_idx);
   void remove(const int tag_id);
 
   cv::Mat draw(const cv::Mat &image,
                const int marker_size=2,
                const cv::Scalar &color=cv::Scalar{0, 0, 255}) const;
-  cv::Mat draw(const cv::Mat &image,
-               const int marker_size=2,
-               const cv::Scalar &color=cv::Scalar{0, 0, 255});
 
   void imshow(const std::string &title, const cv::Mat &image) const;
-  void imshow(const std::string &title, const cv::Mat &image);
 
-  template <typename CAMERA_TYPE>
-  int estimate(const CAMERA_TYPE &cam, mat4_t &T_CF) const {
-    assert(init == true);
-
-    // Check if we actually have data to work with
-    if (nb_detections == 0) {
-      return -1;
-    }
-
-    // Create object points (counter-clockwise, from bottom left)
-    vec2s_t img_pts;
-    vec3s_t obj_pts;
-    for (int i = 0; i < (tag_rows * tag_cols * 4); i++) {
-      if (data(i, 0) > 0) {
-        img_pts.emplace_back(data(i, 1), data(i, 2));
-        obj_pts.emplace_back(data(i, 3), data(i, 4), data(i, 5));
-      }
-    }
-
-    return solvepnp(cam, img_pts, obj_pts, T_CF);
-  }
-
-  template <typename CAMERA_TYPE>
-  int estimate(const CAMERA_TYPE &cam, mat4_t &T_CF) {
-    assert(init == true);
-    return static_cast<const aprilgrid_t>(*this).estimate(cam, T_CF);
-  }
+  int estimate(const camera_geometry_t *cam,
+               const int cam_res[2],
+               const vecx_t &cam_params,
+               mat4_t &T_CF) const;
 
   int save(const std::string &save_path) const;
-  int save(const std::string &save_path);
-
   int load(const std::string &data_path);
-
   int equal(const aprilgrid_t &grid1) const;
-  int equal(const aprilgrid_t &grid1);
 
   void intersect(aprilgrid_t &grid1);
   static void intersect(std::vector<aprilgrid_t *> &grids);

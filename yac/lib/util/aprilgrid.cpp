@@ -35,11 +35,6 @@ bool aprilgrid_t::fully_observable() const {
   return (nb_detections == (tag_rows * tag_cols * 4));
 }
 
-bool aprilgrid_t::fully_observable() {
-  assert(init == true);
-  return static_cast<const aprilgrid_t>(*this).fully_observable();
-}
-
 bool aprilgrid_t::has(const int tag_id, const int corner_idx) const {
   assert(init == true);
   const int data_row = (tag_id * 4) + corner_idx;
@@ -48,11 +43,6 @@ bool aprilgrid_t::has(const int tag_id, const int corner_idx) const {
   }
 
   return true;
-}
-
-bool aprilgrid_t::has(const int tag_id, const int corner_idx) {
-  assert(init == true);
-  return static_cast<const aprilgrid_t>(*this).has(tag_id, corner_idx);
 }
 
 vec2_t aprilgrid_t::center() const {
@@ -69,11 +59,6 @@ vec2_t aprilgrid_t::center() const {
   return vec2_t{x, y};
 }
 
-vec2_t aprilgrid_t::center() {
-  assert(init == true);
-  return static_cast<const aprilgrid_t>(*this).center();
-}
-
 void aprilgrid_t::grid_index(const int tag_id, int &i, int &j) const {
   assert(init == true);
 
@@ -85,12 +70,6 @@ void aprilgrid_t::grid_index(const int tag_id, int &i, int &j) const {
 
   i = int(tag_id / tag_cols);
   j = int(tag_id % tag_cols);
-}
-
-void aprilgrid_t::grid_index(const int tag_id, int &i, int &j) {
-  assert(init == true);
-
-  static_cast<const aprilgrid_t>(*this).grid_index(tag_id, i, j);
 }
 
 vec3_t aprilgrid_t::object_point(const int tag_id, const int corner_idx) const {
@@ -127,11 +106,6 @@ vec3_t aprilgrid_t::object_point(const int tag_id, const int corner_idx) const {
   return object_point;
 }
 
-vec3_t aprilgrid_t::object_point(const int tag_id, const int corner_idx) {
-  assert(init == true);
-  return static_cast<const aprilgrid_t>(*this).object_point(tag_id, corner_idx);
-}
-
 vec3s_t aprilgrid_t::object_points() const {
   assert(init == true);
   vec3s_t object_points_;
@@ -145,11 +119,6 @@ vec3s_t aprilgrid_t::object_points() const {
   return object_points_;
 }
 
-vec3s_t aprilgrid_t::object_points() {
-  assert(init == true);
-  return static_cast<const aprilgrid_t>(*this).object_points();
-}
-
 vec2_t aprilgrid_t::keypoint(const int tag_id, const int corner_idx) const {
   assert(init == true);
   const int data_row = (tag_id * 4) + corner_idx;
@@ -159,11 +128,6 @@ vec2_t aprilgrid_t::keypoint(const int tag_id, const int corner_idx) const {
 
   FATAL("Keypoint [tag_id: %d, corner: %d] does not exist!",
         tag_id, corner_idx);
-}
-
-vec2_t aprilgrid_t::keypoint(const int tag_id, const int corner_idx) {
-  assert(init == true);
-  return static_cast<const aprilgrid_t>(*this).keypoint(tag_id, corner_idx);
 }
 
 vec2s_t aprilgrid_t::keypoints() const {
@@ -177,11 +141,6 @@ vec2s_t aprilgrid_t::keypoints() const {
   }
 
   return keypoints_;
-}
-
-vec2s_t aprilgrid_t::keypoints() {
-  assert(init == true);
-  return static_cast<const aprilgrid_t>(*this).keypoints();
 }
 
 void aprilgrid_t::get_measurements(std::vector<int> &tag_ids,
@@ -214,11 +173,6 @@ std::vector<int> aprilgrid_t::tag_ids() const {
   }
 
   return std::vector<int>{tag_ids_.begin(), tag_ids_.end()};
-}
-
-std::vector<int> aprilgrid_t::tag_ids() {
-  assert(init == true);
-  return static_cast<const aprilgrid_t>(*this).tag_ids();
 }
 
 void aprilgrid_t::add(const int tag_id, const int corner_idx, const vec2_t &kp) {
@@ -269,22 +223,34 @@ cv::Mat aprilgrid_t::draw(const cv::Mat &image,
   return image_rgb;
 }
 
-cv::Mat aprilgrid_t::draw(const cv::Mat &image,
-              const int marker_size,
-              const cv::Scalar &color) {
-  assert(init == true);
-  return static_cast<const aprilgrid_t>(*this).draw(image, marker_size, color);
-}
-
 void aprilgrid_t::imshow(const std::string &title, const cv::Mat &image) const {
   assert(init == true);
   cv::imshow(title, draw(image));
   cv::waitKey(1);
 }
 
-void aprilgrid_t::imshow(const std::string &title, const cv::Mat &image) {
+int aprilgrid_t::estimate(const camera_geometry_t *cam,
+                          const int cam_res[2],
+                          const vecx_t &cam_params,
+                          mat4_t &T_CF) const {
   assert(init == true);
-  static_cast<const aprilgrid_t>(*this).imshow(title, image);
+
+  // Check if we actually have data to work with
+  if (nb_detections == 0) {
+    return -1;
+  }
+
+  // Create object points (counter-clockwise, from bottom left)
+  vec2s_t img_pts;
+  vec3s_t obj_pts;
+  for (int i = 0; i < (tag_rows * tag_cols * 4); i++) {
+    if (data(i, 0) > 0) {
+      img_pts.emplace_back(data(i, 1), data(i, 2));
+      obj_pts.emplace_back(data(i, 3), data(i, 4), data(i, 5));
+    }
+  }
+
+  return solvepnp(cam, cam_res, cam_params, img_pts, obj_pts, T_CF);
 }
 
 int aprilgrid_t::save(const std::string &save_path) const {
@@ -351,11 +317,6 @@ int aprilgrid_t::save(const std::string &save_path) const {
   // Close up
   fclose(fp);
   return 0;
-}
-
-int aprilgrid_t::save(const std::string &save_path) {
-  assert(init == true);
-  return static_cast<const aprilgrid_t>(*this).save(save_path);
 }
 
 int aprilgrid_t::load(const std::string &data_path) {
@@ -491,11 +452,6 @@ int aprilgrid_t::equal(const aprilgrid_t &grid1) const {
   return 1;
 }
 
-int aprilgrid_t::equal(const aprilgrid_t &grid1) {
-  assert(init == true);
-  return static_cast<const aprilgrid_t>(*this).equal(grid1);
-}
-
 void aprilgrid_t::intersect(aprilgrid_t &grid1) {
   assert(init == true);
   // Get rows in data that are detected
@@ -598,12 +554,12 @@ void aprilgrid_t::sample(const size_t n,
 }
 
 void aprilgrid_t::common_measurements(const aprilgrid_t &grid_i,
-                                             const aprilgrid_t &grid_j,
-                                             std::vector<int> &tag_ids,
-                                             std::vector<int> &corner_indicies,
-                                             vec2s_t &grid_i_keypoints,
-                                             vec2s_t &grid_j_keypoints,
-                                             vec3s_t &object_points) {
+                                      const aprilgrid_t &grid_j,
+                                      std::vector<int> &tag_ids,
+                                      std::vector<int> &corner_indicies,
+                                      vec2s_t &grid_i_keypoints,
+                                      vec2s_t &grid_j_keypoints,
+                                      vec3s_t &object_points) {
   if (grid_i.detected == false || grid_j.detected == false) {
     return;
   }

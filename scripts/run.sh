@@ -23,13 +23,13 @@ set -e
 #   --network="host" \
 #   -it --rm yac_docker
 
-# tmux send-keys -t dev -R "\
-# cd ~/sync/projects/yac \
-# && make release \
-# && source ~/catkin_ws/devel/setup.bash \
-# && roslaunch yac_ros calib_intel_d435i.launch
-# " C-m
-# exit
+tmux send-keys -t dev -R "\
+cd ~/sync/projects/yac \
+&& make lib \
+&& source ~/catkin_ws/devel/setup.bash \
+&& rosrun yac test_util_aprilgrid
+" C-m
+exit
 # && rosrun yac test_calib_nbv --target test_calib_orbit_trajs
 # && cd scripts/octave; octave-cli plot_nbt_trajs.m
 
@@ -84,10 +84,12 @@ source ~/catkin_ws/devel/setup.bash
 # rosrun yac test_util_aprilgrid --target test_aprilgrid_detect2
 # rosrun yac test_util_aprilgrid --target test_aprilgrid_detect3
 # rosrun yac test_util_config
-rosrun yac test_util_cv
+# rosrun yac test_util_cv
 # rosrun yac test_util_data
 # rosrun yac test_util_fs
 # rosrun yac test_util_net
+# rosrun yac test_util_sim
+# rosrun yac test_util_timeline
 
 # -- CALIBRATION DATA
 # rosrun yac test_calib_data

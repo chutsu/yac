@@ -1,7 +1,7 @@
 #include <limits>
 #include "../munit.hpp"
 #include "util/aprilgrid.hpp"
-#include "util/euroc.hpp"
+// #include "util/euroc.hpp"
 
 namespace yac {
 
@@ -252,8 +252,23 @@ int test_aprilgrid_estimate() {
   auto tags = detector.det.extractTags(image);
 
   // Extract relative pose
-  const vec4_t K{458.654, 457.296, 367.215, 248.375};
-  const vec4_t D{-0.28340811, 0.07395907, 0.00019359, 1.76187114e-05};
+  int cam_res[2] = {752, 480};
+
+  const real_t fx = 458.654;
+  const real_t fy = 457.296;
+  const real_t cx = 367.215;
+  const real_t cy = 248.375;
+
+  const real_t k1 = -0.28340811;
+  const real_t k2 = 0.07395907;
+  const real_t p1 = 0.00019359;
+  const real_t p2 = 1.76187114e-05;
+
+  vecx_t cam_params;
+  cam_params.resize(8);
+  cam_params << fx, fy, cx, cy, k1, k2, p1, p2;
+
+  pinhole_radtan4_t cam_geom;
   aprilgrid_t grid(0, rows, cols, size, spacing);
 
   for (const auto &tag : tags) {
@@ -265,13 +280,9 @@ int test_aprilgrid_estimate() {
   }
 
   {
-    int cam_res[2] = {752, 480};
-    pinhole_radtan4_t cam{cam_res, K, D};
-
     auto t = yac::tic();
     mat4_t T_CF;
-    grid.estimate(cam, T_CF);
-
+    grid.estimate(&cam_geom, cam_res, cam_params, T_CF);
     printf("OpenCV solvePnP time elasped: %fs\n", yac::toc(&t));
     print_matrix("T_CF", T_CF);
   }
@@ -469,107 +480,107 @@ cv::Mat obtainIregularROI(cv::Mat& origImag,
   return black;
 }
 
-int test_aprilgrid_detect2() {
-  auto detector = aprilgrid_detector_t(6, 6, 0.088, 0.3);
-  const cv::Mat image = cv::imread(TEST_IMAGE);
-  const vec4_t K{458.654, 457.296, 367.215, 248.375};
-  const vec4_t D{-0.28340811, 0.07395907, 0.00019359, 1.76187114e-05};
-  euroc_calib_t calib_data("/data/euroc/calib/cam_april");
-
-  const int cam_res[2] = {752, 480};
-  pinhole_radtan4_t cam{cam_res, K, D};
-
-  long int nb_detections = 0;
-  for (const auto &image_path : calib_data.cam0_data.image_paths) {
-    auto image = rgb2gray(cv::imread(image_path));
-    const auto grid = detector.detect(0, image);
-
-    if (grid.detected) {
-      mat4_t T_CF;
-      grid.estimate(cam, T_CF);
-
-      vec3_t r_FF0 = grid.object_point(0, 0);
-      vec3_t r_FF1 = grid.object_point(5, 1);
-      vec3_t r_FF2 = grid.object_point(35, 2);
-      vec3_t r_FF3 = grid.object_point(30, 3);
-
-      vec3_t r_CF0 = tf_point(T_CF, r_FF0);
-      vec3_t r_CF1 = tf_point(T_CF, r_FF1);
-      vec3_t r_CF2 = tf_point(T_CF, r_FF2);
-      vec3_t r_CF3 = tf_point(T_CF, r_FF3);
-
-      vec2_t z0;
-      vec2_t z1;
-      vec2_t z2;
-      vec2_t z3;
-      cam.project(r_CF0, z0);
-      cam.project(r_CF1, z1);
-      cam.project(r_CF2, z2);
-      cam.project(r_CF3, z3);
-
-      int padding = 0;
-      double yaw = rad2deg(quat2euler(tf_quat(T_CF))(2));
-      printf("yaw: %f\n", yaw);
-      if (yaw > -90.0 && yaw < 90.0) {
-        padding = 10.0;
-      } else {
-        padding = -10.0;
-      }
-
-      z0.x() = (z0.x() < 0) ? 0 : z0.x() - padding;
-      z0.x() = (z0.x() > image.cols) ? image.cols : z0.x();
-      z0.y() = (z0.y() < 0) ? 0 : z0.y() + padding;
-      z0.y() = (z0.y() > image.rows) ? image.rows: z0.y();
-
-      z1.x() = (z1.x() < 0) ? 0 : z1.x() + padding;
-      z1.x() = (z1.x() > image.cols) ? image.cols : z1.x();
-      z1.y() = (z1.y() < 0) ? 0 : z1.y() + padding;
-      z1.y() = (z1.y() > image.rows) ? image.rows: z1.y();
-
-      z2.x() = (z2.x() < 0) ? 0 : z2.x() + padding;
-      z2.x() = (z2.x() > image.cols) ? image.cols : z2.x();
-      z2.y() = (z2.y() < 0) ? 0 : z2.y() - padding;
-      z2.y() = (z2.y() > image.rows) ? image.rows: z2.y();
-
-      z3.x() = (z3.x() < 0) ? 0 : z3.x() - padding;
-      z3.x() = (z3.x() > image.cols) ? image.cols : z3.x();
-      z3.y() = (z3.y() < 0) ? 0 : z3.y() - padding;
-      z3.y() = (z3.y() > image.rows) ? image.rows: z3.y();
-
-      cv::Point2f top_left;
-      cv::Point2f top_right;
-      cv::Point2f bot_left;
-      cv::Point2f bot_right;
-      bot_left = cv::Point2f(z0.x(), z0.y());
-      bot_right = cv::Point2f(z1.x(), z1.y());
-      top_right = cv::Point2f(z2.x(), z2.y());
-      top_left = cv::Point2f(z3.x(), z3.y());
-
-
-      cv::Mat image_roi = obtainIregularROI(image, top_left, top_right, bot_left, bot_right);
-
-      cv::Mat image_laplacian;
-      cv::Laplacian(image_roi, image_laplacian, CV_64F);
-
-      cv::Scalar mean;
-      cv::Scalar stddev;
-      cv::meanStdDev(image_laplacian, mean, stddev);
-      double var = stddev.val[0] * stddev.val[0];
-      printf("variance: %f\n", var);
-
-      cv::imshow("Image", image);
-      cv::imshow("AprilGrid detection", image_roi);
-      cv::waitKey(0);
-
-      // grid.imshow("AprilGrid detection", image);
-    }
-
-    nb_detections += grid.nb_detections;
-  }
-  printf("total nb detections: %ld\n", nb_detections);
-
-  return 0;
-}
+// int test_aprilgrid_detect2() {
+//   auto detector = aprilgrid_detector_t(6, 6, 0.088, 0.3);
+//   const cv::Mat image = cv::imread(TEST_IMAGE);
+//   const vec4_t K{458.654, 457.296, 367.215, 248.375};
+//   const vec4_t D{-0.28340811, 0.07395907, 0.00019359, 1.76187114e-05};
+//   euroc_calib_t calib_data("/data/euroc/calib/cam_april");
+//
+//   const int cam_res[2] = {752, 480};
+//   pinhole_radtan4_t cam{cam_res, K, D};
+//
+//   long int nb_detections = 0;
+//   for (const auto &image_path : calib_data.cam0_data.image_paths) {
+//     auto image = rgb2gray(cv::imread(image_path));
+//     const auto grid = detector.detect(0, image);
+//
+//     if (grid.detected) {
+//       mat4_t T_CF;
+//       grid.estimate(cam, T_CF);
+//
+//       vec3_t r_FF0 = grid.object_point(0, 0);
+//       vec3_t r_FF1 = grid.object_point(5, 1);
+//       vec3_t r_FF2 = grid.object_point(35, 2);
+//       vec3_t r_FF3 = grid.object_point(30, 3);
+//
+//       vec3_t r_CF0 = tf_point(T_CF, r_FF0);
+//       vec3_t r_CF1 = tf_point(T_CF, r_FF1);
+//       vec3_t r_CF2 = tf_point(T_CF, r_FF2);
+//       vec3_t r_CF3 = tf_point(T_CF, r_FF3);
+//
+//       vec2_t z0;
+//       vec2_t z1;
+//       vec2_t z2;
+//       vec2_t z3;
+//       cam.project(r_CF0, z0);
+//       cam.project(r_CF1, z1);
+//       cam.project(r_CF2, z2);
+//       cam.project(r_CF3, z3);
+//
+//       int padding = 0;
+//       double yaw = rad2deg(quat2euler(tf_quat(T_CF))(2));
+//       printf("yaw: %f\n", yaw);
+//       if (yaw > -90.0 && yaw < 90.0) {
+//         padding = 10.0;
+//       } else {
+//         padding = -10.0;
+//       }
+//
+//       z0.x() = (z0.x() < 0) ? 0 : z0.x() - padding;
+//       z0.x() = (z0.x() > image.cols) ? image.cols : z0.x();
+//       z0.y() = (z0.y() < 0) ? 0 : z0.y() + padding;
+//       z0.y() = (z0.y() > image.rows) ? image.rows: z0.y();
+//
+//       z1.x() = (z1.x() < 0) ? 0 : z1.x() + padding;
+//       z1.x() = (z1.x() > image.cols) ? image.cols : z1.x();
+//       z1.y() = (z1.y() < 0) ? 0 : z1.y() + padding;
+//       z1.y() = (z1.y() > image.rows) ? image.rows: z1.y();
+//
+//       z2.x() = (z2.x() < 0) ? 0 : z2.x() + padding;
+//       z2.x() = (z2.x() > image.cols) ? image.cols : z2.x();
+//       z2.y() = (z2.y() < 0) ? 0 : z2.y() - padding;
+//       z2.y() = (z2.y() > image.rows) ? image.rows: z2.y();
+//
+//       z3.x() = (z3.x() < 0) ? 0 : z3.x() - padding;
+//       z3.x() = (z3.x() > image.cols) ? image.cols : z3.x();
+//       z3.y() = (z3.y() < 0) ? 0 : z3.y() - padding;
+//       z3.y() = (z3.y() > image.rows) ? image.rows: z3.y();
+//
+//       cv::Point2f top_left;
+//       cv::Point2f top_right;
+//       cv::Point2f bot_left;
+//       cv::Point2f bot_right;
+//       bot_left = cv::Point2f(z0.x(), z0.y());
+//       bot_right = cv::Point2f(z1.x(), z1.y());
+//       top_right = cv::Point2f(z2.x(), z2.y());
+//       top_left = cv::Point2f(z3.x(), z3.y());
+//
+//
+//       cv::Mat image_roi = obtainIregularROI(image, top_left, top_right, bot_left, bot_right);
+//
+//       cv::Mat image_laplacian;
+//       cv::Laplacian(image_roi, image_laplacian, CV_64F);
+//
+//       cv::Scalar mean;
+//       cv::Scalar stddev;
+//       cv::meanStdDev(image_laplacian, mean, stddev);
+//       double var = stddev.val[0] * stddev.val[0];
+//       printf("variance: %f\n", var);
+//
+//       cv::imshow("Image", image);
+//       cv::imshow("AprilGrid detection", image_roi);
+//       cv::waitKey(0);
+//
+//       // grid.imshow("AprilGrid detection", image);
+//     }
+//
+//     nb_detections += grid.nb_detections;
+//   }
+//   printf("total nb detections: %ld\n", nb_detections);
+//
+//   return 0;
+// }
 
 int test_aprilgrid_detect3() {
   auto detector = aprilgrid_detector_t(6, 6, 0.088, 0.3);

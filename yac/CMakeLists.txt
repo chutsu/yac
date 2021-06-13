@@ -42,7 +42,7 @@ ADD_LIBRARY(
   lib/util/data.cpp
   lib/util/fs.cpp
   lib/util/net.cpp
-  lib/util/sim.cpp
+  # lib/util/sim.cpp
   # lib/calib_camera.cpp
   # lib/calib_data.cpp
   # lib/calib_mocap.cpp
@@ -76,6 +76,9 @@ TARGET_LINK_LIBRARIES(test_util_fs yac ${DEPS})
 
 ADD_EXECUTABLE(test_util_net tests/util/test_net.cpp)
 TARGET_LINK_LIBRARIES(test_util_net yac ${DEPS})
+
+ADD_EXECUTABLE(test_util_timeline tests/util/test_timeline.cpp)
+TARGET_LINK_LIBRARIES(test_util_timeline yac ${DEPS})
 
 # ADD_EXECUTABLE(test_calib_camera tests/test_calib_camera.cpp)
 # TARGET_LINK_LIBRARIES(test_calib_camera yac ${DEPS})

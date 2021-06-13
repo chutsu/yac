@@ -169,21 +169,26 @@ struct vision_test_config {
   const double cy = image_height / 2.0;
 };
 
-int test_radtan_distort_point() {
+int test_radtan4_distort() {
   const int nb_points = 100;
+  const vec4_t dist_params{0.1, 0.01, 0.01, 0.01};
+  const real_t k1 = dist_params(0);
+  const real_t k2 = dist_params(1);
+  const real_t p1 = dist_params(2);
+  const real_t p2 = dist_params(3);
 
   for (int i = 0; i < nb_points; i++) {
     // Distort point
-    radtan4_t radtan{0.1, 0.01, 0.01, 0.01};
-    vec3_t p{randf(-1.0, 1.0), randf(-1.0, 1.0), randf(5.0, 10.0)};
-    vec2_t pixel = radtan.distort(vec2_t{p(0) / p(2), p(1) / p(2)});
+    const vec3_t p{randf(-1.0, 1.0), randf(-1.0, 1.0), randf(5.0, 10.0)};
+    const vec2_t x{p(0) / p(2), p(1) / p(2)};
+    const vec2_t pixel = radtan4_distort(dist_params, x);
 
     // Use opencv to use radtan distortion to distort point
     const std::vector<cv::Point3f> points{cv::Point3f(p(0), p(1), p(2))};
     const cv::Vec3f rvec;
     const cv::Vec3f tvec;
     const cv::Mat K = convert(I(3));
-    const cv::Vec4f D(radtan.k1(), radtan.k2(), radtan.p1(), radtan.p2());
+    const cv::Vec4f D(k1, k2, p1, p2);
     std::vector<cv::Point2f> image_points;
     cv::projectPoints(points, rvec, tvec, K, D, image_points);
     const vec2_t expected{image_points[0].x, image_points[0].y};
@@ -200,16 +205,16 @@ int test_radtan_distort_point() {
   return 0;
 }
 
-int test_radtan_undistort_point() {
+int test_radtan4_undistort() {
   const int nb_points = 100;
+  const vec4_t dist_params{0.1, 0.01, 0.01, 0.01};
 
   for (int i = 0; i < nb_points; i++) {
     // Distort point
-    const radtan4_t radtan{0.1, 0.02, 0.03, 0.04};
     const vec3_t point{randf(-1.0, 1.0), randf(-1.0, 1.0), randf(5.0, 10.0)};
     const vec2_t p{point(0) / point(2), point(1) / point(2)};
-    const vec2_t p_d = radtan.distort(p);
-    const vec2_t p_ud = radtan.undistort(p_d);
+    const vec2_t p_d = radtan4_distort(dist_params, p);
+    const vec2_t p_ud = radtan4_undistort(dist_params, p_d);
 
     // // Debug
     // std::cout << p.transpose() << std::endl;
@@ -222,20 +227,24 @@ int test_radtan_undistort_point() {
   return 0;
 }
 
-int test_equi_distort_point() {
+int test_equi_distort() {
   const int nb_points = 100;
+  const vec4_t dist_params{0.1, 0.01, 0.01, 0.01};
+  const real_t k1 = dist_params(0);
+  const real_t k2 = dist_params(1);
+  const real_t k3 = dist_params(2);
+  const real_t k4 = dist_params(3);
 
   for (int i = 0; i < nb_points; i++) {
     // Distort point
-    equi4_t equi{0.1, 0.01, 0.01, 0.01};
-    vec3_t point{randf(-1.0, 1.0), randf(-1.0, 1.0), randf(5.0, 10.0)};
-    vec2_t p{point(0) / point(2), point(1) / point(2)};
-    vec2_t p_d = equi.distort(p);
+    const vec3_t point{randf(-1.0, 1.0), randf(-1.0, 1.0), randf(5.0, 10.0)};
+    const vec2_t p{point(0) / point(2), point(1) / point(2)};
+    const vec2_t p_d = equi4_distort(dist_params, p);
 
     // Use opencv to use equi distortion to distort point
     const std::vector<cv::Point2f> points{cv::Point2f(p(0), p(1))};
     const cv::Mat K = convert(I(3));
-    const cv::Vec4f D(equi.k1(), equi.k2(), equi.k3(), equi.k4());
+    const cv::Vec4f D(k1, k2, k3, k4);
     std::vector<cv::Point2f> image_points;
     cv::fisheye::distortPoints(points, image_points, K, D);
     const vec2_t expected{image_points[0].x, image_points[0].y};
@@ -251,16 +260,16 @@ int test_equi_distort_point() {
   return 0;
 }
 
-int test_equi_undistort_point() {
+int test_equi_undistort() {
   const int nb_points = 100;
+  const vec4_t dist_params{0.1, 0.2, 0.3, 0.4};
 
   for (int i = 0; i < nb_points; i++) {
     // Distort point
-    const equi4_t equi{0.1, 0.2, 0.3, 0.4};
     const vec3_t point{randf(-1.0, 1.0), randf(-1.0, 1.0), randf(5.0, 10.0)};
     const vec2_t p{point(0) / point(2), point(1) / point(2)};
-    const vec2_t p_d = equi.distort(p);
-    const vec2_t p_ud = equi.undistort(p_d);
+    const vec2_t p_d = equi4_distort(dist_params, p);
+    const vec2_t p_ud = equi4_undistort(dist_params, p_d);
 
     // // Debug
     // std::cout << p.transpose() << std::endl;
@@ -274,56 +283,43 @@ int test_equi_undistort_point() {
   return 0;
 }
 
-int test_pinhole() {
-  pinhole_t<> pinhole;
-
-  MU_CHECK_FLOAT(0.0, pinhole.fx());
-  MU_CHECK_FLOAT(0.0, pinhole.fy());
-  MU_CHECK_FLOAT(0.0, pinhole.cx());
-  MU_CHECK_FLOAT(0.0, pinhole.cy());
+int test_pinhole_focal() {
+  const real_t focal = pinhole_focal(640, 90.0);
+  MU_CHECK(fltcmp(focal, 320) == 0);
 
   return 0;
 }
 
 int test_pinhole_K() {
-  struct vision_test_config config;
-  int resolution[2] = {config.image_width, config.image_height};
-  vec4_t proj_params{config.fx, config.fy, config.cx, config.cy};
-  vec4_t dist_params{0.0, 0.0, 0.0, 0.0};
-  pinhole_t<> pinhole{resolution, proj_params, dist_params};
-  mat3_t K;
-  K << config.fx, 0.0, config.cx,
-       0.0, config.fy, config.cy,
-       0.0, 0.0, 1.0;
-  MU_CHECK((K - pinhole.K()).norm() < 1e-4);
-
-  return 0;
-}
-
-int test_pinhole_focal() {
-  const double fov = 90.0;
-  const double fx = pinhole_focal(600, fov);
-  const double fy = pinhole_focal(600, fov);
-  MU_CHECK_FLOAT(300.0, fy);
-  MU_CHECK_FLOAT(fx, fy);
+  const int res[2] = {640, 480};
+  const real_t fx = pinhole_focal(res[0], 90.0);
+  const real_t fy = pinhole_focal(res[0], 90.0);
+  const real_t cx = res[0] / 2.0;
+  const real_t cy = res[1] / 2.0;
+  const mat3_t K = pinhole_K(fx, fy, cx, cy);
+  MU_CHECK(fltcmp(K(0, 0), fx) == 0);
+  MU_CHECK(fltcmp(K(1, 1), fy) == 0);
+  MU_CHECK(fltcmp(K(0, 2), cx) == 0);
+  MU_CHECK(fltcmp(K(1, 2), cy) == 0);
+  MU_CHECK(fltcmp(K(2, 2), 1.0) == 0);
 
   return 0;
 }
 
 int test_pinhole_project() {
-  struct vision_test_config config;
+  const int res[2] = {640, 480};
+  const real_t fx = pinhole_focal(res[0], 90.0);
+  const real_t fy = pinhole_focal(res[0], 90.0);
+  const real_t cx = res[0] / 2.0;
+  const real_t cy = res[1] / 2.0;
+  const vec4_t proj_params{fx, fy, cx, cy};
 
-  int resolution[2] = {config.image_width, config.image_height};
-  vec4_t proj_params{config.fx, config.fy, config.cx, config.cy};
-  vec4_t dist_params{0.0, 0.0, 0.0, 0.0};
-  pinhole_t<> pinhole{resolution, proj_params, dist_params};
-
-  vec3_t p_C{0.0, 0.0, 1.0};
-  vec2_t x {0.0, 0.0};
-  int retval = pinhole.project(p_C, x);
+  const vec3_t p{0.0, 0.0, 1.0};
+  vec2_t z_hat;
+  int retval = pinhole_project(res, proj_params, p, z_hat);
   MU_CHECK(retval == 0);
-  MU_CHECK_FLOAT(320.0, x(0));
-  MU_CHECK_FLOAT(320.0, x(1));
+  MU_CHECK(fltcmp(z_hat(0), 320) == 0);
+  MU_CHECK(fltcmp(z_hat(1), 240) == 0);
 
   return 0;
 }
@@ -334,14 +330,16 @@ void test_suite() {
   MU_ADD_TEST(test_grid_fast);
   MU_ADD_TEST(test_grid_good);
   // MU_ADD_TEST(benchmark_grid_fast);
-  MU_ADD_TEST(test_radtan_distort_point);
-  MU_ADD_TEST(test_radtan_undistort_point);
-  MU_ADD_TEST(test_equi_distort_point);
-  MU_ADD_TEST(test_equi_undistort_point);
-  // MU_ADD_TEST(test_pinhole);
-  // MU_ADD_TEST(test_pinhole_K);
-  // MU_ADD_TEST(test_pinhole_focal);
-  // MU_ADD_TEST(test_pinhole_project);
+
+  MU_ADD_TEST(test_radtan4_distort);
+  MU_ADD_TEST(test_radtan4_undistort);
+
+  MU_ADD_TEST(test_equi_distort);
+  MU_ADD_TEST(test_equi_undistort);
+
+  MU_ADD_TEST(test_pinhole_focal);
+  MU_ADD_TEST(test_pinhole_K);
+  MU_ADD_TEST(test_pinhole_project);
 }
 
 } // namespace yac

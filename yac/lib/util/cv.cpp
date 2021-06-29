@@ -894,9 +894,7 @@ mat_t<2, 4> pinhole_params_jacobian(const vec4_t &proj_params, const vec2_t &x) 
 int pinhole_radtan4_project(const int res[2],
                             const vecx_t &params,
                             const vec3_t &p_C,
-                            vec2_t &z_hat,
-                            mat_t<2, 3> *J_proj,
-                            matx_t *J_params) {
+                            vec2_t &z_hat) {
   // Setup
   const vec4_t proj_params = params.head(4);
   const vec4_t dist_params = params.tail(4);
@@ -921,28 +919,41 @@ int pinhole_radtan4_project(const int res[2],
   const bool y_ok = (z_hat.y() >= 0 && z_hat.y() <= res[1]);
   const bool valid = (x_ok && y_ok) ? true : false;
 
-  // Jacobian of image point w.r.t. 3D point
-  if (valid && J_proj) {
-    const mat_t<2, 2> J_k = pinhole_point_jacobian(proj_params);
-    const mat_t<2, 2> J_d = radtan4_point_jacobian(dist_params, p);
-    const mat_t<2, 3> J_p = project_jacobian(p_C);
-    *J_proj = J_k * J_d * J_p;
-  } else if (J_proj) {
-    *J_proj = zeros(2, 3);
-  }
-
-  // Jacobian of image point w.r.t. camera model parameters
-  if (valid && J_params) {
-    const mat_t<2, 4> J_proj_params = pinhole_params_jacobian(proj_params, p_d);
-    const mat_t<2, 2> J_proj_point = pinhole_point_jacobian(proj_params);
-    const mat_t<2, 4> J_dist_params = radtan4_params_jacobian(dist_params, p);
-    J_params->block(0, 0, 2, 4) = J_proj_params;
-    J_params->block(0, 4, 2, 4) = J_proj_point * J_dist_params;
-  } else if (J_params) {
-    *J_params = zeros(2, 8);
-  }
-
   return (valid) ? 0 : -2;
+}
+
+matx_t pinhole_radtan4_project_jacobian(const vecx_t &params,
+                                        const vec3_t &p_C) {
+  const vec4_t proj_params = params.head(4);
+  const vec4_t dist_params = params.tail(4);
+  const vec2_t p = project_point(p_C);
+
+  const mat_t<2, 2> J_k = pinhole_point_jacobian(proj_params);
+  const mat_t<2, 2> J_d = radtan4_point_jacobian(dist_params, p);
+  const matx_t J_p = project_jacobian(p_C);
+  matx_t J_proj = J_k * J_d * J_p;
+
+  return J_proj;
+}
+
+matx_t pinhole_radtan4_params_jacobian(const vecx_t &params,
+                                       const vec3_t &p_C) {
+  const vec4_t proj_params = params.head(4);
+  const vec4_t dist_params = params.tail(4);
+
+  const vec2_t p = project_point(p_C);
+  const vec2_t p_d = radtan4_distort(dist_params, p);
+
+  const mat_t<2, 4> J_proj_params = pinhole_params_jacobian(proj_params, p_d);
+  const mat_t<2, 2> J_proj_point = pinhole_point_jacobian(proj_params);
+  const mat_t<2, 4> J_dist_params = radtan4_params_jacobian(dist_params, p);
+
+  matx_t J_params;
+  J_params.resize(2, 8);
+  J_params.block(0, 0, 2, 4) = J_proj_params;
+  J_params.block(0, 4, 2, 4) = J_proj_point * J_dist_params;
+
+  return J_params;
 }
 
 int pinhole_radtan4_back_project(const vecx_t &params,
@@ -988,9 +999,7 @@ vec2_t pinhole_radtan4_undistort(const vecx_t &params, const vec2_t &z) {
 int pinhole_equi4_project(const int res[2],
                           const vecx_t &params,
                           const vec3_t &p_C,
-                          vec2_t &z_hat,
-                          mat_t<2, 3> *J_proj,
-                          matx_t *J_params) {
+                          vec2_t &z_hat) {
   // Setup
   const vec4_t proj_params = params.head(4);
   const vec4_t dist_params = params.tail(4);
@@ -1015,28 +1024,41 @@ int pinhole_equi4_project(const int res[2],
   const bool y_ok = (z_hat.y() >= 0 && z_hat.y() <= res[1]);
   const bool valid = (x_ok && y_ok) ? true : false;
 
-  // Jacobian of image point w.r.t. 3D point
-  if (valid && J_proj) {
-    const mat_t<2, 2> J_k = pinhole_point_jacobian(proj_params);
-    const mat_t<2, 2> J_d = equi4_point_jacobian(dist_params, p);
-    const mat_t<2, 3> J_p = project_jacobian(p_C);
-    *J_proj = J_k * J_d * J_p;
-  } else if (J_proj) {
-    *J_proj = zeros(2, 3);
-  }
-
-  // Jacobian of image point w.r.t. camera model parameters
-  if (valid && J_params) {
-    const mat_t<2, 4> J_proj_params = pinhole_params_jacobian(proj_params, p_d);
-    const mat_t<2, 2> J_proj_point = pinhole_point_jacobian(proj_params);
-    const mat_t<2, 4> J_dist_params = radtan4_params_jacobian(dist_params, p);
-    J_params->block(0, 0, 2, 4) = J_proj_params;
-    J_params->block(0, 4, 2, 4) = J_proj_point * J_dist_params;
-  } else if (J_params) {
-    *J_params = zeros(2, 8);
-  }
-
   return (valid) ? 0 : -2;
+}
+
+matx_t pinhole_equi4_project_jacobian(const vecx_t &params,
+                                           const vec3_t &p_C) {
+  const vec4_t proj_params = params.head(4);
+  const vec4_t dist_params = params.tail(4);
+  const vec2_t p = project_point(p_C);
+
+  const mat_t<2, 2> J_k = pinhole_point_jacobian(proj_params);
+  const mat_t<2, 2> J_d = equi4_point_jacobian(dist_params, p);
+  const matx_t J_p = project_jacobian(p_C);
+  matx_t J_proj = J_k * J_d * J_p;
+
+  return J_proj;
+}
+
+matx_t pinhole_equi4_params_jacobian(const vecx_t &params,
+                                     const vec3_t &p_C) {
+  const vec4_t proj_params = params.head(4);
+  const vec4_t dist_params = params.tail(4);
+
+  const vec2_t p = project_point(p_C);
+  const vec2_t p_d = equi4_distort(dist_params, p);
+
+  const mat_t<2, 4> J_proj_params = pinhole_params_jacobian(proj_params, p_d);
+  const mat_t<2, 2> J_proj_point = pinhole_point_jacobian(proj_params);
+  const mat_t<2, 4> J_dist_params = equi4_params_jacobian(dist_params, p);
+
+  matx_t J_params;
+  J_params.resize(2, 8);
+  J_params.block(0, 0, 2, 4) = J_proj_params;
+  J_params.block(0, 4, 2, 4) = J_proj_point * J_dist_params;
+
+  return J_params;
 }
 
 int pinhole_equi4_back_project(const vecx_t &params,
@@ -1050,13 +1072,33 @@ int pinhole_equi4_back_project(const vecx_t &params,
   const real_t py = (x.y() - cy) / fy;
   const vec2_t p{px, py};
 
-  const vec2_t p_undist = radtan4_undistort(params.tail(4), p);
+  const vec2_t p_undist = equi4_undistort(params.tail(4), p);
   ray(0) = p_undist(0);
   ray(1) = p_undist(1);
   ray(2) = 1.0;
 
   return 0;
 }
+
+vec2_t pinhole_equi4_undistort(const vecx_t &params, const vec2_t &z) {
+  // Back-project and undistort
+  const real_t fx = params(0);
+  const real_t fy = params(1);
+  const real_t cx = params(2);
+  const real_t cy = params(3);
+  const real_t px = (z.x() - cx) / fx;
+  const real_t py = (z.y() - cy) / fy;
+  const vec2_t p{px, py};
+  const vec2_t p_undist = equi4_undistort(params.tail(4), p);
+
+  // Project undistorted point to image plane
+  const real_t x = p_undist.x() * fx + cx;
+  const real_t y = p_undist.y() * fy + cy;
+  const vec2_t z_undist = {x, y};
+
+  return z_undist;
+}
+
 
 int solvepnp(const camera_geometry_t *cam,
              const int cam_res[2],
@@ -1090,7 +1132,9 @@ int solvepnp(const camera_geometry_t *cam,
   camera_matrix.at<float>(0, 2) = cx;
   camera_matrix.at<float>(1, 2) = cy;
   camera_matrix.at<float>(2, 2) = 1.0;
-  cv::Vec4f distortion_params(0, 0, 0, 0); // SolvPnP assumes radtan
+  cv::Vec4f distortion_params(0, 0, 0, 0);
+  // SolvPnP assumes radtan which may not be true, therefore we manually
+  // distort the points ourselves above
 
   cv::Mat rvec;
   cv::Mat tvec;

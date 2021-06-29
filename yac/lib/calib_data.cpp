@@ -23,7 +23,7 @@ int calib_target_load(calib_target_t &ct,
 calib_data_t::calib_data_t() {
   // Problem
   prob_options.local_parameterization_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
-  prob_options.cost_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
+  // prob_options.cost_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
   prob_options.enable_fast_removal = true;
   problem = new ceres::Problem(prob_options);
 }
@@ -79,124 +79,112 @@ void calib_data_t::add_imu(const imu_params_t &params) {
 }
 
 void calib_data_t::add_camera(const camera_params_t &params) {
-  cam_params[params.cam_index] = params;
+  // Camera geometry
+  const auto cam_index = params.cam_index;
+  const auto proj_model = params.proj_model;
+  const auto dist_model = params.dist_model;
+  if (proj_model == "pinhole" && dist_model == "radtan4") {
+    cam_geoms[cam_index] = &pinhole_radtan4;
+  } else if (proj_model == "pinhole" && dist_model == "equi4") {
+    cam_geoms[cam_index] = &pinhole_equi4;
+  } else {
+    FATAL("[%s-%s] unsupported!", proj_model.c_str(), dist_model.c_str());
+  }
+
+  cam_params[cam_index] = params;
   nb_cams += 1;
-  vision_errors[params.cam_index] = std::vector<double>();
+  vision_errors[cam_index] = std::vector<double>();
+
+  problem->AddParameterBlock(cam_params[cam_index].param.data(), 8);
 }
 
-void calib_data_t::add_camera_extrinsics(const int cam_idx, const extrinsics_t &params) {
-  cam_exts[cam_idx] = params;
-}
-
-void calib_data_t::add_camera_extrinsics(const int cam_idx, const mat4_t &ext) {
+void calib_data_t::add_camera_extrinsics(const int cam_idx,
+                                         const mat4_t &ext) {
   cam_exts[cam_idx] = extrinsics_t{param_counter++, ext};
-}
-
-void calib_data_t::add_imu_extrinsics(const int imu_idx, const extrinsics_t &params) {
-  imu_exts[imu_idx] = params;
-  nb_imus += 1;
+  problem->AddParameterBlock(cam_exts[cam_idx].param.data(), 7);
+  problem->SetParameterization(cam_exts[cam_idx].param.data(), &pose_plus);
+  if (cam_idx == 0) {
+    problem->SetParameterBlockConstant(cam_exts[cam_idx].param.data());
+  }
 }
 
 void calib_data_t::add_imu_extrinsics(const int imu_idx, const mat4_t &ext) {
   imu_exts[imu_idx] = extrinsics_t{param_counter++, ext};
+  problem->AddParameterBlock(imu_exts[imu_idx].param.data(), 7);
+  problem->SetParameterization(imu_exts[imu_idx].param.data(), &pose_plus);
   nb_imus += 1;
 }
 
 void calib_data_t::add_grids(const int cam_idx, const aprilgrids_t &grids) {
-  cam_grids[cam_idx] = grids;
-}
-
-void calib_data_t::add_pose(const timestamp_t &ts, const pose_t &pose) {
-  poses[ts] = pose;
-}
-
-void calib_data_t::preprocess_data() {
-  const int rows = target.tag_rows;
-  const int cols = target.tag_cols;
-  const double size = target.tag_size;
-  const double spacing = target.tag_spacing;
-
-  // Track aprilgrids for each camera and all timestamps
-  std::set<timestamp_t> timestamps;
-  std::map<int, std::map<timestamp_t, aprilgrid_t>> grid_tracker;
-  for (int cam_idx = 0; cam_idx < nb_cams; cam_idx++) {
-    for (auto &grid : cam_grids[cam_idx]) {
-      grid_tracker[cam_idx][grid.timestamp] = grid;
-      timestamps.insert(grid.timestamp);
-    }
-  }
-
-  // Preprocess vision data
-  std::map<int, aprilgrids_t> prep_grids;
-  for (const auto &ts : timestamps) {
-    for (int cam_idx = 0; cam_idx < nb_cams; cam_idx++) {
-      if (grid_tracker[cam_idx].count(ts) == 0) {
-        prep_grids[cam_idx].emplace_back(ts, rows, cols, size, spacing);
-      } else {
-        prep_grids[cam_idx].push_back(grid_tracker[cam_idx][ts]);
-      }
-    }
-  }
-
-  cam_grids.clear();
-  cam_grids = prep_grids;
-}
-
-void calib_data_t::check_data() {
-  bool ok = true;
-
-  auto nb_grids = cam_grids[0].size();
-  for (int cam_idx = 0; cam_idx < nb_cams; cam_idx++) {
-    if (nb_grids != cam_grids[cam_idx].size()) {
-      FATAL("grids[%d].size() != nb_grids!", cam_idx);
-      ok = false;
-    }
-  }
-
-  std::vector<timestamp_t> timestamps;
-  for (int cam_idx = 0; cam_idx < nb_cams; cam_idx++) {
-    for (auto &grid : cam_grids[cam_idx]) {
-      timestamps.push_back(grid.timestamp);
-    }
-  }
-
-  for (int cam_idx = 0; cam_idx < nb_cams; cam_idx++) {
-    for (size_t i = 0; i < cam_grids[cam_idx].size(); i++) {
-      auto &grid = cam_grids[cam_idx][i];
-      if (grid.timestamp != timestamps[i]) {
-        LOG_ERROR("grid.timestamp != timestamps[i]!");
-        ok = false;
-        break;
-      }
-
-      if (grid.tag_rows != target.tag_rows) {
-        LOG_ERROR("grid.timestamp: %ld", grid.timestamp);
-        LOG_ERROR("grid.tag_rows != target.tag_rows!");
-        ok = false;
-        break;
-      } else if (grid.tag_cols != target.tag_cols) {
-        LOG_ERROR("grid.timestamp: %ld", grid.timestamp);
-        LOG_ERROR("grid.tag_cols != target.tag_cols!");
-        ok = false;
-        break;
-      } else if (grid.tag_size != target.tag_size) {
-        LOG_ERROR("grid.timestamp: %ld", grid.timestamp);
-        LOG_ERROR("grid.tag_size != target.tag_size!");
-        ok = false;
-        break;
-      } else if (grid.tag_spacing != target.tag_spacing) {
-        LOG_ERROR("grid.timestamp: %ld", grid.timestamp);
-        LOG_ERROR("grid.tag_spacing != target.tag_spacing!");
-        ok = false;
-        break;
-      }
-    }
-  }
-
-  if (ok == false) {
-    FATAL("Bad data!");
+  for (auto &grid : grids) {
+    const timestamp_t ts = grid.timestamp;
+    timestamps.insert(ts);
+    cam_grids.insert({ts, {cam_idx, grid}});
   }
 }
+
+pose_t &calib_data_t::add_pose(const timestamp_t &ts, const mat4_t &T) {
+  poses[ts] = pose_t{param_counter++, ts, T};
+  problem->AddParameterBlock(poses[ts].param.data(), 7);
+  problem->SetParameterization(poses[ts].param.data(), &pose_plus);
+  return poses[ts];
+}
+
+// void calib_data_t::check_data() {
+//   bool ok = true;
+//
+//   auto nb_grids = cam_grids[0].size();
+//   for (int cam_idx = 0; cam_idx < nb_cams; cam_idx++) {
+//     if (nb_grids != cam_grids[cam_idx].size()) {
+//       FATAL("grids[%d].size() != nb_grids!", cam_idx);
+//       ok = false;
+//     }
+//   }
+//
+//   std::vector<timestamp_t> timestamps;
+//   for (int cam_idx = 0; cam_idx < nb_cams; cam_idx++) {
+//     for (auto &grid : cam_grids[cam_idx]) {
+//       timestamps.push_back(grid.timestamp);
+//     }
+//   }
+//
+//   for (int cam_idx = 0; cam_idx < nb_cams; cam_idx++) {
+//     for (size_t i = 0; i < cam_grids[cam_idx].size(); i++) {
+//       auto &grid = cam_grids[cam_idx][i];
+//       if (grid.timestamp != timestamps[i]) {
+//         LOG_ERROR("grid.timestamp != timestamps[i]!");
+//         ok = false;
+//         break;
+//       }
+//
+//       if (grid.tag_rows != target.tag_rows) {
+//         LOG_ERROR("grid.timestamp: %ld", grid.timestamp);
+//         LOG_ERROR("grid.tag_rows != target.tag_rows!");
+//         ok = false;
+//         break;
+//       } else if (grid.tag_cols != target.tag_cols) {
+//         LOG_ERROR("grid.timestamp: %ld", grid.timestamp);
+//         LOG_ERROR("grid.tag_cols != target.tag_cols!");
+//         ok = false;
+//         break;
+//       } else if (grid.tag_size != target.tag_size) {
+//         LOG_ERROR("grid.timestamp: %ld", grid.timestamp);
+//         LOG_ERROR("grid.tag_size != target.tag_size!");
+//         ok = false;
+//         break;
+//       } else if (grid.tag_spacing != target.tag_spacing) {
+//         LOG_ERROR("grid.timestamp: %ld", grid.timestamp);
+//         LOG_ERROR("grid.tag_spacing != target.tag_spacing!");
+//         ok = false;
+//         break;
+//       }
+//     }
+//   }
+//
+//   if (ok == false) {
+//     FATAL("Bad data!");
+//   }
+// }
 
 int calib_data_t::config_nb_cameras(const std::string &config_file) {
   config_t config{config_file};
@@ -346,6 +334,22 @@ extrinsics_t calib_data_t::load_cam_exts(const config_t &config,
   }
 
   return extrinsics_t{param_counter++, exts};
+}
+
+int calib_data_t::nb_grids(const timestamp_t &ts) {
+  const auto range = cam_grids.equal_range(ts);
+  return std::distance(range.first, range.second);
+}
+
+std::vector<std::pair<int, aprilgrid_t>> calib_data_t::get_grids(const timestamp_t &ts) {
+  std::vector<std::pair<int, aprilgrid_t>> grids;
+
+  const auto range = cam_grids.equal_range(ts);
+  for (auto it = range.first; it != range.second; it++) {
+    grids.push_back(it->second);
+  }
+
+  return grids;
 }
 
 void calib_data_t::show_results() {

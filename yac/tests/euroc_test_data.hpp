@@ -11,6 +11,8 @@ struct test_data_t {
   euroc_calib_t data{data_path};
   aprilgrids_t grids0;
   aprilgrids_t grids1;
+  camera_params_t cam0;
+  camera_params_t cam1;
 };
 
 test_data_t setup_test_data() {
@@ -37,14 +39,12 @@ test_data_t setup_test_data() {
       fflush(stdout);
     }
 
-    const auto kv = timeline.data.equal_range(ts);
-    for (auto it = kv.first; it != kv.second; it++) {
-      const auto event = it->second;
-      if (event.type == CAMERA_EVENT) {
-        const auto ts = event.ts;
-        const int cam_idx = event.camera_index;
-        const cv::Mat image = cv::imread(event.image_path);
-        const auto grid_fname = std::to_string(ts) + ".csv";
+    for (const auto &event : timeline.get_events(ts)) {
+      if (auto cam_event = dynamic_cast<camera_event_t *>(event)) {
+        const timestamp_t ts = cam_event->ts;
+        const int cam_idx = cam_event->cam_idx;
+        const cv::Mat image = cv::imread(cam_event->img_path);
+        const std::string grid_fname = std::to_string(ts) + ".csv";
 
         std::string grid_file;
         if (cam_idx == 0) {
@@ -55,7 +55,7 @@ test_data_t setup_test_data() {
 
         aprilgrid_t grid;
         if (file_exists(grid_file) == false) {
-          grid = detector.detect(event.ts, image);
+          grid = detector.detect(ts, image);
           grid.save(grid_file);
         } else {
           grid.load(grid_file);
@@ -77,6 +77,21 @@ test_data_t setup_test_data() {
     }
   }
   printf("\n");
+
+  // Setup cameras
+  const int img_w = 752;
+  const int img_h = 480;
+  const int res[2] = {img_w, img_h};
+  const std::string proj_model = "pinhole";
+  const std::string dist_model = "radtan4";
+  test_data.cam0 = camera_params_t{0, 0, res, proj_model, dist_model, 4, 4};
+  test_data.cam1 = camera_params_t{1, 1, res, proj_model, dist_model, 4, 4};
+  if (test_data.cam0.initialize(test_data.grids0) == false) {
+    FATAL("Failed to inialize camera!");
+  }
+  if (test_data.cam1.initialize(test_data.grids1) == false) {
+    FATAL("Failed to inialize camera!");
+  }
 
   return test_data;
 }

@@ -46,6 +46,11 @@ void timeline_t::add(const timestamp_t &ts,
   data.insert({ts, new mocap_event_t{ts, object_name, q_WM, r_WM}});
 }
 
+int timeline_t::nb_events(const timestamp_t &ts) {
+  const auto range = data.equal_range(ts);
+  return std::distance(range.first, range.second);
+}
+
 std::vector<timeline_event_t *> timeline_t::get_events(const timestamp_t &ts) {
   std::vector<timeline_event_t *>events;
 

@@ -209,16 +209,20 @@ void sim_circle_trajectory(const real_t circle_r, vio_sim_data_t &sim_data) {
   sim_data.features = create_3d_features_perimeter(origin, dim, nb_features);
 
   // Create camera
-  const int res[2] = {640, 480};
+  const pinhole_radtan4_t cam_geom;
+  const int cam_res[2] = {640, 480};
   const real_t lens_hfov = 90.0;
   const real_t lens_vfov = 90.0;
-  const real_t fx = pinhole_focal(res[0], lens_hfov);
-  const real_t fy = pinhole_focal(res[1], lens_vfov);
-  const real_t cx = res[0] / 2.0;
-  const real_t cy = res[1] / 2.0;
-  const vec4_t proj_params{fx, fy, cx, cy};
-  const vec4_t dist_params{0.01, 0.001, 0.0001, 0.0001};
-  const pinhole_radtan4_t camera{res, proj_params, dist_params};
+  const real_t fx = pinhole_focal(cam_res[0], lens_hfov);
+  const real_t fy = pinhole_focal(cam_res[1], lens_vfov);
+  const real_t cx = cam_res[0] / 2.0;
+  const real_t cy = cam_res[1] / 2.0;
+  const real_t k1 = 0.01;
+  const real_t k2 = 0.001;
+  const real_t p1 = 0.0001;
+  const real_t p2 = 0.0001;
+  vecx_t cam_params{8};
+  cam_params << fx, fy, cx, cy, k1, k2, p1, p2;
 
   // Simulate camera
   {
@@ -259,7 +263,7 @@ void sim_circle_trajectory(const real_t circle_r, vio_sim_data_t &sim_data) {
       for (const vec3_t &p_W : sim_data.features) {
         vec2_t z;
         const vec3_t p_C = tf_point(T_CW, p_W);
-        if (camera.project(p_C, z) == 0) {
+        if (cam_geom.project(cam_res, cam_params, p_C, z) == 0) {
           frame_obs.push_back(feature_idx);
           frame_kps.push_back(z);
         }

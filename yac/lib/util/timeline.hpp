@@ -95,6 +95,7 @@ struct timeline_t {
            const quat_t &q_WM,
            const vec3_t &r_WM);
 
+  int nb_events(const timestamp_t &ts);
   std::vector<timeline_event_t *> get_events(const timestamp_t &ts);
 };
 

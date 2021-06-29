@@ -406,9 +406,11 @@ mat_t<2, 4> pinhole_params_jacobian(const vec4_t &proj_params, const vec2_t &p);
 int pinhole_radtan4_project(const int res[2],
                             const vecx_t &params,
                             const vec3_t &p_C,
-                            vec2_t &z_hat,
-                            mat_t<2, 3> *J_proj=nullptr,
-                            matx_t *J_params=nullptr);
+                            vec2_t &z_hat);
+matx_t pinhole_radtan4_project_jacobian(const vecx_t &params,
+                                        const vec3_t &p_C);
+matx_t pinhole_radtan4_params_jacobian(const vecx_t &params,
+                                       const vec3_t &p_C);
 int pinhole_radtan4_back_project(const vecx_t &params,
                                  const vec2_t &x,
                                  vec3_t &ray);
@@ -419,9 +421,11 @@ vec2_t pinhole_radtan4_undistort(const vecx_t &params, const vec2_t &z);
 int pinhole_equi4_project(const int res[2],
                           const vecx_t &params,
                           const vec3_t &p_C,
-                          vec2_t &z_hat,
-                          mat_t<2, 3> *J_proj=nullptr,
-                          matx_t *J_params=nullptr);
+                          vec2_t &z_hat);
+matx_t pinhole_equi4_project_jacobian(const vecx_t &params,
+                                      const vec3_t &p_C);
+matx_t pinhole_equi4_params_jacobian(const vecx_t &params,
+                                     const vec3_t &p_C);
 int pinhole_equi4_back_project(const vecx_t &params,
                                const vec2_t &x,
                                vec3_t &ray);
@@ -433,9 +437,13 @@ struct camera_geometry_t {
   virtual int project(const int res[2],
                       const vecx_t &params,
                       const vec3_t &p_C,
-                      vec2_t &z_hat,
-                      mat_t<2, 3> *J_proj=nullptr,
-                      matx_t *J_params=nullptr) const = 0;
+                      vec2_t &z_hat) const = 0;
+
+  virtual matx_t project_jacobian(const vecx_t &params,
+                                  const vec3_t &p_C) const = 0;
+
+  virtual matx_t params_jacobian(const vecx_t &params,
+                                 const vec3_t &p_C) const = 0;
 
   virtual int back_project(const vecx_t &params,
                            const vec2_t &x,
@@ -448,20 +456,28 @@ struct pinhole_radtan4_t : camera_geometry_t {
   int project(const int res[2],
               const vecx_t &params,
               const vec3_t &p_C,
-              vec2_t &z_hat,
-              mat_t<2, 3> *J_proj=nullptr,
-              matx_t *J_params=nullptr) const override {
-    pinhole_radtan4_project(res, params, p_C, z_hat, J_proj, J_params);
+              vec2_t &z_hat) const override {
+    pinhole_radtan4_project(res, params, p_C, z_hat);
+  }
+
+  matx_t project_jacobian(const vecx_t &params,
+                               const vec3_t &p_C) const {
+    return pinhole_radtan4_project_jacobian(params, p_C);
+  }
+
+  matx_t params_jacobian(const vecx_t &params,
+                         const vec3_t &p_C) const {
+    return pinhole_radtan4_params_jacobian(params, p_C);
   }
 
   int back_project(const vecx_t &params,
                    const vec2_t &x,
                    vec3_t &ray) const override {
-    pinhole_radtan4_back_project(params, x, ray);
+    return pinhole_radtan4_back_project(params, x, ray);
   }
 
   vec2_t undistort(const vecx_t &params, const vec2_t &z) const override{
-    pinhole_radtan4_undistort(params, z);
+    return pinhole_radtan4_undistort(params, z);
   }
 };
 
@@ -469,20 +485,28 @@ struct pinhole_equi4_t : camera_geometry_t {
   int project(const int res[2],
               const vecx_t &params,
               const vec3_t &p_C,
-              vec2_t &z_hat,
-              mat_t<2, 3> *J_proj=nullptr,
-              matx_t *J_params=nullptr) const override {
-    pinhole_equi4_project(res, params, p_C, z_hat, J_proj, J_params);
+              vec2_t &z_hat) const override {
+    pinhole_equi4_project(res, params, p_C, z_hat);
+  }
+
+  matx_t project_jacobian(const vecx_t &params,
+                          const vec3_t &p_C) const {
+    return pinhole_equi4_project_jacobian(params, p_C);
+  }
+
+  matx_t params_jacobian(const vecx_t &params,
+                         const vec3_t &p_C) const {
+    return pinhole_equi4_params_jacobian(params, p_C);
   }
 
   int back_project(const vecx_t &params,
                    const vec2_t &x,
                    vec3_t &ray) const override {
-    pinhole_equi4_back_project(params, x, ray);
+    return pinhole_equi4_back_project(params, x, ray);
   }
 
   vec2_t undistort(const vecx_t &params, const vec2_t &z) const override {
-    pinhole_equi4_undistort(params, z);
+    return pinhole_equi4_undistort(params, z);
   }
 };
 

@@ -1,4 +1,5 @@
 #include "munit.hpp"
+#include "euroc_test_data.hpp"
 #include "calib_data.hpp"
 
 namespace yac {
@@ -138,6 +139,22 @@ int test_blur_measure() {
   return 0;
 }
 
+int test_calib_data() {
+  test_data_t test_data = setup_test_data();
+
+  calib_data_t calib_data;
+  calib_data.add_calib_target(test_data.target);
+  calib_data.add_camera(test_data.cam0);
+  calib_data.add_camera(test_data.cam1);
+  calib_data.add_camera_extrinsics(0);
+  calib_data.add_camera_extrinsics(1);
+  calib_data.add_grids(0, test_data.grids0);
+  calib_data.add_grids(1, test_data.grids1);
+  // calib_data.preprocess_data();
+  // calib_data.check_data();
+  return 0;
+}
+
 int test_focal_init() {
   const auto image = cv::imread(CAM0_IMAGE);
 
@@ -159,6 +176,7 @@ void test_suite() {
   MU_ADD_TEST(test_preprocess_and_load_camera_data);
   // MU_ADD_TEST(test_load_multicam_calib_data);
   // MU_ADD_TEST(test_blur_measure);
+  MU_ADD_TEST(test_calib_data);
   MU_ADD_TEST(test_focal_init);
 }
 

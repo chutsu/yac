@@ -352,9 +352,8 @@ struct euroc_data_t {
   long imu_index = 0;
   long frame_index = 0;
 
-  std::set<timestamp_t> timestamps;
   std::map<timestamp_t, double> time;
-  std::multimap<timestamp_t, timeline_event_t> timeline;
+  timeline_t timeline;
 
   euroc_data_t() {}
 
@@ -364,10 +363,9 @@ struct euroc_data_t {
     imu_data = euroc_imu_t{data_path + "/mav0/imu0"};
     for (size_t i = 0; i < imu_data.timestamps.size(); i++) {
       const timestamp_t ts = imu_data.timestamps[i];
-      const vec3_t a_B = imu_data.a_B[i];
-      const vec3_t w_B = imu_data.w_B[i];
-      const auto imu_event = timeline_event_t{ts, a_B, w_B};
-      timeline.insert({ts, imu_event});
+      const vec3_t acc = imu_data.a_B[i];
+      const vec3_t gyr = imu_data.w_B[i];
+      timeline.add(ts, acc, gyr);
     }
 
     // Load camera data
@@ -377,8 +375,7 @@ struct euroc_data_t {
     for (size_t i = 0; i < cam0_data.timestamps.size(); i++) {
       const timestamp_t ts = cam0_data.timestamps[i];
       const auto image_path = cam0_data.image_paths[i];
-      const auto cam0_event = timeline_event_t(ts, 0, image_path);
-      timeline.insert({ts, cam0_event});
+      timeline.add(ts, 0, image_path);
     }
     // -- Load cam1 data
     const auto cam1_path = data_path + "/mav0/cam1";
@@ -386,8 +383,7 @@ struct euroc_data_t {
     for (size_t i = 0; i < cam1_data.timestamps.size(); i++) {
       const timestamp_t ts = cam1_data.timestamps[i];
       const auto image_path = cam1_data.image_paths[i];
-      const auto cam1_event = timeline_event_t(ts, 1, image_path);
-      timeline.insert({ts, cam1_event});
+      timeline.add(ts, 1, image_path);
     }
     // -- Set camera image size
     cv::Mat image = cv::imread(cam0_data.image_paths[0]);
@@ -403,17 +399,16 @@ struct euroc_data_t {
     ts_now = ts_start;
 
     // Get timestamps and calculate relative time
-    auto it = timeline.begin();
-    auto it_end = timeline.end();
+    auto it = timeline.timestamps.begin();
+    auto it_end = timeline.timestamps.end();
     while (it != it_end) {
-      const timestamp_t ts = it->first;
-      timestamps.insert(ts);
+      const timestamp_t ts = *it;
       time[ts] = ((double) ts - ts_start) * 1e-9;
 
       // Advance to next non-duplicate entry.
       do {
         ++it;
-      } while (ts == it->first);
+      } while (ts == *it);
     }
 
     ok = true;
@@ -569,23 +564,20 @@ struct euroc_calib_t {
     for (size_t i = 0; i < cam0_data.timestamps.size(); i++) {
       const auto ts = cam0_data.timestamps[i];
       const auto img_path = cam0_data.image_paths[i];
-      const timeline_event_t event{ts, 0, img_path};
-      timeline.add(event);
+      timeline.add(ts, 0, img_path);
     }
     // -- Add cam1 events
     for (size_t i = 0; i < cam1_data.timestamps.size(); i++) {
       const auto ts = cam1_data.timestamps[i];
       const auto img_path = cam1_data.image_paths[i];
-      const timeline_event_t event{ts, 1, img_path};
-      timeline.add(event);
+      timeline.add(ts, 1, img_path);
     }
     // -- Add imu events
     for (size_t i = 0; i < imu_data.timestamps.size(); i++) {
       const timestamp_t ts = imu_data.timestamps[i];
-      const auto a_B = imu_data.a_B[i];
-      const auto w_B = imu_data.w_B[i];
-      const timeline_event_t event{ts, a_B, w_B};
-      timeline.add(event);
+      const auto acc = imu_data.a_B[i];
+      const auto gyr = imu_data.w_B[i];
+      timeline.add(ts, acc, gyr);
     }
 
     return timeline;

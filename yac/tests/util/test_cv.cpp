@@ -11,6 +11,40 @@ namespace yac {
 
 #define CV_TEST_IMAGE TEST_PATH "/test_data/core/test_image.jpg"
 
+void setup_pinhole_radtan4_test(int res[2], vecx_t &params) {
+  res[0] = 640;
+  res[1] = 480;
+
+  const real_t fx = pinhole_focal(res[0], 90.0);
+  const real_t fy = pinhole_focal(res[0], 90.0);
+  const real_t cx = res[0] / 2.0;
+  const real_t cy = res[1] / 2.0;
+  const real_t k1 = 0.1;
+  const real_t k2 = 0.01;
+  const real_t p1 = 0.001;
+  const real_t p2 = 0.001;
+
+  params.resize(8);
+  params << fx, fy, cx, cy, k1, k2, p1, p2;
+}
+
+void setup_pinhole_equi4_test(int res[2], vecx_t &params) {
+  res[0] = 640;
+  res[1] = 480;
+
+  const real_t fx = pinhole_focal(res[0], 90.0);
+  const real_t fy = pinhole_focal(res[0], 90.0);
+  const real_t cx = res[0] / 2.0;
+  const real_t cy = res[1] / 2.0;
+  const real_t k1 = 0.1;
+  const real_t k2 = 0.01;
+  const real_t k3 = 0.001;
+  const real_t k4 = 0.001;
+
+  params.resize(8);
+  params << fx, fy, cx, cy, k1, k2, k3, k4;
+}
+
 int test_feature_mask() {
   const auto image = cv::imread(CV_TEST_IMAGE);
   if (image.empty()) {
@@ -314,12 +348,271 @@ int test_pinhole_project() {
   const real_t cy = res[1] / 2.0;
   const vec4_t proj_params{fx, fy, cx, cy};
 
-  const vec3_t p{0.0, 0.0, 1.0};
+  const vec3_t p_C{0.0, 0.0, 1.0};
   vec2_t z_hat;
-  int retval = pinhole_project(res, proj_params, p, z_hat);
+  int retval = pinhole_project(res, proj_params, p_C, z_hat);
   MU_CHECK(retval == 0);
   MU_CHECK(fltcmp(z_hat(0), 320) == 0);
   MU_CHECK(fltcmp(z_hat(1), 240) == 0);
+
+  return 0;
+}
+
+int test_pinhole_radtan4_project() {
+  // Setup
+  int res[2];
+  vecx_t params;
+  setup_pinhole_radtan4_test(res, params);
+
+  // Test pinhole radtan4 project
+  const vec3_t p_C{0.1, 0.2, 1.0};
+  vec2_t z_hat;
+  int retval = pinhole_radtan4_project(res, params, p_C, z_hat);
+  MU_CHECK(retval == 0);
+  // print_vector("z_hat", z_hat);
+
+  // Test OpenCV's version
+  const double fx = params(0);
+  const double fy = params(1);
+  const double cx = params(2);
+  const double cy = params(3);
+  const double k1 = params(4);
+  const double k2 = params(5);
+  const double p1 = params(6);
+  const double p2 = params(7);
+  const cv::Point3f obj_pt(p_C.x(), p_C.y(), p_C.z());
+  const cv::Mat K = (cv::Mat_<double>(3, 3) << fx, 0, cx, 0, fy, cy, 0, 0, 1);
+  const cv::Mat D = (cv::Mat_<double>(4, 1) << k1, k2, p1, p2);
+  const cv::Mat rvec = (cv::Mat_<double>(3, 1) << 0, 0, 0);
+  const cv::Mat tvec = (cv::Mat_<double>(3, 1) << 0, 0, 0);
+  const std::vector<cv::Point3f> object_points = {obj_pt};
+  std::vector<cv::Point2f> image_points;
+  cv::projectPoints(object_points, rvec, tvec, K, D, image_points);
+
+  const auto z_hat_gnd = vec2_t{image_points[0].x, image_points[0].y};
+  // print_vector("z_hat    ", z_hat);
+  // print_vector("z_hat_gnd", z_hat_gnd);
+  MU_CHECK(fltcmp(z_hat_gnd.x(), z_hat.x()) == 0);
+  MU_CHECK(fltcmp(z_hat_gnd.y(), z_hat.y()) == 0);
+
+  return 0;
+}
+
+int test_pinhole_radtan4_project_jacobian() {
+  // Setup
+  int res[2];
+  vecx_t params;
+  setup_pinhole_radtan4_test(res, params);
+
+  // Analytical jacobian
+  const vec3_t p_C{0.1, 0.2, 1.0};
+  const matx_t J = pinhole_radtan4_project_jacobian(params, p_C);
+
+  // Numerical diff
+  const double step = 1e-8;
+  matx_t fdiff = zeros(2, 3);
+
+  vec2_t z_hat;
+  pinhole_radtan4_project(res, params, p_C, z_hat);
+
+  for (int i = 0; i < 3; i++) {
+    vec3_t p_C_diff = p_C;
+    p_C_diff(i) += step;
+
+    vec2_t z_hat_prime;
+    pinhole_radtan4_project(res, params, p_C_diff, z_hat_prime);
+    fdiff.block(0, i, 2, 1) = (z_hat_prime - z_hat) / step;
+  }
+
+  // print_matrix("J", J);
+  // print_matrix("fdiff", fdiff);
+  MU_CHECK((J - fdiff).norm() < 1e-4);
+
+  return 0;
+}
+
+int test_pinhole_radtan4_params_jacobian() {
+  // Setup
+  int res[2];
+  vecx_t params;
+  setup_pinhole_radtan4_test(res, params);
+
+  // Analytical jacobian
+  const vec3_t p_C{0.1, 0.2, 1.0};
+  const matx_t J = pinhole_radtan4_params_jacobian(params, p_C);
+
+  // Numerical diff
+  const double step = 1e-8;
+  matx_t fdiff = zeros(2, 8);
+
+  vec2_t z_hat;
+  pinhole_radtan4_project(res, params, p_C, z_hat);
+
+  for (int i = 0; i < 8; i++) {
+    vecx_t params_diff = params;
+    params_diff(i) += step;
+
+    vec2_t z_hat_prime;
+    pinhole_radtan4_project(res, params_diff, p_C, z_hat_prime);
+    fdiff.block(0, i, 2, 1) = (z_hat_prime - z_hat) / step;
+  }
+
+  // print_matrix("J", J);
+  // print_matrix("fdiff", fdiff);
+  MU_CHECK((J - fdiff).norm() < 1e-4);
+
+  return 0;
+}
+
+int test_pinhole_radtan4_undistort() {
+  // Setup
+  int res[2];
+  vecx_t params;
+  setup_pinhole_radtan4_test(res, params);
+
+  // Project without distortion
+  const vec3_t p_C{0.1, 0.2, 1.0};
+  vec2_t z_hat_gnd;
+  pinhole_project(res, params.head(4), p_C, z_hat_gnd);
+
+  // Project with distortion and undistort it
+  vec2_t z_hat;
+  pinhole_radtan4_project(res, params, p_C, z_hat);
+  z_hat = pinhole_radtan4_undistort(params, z_hat);
+
+  // print_vector("z_hat_gnd", z_hat_gnd);
+  // print_vector("z_hat    ", z_hat);
+  MU_CHECK(fltcmp(z_hat_gnd.x(), z_hat.x()) == 0);
+  MU_CHECK(fltcmp(z_hat_gnd.y(), z_hat.y()) == 0);
+
+  return 0;
+}
+
+int test_pinhole_equi4_project() {
+  // Setup
+  int res[2];
+  vecx_t params;
+  setup_pinhole_equi4_test(res, params);
+
+  // Test pinhole equi4 project
+  const vec3_t p_C{0.1, 0.2, 1.0};
+  vec2_t z_hat;
+  int retval = pinhole_equi4_project(res, params, p_C, z_hat);
+  MU_CHECK(retval == 0);
+
+  // Test OpenCV's version
+  const double fx = params(0);
+  const double fy = params(1);
+  const double cx = params(2);
+  const double cy = params(3);
+  const double k1 = params(4);
+  const double k2 = params(5);
+  const double k3 = params(6);
+  const double k4 = params(7);
+  const cv::Point3f obj_pt(p_C.x(), p_C.y(), p_C.z());
+  const cv::Mat K = (cv::Mat_<double>(3, 3) << fx, 0, cx, 0, fy, cy, 0, 0, 1);
+  const cv::Mat D = (cv::Mat_<double>(4, 1) << k1, k2, k3, k4);
+  const cv::Mat rvec = (cv::Mat_<double>(3, 1) << 0, 0, 0);
+  const cv::Mat tvec = (cv::Mat_<double>(3, 1) << 0, 0, 0);
+  const std::vector<cv::Point3f> object_points = {obj_pt};
+  std::vector<cv::Point2f> image_points;
+  cv::fisheye::projectPoints(object_points, image_points, rvec, tvec, K, D);
+
+  const auto z_hat_gnd = vec2_t{image_points[0].x, image_points[0].y};
+  // print_vector("z_hat    ", z_hat);
+  // print_vector("z_hat_gnd", z_hat_gnd);
+  MU_CHECK(fltcmp(z_hat_gnd.x(), z_hat.x()) == 0);
+  MU_CHECK(fltcmp(z_hat_gnd.y(), z_hat.y()) == 0);
+
+  return 0;
+}
+
+int test_pinhole_equi4_project_jacobian() {
+  // Setup
+  int res[2];
+  vecx_t params;
+  setup_pinhole_equi4_test(res, params);
+
+  // Analytical jacobian
+  const vec3_t p_C{0.1, 0.2, 1.0};
+  const matx_t J = pinhole_equi4_project_jacobian(params, p_C);
+
+  // Numerical diff
+  const double step = 1e-8;
+  matx_t fdiff = zeros(2, 3);
+
+  vec2_t z_hat;
+  pinhole_equi4_project(res, params, p_C, z_hat);
+
+  for (int i = 0; i < 3; i++) {
+    vec3_t p_C_diff = p_C;
+    p_C_diff(i) += step;
+
+    vec2_t z_hat_prime;
+    pinhole_equi4_project(res, params, p_C_diff, z_hat_prime);
+    fdiff.block(0, i, 2, 1) = (z_hat_prime - z_hat) / step;
+  }
+
+  // print_matrix("J", J);
+  // print_matrix("fdiff", fdiff);
+  MU_CHECK((J - fdiff).norm() < 1e-4);
+
+  return 0;
+}
+
+int test_pinhole_equi4_params_jacobian() {
+  // Setup
+  int res[2];
+  vecx_t params;
+  setup_pinhole_equi4_test(res, params);
+
+  // Analytical jacobian
+  const vec3_t p_C{0.1, 0.2, 1.0};
+  const matx_t J = pinhole_equi4_params_jacobian(params, p_C);
+
+  // Numerical diff
+  const double step = 1e-8;
+  matx_t fdiff = zeros(2, 8);
+
+  vec2_t z_hat;
+  pinhole_equi4_project(res, params, p_C, z_hat);
+
+  for (int i = 0; i < 8; i++) {
+    vecx_t params_diff = params;
+    params_diff(i) += step;
+
+    vec2_t z_hat_prime;
+    pinhole_equi4_project(res, params_diff, p_C, z_hat_prime);
+    fdiff.block(0, i, 2, 1) = (z_hat_prime - z_hat) / step;
+  }
+
+  // print_matrix("J", J);
+  // print_matrix("fdiff", fdiff);
+  MU_CHECK((J - fdiff).norm() < 1e-4);
+
+  return 0;
+}
+
+int test_pinhole_equi4_undistort() {
+  // Setup
+  int res[2];
+  vecx_t params;
+  setup_pinhole_equi4_test(res, params);
+
+  // Project without distortion
+  const vec3_t p_C{0.1, 0.2, 1.0};
+  vec2_t z_hat_gnd;
+  pinhole_project(res, params.head(4), p_C, z_hat_gnd);
+
+  // Project with distortion and undistort
+  vec2_t z_hat;
+  pinhole_equi4_project(res, params, p_C, z_hat);
+  z_hat = pinhole_equi4_undistort(params, z_hat);
+
+  // print_vector("z_hat_gnd", z_hat_gnd);
+  // print_vector("z_hat    ", z_hat);
+  MU_CHECK(fltcmp(z_hat_gnd.x(), z_hat.x()) == 0);
+  MU_CHECK(fltcmp(z_hat_gnd.y(), z_hat.y()) == 0);
 
   return 0;
 }
@@ -340,6 +633,16 @@ void test_suite() {
   MU_ADD_TEST(test_pinhole_focal);
   MU_ADD_TEST(test_pinhole_K);
   MU_ADD_TEST(test_pinhole_project);
+
+  MU_ADD_TEST(test_pinhole_radtan4_project);
+  MU_ADD_TEST(test_pinhole_radtan4_project_jacobian);
+  MU_ADD_TEST(test_pinhole_radtan4_params_jacobian);
+  MU_ADD_TEST(test_pinhole_radtan4_undistort);
+
+  MU_ADD_TEST(test_pinhole_equi4_project);
+  MU_ADD_TEST(test_pinhole_equi4_project_jacobian);
+  MU_ADD_TEST(test_pinhole_equi4_params_jacobian);
+  MU_ADD_TEST(test_pinhole_equi4_undistort);
 }
 
 } // namespace yac

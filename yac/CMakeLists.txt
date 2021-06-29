@@ -42,13 +42,14 @@ ADD_LIBRARY(
   lib/util/data.cpp
   lib/util/fs.cpp
   lib/util/net.cpp
-  # lib/util/sim.cpp
-  # lib/calib_camera.cpp
-  # lib/calib_data.cpp
+  lib/util/sim.cpp
+  lib/util/timeline.cpp
+  lib/calib_camera.cpp
+  lib/calib_data.cpp
   # lib/calib_mocap.cpp
   # lib/calib_mono.cpp
   # lib/calib_nbv.cpp
-  # lib/calib_params.cpp
+  lib/calib_params.cpp
   # lib/calib_stereo.cpp
   # lib/calib_vi.cpp
 )
@@ -80,11 +81,11 @@ TARGET_LINK_LIBRARIES(test_util_net yac ${DEPS})
 ADD_EXECUTABLE(test_util_timeline tests/util/test_timeline.cpp)
 TARGET_LINK_LIBRARIES(test_util_timeline yac ${DEPS})
 
-# ADD_EXECUTABLE(test_calib_camera tests/test_calib_camera.cpp)
-# TARGET_LINK_LIBRARIES(test_calib_camera yac ${DEPS})
+ADD_EXECUTABLE(test_calib_camera tests/test_calib_camera.cpp)
+TARGET_LINK_LIBRARIES(test_calib_camera yac ${DEPS})
 
-# ADD_EXECUTABLE(test_core tests/test_core.cpp)
-# TARGET_LINK_LIBRARIES(test_core yac ${DEPS})
+ADD_EXECUTABLE(test_calib_data tests/test_calib_data.cpp)
+TARGET_LINK_LIBRARIES(test_calib_data yac ${DEPS})
 
 # ADD_EXECUTABLE(test_calib_mocap tests/test_calib_mocap.cpp)
 # TARGET_LINK_LIBRARIES(test_calib_mocap yac ${DEPS})
@@ -94,9 +95,6 @@ TARGET_LINK_LIBRARIES(test_util_timeline yac ${DEPS})
 
 # ADD_EXECUTABLE(test_calib_nbv tests/test_calib_nbv.cpp)
 # TARGET_LINK_LIBRARIES(test_calib_nbv yac ${DEPS})
-#
-# ADD_EXECUTABLE(test_calib_data tests/test_calib_data.cpp)
-# TARGET_LINK_LIBRARIES(test_calib_data yac ${DEPS})
 #
 # ADD_EXECUTABLE(test_calib_stereo tests/test_calib_stereo.cpp)
 # TARGET_LINK_LIBRARIES(test_calib_stereo yac ${DEPS})

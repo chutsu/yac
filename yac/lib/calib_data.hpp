@@ -57,11 +57,13 @@ struct calib_data_t {
 
   // Params
   calib_target_t target{"aprilgrid", 6, 6, 0.088, 0.3};
-  std::map<int, aprilgrids_t> cam_grids;
+  std::set<timestamp_t> timestamps;
+  std::multimap<timestamp_t, std::pair<int, aprilgrid_t>> cam_grids;
 
   int nb_cams = 0;
   int nb_imus = 0;
   imu_params_t imu_params;
+  std::map<int, camera_geometry_t *> cam_geoms;
   std::map<int, camera_params_t> cam_params;
   mat2_t covar = I(2);
 
@@ -70,6 +72,9 @@ struct calib_data_t {
   std::map<int, extrinsics_t> cam_exts;
   std::map<int, extrinsics_t> imu_exts;
 
+  pinhole_radtan4_t pinhole_radtan4;
+  pinhole_equi4_t pinhole_equi4;
+
   calib_data_t();
   calib_data_t(const std::string &config_file);
   ~calib_data_t();
@@ -77,14 +82,11 @@ struct calib_data_t {
   void add_calib_target(const calib_target_t &target_);
   void add_imu(const imu_params_t &params);
   void add_camera(const camera_params_t &params);
-  void add_camera_extrinsics(const int cam_idx, const extrinsics_t &params);
   void add_camera_extrinsics(const int cam_idx, const mat4_t &ext=I(4));
-  void add_imu_extrinsics(const int imu_idx, const extrinsics_t &params);
   void add_imu_extrinsics(const int imu_idx, const mat4_t &ext=I(4));
   void add_grids(const int cam_idx, const aprilgrids_t &grids);
-  void add_pose(const timestamp_t &ts, const pose_t &pose);
-  void preprocess_data();
-  void check_data();
+  pose_t &add_pose(const timestamp_t &ts, const mat4_t &T);
+  // void check_data();
   static int config_nb_cameras(const std::string &config_file);
   static int config_nb_imus(const std::string &config_file);
   static void load_calib_target_params(const config_t &config,
@@ -99,6 +101,9 @@ struct calib_data_t {
   extrinsics_t load_cam_exts(const config_t &config,
                              const int cam_idx,
                              bool verbose=false);
+
+  int nb_grids(const timestamp_t &ts);
+  std::vector<std::pair<int, aprilgrid_t>> get_grids(const timestamp_t &ts);
 
   void show_results();
 };

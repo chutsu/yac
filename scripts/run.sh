@@ -27,9 +27,11 @@ tmux send-keys -t dev -R "\
 cd ~/sync/projects/yac \
 && make lib \
 && source ~/catkin_ws/devel/setup.bash \
-&& rosrun yac test_util_aprilgrid
+&& rosrun yac test_calib_camera
 " C-m
 exit
+# && rosrun yac test_util_cv
+# && rosrun yac test_util_aprilgrid
 # && rosrun yac test_calib_nbv --target test_calib_orbit_trajs
 # && cd scripts/octave; octave-cli plot_nbt_trajs.m
 

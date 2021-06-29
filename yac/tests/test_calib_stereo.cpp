@@ -5,25 +5,6 @@
 
 namespace yac {
 
-std::vector<camera_params_t> setup_cameras(const test_data_t &data) {
-  const int img_w = 752;
-  const int img_h = 480;
-  const int res[2] = {img_w, img_h};
-  const std::string proj_model = "pinhole";
-  const std::string dist_model = "radtan4";
-  camera_params_t cam0{0, 0, res, proj_model, dist_model, 4, 4};
-  camera_params_t cam1{1, 1, res, proj_model, dist_model, 4, 4};
-
-  if (cam0.initialize(data.grids0) == false) {
-    FATAL("Failed to inialize camera!");
-  }
-  if (cam1.initialize(data.grids1) == false) {
-    FATAL("Failed to inialize camera!");
-  }
-
-  return {cam0, cam1};
-}
-
 int test_reproj_error() {
   test_data_t test_data = setup_test_data();
 
@@ -181,12 +162,11 @@ aprilgrids_t filter_aprilgrids(aprilgrids_t &grids) {
 int test_calib_stereo_solve() {
   // Test data
   test_data_t test_data = setup_test_data();
-  auto cameras = setup_cameras(test_data);
 
   calib_data_t data;
   data.add_calib_target(test_data.target);
-  data.add_camera(cameras[0]);
-  data.add_camera(cameras[1]);
+  data.add_camera(test_data.cam0);
+  data.add_camera(test_data.cam1);
   data.add_camera_extrinsics(0);
   data.add_camera_extrinsics(1);
   data.add_grids(0, test_data.grids0);

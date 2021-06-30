@@ -58,7 +58,6 @@ int test_reproj_error() {
     cam_params.param.data(),
   };
   vec2_t r;
-
   Eigen::Matrix<double, 2, 7, Eigen::RowMajor> J0;
   Eigen::Matrix<double, 2, 7, Eigen::RowMajor> J1;
   Eigen::Matrix<double, 2, 8, Eigen::RowMajor> J2;
@@ -66,8 +65,8 @@ int test_reproj_error() {
 
   // Baseline
   err.Evaluate(params.data(), r.data(), jacobians.data());
-  print_vector("r", r);
 
+	// Check Jacobians
   double step = 1e-8;
   double threshold = 1e-4;
 
@@ -128,23 +127,25 @@ int test_reproj_error() {
 // }
 
 int test_calib_camera() {
-  // Setup test data
   test_data_t test_data = setup_test_data();
 
-  calib_data_t calib_data;
-  calib_data.add_calib_target(test_data.target);
-  calib_data.add_camera(test_data.cam0);
-  calib_data.add_camera_extrinsics(0);
-  calib_data.add_grids(0, test_data.grids0);
+  calib_camera_t calib;
+  calib.add_calib_target(test_data.target);
+  calib.add_camera_data(0, test_data.grids0);
 
-  calib_camera_t calib_camera{calib_data};
-  calib_camera.solve();
+  const int cam_idx = 0;
+  const int cam_res[2] = {752, 480};
+  const std::string proj_model = "pinhole";
+  const std::string dist_model = "radtan4";
+  calib.add_camera(cam_idx, cam_res, proj_model, dist_model);
+
+  calib.initialize_intrinsics(0);
 
   return 0;
 }
 
 void test_suite() {
-  // MU_ADD_TEST(test_reproj_error);
+  MU_ADD_TEST(test_reproj_error);
   // MU_ADD_TEST(test_calib_view);
   MU_ADD_TEST(test_calib_camera);
 }

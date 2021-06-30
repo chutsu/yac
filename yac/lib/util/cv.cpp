@@ -816,11 +816,11 @@ mat_t<2, 3> project_jacobian(const vec3_t &p_C) {
 
   J(0, 0) = 1.0 / z;
   J(0, 1) = 0.0;
-  J(0, 2) = -x / z * z;
+  J(0, 2) = -x / (z * z);
 
   J(1, 0) = 0.0;
   J(1, 1) = 1.0 / z;
-  J(1, 2) = -y / z * z;
+  J(1, 2) = -y / (z * z);
 
   return J;
 }

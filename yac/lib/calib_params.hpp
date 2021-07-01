@@ -36,6 +36,10 @@ struct param_t {
           const bool fixed_=false);
   virtual ~param_t();
 
+  double *data() {
+    return param.data();
+  }
+
   void mark_marginalize();
   virtual void plus(const vecx_t &) = 0;
   virtual void minus(const vecx_t &) = 0;

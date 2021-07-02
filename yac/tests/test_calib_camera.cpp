@@ -43,9 +43,7 @@ int test_reproj_error() {
   pose_t cam_extrinsics{grid.timestamp, T_C0Ci};
   pose_t rel_pose{grid.timestamp, T_C0F};
 
-  reproj_error_t err(&cam_geom,
-                     cam_idx,
-                     cam_res,
+  reproj_error_t err(cam_params,
                      tag_ids[0],
                      corner_indicies[0],
                      object_points[0],
@@ -66,7 +64,7 @@ int test_reproj_error() {
   // Baseline
   err.Evaluate(params.data(), r.data(), jacobians.data());
 
-	// Check Jacobians
+  // Check Jacobians
   double step = 1e-8;
   double threshold = 1e-4;
 

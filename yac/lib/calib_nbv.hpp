@@ -452,7 +452,7 @@ void calib_pan_trajs(const calib_target_t &target,
 template <typename T>
 void calib_figure8_trajs(const calib_target_t &target,
                          const camera_params_t &cam0,
-				 	 	 		 	 	 	 	 const camera_params_t &cam1,
+                                const camera_params_t &cam1,
                          const mat4_t &T_BC0,
                          const mat4_t &T_BC1,
                          const mat4_t &T_WF,

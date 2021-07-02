@@ -11,7 +11,7 @@ function q_kp1 = quat_integrate(q_k, w, dt)
     q_vec = w / w_norm * sin(w_norm * dt * 0.5);
   else
     q_scalar = 1.0;
-		q_vec = zeros(3, 1);
+    q_vec = zeros(3, 1);
   endif
 
   q_kp1 = quat_mul(q_k, [q_scalar; q_vec]);

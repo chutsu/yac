@@ -27,14 +27,14 @@ function plot_traj(traj)
 endfunction
 
 function t = twist(w, v)
-	t = [w; v];
+  t = [w; v];
 endfunction
 
 function T_adj = tf_adjoint(T)
-	C = tf_rot(T);
-	r = tf_trans(T);
-	T_adj = [C, zeros(3, 3);
-					 skew(r) * C, C];
+  C = tf_rot(T);
+  r = tf_trans(T);
+  T_adj = [C, zeros(3, 3);
+           skew(r) * C, C];
 endfunction
 
 function [traj, data] = calib_orbit_traj(direction, aprilgrid, T_WF, T_FO, cam_rate, t_end)
@@ -50,177 +50,177 @@ function [traj, data] = calib_orbit_traj(direction, aprilgrid, T_WF, T_FO, cam_r
 
   % Target center (Fc) w.r.t. Target origin (F)
   r_FFc = [calib_width / 2.0; calib_height / 2.0; 0.0];
-	T_FFc = tf(euler321([0, pi/2, pi/2]), r_FFc);
+  T_FFc = tf(euler321([0, pi/2, pi/2]), r_FFc);
 
-	calib_radius = tf_trans(T_FO)(3);
+  calib_radius = tf_trans(T_FO)(3);
   nb_frames = cam_rate * t_end;
-	C_WF = tf_rot(T_WF);
+  C_WF = tf_rot(T_WF);
 
-	% cirle_circum = (2 * pi * calib_radius) * (deg2rad(45) / deg2rad(360))
+  % cirle_circum = (2 * pi * calib_radius) * (deg2rad(45) / deg2rad(360))
 
-	is_horiz = 0;
+  is_horiz = 0;
   theta = 0;
   theta_end = 0;
-	if strcmp(direction, "LEFT")
-		% Orbit left
-		theta = deg2rad(180.0);
-		theta_end = deg2rad(135.0);
-		is_horiz = 1;
-	elseif strcmp(direction, "RIGHT")
-		% Orbit right
-		theta = deg2rad(-180.0);
-		theta_end = deg2rad(-135.0);
-		is_horiz = 1;
-	elseif strcmp(direction, "UP")
-		% Orbit up
-		theta = deg2rad(180.0);
-		theta_end = deg2rad(135.0);
-	elseif strcmp(direction, "DOWN")
-		% Orbit down
-		theta = deg2rad(-180.0);
-		theta_end = deg2rad(-135.0);
-	endif
+  if strcmp(direction, "LEFT")
+    % Orbit left
+    theta = deg2rad(180.0);
+    theta_end = deg2rad(135.0);
+    is_horiz = 1;
+  elseif strcmp(direction, "RIGHT")
+    % Orbit right
+    theta = deg2rad(-180.0);
+    theta_end = deg2rad(-135.0);
+    is_horiz = 1;
+  elseif strcmp(direction, "UP")
+    % Orbit up
+    theta = deg2rad(180.0);
+    theta_end = deg2rad(135.0);
+  elseif strcmp(direction, "DOWN")
+    % Orbit down
+    theta = deg2rad(-180.0);
+    theta_end = deg2rad(-135.0);
+  endif
 
-	w = (theta_end - theta) / t_end;
-	rpy = [0; 0; 0];
+  w = (theta_end - theta) / t_end;
+  rpy = [0; 0; 0];
 
-	t = 0.0;
-	dt = t_end / nb_frames;
+  t = 0.0;
+  dt = t_end / nb_frames;
   traj = {};
 
-	time = [];
-	pos = [];
-	att = [];
-	poses = {};
-	vel = [];
-	imu_acc = [];
-	imu_angvel = [];
+  time = [];
+  pos = [];
+  att = [];
+  poses = {};
+  vel = [];
+  imu_acc = [];
+  imu_angvel = [];
 
   rpy_BC0 = deg2rad([-90.0, 0.0, -90.0]);
   % rpy_BC0 = deg2rad([0.0, 0.0, 0.0]);
   C_BC0 = euler321(rpy_BC0);
   % r_BC0 = zeros(3, 1);
   r_BC0 = [0; 0.0; 0.1];
-	T_BC0 = tf(C_BC0, r_BC0);
+  T_BC0 = tf(C_BC0, r_BC0);
 
   T_WFc = T_WF * T_FFc;
   C_WFc = tf_rot(T_WFc);
 
   for i = 1:nb_frames
-		time = [time; t];
+    time = [time; t];
 
     % Position
-		x = 0;
-		y = 0;
-		z = 0;
-		if is_horiz
-			x = calib_radius * cos(theta);
-			y = calib_radius * sin(theta);
-			z = 0;
-		else
-			x = calib_radius * cos(theta);
-			y = 0;
-			z = calib_radius * sin(theta);
-		endif
+    x = 0;
+    y = 0;
+    z = 0;
+    if is_horiz
+      x = calib_radius * cos(theta);
+      y = calib_radius * sin(theta);
+      z = 0;
+    else
+      x = calib_radius * cos(theta);
+      y = 0;
+      z = calib_radius * sin(theta);
+    endif
 
-		% Orientation
-		if is_horiz
-			rpy(1) = 0;
-			rpy(2) = 0;
-			rpy(3) += w * dt;
-		else
-			rpy(1) = 0;
-			rpy(2) -= w * dt;
-			rpy(3) = 0;
-		endif
+    % Orientation
+    if is_horiz
+      rpy(1) = 0;
+      rpy(2) = 0;
+      rpy(3) += w * dt;
+    else
+      rpy(1) = 0;
+      rpy(2) -= w * dt;
+      rpy(3) = 0;
+    endif
 
     % Pose
-		T_FcB = tf(euler321(rpy), [x; y; z]);
-		T_WB = T_WF * T_FFc * T_FcB;
-		C_WB = tf_rot(T_WB);
+    T_FcB = tf(euler321(rpy), [x; y; z]);
+    T_WB = T_WF * T_FFc * T_FcB;
+    C_WB = tf_rot(T_WB);
 
-		T_WC0 = T_WB * T_BC0;
-		C_WC0 = tf_rot(T_WC0);
-		r_WC0 = tf_trans(T_WC0);
+    T_WC0 = T_WB * T_BC0;
+    C_WC0 = tf_rot(T_WC0);
+    r_WC0 = tf_trans(T_WC0);
     rpy_WC0 = rot2euler(tf_rot(T_WC0));
     traj{i} = T_WC0;
 
-		pos = [pos, r_WC0];
-		att = [att, rpy_WC0];
-		poses{i} = T_WC0;
+    pos = [pos, r_WC0];
+    att = [att, rpy_WC0];
+    poses{i} = T_WC0;
 
     % Angular Velocity
     w_FcB = [];
-		if is_horiz
-			w_FcB = [0; 0; w];
-		else
-			w_FcB = [0; -w; 0];
-		endif
+    if is_horiz
+      w_FcB = [0; 0; w];
+    else
+      w_FcB = [0; -w; 0];
+    endif
     % w_FcB = zeros(3, 1);
-		w_W_WB = C_WFc * w_FcB;
-		w_B_WB = C_WB' * w_W_WB;
-		w_C0_WC0 = C_BC0' * w_B_WB;
+    w_W_WB = C_WFc * w_FcB;
+    w_B_WB = C_WB' * w_W_WB;
+    w_C0_WC0 = C_BC0' * w_B_WB;
     imu_angvel = [imu_angvel, w_C0_WC0];
 
     % Velocity
-		v_FcB = [];
-		if is_horiz
-			vx = -calib_radius * w * sin(theta);
-			vy = calib_radius * w * cos(theta);
-			vz = 0;
-			v_FcB = [vx; vy; vz];
-		else
-			vx = -calib_radius * w * sin(theta);
-			vy = 0;
-			vz = calib_radius * w * cos(theta);
-			v_FcB = [vx; vy; vz];
-		endif
-		% v_WB = C_WFc * v_FcB;
-		% vel = [vel, v_WB];
+    v_FcB = [];
+    if is_horiz
+      vx = -calib_radius * w * sin(theta);
+      vy = calib_radius * w * cos(theta);
+      vz = 0;
+      v_FcB = [vx; vy; vz];
+    else
+      vx = -calib_radius * w * sin(theta);
+      vy = 0;
+      vz = calib_radius * w * cos(theta);
+      v_FcB = [vx; vy; vz];
+    endif
+    % v_WB = C_WFc * v_FcB;
+    % vel = [vel, v_WB];
 
-		v_WB = C_WFc * v_FcB;
-		v_WC0 = v_WB + C_WB * cross(w_B_WB, r_BC0);
-		vel = [vel, v_WC0];
+    v_WB = C_WFc * v_FcB;
+    v_WC0 = v_WB + C_WB * cross(w_B_WB, r_BC0);
+    vel = [vel, v_WC0];
 
     % Acceleration
-		a_FcB = [];
-		if is_horiz
-			ax = -calib_radius * w * w * cos(theta);
-			ay = -calib_radius * w * w * sin(theta);
-			az = 0.0;
-			a_FcB = [ax; ay; az];
-		else
-			ax = -calib_radius * w * w * cos(theta);
-			ay = 0.0;
-			az = -calib_radius * w * w * sin(theta);
-			a_FcB = [ax; ay; az];
-		endif
+    a_FcB = [];
+    if is_horiz
+      ax = -calib_radius * w * w * cos(theta);
+      ay = -calib_radius * w * w * sin(theta);
+      az = 0.0;
+      a_FcB = [ax; ay; az];
+    else
+      ax = -calib_radius * w * w * cos(theta);
+      ay = 0.0;
+      az = -calib_radius * w * w * sin(theta);
+      a_FcB = [ax; ay; az];
+    endif
     % g = [0; 0; 9.81];
-		% a_W_WB = C_WFc * a_FcB + g;
-		% a_B_WB = C_WB' * a_W_WB;
-		% a_C0_WC0 = C_BC0' * a_B_WB;
-		% imu_acc = [imu_acc, a_C0_WC0];
+    % a_W_WB = C_WFc * a_FcB + g;
+    % a_B_WB = C_WB' * a_W_WB;
+    % a_C0_WC0 = C_BC0' * a_B_WB;
+    % imu_acc = [imu_acc, a_C0_WC0];
 
     % g_W = [0;0;0];
     g_W = [0.0; 0.0; 9.81];
-		a_W_WB = (C_WFc * a_FcB);
-		a_W_WC0 = a_W_WB + C_WB * cross(w_B_WB, cross(w_B_WB, r_BC0));
-		a_C0_WC0 = C_WC0' * a_W_WC0 + C_WC0' * g_W;
-		imu_acc = [imu_acc, a_C0_WC0];
+    a_W_WB = (C_WFc * a_FcB);
+    a_W_WC0 = a_W_WB + C_WB * cross(w_B_WB, cross(w_B_WB, r_BC0));
+    a_C0_WC0 = C_WC0' * a_W_WC0 + C_WC0' * g_W;
+    imu_acc = [imu_acc, a_C0_WC0];
 
     theta += w * dt;
-		t += dt;
+    t += dt;
   endfor
 
-	data = {};
-	data.time = time;
-	data.pos = pos;
-	data.att = att;
-	data.poses = poses;
-	data.vel = vel;
-	data.imu_acc = imu_acc;
-	data.imu_gyr = imu_angvel;
-	% data.angvel = zeros(3, 200);
+  data = {};
+  data.time = time;
+  data.pos = pos;
+  data.att = att;
+  data.poses = poses;
+  data.vel = vel;
+  data.imu_acc = imu_acc;
+  data.imu_gyr = imu_angvel;
+  % data.angvel = zeros(3, 200);
 endfunction
 
 function [traj, data] = calib_fig8_traj(aprilgrid, T_WF, T_FO, cam_rate, t_end)
@@ -238,44 +238,44 @@ function [traj, data] = calib_fig8_traj(aprilgrid, T_WF, T_FO, cam_rate, t_end)
   nb_frames = cam_rate * t_end;
   nb_hframes = nb_frames / 2;
   % calib_radius = calib_width * 0.5;
-	T_WO = T_WF * T_FO;
-	C_WO = tf_rot(T_WO);
+  T_WO = T_WF * T_FO;
+  C_WO = tf_rot(T_WO);
 
-	circle_circum = 0.62302;
-	% cirlce_circum = 2 * pi * r
-	% (cirlce_circum / 2 * pi) = r
+  circle_circum = 0.62302;
+  % cirlce_circum = 2 * pi * r
+  % (cirlce_circum / 2 * pi) = r
 
-	calib_radius = circle_circum / (2 * pi);
+  calib_radius = circle_circum / (2 * pi);
 
   t = 0;
-	time = [];
-	pos = [];
-	att = [];
-	vel = [];
-	acc = [];
-	angvel = [];
+  time = [];
+  pos = [];
+  att = [];
+  vel = [];
+  acc = [];
+  angvel = [];
 
   % Clock-wise
   theta = deg2rad(0);
   theta_end = deg2rad(360);
-	w = (theta_end - theta) / (t_end / 2);
-	dt = t_end / nb_frames;
+  w = (theta_end - theta) / (t_end / 2);
+  dt = t_end / nb_frames;
 
   for i = 1:nb_hframes
-		time = [time; t];
+    time = [time; t];
     x = 0;
     y = calib_radius * cos(theta) - calib_radius;
     z = calib_radius * sin(theta);
     r_OB = [x; y; z];
 
-		T_OB = tf(eye(3), r_OB);
-		T_BC = tf(euler321([-pi/2, 0, -pi/2]), [0; 0; 0]);
-		T_WC0 = T_WO * T_OB * T_BC;
-		r_WC0 = tf_trans(T_WC0);
-		rpy_WC0 = rot2euler(tf_rot(T_WC0));
+    T_OB = tf(eye(3), r_OB);
+    T_BC = tf(euler321([-pi/2, 0, -pi/2]), [0; 0; 0]);
+    T_WC0 = T_WO * T_OB * T_BC;
+    r_WC0 = tf_trans(T_WC0);
+    rpy_WC0 = rot2euler(tf_rot(T_WC0));
     traj{i} = T_WC0;
-		pos = [pos, r_WC0];
-		att = [att, rpy_WC0];
+    pos = [pos, r_WC0];
+    att = [att, rpy_WC0];
 
     % Velocity
     vx = 0;
@@ -283,7 +283,7 @@ function [traj, data] = calib_fig8_traj(aprilgrid, T_WF, T_FO, cam_rate, t_end)
     vz = calib_radius * w * cos(theta);
     v_OB = [vx; vy; vz];
     v_WB = C_WO * v_OB;
-		vel = [vel, v_WB];
+    vel = [vel, v_WB];
 
     % Acceleration
     ax = 0;
@@ -291,7 +291,7 @@ function [traj, data] = calib_fig8_traj(aprilgrid, T_WF, T_FO, cam_rate, t_end)
     az = -calib_radius * w * w * sin(theta);
     a_OB = [ax; ay; az];
     a_WB = C_WO * a_OB;
-		acc = [acc, C_WO * a_OB];
+    acc = [acc, C_WO * a_OB];
 
     % Angular Velocity
     w_OB = [0; 0; 0];
@@ -299,29 +299,29 @@ function [traj, data] = calib_fig8_traj(aprilgrid, T_WF, T_FO, cam_rate, t_end)
     angvel = [angvel, w_WB];
 
     theta += w * dt;
-		t += dt;
+    t += dt;
   end
 
   % Anti clock-wise
   theta = deg2rad(180);
   theta_end = deg2rad(-180);
-	w = (theta_end - theta) / (t_end / 2);
-	dt = t_end / nb_frames;
+  w = (theta_end - theta) / (t_end / 2);
+  dt = t_end / nb_frames;
 
   for i = length(traj)+1:length(traj)+nb_hframes
-		time = [time; t];
+    time = [time; t];
     x = 0;
     y = calib_radius * cos(theta) + calib_radius;
     z = calib_radius * sin(theta);
 
-		T_OB = tf(eye(3), [x; y; z]);
-		T_BC = tf(euler321([-pi/2, 0, -pi/2]), [0; 0; 0]);
-		T_WC0 = T_WO * T_OB * T_BC;
-		r_WC0 = tf_trans(T_WC0);
-		rpy_WC0 = rot2euler(tf_rot(T_WC0));
+    T_OB = tf(eye(3), [x; y; z]);
+    T_BC = tf(euler321([-pi/2, 0, -pi/2]), [0; 0; 0]);
+    T_WC0 = T_WO * T_OB * T_BC;
+    r_WC0 = tf_trans(T_WC0);
+    rpy_WC0 = rot2euler(tf_rot(T_WC0));
     traj{i} = T_WC0;
-		pos = [pos, r_WC0];
-		att = [att, rpy_WC0];
+    pos = [pos, r_WC0];
+    att = [att, rpy_WC0];
 
     % Velocity
     vx = 0;
@@ -329,7 +329,7 @@ function [traj, data] = calib_fig8_traj(aprilgrid, T_WF, T_FO, cam_rate, t_end)
     vz = calib_radius * w * cos(theta);
     v_OB = [vx; vy; vz];
     v_WB = C_WO * v_OB;
-		vel = [vel, v_WB];
+    vel = [vel, v_WB];
 
     % Acceleration
     ax = 0;
@@ -337,7 +337,7 @@ function [traj, data] = calib_fig8_traj(aprilgrid, T_WF, T_FO, cam_rate, t_end)
     az = -calib_radius * w * w * sin(theta);
     a_OB = [ax; ay; az];
     a_WB = C_WO * a_OB;
-		acc = [acc, C_WO * a_OB];
+    acc = [acc, C_WO * a_OB];
 
     % Angular Velocity
     w_OB = [0; 0; 0];
@@ -345,77 +345,77 @@ function [traj, data] = calib_fig8_traj(aprilgrid, T_WF, T_FO, cam_rate, t_end)
     angvel = [angvel, w_WB];
 
     theta += w * dt;
-		t += dt;
+    t += dt;
   end
 
-	data = {};
-	data.time = time;
-	data.pos = pos;
-	data.att = att;
-	data.vel = vel;
-	data.acc = acc;
-	data.angvel = angvel;
+  data = {};
+  data.time = time;
+  data.pos = pos;
+  data.att = att;
+  data.vel = vel;
+  data.acc = acc;
+  data.angvel = angvel;
 
 
-	% figure();
-	% hold on;
+  % figure();
+  % hold on;
   %
-	% % Poses
-	% % for i = 1:10:nb_hframes
-	% % for i = 1:nb_hframes
-	% for i = 1:length(traj)
-	%   draw_frame(traj{i}, 0.05);
-	% endfor
-	% r = tf_trans(traj{1});
-	% text(r(1), r(2), r(3) + 0.025,
-	% 			"START",
-	% 			"fontsize", 18.0,
-	% 			"fontweight", "bold");
-	% r = tf_trans(traj{end});
-	% text(r(1), r(2), r(3) + 0.025,
-	% 			"END",
-	% 			"fontsize", 18.0,
-	% 			"fontweight", "bold");
+  % % Poses
+  % % for i = 1:10:nb_hframes
+  % % for i = 1:nb_hframes
+  % for i = 1:length(traj)
+  %   draw_frame(traj{i}, 0.05);
+  % endfor
+  % r = tf_trans(traj{1});
+  % text(r(1), r(2), r(3) + 0.025,
+  %       "START",
+  %       "fontsize", 18.0,
+  %       "fontweight", "bold");
+  % r = tf_trans(traj{end});
+  % text(r(1), r(2), r(3) + 0.025,
+  %       "END",
+  %       "fontsize", 18.0,
+  %       "fontweight", "bold");
   %
-	% % AprilGrid
-	% aprilgrid_draw(aprilgrid, T_WF);
+  % % AprilGrid
+  % aprilgrid_draw(aprilgrid, T_WF);
   %
-	% % Calibration origin
-	% draw_frame(T_WO, 0.1);
-	% r = tf_trans(T_WO);
-	% text(r(1), r(2), r(3) + 0.025,
-	% 			"T_{WO}",
-	% 			"fontsize", 18.0,
-	% 			"fontweight", "bold");
+  % % Calibration origin
+  % draw_frame(T_WO, 0.1);
+  % r = tf_trans(T_WO);
+  % text(r(1), r(2), r(3) + 0.025,
+  %       "T_{WO}",
+  %       "fontsize", 18.0,
+  %       "fontweight", "bold");
   %
-	% % Plot settings
-	% view(3);
-	% xlabel("x [m]");
-	% ylabel("y [m]");
-	% zlabel("z [m]");
-	% title("Scene");
-	% axis "equal";
+  % % Plot settings
+  % view(3);
+  % xlabel("x [m]");
+  % ylabel("y [m]");
+  % zlabel("z [m]");
+  % title("Scene");
+  % axis "equal";
 endfunction
 
 function plot_scene(T_WF, T_FO, cam_rate, t_end, trajs, aprilgrid)
-	% Setup
-	figure();
-	hold on;
+  % Setup
+  figure();
+  hold on;
 
-	% AprilGrid
-	aprilgrid_draw(aprilgrid, T_WF);
+  % AprilGrid
+  aprilgrid_draw(aprilgrid, T_WF);
 
-	% Calibration origin
-	draw_frame(T_WF * T_FO, 0.1);
-	r = tf_trans(T_WF * T_FO);
-	text(r(1), r(2), r(3) + 0.025,
-				"T_{WO}",
-				"fontsize", 18.0,
-				"fontweight", "bold");
+  % Calibration origin
+  draw_frame(T_WF * T_FO, 0.1);
+  r = tf_trans(T_WF * T_FO);
+  text(r(1), r(2), r(3) + 0.025,
+        "T_{WO}",
+        "fontsize", 18.0,
+        "fontweight", "bold");
 
-	% Poses
-	for traj_idx = 1:length(trajs)
-	  traj = trajs{traj_idx};
+  % Poses
+  for traj_idx = 1:length(trajs)
+    traj = trajs{traj_idx};
 
     skip = length(traj) * 0.01;
     for i = 1:skip:length(traj)
@@ -424,96 +424,96 @@ function plot_scene(T_WF, T_FO, cam_rate, t_end, trajs, aprilgrid)
 
     % r = tf_trans(traj{1});
     % text(r(1), r(2), r(3) + 0.025,
-    % 			"START",
-    % 			"fontsize", 18.0,
-    % 			"fontweight", "bold");
+    %       "START",
+    %       "fontsize", 18.0,
+    %       "fontweight", "bold");
     % r = tf_trans(traj{cam_rate * t_end});
     % text(r(1), r(2), r(3) + 0.025,
-    % 			"END",
-    % 			"fontsize", 18.0,
-    % 			"fontweight", "bold");
+    %       "END",
+    %       "fontsize", 18.0,
+    %       "fontweight", "bold");
   endfor
 
-	% Plot settings
-	view(3);
-	xlabel("x [m]");
-	ylabel("y [m]");
-	zlabel("z [m]");
-	title("Scene");
-	axis "equal";
+  % Plot settings
+  view(3);
+  xlabel("x [m]");
+  ylabel("y [m]");
+  zlabel("z [m]");
+  title("Scene");
+  axis "equal";
 endfunction
 
 function plot_sim_est(aprilgrid, T_WF, sim, est)
-	% Setup
-	figure();
-	hold on;
+  % Setup
+  figure();
+  hold on;
 
-	% AprilGrid
-	aprilgrid_draw(aprilgrid, T_WF);
+  % AprilGrid
+  aprilgrid_draw(aprilgrid, T_WF);
 
-	% Sim poses
-	skip = length(sim.poses) * 0.1;
-	for i = 1:skip:length(sim.poses)
-		draw_frame(sim.poses{i}, 0.05);
-	endfor
+  % Sim poses
+  skip = length(sim.poses) * 0.1;
+  for i = 1:skip:length(sim.poses)
+    draw_frame(sim.poses{i}, 0.05);
+  endfor
   % r = tf_trans(sim.poses{1});
   % text(r(1), r(2), r(3) + 0.025,
-  % 			"START",
-  % 			"fontsize", 18.0,
-  % 			"fontweight", "bold");
+  %       "START",
+  %       "fontsize", 18.0,
+  %       "fontweight", "bold");
   % r = tf_trans(sim.poses{end});
   % text(r(1), r(2), r(3) + 0.025,
-  % 			"END",
-  % 			"fontsize", 18.0,
-  % 			"fontweight", "bold");
+  %       "END",
+  %       "fontsize", 18.0,
+  %       "fontweight", "bold");
 
-	% Estimation poses
-	for i = 1:skip:length(est.poses)
-		draw_frame(est.poses{i}, 0.05);
-	endfor
+  % Estimation poses
+  for i = 1:skip:length(est.poses)
+    draw_frame(est.poses{i}, 0.05);
+  endfor
 
-	% Plot settings
-	view(3);
-	xlabel("x [m]");
-	ylabel("y [m]");
-	zlabel("z [m]");
-	title("Scene");
-	axis "equal";
+  % Plot settings
+  view(3);
+  xlabel("x [m]");
+  ylabel("y [m]");
+  zlabel("z [m]");
+  title("Scene");
+  axis "equal";
 endfunction
 
 function plot_measurements(data)
-	figure();
-	subplot(311);
-	hold on;
-	plot(data.time, data.pos(1, :), 'r-', 'linewidth', 2.0);
-	plot(data.time, data.pos(2, :), 'g-', 'linewidth', 2.0);
-	plot(data.time, data.pos(3, :), 'b-', 'linewidth', 2.0);
-	xlabel('Time [s]');
-	ylabel('Displacement [m]');
+  figure();
+  subplot(311);
+  hold on;
+  plot(data.time, data.pos(1, :), 'r-', 'linewidth', 2.0);
+  plot(data.time, data.pos(2, :), 'g-', 'linewidth', 2.0);
+  plot(data.time, data.pos(3, :), 'b-', 'linewidth', 2.0);
+  xlabel('Time [s]');
+  ylabel('Displacement [m]');
 
-	subplot(312);
-	hold on;
-	plot(data.time, data.vel(1, :), 'r-', 'linewidth', 2.0);
-	plot(data.time, data.vel(2, :), 'g-', 'linewidth', 2.0);
-	plot(data.time, data.vel(3, :), 'b-', 'linewidth', 2.0);
-	xlabel('Time [s]');
-	ylabel('Velocity [ms^{-1}]');
+  subplot(312);
+  hold on;
+  plot(data.time, data.vel(1, :), 'r-', 'linewidth', 2.0);
+  plot(data.time, data.vel(2, :), 'g-', 'linewidth', 2.0);
+  plot(data.time, data.vel(3, :), 'b-', 'linewidth', 2.0);
+  xlabel('Time [s]');
+  ylabel('Velocity [ms^{-1}]');
 
-	subplot(313);
-	hold on;
-	plot(data.time, data.imu_acc(1, :), 'r-', 'linewidth', 2.0);
-	plot(data.time, data.imu_acc(2, :), 'g-', 'linewidth', 2.0);
-	plot(data.time, data.imu_acc(3, :), 'b-', 'linewidth', 2.0);
-	xlabel('Time [s]');
-	ylabel('Body Acceleration [ms^{-2}]');
+  subplot(313);
+  hold on;
+  plot(data.time, data.imu_acc(1, :), 'r-', 'linewidth', 2.0);
+  plot(data.time, data.imu_acc(2, :), 'g-', 'linewidth', 2.0);
+  plot(data.time, data.imu_acc(3, :), 'b-', 'linewidth', 2.0);
+  xlabel('Time [s]');
+  ylabel('Body Acceleration [ms^{-2}]');
 
-	figure();
-	hold on;
-	plot(data.time, data.imu_gyr(1, :), 'r-', 'linewidth', 2.0);
-	plot(data.time, data.imu_gyr(2, :), 'g-', 'linewidth', 2.0);
-	plot(data.time, data.imu_gyr(3, :), 'b-', 'linewidth', 2.0);
-	xlabel('Time [s]');
-	ylabel('Body Angular Velocity [rad/s]');
+  figure();
+  hold on;
+  plot(data.time, data.imu_gyr(1, :), 'r-', 'linewidth', 2.0);
+  plot(data.time, data.imu_gyr(2, :), 'g-', 'linewidth', 2.0);
+  plot(data.time, data.imu_gyr(3, :), 'b-', 'linewidth', 2.0);
+  xlabel('Time [s]');
+  ylabel('Body Angular Velocity [rad/s]');
 endfunction
 
 function x_imu = imu_state_init()
@@ -607,14 +607,14 @@ function est = imu_batch_integrate(data)
     % Propagate IMU state
     acc = data.imu_acc(:, k);
     gyr = data.imu_gyr(:, k);
-		% x_imu = imu_rk4_update(x_imu, acc, gyr, dt);
-		x_imu = imu_euler_update(x_imu, acc, gyr, dt);
+    % x_imu = imu_rk4_update(x_imu, acc, gyr, dt);
+    x_imu = imu_euler_update(x_imu, acc, gyr, dt);
 
     % Keep track of t_prev
     est_pos = [est_pos, x_imu.p_WS];
     est_vel = [est_vel, x_imu.v_WS];
     est_att = [est_att, rot2euler(x_imu.C_WS)];
-		est_poses{k} = tf(x_imu.C_WS, x_imu.p_WS);
+    est_poses{k} = tf(x_imu.C_WS, x_imu.p_WS);
     t_prev = t;
   endfor
 
@@ -627,82 +627,82 @@ function est = imu_batch_integrate(data)
 endfunction
 
 function plot_translation(sim, est)
-	% DISPLACEMENT
-	figure();
+  % DISPLACEMENT
+  figure();
 
-	subplot(311);
-	hold on;
-	plot(sim.time, sim.pos(1, :), 'r--', 'linewidth', 2.0);
-	plot(est.time, est.pos(1, :), 'r-', 'linewidth', 2.0);
-	xlabel("Time [s]");
-	ylabel("Displacement [m]");
-	legend('Target', 'Actual');
+  subplot(311);
+  hold on;
+  plot(sim.time, sim.pos(1, :), 'r--', 'linewidth', 2.0);
+  plot(est.time, est.pos(1, :), 'r-', 'linewidth', 2.0);
+  xlabel("Time [s]");
+  ylabel("Displacement [m]");
+  legend('Target', 'Actual');
 
-	subplot(312);
-	hold on;
-	plot(sim.time, sim.pos(2, :), 'g--', 'linewidth', 2.0);
-	plot(est.time, est.pos(2, :), 'g-', 'linewidth', 2.0);
-	xlabel("Time [s]");
-	ylabel("Displacement [m]");
+  subplot(312);
+  hold on;
+  plot(sim.time, sim.pos(2, :), 'g--', 'linewidth', 2.0);
+  plot(est.time, est.pos(2, :), 'g-', 'linewidth', 2.0);
+  xlabel("Time [s]");
+  ylabel("Displacement [m]");
 
-	subplot(313);
-	hold on;
-	plot(sim.time, sim.pos(3, :), 'b--', 'linewidth', 2.0);
-	plot(est.time, est.pos(3, :), 'b-', 'linewidth', 2.0);
-	xlabel("Time [s]");
-	ylabel("Displacement [m]");
+  subplot(313);
+  hold on;
+  plot(sim.time, sim.pos(3, :), 'b--', 'linewidth', 2.0);
+  plot(est.time, est.pos(3, :), 'b-', 'linewidth', 2.0);
+  xlabel("Time [s]");
+  ylabel("Displacement [m]");
 endfunction
 
 function plot_velocity(sim, est)
-	% VELOCITY
-	figure();
-	subplot(311);
-	hold on;
-	plot(sim.time, sim.vel(1, :), 'r--', 'linewidth', 2.0);
-	plot(est.time, est.vel(1, :), 'r-', 'linewidth', 2.0);
-	xlabel("Time [s]");
-	ylabel("Velocity [m/s]");
-	legend('Target', 'Actual');
+  % VELOCITY
+  figure();
+  subplot(311);
+  hold on;
+  plot(sim.time, sim.vel(1, :), 'r--', 'linewidth', 2.0);
+  plot(est.time, est.vel(1, :), 'r-', 'linewidth', 2.0);
+  xlabel("Time [s]");
+  ylabel("Velocity [m/s]");
+  legend('Target', 'Actual');
 
-	subplot(312);
-	hold on;
-	plot(sim.time, sim.vel(2, :), 'g--', 'linewidth', 2.0);
-	plot(est.time, est.vel(2, :), 'g-', 'linewidth', 2.0);
-	xlabel("Time [s]");
-	ylabel("Velocity [m/s]");
+  subplot(312);
+  hold on;
+  plot(sim.time, sim.vel(2, :), 'g--', 'linewidth', 2.0);
+  plot(est.time, est.vel(2, :), 'g-', 'linewidth', 2.0);
+  xlabel("Time [s]");
+  ylabel("Velocity [m/s]");
 
-	subplot(313);
-	hold on;
-	plot(sim.time, sim.vel(3, :), 'b--', 'linewidth', 2.0);
-	plot(est.time, est.vel(3, :), 'b-', 'linewidth', 2.0);
-	xlabel("Time [s]");
-	ylabel("Velocity [m/s]");
+  subplot(313);
+  hold on;
+  plot(sim.time, sim.vel(3, :), 'b--', 'linewidth', 2.0);
+  plot(est.time, est.vel(3, :), 'b-', 'linewidth', 2.0);
+  xlabel("Time [s]");
+  ylabel("Velocity [m/s]");
 endfunction
 
 function plot_attitude(sim, est)
-	% ATTITUDE
-	figure();
-	subplot(311);
-	hold on;
-	plot(sim.time, sim.att(1, :), 'r--', 'linewidth', 2.0);
-	plot(est.time, est.att(1, :), 'r-', 'linewidth', 2.0);
-	xlabel("Time [s]");
-	ylabel("Attitude [rad]");
-	legend('Target', 'Actual');
+  % ATTITUDE
+  figure();
+  subplot(311);
+  hold on;
+  plot(sim.time, sim.att(1, :), 'r--', 'linewidth', 2.0);
+  plot(est.time, est.att(1, :), 'r-', 'linewidth', 2.0);
+  xlabel("Time [s]");
+  ylabel("Attitude [rad]");
+  legend('Target', 'Actual');
 
-	subplot(312);
-	hold on;
-	plot(sim.time, sim.att(2, :), 'g--', 'linewidth', 2.0);
-	plot(est.time, est.att(2, :), 'g-', 'linewidth', 2.0);
-	xlabel("Time [s]");
-	ylabel("Attitude [rad]");
+  subplot(312);
+  hold on;
+  plot(sim.time, sim.att(2, :), 'g--', 'linewidth', 2.0);
+  plot(est.time, est.att(2, :), 'g-', 'linewidth', 2.0);
+  xlabel("Time [s]");
+  ylabel("Attitude [rad]");
 
-	subplot(313);
-	hold on;
-	plot(sim.time, sim.att(3, :), 'b--', 'linewidth', 2.0);
-	plot(est.time, est.att(3, :), 'b-', 'linewidth', 2.0);
-	xlabel("Time [s]");
-	ylabel("Attitude [rad]");
+  subplot(313);
+  hold on;
+  plot(sim.time, sim.att(3, :), 'b--', 'linewidth', 2.0);
+  plot(est.time, est.att(3, :), 'b-', 'linewidth', 2.0);
+  xlabel("Time [s]");
+  ylabel("Attitude [rad]");
 endfunction
 
 % AprilGrids

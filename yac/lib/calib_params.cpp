@@ -367,29 +367,6 @@ camera_params_t::camera_params_t(const int cam_index_,
   }
 }
 
-int camera_params_t::initialize(const aprilgrids_t &grids) {
-  bool initialized = false;
-
-  for (auto grid : grids) {
-    if (grid.nb_detections < grid.fully_observable()) {
-      continue;
-    }
-
-    double focal = 0.0;
-    if (focal_init(grid, 0, focal)) {
-      continue;
-    }
-    param(0) = focal;
-    param(1) = focal;
-    param(2) = resolution[0] / 2.0;
-    param(3) = resolution[1] / 2.0;
-    initialized = true;
-    break;
-  }
-
-  return initialized;
-}
-
 vecx_t camera_params_t::proj_params() const {
   return param.head(proj_size);
 }
@@ -398,23 +375,23 @@ vecx_t camera_params_t::dist_params() const {
   return param.tail(dist_size);
 }
 
-int camera_params_t::project(const vec3_t &p_C, vec2_t &z_hat) {
+int camera_params_t::project(const vec3_t &p_C, vec2_t &z_hat) const {
   return cam_geom->project(resolution, param, p_C, z_hat);
 }
 
-matx_t camera_params_t::project_jacobian(const vec3_t &p_C) {
+matx_t camera_params_t::project_jacobian(const vec3_t &p_C) const {
   return cam_geom->project_jacobian(param, p_C);
 }
 
-matx_t camera_params_t::params_jacobian(const vec3_t &p_C) {
+matx_t camera_params_t::params_jacobian(const vec3_t &p_C) const {
   return cam_geom->project_jacobian(param, p_C);
 }
 
-int camera_params_t::back_project(const vec2_t &x, vec3_t &ray) {
+int camera_params_t::back_project(const vec2_t &x, vec3_t &ray) const {
   return cam_geom->back_project(param, x, ray);
 }
 
-vec2_t camera_params_t::undistort(const vec2_t &z) {
+vec2_t camera_params_t::undistort(const vec2_t &z) const {
   return cam_geom->undistort(param, z);
 }
 

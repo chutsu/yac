@@ -159,15 +159,14 @@ struct camera_params_t : param_t {
                   const vecx_t &dist_params_,
                   const bool fixed_=false);
 
-  int initialize(const aprilgrids_t &grids_);
   vecx_t proj_params() const;
   vecx_t dist_params() const;
 
-  int project(const vec3_t &p_C, vec2_t &z_hat);
-  matx_t project_jacobian(const vec3_t &p_C);
-  matx_t params_jacobian(const vec3_t &p_C);
-  int back_project(const vec2_t &x, vec3_t &ray);
-  vec2_t undistort(const vec2_t &z);
+  int project(const vec3_t &p_C, vec2_t &z_hat) const;
+  matx_t project_jacobian(const vec3_t &p_C) const;
+  matx_t params_jacobian(const vec3_t &p_C) const;
+  int back_project(const vec2_t &x, vec3_t &ray) const;
+  vec2_t undistort(const vec2_t &z) const;
 
   static camera_params_t init(const int cam_index_,
                               const int resolution_[2],

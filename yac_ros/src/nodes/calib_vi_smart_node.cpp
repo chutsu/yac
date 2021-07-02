@@ -433,13 +433,13 @@ public:
   }
 
   void mode_nbt(const aprilgrid_t &grid, cv::Mat &image) {
-		// if (nbt_computed_ == false) {
-		// 	return;
-		// }
+    // if (nbt_computed_ == false) {
+    //   return;
+    // }
 
     // if (finding_nbt_ == false && (nbt_hold_tic.tv_sec == 0 || toc(&nbt_hold_tic) > 4.0)) {
     //   find_nbt();
-		// 	nbt_hold_tic = tic();
+    //   nbt_hold_tic = tic();
     // }
 
     // draw_nbv(target_pose_, image);

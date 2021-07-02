@@ -86,12 +86,6 @@ test_data_t setup_test_data() {
   const std::string dist_model = "radtan4";
   test_data.cam0 = camera_params_t::init(0, res, proj_model, dist_model);
   test_data.cam1 = camera_params_t::init(1, res, proj_model, dist_model);
-  if (test_data.cam0.initialize(test_data.grids0) == false) {
-    FATAL("Failed to inialize camera!");
-  }
-  if (test_data.cam1.initialize(test_data.grids1) == false) {
-    FATAL("Failed to inialize camera!");
-  }
 
   return test_data;
 }

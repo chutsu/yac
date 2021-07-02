@@ -47,7 +47,6 @@ ADD_LIBRARY(
   lib/calib_camera.cpp
   lib/calib_data.cpp
   # lib/calib_mocap.cpp
-  # lib/calib_mono.cpp
   # lib/calib_nbv.cpp
   lib/calib_params.cpp
   lib/camchain.cpp
@@ -90,9 +89,6 @@ TARGET_LINK_LIBRARIES(test_calib_data yac ${DEPS})
 
 # ADD_EXECUTABLE(test_calib_mocap tests/test_calib_mocap.cpp)
 # TARGET_LINK_LIBRARIES(test_calib_mocap yac ${DEPS})
-
-# ADD_EXECUTABLE(test_calib_mono tests/test_calib_mono.cpp)
-# TARGET_LINK_LIBRARIES(test_calib_mono yac ${DEPS})
 
 # ADD_EXECUTABLE(test_calib_nbv tests/test_calib_nbv.cpp)
 # TARGET_LINK_LIBRARIES(test_calib_nbv yac ${DEPS})

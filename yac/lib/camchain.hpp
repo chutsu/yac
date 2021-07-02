@@ -12,7 +12,7 @@ namespace yac {
  * Camera Chain Query Tool
  */
 struct camchain_t {
-	std::map<int, std::vector<int>> adj_list;   // CameraChain adjacency list
+  std::map<int, std::vector<int>> adj_list;   // CameraChain adjacency list
   std::map<int, std::map<int, mat4_t>> exts;  // Extrinsics
 
   camchain_t(const camera_data_t &cam_data,
@@ -24,9 +24,9 @@ struct camchain_t {
                        std::vector<int> &cam_indicies,
                        std::vector<aprilgrid_t> &grids) const;
   void insert(const int cam_i, const int cam_j, const mat4_t &T_CiCj);
-	bool contains(const int cam_i, const int cam_j) const;
-	int find(const int cam_i, const int cam_j, mat4_t &T_CiCj) const;
-	void clear();
+  bool contains(const int cam_i, const int cam_j) const;
+  int find(const int cam_i, const int cam_j, mat4_t &T_CiCj) const;
+  void clear();
 };
 
 } //  namespace yac

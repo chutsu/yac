@@ -285,10 +285,10 @@ int test_calib_figure8_trajs() {
   const timestamp_t ts_start = 0;
   const timestamp_t ts_end = 5e9;
   calib_figure8_trajs<pinhole_radtan4_t>(target, cameras[0], cameras[1],
-                                     	 	 T_BC0, T_BC1,
-                                     	 	 T_WF, T_FO,
-                                     	 	 ts_start, ts_end,
-                                     	 	 trajs);
+                                           T_BC0, T_BC1,
+                                           T_WF, T_FO,
+                                           ts_start, ts_end,
+                                           trajs);
 
   // Save trajectories
   int index = 0;

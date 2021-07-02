@@ -4,30 +4,27 @@ namespace yac {
 
 /******************************** param_t *************************************/
 
-param_t::param_t() {}
-
 param_t::param_t(const std::string &type_,
-        const id_t id_,
         const timestamp_t &ts_,
         const long local_size_,
         const long global_size_,
         const bool fixed_)
   : fixed{fixed_},
     type{type_},
-    id{id_},
     ts{ts_},
     local_size{local_size_},
     global_size{global_size_},
     param{zeros(global_size_, 1)} {}
 
 param_t::param_t(const std::string &type_,
-        const id_t id_,
-        const long local_size_,
-        const long global_size_,
-        const bool fixed_)
-  : param_t{type_, id_, 0, local_size_, global_size_, fixed_} {}
+                 const long local_size_,
+                 const long global_size_,
+                 const bool fixed_)
+  : param_t{type_, 0, local_size_, global_size_, fixed_} {}
 
-param_t::~param_t() {}
+double *param_t::data() {
+  return param.data();
+}
 
 void param_t::mark_marginalize() {
   marginalize = true;
@@ -48,21 +45,13 @@ void param_t::perturb(const int i, const real_t step_size) {
 
 /********************************* pose_t *************************************/
 
-pose_t::pose_t() {}
-
-pose_t::pose_t(const id_t id_,
-        const timestamp_t &ts_,
-        const vec_t<7> &pose,
-        const bool fixed_)
-    : param_t{"pose_t", id_, ts_, 6, 7, fixed_} {
+pose_t::pose_t(const timestamp_t &ts_, const vec_t<7> &pose, const bool fixed_)
+    : param_t{"pose_t", ts_, 6, 7, fixed_} {
   param = pose;
 }
 
-pose_t::pose_t(const id_t id_,
-      const timestamp_t &ts_,
-      const mat4_t &T,
-      const bool fixed_)
-  : param_t{"pose_t", id_, ts_, 6, 7, fixed_} {
+pose_t::pose_t(const timestamp_t &ts_, const mat4_t &T, const bool fixed_)
+    : param_t{"pose_t", ts_, 6, 7, fixed_} {
   const quat_t q{tf_quat(T)};
   const vec3_t r{tf_trans(T)};
 
@@ -175,30 +164,22 @@ void pose_t::perturb(const int i, const real_t step_size) {
 
 /****************************** fiducial_t **********************************/
 
-fiducial_t::fiducial_t() {}
-
 #if FIDUCIAL_PARAMS_SIZE == 2
-fiducial_t::fiducial_t(const id_t id_,
-                       const mat4_t &T_WF_,
-                       const bool fixed_)
-  : param_t{"fiducial_t", id_, 0, 2, 2, fixed_} {
+fiducial_t::fiducial_t(const mat4_t &T_WF_, const bool fixed_)
+    : param_t{"fiducial_t", 0, 2, 2, fixed_} {
   const vec3_t rpy = quat2euler(tf_quat(T_WF_));
   param = vec2_t{rpy(0), rpy(1)};
   T_WF = T_WF_;
 }
 #elif FIDUCIAL_PARAMS_SIZE == 3
-fiducial_t::fiducial_t(const id_t id_,
-                       const mat4_t &T_WF_,
-                       const bool fixed_)
-  : param_t{"fiducial_t", id_, 0, 3, 3, fixed_} {
+fiducial_t::fiducial_t(const mat4_t &T_WF_, const bool fixed_)
+    : param_t{"fiducial_t", 0, 3, 3, fixed_} {
   param = quat2euler(tf_quat(T_WF_));
   T_WF = T_WF_;
 }
 #elif FIDUCIAL_PARAMS_SIZE == 7
-fiducial_t::fiducial_t(const id_t id_,
-                       const mat4_t &T_WF_,
-                       const bool fixed_)
-  : pose_t{id_, 0, T_WF_, fixed_} {
+fiducial_t::fiducial_t(const mat4_t &T_WF_, const bool fixed_)
+    : pose_t{0, T_WF_, fixed_} {
   this->type = "fiducial_t";
 }
 #endif
@@ -356,21 +337,17 @@ int focal_init(const aprilgrid_t &grid, const int axis, double &focal) {
   return 0;
 }
 
-camera_params_t::camera_params_t() {}
-
-camera_params_t::camera_params_t(const id_t id_,
-                                 const int cam_index_,
+camera_params_t::camera_params_t(const int cam_index_,
                                  const int resolution_[2],
                                  const std::string proj_model_,
                                  const std::string dist_model_,
                                  const vecx_t &proj_params_,
                                  const vecx_t &dist_params_,
                                  const bool fixed_)
-    : param_t{"camera_params_t", id_,
+    : param_t{"camera_params_t",
               proj_params_.size() + dist_params_.size(),
               proj_params_.size() + dist_params_.size(),
               fixed_},
-      ok{true},
       cam_index{cam_index_},
       resolution{resolution_[0], resolution_[1]},
       proj_model{proj_model_},
@@ -421,21 +398,6 @@ vecx_t camera_params_t::dist_params() const {
   return param.tail(dist_size);
 }
 
-void camera_params_t::plus(const vecx_t &dx) {
-  assert(ok);
-  param += dx;
-}
-
-void camera_params_t::minus(const vecx_t &dx) {
-  assert(ok);
-  param -= dx;
-}
-
-void camera_params_t::perturb(const int i, const real_t step_size) {
-  assert(ok);
-  param(i) += step_size;
-}
-
 int camera_params_t::project(const vec3_t &p_C, vec2_t &z_hat) {
   return cam_geom->project(resolution, param, p_C, z_hat);
 }
@@ -482,66 +444,34 @@ camera_params_t camera_params_t::init(const int cam_index_,
     FATAL("Unsupported [%s]!", dist_model_.c_str());
   }
 
-  return camera_params_t{0, cam_index_, resolution_,
+  return camera_params_t{cam_index_, resolution_,
                          proj_model_, dist_model_,
                          proj_params, dist_params};
 }
 
 /****************************** sb_params_t ***********************************/
 
-sb_params_t::sb_params_t() {}
-
-sb_params_t::sb_params_t(const id_t id_,
-                         const timestamp_t &ts_,
+sb_params_t::sb_params_t(const timestamp_t &ts_,
                          const vec3_t &v_,
                          const vec3_t &ba_,
                          const vec3_t &bg_,
                          const bool fixed_)
-  : param_t{"sb_params_t", id_, ts_, 9, 9, fixed_} {
+  : param_t{"sb_params_t", ts_, 9, 9, fixed_} {
   param << v_, ba_, bg_;
 }
 
-sb_params_t::sb_params_t(const id_t id_,
-                         const timestamp_t &ts_,
+sb_params_t::sb_params_t(const timestamp_t &ts_,
                          const vec_t<9> &sb_,
                          const bool fixed_)
-  : param_t{"sb_params_t", id_, ts_, 9, 9, fixed_} {
+  : param_t{"sb_params_t", ts_, 9, 9, fixed_} {
   param = sb_;
-}
-
-void sb_params_t::plus(const vecx_t &dx) {
-  param += dx;
-}
-
-void sb_params_t::minus(const vecx_t &dx) {
-  param -= dx;
-}
-
-void sb_params_t::perturb(const int i, const real_t step_size) {
-  param(i) += step_size;
 }
 
 /***************************** time_delay_t ***********************************/
 
-time_delay_t::time_delay_t() {}
-
-time_delay_t::time_delay_t(const id_t id_,
-                           const double td_,
-                           const bool fixed_)
-  : param_t{"time_delay_t", id_, 1, 1, fixed_} {
+time_delay_t::time_delay_t(const double td_, const bool fixed_)
+    : param_t{"time_delay_t", 1, 1, fixed_} {
   param(0) = td_;
-}
-
-void time_delay_t::plus(const vecx_t &dx) {
-  param += dx;
-}
-
-void time_delay_t::minus(const vecx_t &dx) {
-  param -= dx;
-}
-
-void time_delay_t::perturb(const int i, const real_t step_size) {
-  param(i) += step_size;
 }
 
 } // namespace yac

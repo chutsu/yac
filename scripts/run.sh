@@ -28,7 +28,7 @@ cd ~/sync/projects/yac \
 && make lib \
 && source ~/catkin_ws/devel/setup.bash \
 && rosrun yac test_calib_camera
-" C-m
+" C-m C-m
 exit
 # && rosrun yac test_util_cv
 # && rosrun yac test_util_aprilgrid

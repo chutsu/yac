@@ -48,7 +48,7 @@ calib_data_t::calib_data_t(const std::string &config_file)
     FATAL("YAC currently does not support more than 1 IMU!");
   } else if (nb_imus == 1) {
     imu_params = load_imu_params(config, 0, true);
-    imu_exts[0] = extrinsics_t{param_counter++};
+    imu_exts[0] = extrinsics_t{};
   }
 
   // Load cameras
@@ -100,7 +100,7 @@ void calib_data_t::add_camera(const camera_params_t &params) {
 
 void calib_data_t::add_camera_extrinsics(const int cam_idx,
                                          const mat4_t &ext) {
-  cam_exts[cam_idx] = extrinsics_t{param_counter++, ext};
+  cam_exts[cam_idx] = extrinsics_t{ext};
   problem->AddParameterBlock(cam_exts[cam_idx].param.data(), 7);
   problem->SetParameterization(cam_exts[cam_idx].param.data(), &pose_plus);
   if (cam_idx == 0) {
@@ -109,7 +109,7 @@ void calib_data_t::add_camera_extrinsics(const int cam_idx,
 }
 
 void calib_data_t::add_imu_extrinsics(const int imu_idx, const mat4_t &ext) {
-  imu_exts[imu_idx] = extrinsics_t{param_counter++, ext};
+  imu_exts[imu_idx] = extrinsics_t{ext};
   problem->AddParameterBlock(imu_exts[imu_idx].param.data(), 7);
   problem->SetParameterization(imu_exts[imu_idx].param.data(), &pose_plus);
   nb_imus += 1;
@@ -124,7 +124,7 @@ void calib_data_t::add_grids(const int cam_idx, const aprilgrids_t &grids) {
 }
 
 pose_t &calib_data_t::add_pose(const timestamp_t &ts, const mat4_t &T) {
-  poses[ts] = pose_t{param_counter++, ts, T};
+  poses[ts] = pose_t{ts, T};
   problem->AddParameterBlock(poses[ts].param.data(), 7);
   problem->SetParameterization(poses[ts].param.data(), &pose_plus);
   return poses[ts];
@@ -274,10 +274,9 @@ camera_params_t calib_data_t::load_cam_params(const config_t &config,
     LOG_INFO("");
   }
 
-  return camera_params_t{param_counter++,
-                          cam_idx, cam_res.data(),
-                          proj_model, dist_model,
-                          proj_params, dist_params};
+  return camera_params_t{cam_idx, cam_res.data(),
+                         proj_model, dist_model,
+                         proj_params, dist_params};
 }
 
 imu_params_t calib_data_t::load_imu_params(const config_t &config,
@@ -333,7 +332,7 @@ extrinsics_t calib_data_t::load_cam_exts(const config_t &config,
     LOG_INFO("");
   }
 
-  return extrinsics_t{param_counter++, exts};
+  return extrinsics_t{exts};
 }
 
 int calib_data_t::nb_grids(const timestamp_t &ts) {

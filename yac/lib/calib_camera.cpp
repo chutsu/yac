@@ -23,7 +23,7 @@ void initialize_camera(const aprilgrids_t &grids,
   problem.AddParameterBlock(cam_params.data(), 8);
 
   // Extrinsics
-  extrinsics_t cam_exts{0};
+  extrinsics_t cam_exts{};
   problem.AddParameterBlock(cam_exts.data(), 7);
   problem.SetParameterization(cam_exts.data(), &pose_plus);
   problem.SetParameterBlockConstant(cam_exts.data());
@@ -44,7 +44,7 @@ void initialize_camera(const aprilgrids_t &grids,
     }
 
     // Add relative pose
-    poses[ts] = pose_t{0, ts, T_CiF_k};
+    poses[ts] = pose_t{ts, T_CiF_k};
     problem.AddParameterBlock(poses[ts].data(), 7);
     problem.SetParameterization(poses[ts].data(), &pose_plus);
 
@@ -154,7 +154,7 @@ void calib_camera_t::add_camera(const int cam_idx,
   }
 
   // Camera parameters
-  camera_params_t params(0, cam_idx, cam_res,
+  camera_params_t params(cam_idx, cam_res,
                          proj_model, dist_model,
                          proj_params, dist_params,
                          fixed);
@@ -178,7 +178,7 @@ void calib_camera_t::add_camera(const int cam_idx,
 void calib_camera_t::add_camera_extrinsics(const int cam_idx,
                                            const mat4_t &ext,
                                            const bool fixed) {
-  cam_exts[cam_idx] = extrinsics_t{cam_idx, ext};
+  cam_exts[cam_idx] = extrinsics_t{ext};
   problem->AddParameterBlock(cam_exts[cam_idx].data(), 7);
   problem->SetParameterization(cam_exts[cam_idx].data(), &pose_plus);
   if (cam_idx == 0 || fixed) {
@@ -189,7 +189,7 @@ void calib_camera_t::add_camera_extrinsics(const int cam_idx,
 pose_t &calib_camera_t::add_pose(const timestamp_t &ts,
                                  const mat4_t &T,
                                  const bool fixed) {
-  poses[ts] = pose_t{0, ts, T};
+  poses[ts] = pose_t{ts, T};
   problem->AddParameterBlock(poses[ts].data(), 7);
   problem->SetParameterization(poses[ts].data(), &pose_plus);
   if (fixed) {

@@ -28,7 +28,7 @@ int test_reproj_error() {
   const std::string dist_model = "radtan4";
   const vec4_t proj_params{458.654, 457.296, 367.215, 248.375};
   const vec4_t dist_params{-0.28340811, 0.07395907, 0.00019359, 1.76187114e-05};
-  camera_params_t cam_params{param_id++, cam_idx, cam_res,
+  camera_params_t cam_params{cam_idx, cam_res,
                              proj_model, dist_model,
                              proj_params, dist_params};
   const pinhole_radtan4_t cam_geom;
@@ -40,8 +40,8 @@ int test_reproj_error() {
 
   mat4_t T_C0Ci = I(4);
   mat4_t T_C0F = T_C0Ci * T_CiF;
-  pose_t cam_extrinsics{param_id++, grid.timestamp, T_C0Ci};
-  pose_t rel_pose{param_id++, grid.timestamp, T_C0F};
+  pose_t cam_extrinsics{grid.timestamp, T_C0Ci};
+  pose_t rel_pose{grid.timestamp, T_C0F};
 
   reproj_error_t err(&cam_geom,
                      cam_idx,

@@ -163,16 +163,9 @@ struct camera_params_t : param_t {
   std::string dist_model;
   int proj_size = 0;
   int dist_size = 0;
+  std::shared_ptr<camera_geometry_t> cam_geom;
 
   camera_params_t();
-  camera_params_t(const id_t id_,
-                  const int cam_index_,
-                  const int resolution_[2],
-                  const std::string proj_model_,
-                  const std::string dist_model_,
-                  const int proj_size_,
-                  const int dist_size_,
-                  const bool fixed_=false);
   camera_params_t(const id_t id_,
                   const int cam_index_,
                   const int resolution_[2],
@@ -183,15 +176,23 @@ struct camera_params_t : param_t {
                   const bool fixed_=false);
 
   int initialize(const aprilgrids_t &grids_);
-
-  vecx_t proj_params();
-  vecx_t dist_params();
   vecx_t proj_params() const;
   vecx_t dist_params() const;
-
   void plus(const vecx_t &dx);
   void minus(const vecx_t &dx);
   void perturb(const int i, const real_t step_size);
+
+  int project(const vec3_t &p_C, vec2_t &z_hat);
+  matx_t project_jacobian(const vec3_t &p_C);
+  matx_t params_jacobian(const vec3_t &p_C);
+  int back_project(const vec2_t &x, vec3_t &ray);
+  vec2_t undistort(const vec2_t &z);
+
+  static camera_params_t init(const int cam_index_,
+                              const int resolution_[2],
+                              const std::string proj_model_,
+                              const std::string dist_model_,
+                              const bool fixed_=false);
 };
 
 struct sb_params_t : param_t {

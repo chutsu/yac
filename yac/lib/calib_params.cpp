@@ -363,28 +363,6 @@ camera_params_t::camera_params_t(const id_t id_,
                                  const int resolution_[2],
                                  const std::string proj_model_,
                                  const std::string dist_model_,
-                                 const int proj_size_,
-                                 const int dist_size_,
-                                 const bool fixed_)
-    : param_t{"camera_params_t", id_,
-              proj_size_+ dist_size_,
-              proj_size_+ dist_size_,
-              fixed_},
-      cam_index{cam_index_},
-      resolution{resolution_[0], resolution_[1]},
-      proj_model{proj_model_},
-      dist_model{dist_model_},
-      proj_size{proj_size_},
-      dist_size{dist_size_} {
-  param.resize(proj_size + dist_size);
-  param = zeros(proj_size + dist_size);
-}
-
-camera_params_t::camera_params_t(const id_t id_,
-                                 const int cam_index_,
-                                 const int resolution_[2],
-                                 const std::string proj_model_,
-                                 const std::string dist_model_,
                                  const vecx_t &proj_params_,
                                  const vecx_t &dist_params_,
                                  const bool fixed_)
@@ -402,6 +380,14 @@ camera_params_t::camera_params_t(const id_t id_,
   param.resize(proj_size + dist_size);
   param.head(proj_size) = proj_params_;
   param.tail(dist_size) = dist_params_;
+
+  if (proj_model_ == "pinhole" && dist_model_ == "radtan4") {
+    cam_geom = std::make_shared<pinhole_radtan4_t>();
+  } else if (proj_model_ == "pinhole" && dist_model_ == "equi4") {
+    cam_geom = std::make_shared<pinhole_equi4_t>();
+  } else {
+    FATAL("Not supported [%s-%s]", proj_model_.c_str(), dist_model_.c_str());
+  }
 }
 
 int camera_params_t::initialize(const aprilgrids_t &grids) {
@@ -427,14 +413,6 @@ int camera_params_t::initialize(const aprilgrids_t &grids) {
   return initialized;
 }
 
-vecx_t camera_params_t::proj_params() {
-  return param.head(proj_size);
-}
-
-vecx_t camera_params_t::dist_params() {
-  return param.tail(dist_size);
-}
-
 vecx_t camera_params_t::proj_params() const {
   return param.head(proj_size);
 }
@@ -456,6 +434,57 @@ void camera_params_t::minus(const vecx_t &dx) {
 void camera_params_t::perturb(const int i, const real_t step_size) {
   assert(ok);
   param(i) += step_size;
+}
+
+int camera_params_t::project(const vec3_t &p_C, vec2_t &z_hat) {
+  return cam_geom->project(resolution, param, p_C, z_hat);
+}
+
+matx_t camera_params_t::project_jacobian(const vec3_t &p_C) {
+  return cam_geom->project_jacobian(param, p_C);
+}
+
+matx_t camera_params_t::params_jacobian(const vec3_t &p_C) {
+  return cam_geom->project_jacobian(param, p_C);
+}
+
+int camera_params_t::back_project(const vec2_t &x, vec3_t &ray) {
+  return cam_geom->back_project(param, x, ray);
+}
+
+vec2_t camera_params_t::undistort(const vec2_t &z) {
+  return cam_geom->undistort(param, z);
+}
+
+camera_params_t camera_params_t::init(const int cam_index_,
+                                      const int resolution_[2],
+                                      const std::string proj_model_,
+                                      const std::string dist_model_,
+                                      const bool fixed_) {
+  // Projection params
+  vecx_t proj_params;
+  if (proj_model_ == "pinhole") {
+    const double fx = pinhole_focal(resolution_[0], 90);
+    const double fy = pinhole_focal(resolution_[0], 90);
+    const double cx = resolution_[0] / 2.0;
+    const double cy = resolution_[1] / 2.0;
+    proj_params.resize(4);
+    proj_params << fx, fy, cx, cy;
+  } else {
+    FATAL("Unsupported [%s]!", proj_model_.c_str());
+  }
+
+  // Distortion params
+  vecx_t dist_params;
+  if (dist_model_ == "radtan4" || dist_model_ == "equi4") {
+    dist_params = zeros(4, 1);
+  } else {
+    FATAL("Unsupported [%s]!", dist_model_.c_str());
+  }
+
+  return camera_params_t{0, cam_index_, resolution_,
+                         proj_model_, dist_model_,
+                         proj_params, dist_params};
 }
 
 /****************************** sb_params_t ***********************************/

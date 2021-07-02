@@ -50,6 +50,7 @@ ADD_LIBRARY(
   # lib/calib_mono.cpp
   # lib/calib_nbv.cpp
   lib/calib_params.cpp
+  lib/camchain.cpp
   # lib/calib_stereo.cpp
   # lib/calib_vi.cpp
 )

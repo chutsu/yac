@@ -12,6 +12,9 @@
 
 namespace yac {
 
+/** Camera Data **/
+typedef std::map<timestamp_t, std::map<int, aprilgrid_t>> camera_data_t;
+
 /* Calibration target. */
 struct calib_target_t {
   std::string target_type;

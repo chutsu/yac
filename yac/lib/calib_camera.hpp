@@ -15,8 +15,7 @@ namespace yac {
  */
 void initialize_camera(const aprilgrids_t &grids,
                        const camera_geometry_t *cam_geom,
-                       camera_params_t &cam_params,
-                       const bool verbose=false);
+                       camera_params_t &cam_params, const bool verbose = false);
 
 /** Reprojection Error */
 struct reproj_error_t : ceres::CostFunction {
@@ -32,15 +31,11 @@ struct reproj_error_t : ceres::CostFunction {
   const mat2_t info;
   const mat2_t sqrt_info;
 
-  reproj_error_t(const camera_params_t &cam_params_,
-                 const int tag_id_,
-                 const int corner_idx_,
-                 const vec3_t &r_FFi_,
-                 const vec2_t &z_,
+  reproj_error_t(const camera_params_t &cam_params_, const int tag_id_,
+                 const int corner_idx_, const vec3_t &r_FFi_, const vec2_t &z_,
                  const mat2_t &covar_);
 
-  bool Evaluate(double const * const *params,
-                double *residuals,
+  bool Evaluate(double const *const *params, double *residuals,
                 double **jacobians) const;
 };
 
@@ -54,14 +49,9 @@ struct calib_view_t {
   std::vector<ceres::ResidualBlockId> res_ids;
   std::vector<reproj_error_t *> cost_fns;
 
-  calib_view_t(const aprilgrid_t &grid_,
-               const camera_params_t &cam_,
-               const pose_t &T_C0F_,
-               const pose_t &T_C0Ci_)
-    : grid{grid_},
-      cam{cam_},
-      T_C0F{T_C0F_},
-      T_C0Ci{T_C0Ci_} {}
+  calib_view_t(const aprilgrid_t &grid_, const camera_params_t &cam_,
+               const pose_t &T_C0F_, const pose_t &T_C0Ci_)
+      : grid{grid_}, cam{cam_}, T_C0F{T_C0F_}, T_C0Ci{T_C0Ci_} {}
 };
 
 /** Camera Calibrator **/
@@ -94,17 +84,13 @@ struct calib_camera_t {
   mat4_t get_camera_extrinsics(const int cam_idx) const;
   void add_calib_target(const calib_target_t &target_);
   void add_camera_data(const int cam_idx, const aprilgrids_t &grids);
-  void add_camera(const int cam_idx,
-                  const int cam_res[2],
-                  const std::string &proj_model,
-                  const std::string &dist_model,
-                  const bool fixed=false);
-  void add_camera_extrinsics(const int cam_idx,
-                             const mat4_t &ext=I(4),
-                             const bool fixed=false);
-  pose_t &add_pose(const timestamp_t &ts,
-                   const mat4_t &T,
-                   const bool fixed=false);
+  void add_camera(const int cam_idx, const int cam_res[2],
+                  const std::string &proj_model, const std::string &dist_model,
+                  const bool fixed = false);
+  void add_camera_extrinsics(const int cam_idx, const mat4_t &ext = I(4),
+                             const bool fixed = false);
+  pose_t &add_pose(const timestamp_t &ts, const mat4_t &T,
+                   const bool fixed = false);
   void _initialize_intrinsics();
   void _initialize_extrinsics();
   void _setup_problem();

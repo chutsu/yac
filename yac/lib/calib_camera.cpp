@@ -63,9 +63,8 @@ void initialize_camera(const aprilgrids_t &grids,
       const vec2_t z = keypoints[i];
       const vec3_t r_FFi = object_points[i];
 
-      auto cost_fn = new reproj_error_t{cam_params,
-                                        tag_id, corner_idx,
-                                        r_FFi, z, covar};
+      auto cost_fn =
+          new reproj_error_t{cam_params, tag_id, corner_idx, r_FFi, z, covar};
       auto res_id = problem.AddResidualBlock(cost_fn,
                                              NULL,
                                              poses[ts].data(),
@@ -96,22 +95,17 @@ reproj_error_t::reproj_error_t(const camera_params_t &cam_params_,
                                const vec3_t &r_FFi_,
                                const vec2_t &z_,
                                const mat2_t &covar_)
-    : cam_params{cam_params_},
-      tag_id{tag_id_},
-      corner_idx{corner_idx_},
-      r_FFi{r_FFi_},
-      z{z_},
-      covar{covar_},
-      info{covar.inverse()},
-      sqrt_info{info.llt().matrixL().transpose()} {
+    : cam_params{cam_params_}, tag_id{tag_id_},
+      corner_idx{corner_idx_}, r_FFi{r_FFi_}, z{z_}, covar{covar_},
+      info{covar.inverse()}, sqrt_info{info.llt().matrixL().transpose()} {
   set_num_residuals(2);
   auto block_sizes = mutable_parameter_block_sizes();
-  block_sizes->push_back(7);  // camera-fiducial relative pose
-  block_sizes->push_back(7);  // camera-camera extrinsics
-  block_sizes->push_back(8);  // camera parameters
+  block_sizes->push_back(7); // camera-fiducial relative pose
+  block_sizes->push_back(7); // camera-camera extrinsics
+  block_sizes->push_back(8); // camera parameters
 }
 
-bool reproj_error_t::Evaluate(double const * const *params,
+bool reproj_error_t::Evaluate(double const *const *params,
                               double *residuals,
                               double **jacobians) const {
   // Map parameters out
@@ -165,7 +159,8 @@ bool reproj_error_t::Evaluate(double const * const *params,
         const mat3_t C_C0Ci = C_CiC0.transpose();
         const vec3_t r_CiFi = tf_point(T_CiC0 * T_C0F, r_FFi);
         J.block(0, 0, 2, 3) = -1 * Jh_weighted * C_CiC0;
-        J.block(0, 3, 2, 3) = -1 * Jh_weighted * C_CiC0 * -skew(C_C0Ci * r_CiFi);
+        J.block(0, 3, 2, 3) =
+            -1 * Jh_weighted * C_CiC0 * -skew(C_C0Ci * r_CiFi);
       }
     }
 
@@ -192,13 +187,9 @@ calib_camera_t::calib_camera_t() {
   problem = new ceres::Problem(prob_options);
 }
 
-calib_camera_t::~calib_camera_t() {
-  delete problem;
-}
+calib_camera_t::~calib_camera_t() { delete problem; }
 
-int calib_camera_t::nb_cams() const {
-  return cam_params.size();
-}
+int calib_camera_t::nb_cams() const { return cam_params.size(); }
 
 aprilgrids_t calib_camera_t::get_cam_data(const int cam_idx) const {
   aprilgrids_t grids;
@@ -216,7 +207,8 @@ void calib_camera_t::add_calib_target(const calib_target_t &target_) {
   target = target_;
 }
 
-void calib_camera_t::add_camera_data(const int cam_idx, const aprilgrids_t &grids) {
+void calib_camera_t::add_camera_data(const int cam_idx,
+                                     const aprilgrids_t &grids) {
   for (const auto &grid : grids) {
     const auto ts = grid.timestamp;
     timestamps.insert(ts);
@@ -251,9 +243,12 @@ void calib_camera_t::add_camera(const int cam_idx,
   }
 
   // Camera parameters
-  camera_params_t params(cam_idx, cam_res,
-                         proj_model, dist_model,
-                         proj_params, dist_params,
+  camera_params_t params(cam_idx,
+                         cam_res,
+                         proj_model,
+                         dist_model,
+                         proj_params,
+                         dist_params,
                          fixed);
   cam_params[cam_idx] = params;
 
@@ -324,8 +319,8 @@ void calib_camera_t::_initialize_extrinsics() {
 void calib_camera_t::_setup_problem() {
   mat2_t covar = I(2);
 
-  for (const auto &ts: timestamps) {
-    for (const auto &kv: cam_data[ts]) {
+  for (const auto &ts : timestamps) {
+    for (const auto &kv : cam_data[ts]) {
       const auto cam_idx = kv.first;
       const auto &grid = kv.second;
       if (grid.detected == false) {
@@ -362,8 +357,11 @@ void calib_camera_t::_setup_problem() {
         const vec3_t r_FFi = pts[i];
 
         auto cost_fn = new reproj_error_t{cam_params[cam_idx],
-                                          tag_id, corner_idx,
-                                          r_FFi, z, covar};
+                                          tag_id,
+                                          corner_idx,
+                                          r_FFi,
+                                          z,
+                                          covar};
         auto res_id = problem->AddResidualBlock(cost_fn,
                                                 NULL,
                                                 poses[ts].data(),

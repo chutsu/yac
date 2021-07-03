@@ -2,8 +2,7 @@
 
 namespace yac {
 
-void calib_vi_init_poses(const calib_target_t &target,
-                         const mat4_t &T_FO,
+void calib_vi_init_poses(const calib_target_t &target, const mat4_t &T_FO,
                          std::deque<mat4_t> &poses) {
   // Tag width
   const double tag_rows = target.tag_rows;

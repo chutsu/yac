@@ -4,21 +4,18 @@ namespace yac {
 
 aprilgrid_t::aprilgrid_t() {}
 
-aprilgrid_t::aprilgrid_t(const std::string &csv_path)
-      : init{true} {
-    load(csv_path);
-  }
+aprilgrid_t::aprilgrid_t(const std::string &csv_path) : init{true} {
+  load(csv_path);
+}
 
 aprilgrid_t::aprilgrid_t(const timestamp_t &timestamp,
-              const int tag_rows,
-              const int tag_cols,
-              const double tag_size,
-              const double tag_spacing)
-      : init{true},
-        timestamp{timestamp},
-        tag_rows{tag_rows}, tag_cols{tag_cols},
-        tag_size{tag_size}, tag_spacing{tag_spacing},
-        data{zeros(tag_rows * tag_cols * 4, 6)} {}
+                         const int tag_rows,
+                         const int tag_cols,
+                         const double tag_size,
+                         const double tag_spacing)
+    : init{true}, timestamp{timestamp}, tag_rows{tag_rows}, tag_cols{tag_cols},
+      tag_size{tag_size},
+      tag_spacing{tag_spacing}, data{zeros(tag_rows * tag_cols * 4, 6)} {}
 
 aprilgrid_t::~aprilgrid_t() {}
 
@@ -49,12 +46,12 @@ vec2_t aprilgrid_t::center() const {
   assert(init == true);
 
   double x = ((tag_cols / 2.0) * tag_size);
-  x +=  (((tag_cols / 2.0) - 1) * tag_spacing * tag_size);
-  x +=  (0.5 * tag_spacing * tag_size);
+  x += (((tag_cols / 2.0) - 1) * tag_spacing * tag_size);
+  x += (0.5 * tag_spacing * tag_size);
 
   double y = ((tag_rows / 2.0) * tag_size);
-  y +=  (((tag_rows / 2.0) - 1) * tag_spacing * tag_size);
-  y +=  (0.5 * tag_spacing * tag_size);
+  y += (((tag_rows / 2.0) - 1) * tag_spacing * tag_size);
+  y += (0.5 * tag_spacing * tag_size);
 
   return vec2_t{x, y};
 }
@@ -88,19 +85,21 @@ vec3_t aprilgrid_t::object_point(const int tag_id, const int corner_idx) const {
   // Calculate the x and y of each corner
   vec3_t object_point;
   switch (corner_idx) {
-  case 0: // Bottom left
-    object_point = vec3_t(x, y, 0);
-    break;
-  case 1: // Bottom right
-    object_point = vec3_t(x + tag_size, y, 0);
-    break;
-  case 2: // Top right
-    object_point = vec3_t(x + tag_size, y + tag_size, 0);
-    break;
-  case 3: // Top left
-    object_point = vec3_t(x, y + tag_size, 0);
-    break;
-  default: FATAL("Incorrect corner id [%d]!", corner_idx); break;
+    case 0: // Bottom left
+      object_point = vec3_t(x, y, 0);
+      break;
+    case 1: // Bottom right
+      object_point = vec3_t(x + tag_size, y, 0);
+      break;
+    case 2: // Top right
+      object_point = vec3_t(x + tag_size, y + tag_size, 0);
+      break;
+    case 3: // Top left
+      object_point = vec3_t(x, y + tag_size, 0);
+      break;
+    default:
+      FATAL("Incorrect corner id [%d]!", corner_idx);
+      break;
   }
 
   return object_point;
@@ -127,7 +126,8 @@ vec2_t aprilgrid_t::keypoint(const int tag_id, const int corner_idx) const {
   }
 
   FATAL("Keypoint [tag_id: %d, corner: %d] does not exist!",
-        tag_id, corner_idx);
+        tag_id,
+        corner_idx);
 }
 
 vec2s_t aprilgrid_t::keypoints() const {
@@ -175,7 +175,9 @@ std::vector<int> aprilgrid_t::tag_ids() const {
   return std::vector<int>{tag_ids_.begin(), tag_ids_.end()};
 }
 
-void aprilgrid_t::add(const int tag_id, const int corner_idx, const vec2_t &kp) {
+void aprilgrid_t::add(const int tag_id,
+                      const int corner_idx,
+                      const vec2_t &kp) {
   assert(init == true);
 
   // Set AprilGrid as detected
@@ -357,23 +359,22 @@ int aprilgrid_t::load(const std::string &data_path) {
     int tag_id = 0;
     int corner_idx = 0;
     int retval = fscanf(
-      // File pointer
-      fp,
-      // String format
-      str_format.c_str(),
-      &timestamp,
-      &tag_rows,
-      &tag_cols,
-      &tag_size,
-      &tag_spacing,
-      &kp_x,
-      &kp_y,
-      &p_x,
-      &p_y,
-      &p_z,
-      &tag_id,
-      &corner_idx
-    );
+        // File pointer
+        fp,
+        // String format
+        str_format.c_str(),
+        &timestamp,
+        &tag_rows,
+        &tag_cols,
+        &tag_size,
+        &tag_spacing,
+        &kp_x,
+        &kp_y,
+        &p_x,
+        &p_y,
+        &p_z,
+        &tag_id,
+        &corner_idx);
     if (retval != 12) {
       LOG_INFO("Failed to parse line in [%s:%d]", data_path.c_str(), i);
       return -1;
@@ -414,25 +415,21 @@ int aprilgrid_t::equal(const aprilgrid_t &grid1) const {
   bool detected_ok = (this->detected == grid1.detected);
   bool nb_detections_ok = (this->nb_detections == grid1.nb_detections);
 
-  std::vector<bool> checklist = {
-    timestamp_ok,
-    tag_rows_ok,
-    tag_cols_ok,
-    tag_size_ok,
-    tag_spacing_ok,
-    detected_ok,
-    nb_detections_ok
-  };
+  std::vector<bool> checklist = {timestamp_ok,
+                                 tag_rows_ok,
+                                 tag_cols_ok,
+                                 tag_size_ok,
+                                 tag_spacing_ok,
+                                 detected_ok,
+                                 nb_detections_ok};
 
-  std::vector<std::string> checklist_str = {
-    "timestamp",
-    "tag_rows",
-    "tag_cols",
-    "tag_size",
-    "tag_spacing",
-    "detected",
-    "nb_detections"
-  };
+  std::vector<std::string> checklist_str = {"timestamp",
+                                            "tag_rows",
+                                            "tag_cols",
+                                            "tag_size",
+                                            "tag_spacing",
+                                            "detected",
+                                            "nb_detections"};
 
   // Check
   for (size_t i = 0; i < checklist.size(); i++) {
@@ -458,8 +455,10 @@ void aprilgrid_t::intersect(aprilgrid_t &grid1) {
   std::vector<int> grid0_rows;
   std::vector<int> grid1_rows;
   for (int i = 0; i < (tag_rows * tag_cols * 4); i++) {
-    if (data(i, 0)) grid0_rows.push_back(i);
-    if (grid1.data(i, 0)) grid1_rows.push_back(i);
+    if (data(i, 0))
+      grid0_rows.push_back(i);
+    if (grid1.data(i, 0))
+      grid1_rows.push_back(i);
   }
 
   // For rows that are different set to zero (remove)
@@ -528,7 +527,7 @@ void aprilgrid_t::sample(const size_t n,
 
   std::set<std::string> sample_list;
   auto tag_ids_ = tag_ids();
-  while (sample_tag_ids.size() < std::min((size_t) nb_detections, n)) {
+  while (sample_tag_ids.size() < std::min((size_t)nb_detections, n)) {
     const auto tag_id = tag_ids_[randi(0, tag_ids_.size())];
     const auto corner_idx = randi(0, 4);
 
@@ -572,7 +571,9 @@ void aprilgrid_t::common_measurements(const aprilgrid_t &grid_i,
       corner_indicies.push_back(i % 4);
       grid_i_keypoints.emplace_back(grid_i.data(i, 1), grid_i.data(i, 2));
       grid_j_keypoints.emplace_back(grid_j.data(i, 1), grid_j.data(i, 2));
-      object_points.emplace_back(grid_i.data(i, 3), grid_i.data(i, 4), grid_i.data(i, 5));
+      object_points.emplace_back(grid_i.data(i, 3),
+                                 grid_i.data(i, 4),
+                                 grid_i.data(i, 5));
     }
   }
 }

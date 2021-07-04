@@ -77,8 +77,8 @@ struct aprilgrid_t {
   void remove(const int tag_id);
 
   cv::Mat draw(const cv::Mat &image,
-               const int marker_size=2,
-               const cv::Scalar &color=cv::Scalar{0, 0, 255}) const;
+               const int marker_size = 2,
+               const cv::Scalar &color = cv::Scalar{0, 0, 255}) const;
 
   void imshow(const std::string &title, const cv::Mat &image) const;
 
@@ -170,25 +170,21 @@ struct aprilgrid_detector_t {
                        const int tag_cols_,
                        const double tag_size_,
                        const double tag_spacing_)
-      : tag_rows{tag_rows_},
-        tag_cols{tag_cols_},
-        tag_size{tag_size_},
+      : tag_rows{tag_rows_}, tag_cols{tag_cols_}, tag_size{tag_size_},
         tag_spacing{tag_spacing_} {
     apriltag_detector_add_family(det_v3, tf);
     det_v3->quad_decimate = 1.0;
-    det_v3->quad_sigma = 0.0;  // Blur
+    det_v3->quad_sigma = 0.0; // Blur
     det_v3->nthreads = 2;
     det_v3->debug = 0;
     det_v3->refine_edges = 1;
   }
 
-  ~aprilgrid_detector_t() {
-    apriltag_detector_destroy(det_v3);
-  }
+  ~aprilgrid_detector_t() { apriltag_detector_destroy(det_v3); }
 
   void filter_tags(const cv::Mat &image,
                    std::vector<AprilTags::TagDetection> &tags,
-                   const bool verbose=false) {
+                   const bool verbose = false) {
     const double min_border_dist = 4.0;
     const double max_subpix_disp = sqrt(1.5);
 
@@ -202,9 +198,9 @@ struct aprilgrid_detector_t {
       // Remove if too close to boundaries of image
       for (int j = 0; j < 4; j++) {
         remove |= iter->p[j].first < min_border_dist;
-        remove |= iter->p[j].first > (float) (image.cols) - min_border_dist;
+        remove |= iter->p[j].first > (float)(image.cols) - min_border_dist;
         remove |= iter->p[j].second < min_border_dist;
-        remove |= iter->p[j].second > (float) (image.rows) - min_border_dist;
+        remove |= iter->p[j].second > (float)(image.rows) - min_border_dist;
       }
 
       // Remove tags that are flagged as bad
@@ -218,8 +214,10 @@ struct aprilgrid_detector_t {
         std::vector<cv::Point2f> corners_after;
 
         std::vector<cv::Point2f> corners;
-        corners.emplace_back(iter->p[0].first, iter->p[0].second); // Bottom left
-        corners.emplace_back(iter->p[1].first, iter->p[1].second); // Bottom right
+        corners.emplace_back(iter->p[0].first,
+                             iter->p[0].second); // Bottom left
+        corners.emplace_back(iter->p[1].first,
+                             iter->p[1].second); // Bottom right
         corners.emplace_back(iter->p[2].first, iter->p[2].second); // Top right
         corners.emplace_back(iter->p[3].first, iter->p[3].second); // Top left
 
@@ -230,7 +228,9 @@ struct aprilgrid_detector_t {
 
         const cv::Size win_size(2, 2);
         const cv::Size zero_zone(-1, -1);
-        const cv::TermCriteria criteria(CV_TERMCRIT_EPS + CV_TERMCRIT_ITER, 30, 0.1);
+        const cv::TermCriteria criteria(CV_TERMCRIT_EPS + CV_TERMCRIT_ITER,
+                                        30,
+                                        0.1);
         cv::cornerSubPix(image, corners, win_size, zero_zone, criteria);
 
         corners_after.push_back(corners[0]);
@@ -251,10 +251,14 @@ struct aprilgrid_detector_t {
           }
         }
 
-        iter->p[0].first = corners[0].x; iter->p[0].second = corners[0].y;
-        iter->p[1].first = corners[1].x; iter->p[1].second = corners[1].y;
-        iter->p[2].first = corners[2].x; iter->p[2].second = corners[2].y;
-        iter->p[3].first = corners[3].x; iter->p[3].second = corners[3].y;
+        iter->p[0].first = corners[0].x;
+        iter->p[0].second = corners[0].y;
+        iter->p[1].first = corners[1].x;
+        iter->p[1].second = corners[1].y;
+        iter->p[2].first = corners[2].x;
+        iter->p[2].second = corners[2].y;
+        iter->p[3].first = corners[3].x;
+        iter->p[3].second = corners[3].y;
 
         // cv::Mat image_rgb = gray2rgb(image);
         // for (const auto &corner : corners_before) {
@@ -341,7 +345,9 @@ struct aprilgrid_detector_t {
 
     const cv::Size win_size(2, 2);
     const cv::Size zero_zone(-1, -1);
-    const cv::TermCriteria criteria(CV_TERMCRIT_EPS + CV_TERMCRIT_ITER, 30, 0.1);
+    const cv::TermCriteria criteria(CV_TERMCRIT_EPS + CV_TERMCRIT_ITER,
+                                    30,
+                                    0.1);
     cv::cornerSubPix(image, corners_after, win_size, zero_zone, criteria);
 
     for (size_t i = 0; i < nb_measurements; i++) {
@@ -356,7 +362,7 @@ struct aprilgrid_detector_t {
       const vec2_t kp{p_after.x, p_after.y};
       // const double var = blur_score(image, kp);
 
-      if (dist < max_subpix_disp/*  && var > blur_threshold */) {
+      if (dist < max_subpix_disp /*  && var > blur_threshold */) {
         filtered_tag_ids.push_back(tag_ids[i]);
         filtered_corner_indicies.push_back(corner_indicies[i]);
         filtered_keypoints.emplace_back(p_after.x, p_after.y);
@@ -370,7 +376,7 @@ struct aprilgrid_detector_t {
 
   aprilgrid_t detect(const timestamp_t ts,
                      const cv::Mat &image,
-                     const bool use_v3=false) {
+                     const bool use_v3 = false) {
     aprilgrid_t grid{ts, tag_rows, tag_cols, tag_size, tag_spacing};
 
     // Convert image to gray-scale
@@ -412,11 +418,10 @@ struct aprilgrid_detector_t {
       // -- Extract tags
       std::vector<AprilTags::TagDetection> tags = det.extractTags(image_gray);
       // -- Sort by tag_id (inorder)
-      std::sort(tags.begin(), tags.end(),
+      std::sort(tags.begin(),
+                tags.end(),
                 [](const AprilTags::TagDetection &a,
-                   const AprilTags::TagDetection &b) {
-        return (a.id < b.id);
-      });
+                   const AprilTags::TagDetection &b) { return (a.id < b.id); });
       // -- Setup data
       const double min_border_dist = 4.0;
       const float img_rows = image_gray.rows;

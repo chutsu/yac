@@ -146,7 +146,6 @@ struct camera_params_t : param_t {
   std::string dist_model;
   int proj_size = 0;
   int dist_size = 0;
-  std::shared_ptr<camera_geometry_t> cam_geom;
 
   camera_params_t() = default;
   camera_params_t(const int cam_index_,
@@ -159,12 +158,6 @@ struct camera_params_t : param_t {
 
   vecx_t proj_params() const;
   vecx_t dist_params() const;
-
-  int project(const vec3_t &p_C, vec2_t &z_hat) const;
-  matx_t project_jacobian(const vec3_t &p_C) const;
-  matx_t params_jacobian(const vec3_t &p_C) const;
-  int back_project(const vec2_t &x, vec3_t &ray) const;
-  vec2_t undistort(const vec2_t &z) const;
 
   static camera_params_t init(const int cam_index_,
                               const int resolution_[2],

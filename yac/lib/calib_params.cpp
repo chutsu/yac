@@ -5,39 +5,29 @@ namespace yac {
 /******************************** param_t *************************************/
 
 param_t::param_t(const std::string &type_,
-        const timestamp_t &ts_,
-        const long local_size_,
-        const long global_size_,
-        const bool fixed_)
-  : fixed{fixed_},
-    type{type_},
-    ts{ts_},
-    local_size{local_size_},
-    global_size{global_size_},
-    param{zeros(global_size_, 1)} {}
+                 const timestamp_t &ts_,
+                 const long local_size_,
+                 const long global_size_,
+                 const bool fixed_)
+    : fixed{fixed_}, type{type_}, ts{ts_}, local_size{local_size_},
+      global_size{global_size_}, param{zeros(global_size_, 1)} {}
 
 param_t::param_t(const std::string &type_,
                  const long local_size_,
                  const long global_size_,
                  const bool fixed_)
-  : param_t{type_, 0, local_size_, global_size_, fixed_} {}
+    : param_t{type_, 0, local_size_, global_size_, fixed_} {}
 
-double *param_t::data() {
-  return param.data();
-}
+double *param_t::data() { return param.data(); }
 
 void param_t::mark_marginalize() {
   marginalize = true;
   type = "marg_" + type;
 }
 
-void param_t::plus(const vecx_t &dx) {
-  param += dx;
-}
+void param_t::plus(const vecx_t &dx) { param += dx; }
 
-void param_t::minus(const vecx_t &dx) {
-  param -= dx;
-}
+void param_t::minus(const vecx_t &dx) { param -= dx; }
 
 void param_t::perturb(const int i, const real_t step_size) {
   param(i) += step_size;
@@ -69,13 +59,9 @@ quat_t pose_t::rot() const {
   return quat_t{param[6], param[3], param[4], param[5]};
 }
 
-vec3_t pose_t::trans() const {
-  return vec3_t{param[0], param[1], param[2]};
-}
+vec3_t pose_t::trans() const { return vec3_t{param[0], param[1], param[2]}; }
 
-mat4_t pose_t::tf() const {
-  return yac::tf(rot(), trans());
-}
+mat4_t pose_t::tf() const { return yac::tf(rot(), trans()); }
 
 quat_t pose_t::rot() { return static_cast<const pose_t &>(*this).rot(); }
 vec3_t pose_t::trans() { return static_cast<const pose_t &>(*this).trans(); }
@@ -348,52 +334,17 @@ camera_params_t::camera_params_t(const int cam_index_,
               proj_params_.size() + dist_params_.size(),
               proj_params_.size() + dist_params_.size(),
               fixed_},
-      cam_index{cam_index_},
-      resolution{resolution_[0], resolution_[1]},
-      proj_model{proj_model_},
-      dist_model{dist_model_},
-      proj_size{(int) proj_params_.size()},
-      dist_size{(int) dist_params_.size()} {
+      cam_index{cam_index_}, resolution{resolution_[0], resolution_[1]},
+      proj_model{proj_model_}, dist_model{dist_model_},
+      proj_size{(int)proj_params_.size()}, dist_size{(int)dist_params_.size()} {
   param.resize(proj_size + dist_size);
   param.head(proj_size) = proj_params_;
   param.tail(dist_size) = dist_params_;
-
-  if (proj_model_ == "pinhole" && dist_model_ == "radtan4") {
-    cam_geom = std::make_shared<pinhole_radtan4_t>();
-  } else if (proj_model_ == "pinhole" && dist_model_ == "equi4") {
-    cam_geom = std::make_shared<pinhole_equi4_t>();
-  } else {
-    FATAL("Not supported [%s-%s]", proj_model_.c_str(), dist_model_.c_str());
-  }
 }
 
-vecx_t camera_params_t::proj_params() const {
-  return param.head(proj_size);
-}
+vecx_t camera_params_t::proj_params() const { return param.head(proj_size); }
 
-vecx_t camera_params_t::dist_params() const {
-  return param.tail(dist_size);
-}
-
-int camera_params_t::project(const vec3_t &p_C, vec2_t &z_hat) const {
-  return cam_geom->project(resolution, param, p_C, z_hat);
-}
-
-matx_t camera_params_t::project_jacobian(const vec3_t &p_C) const {
-  return cam_geom->project_jacobian(param, p_C);
-}
-
-matx_t camera_params_t::params_jacobian(const vec3_t &p_C) const {
-  return cam_geom->project_jacobian(param, p_C);
-}
-
-int camera_params_t::back_project(const vec2_t &x, vec3_t &ray) const {
-  return cam_geom->back_project(param, x, ray);
-}
-
-vec2_t camera_params_t::undistort(const vec2_t &z) const {
-  return cam_geom->undistort(param, z);
-}
+vecx_t camera_params_t::dist_params() const { return param.tail(dist_size); }
 
 camera_params_t camera_params_t::init(const int cam_index_,
                                       const int resolution_[2],
@@ -421,9 +372,12 @@ camera_params_t camera_params_t::init(const int cam_index_,
     FATAL("Unsupported [%s]!", dist_model_.c_str());
   }
 
-  return camera_params_t{cam_index_, resolution_,
-                         proj_model_, dist_model_,
-                         proj_params, dist_params};
+  return camera_params_t{cam_index_,
+                         resolution_,
+                         proj_model_,
+                         dist_model_,
+                         proj_params,
+                         dist_params};
 }
 
 /****************************** sb_params_t ***********************************/
@@ -433,14 +387,14 @@ sb_params_t::sb_params_t(const timestamp_t &ts_,
                          const vec3_t &ba_,
                          const vec3_t &bg_,
                          const bool fixed_)
-  : param_t{"sb_params_t", ts_, 9, 9, fixed_} {
+    : param_t{"sb_params_t", ts_, 9, 9, fixed_} {
   param << v_, ba_, bg_;
 }
 
 sb_params_t::sb_params_t(const timestamp_t &ts_,
                          const vec_t<9> &sb_,
                          const bool fixed_)
-  : param_t{"sb_params_t", ts_, 9, 9, fixed_} {
+    : param_t{"sb_params_t", ts_, 9, 9, fixed_} {
   param = sb_;
 }
 

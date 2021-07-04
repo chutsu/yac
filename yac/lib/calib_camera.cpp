@@ -2,100 +2,18 @@
 
 namespace yac {
 
-/********************************* UTILS **************************************/
-
-void initialize_camera(const aprilgrids_t &grids,
-                       const camera_geometry_t *cam_geom,
-                       camera_params_t &cam_params,
-                       const bool verbose) {
-  // Problem options
-  ceres::Problem::Options prob_options;
-  prob_options.local_parameterization_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
-  prob_options.cost_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
-  prob_options.enable_fast_removal = true;
-
-  // Problem
-  ceres::Problem problem{prob_options};
-  mat2_t covar = I(2);
-  PoseLocalParameterization pose_plus;
-
-  // Camera
-  const auto cam_res = cam_params.resolution;
-  problem.AddParameterBlock(cam_params.data(), 8);
-
-  // Extrinsics
-  extrinsics_t cam_exts{};
-  problem.AddParameterBlock(cam_exts.data(), 7);
-  problem.SetParameterization(cam_exts.data(), &pose_plus);
-  problem.SetParameterBlockConstant(cam_exts.data());
-
-  // Poses
-  std::map<timestamp_t, pose_t> poses;
-
-  for (const auto &grid : grids) {
-    const auto ts = grid.timestamp;
-    if (grid.detected == false) {
-      continue;
-    }
-
-    // Estimate relative pose
-    mat4_t T_CiF_k;
-    if (grid.estimate(cam_geom, cam_res, cam_params.param, T_CiF_k) != 0) {
-      FATAL("Failed to estimate relative pose!");
-    }
-
-    // Add relative pose
-    poses[ts] = pose_t{ts, T_CiF_k};
-    problem.AddParameterBlock(poses[ts].data(), 7);
-    problem.SetParameterization(poses[ts].data(), &pose_plus);
-
-    // Add reprojection factors to problem
-    std::vector<int> tag_ids;
-    std::vector<int> corner_indicies;
-    vec2s_t keypoints;
-    vec3s_t object_points;
-    grid.get_measurements(tag_ids, corner_indicies, keypoints, object_points);
-
-    for (size_t i = 0; i < tag_ids.size(); i++) {
-      const int tag_id = tag_ids[i];
-      const int corner_idx = corner_indicies[i];
-      const vec2_t z = keypoints[i];
-      const vec3_t r_FFi = object_points[i];
-
-      auto cost_fn =
-          new reproj_error_t{cam_params, tag_id, corner_idx, r_FFi, z, covar};
-      auto res_id = problem.AddResidualBlock(cost_fn,
-                                             NULL,
-                                             poses[ts].data(),
-                                             cam_exts.data(),
-                                             cam_params.data());
-      UNUSED(res_id);
-    }
-  }
-
-  // Solver options
-  ceres::Solver::Options options;
-  options.minimizer_progress_to_stdout = verbose;
-  options.max_num_iterations = 30;
-
-  // Solve
-  ceres::Solver::Summary summary;
-  ceres::Solve(options, &problem, &summary);
-  if (verbose) {
-    std::cout << summary.BriefReport() << std::endl;
-    std::cout << std::endl;
-  }
-}
-
 /******************************** RESIDUAL ************************************/
 
-reproj_error_t::reproj_error_t(const camera_params_t &cam_params_,
+reproj_error_t::reproj_error_t(const camera_geometry_t *cam_geom_,
+                               const int cam_idx_,
+                               const int cam_res_[2],
                                const int tag_id_,
                                const int corner_idx_,
                                const vec3_t &r_FFi_,
                                const vec2_t &z_,
                                const mat2_t &covar_)
-    : cam_params{cam_params_}, tag_id{tag_id_},
+    : cam_geom{cam_geom_}, cam_idx{cam_idx_}, cam_res{cam_res_[0], cam_res_[1]},
+      tag_id{tag_id_},
       corner_idx{corner_idx_}, r_FFi{r_FFi_}, z{z_}, covar{covar_},
       info{covar.inverse()}, sqrt_info{info.llt().matrixL().transpose()} {
   set_num_residuals(2);
@@ -111,7 +29,7 @@ bool reproj_error_t::Evaluate(double const *const *params,
   // Map parameters out
   const mat4_t T_C0F = tf(params[0]);
   const mat4_t T_C0Ci = tf(params[1]);
-  Eigen::Map<const vecx_t> intrinsics(params[2], 8);
+  Eigen::Map<const vecx_t> cam_params(params[2], 8);
 
   // Transform and project point to image plane
   // -- Transform point from fiducial frame to camera-n
@@ -120,9 +38,7 @@ bool reproj_error_t::Evaluate(double const *const *params,
   // -- Project point from camera frame to image plane
   vec2_t z_hat;
   bool valid = true;
-  const auto cam_res = cam_params.resolution;
-  const auto cam_geom = cam_params.cam_geom;
-  if (cam_geom->project(cam_res, intrinsics, r_CiFi, z_hat) != 0) {
+  if (cam_geom->project(cam_res, cam_params, r_CiFi, z_hat) != 0) {
     valid = false;
   }
 
@@ -131,8 +47,8 @@ bool reproj_error_t::Evaluate(double const *const *params,
   r = sqrt_info * (z - z_hat);
 
   // Jacobians
-  const matx_t Jh = cam_geom->project_jacobian(intrinsics, r_CiFi);
-  const matx_t J_cam_params = cam_geom->params_jacobian(intrinsics, r_CiFi);
+  const matx_t Jh = cam_geom->project_jacobian(cam_params, r_CiFi);
+  const matx_t J_cam_params = cam_geom->params_jacobian(cam_params, r_CiFi);
   const matx_t Jh_weighted = -1 * sqrt_info * Jh;
 
   if (jacobians) {
@@ -176,6 +92,193 @@ bool reproj_error_t::Evaluate(double const *const *params,
   }
 
   return true;
+}
+
+/**************************** CALIBRATION VIEW ********************************/
+
+calib_view_t::calib_view_t(ceres::Problem &problem_,
+                           aprilgrid_t &grid_,
+                           pose_t &T_C0F_,
+                           pose_t &T_C0Ci_,
+                           camera_geometry_t *cam_geom_,
+                           camera_params_t &cam_params_,
+                           const mat2_t &covar_)
+    : problem{problem_}, grid{grid_}, T_C0F{T_C0F_}, T_C0Ci{T_C0Ci_},
+      cam_geom{cam_geom_}, cam_params{cam_params_}, covar{covar_} {
+  // Get AprilGrid measurements
+  std::vector<int> tag_ids;
+  std::vector<int> corner_idxs;
+  vec2s_t kps;
+  vec3s_t pts;
+  grid.get_measurements(tag_ids, corner_idxs, kps, pts);
+
+  // Add reprojection errors
+  for (size_t i = 0; i < tag_ids.size(); i++) {
+    const int tag_id = tag_ids[i];
+    const int corner_idx = corner_idxs[i];
+    const vec2_t z = kps[i];
+    const vec3_t r_FFi = pts[i];
+    auto cost_fn = std::make_shared<reproj_error_t>(cam_geom,
+                                                    cam_params.cam_index,
+                                                    cam_params.resolution,
+                                                    tag_id,
+                                                    corner_idx,
+                                                    r_FFi,
+                                                    z,
+                                                    covar);
+    auto res_id = problem.AddResidualBlock(cost_fn.get(),
+                                           NULL,
+                                           T_C0F.data(),
+                                           T_C0Ci.data(),
+                                           cam_params.data());
+    cost_fns.push_back(cost_fn);
+    res_ids.push_back(res_id);
+  }
+}
+
+std::vector<double> calib_view_t::calculate_reproj_errors() const {
+  // Estimate relative pose T_C0F
+  const auto intrinsics = cam_params.param;
+  const auto res = cam_params.resolution;
+  mat4_t T_CiF;
+  if (grid.estimate(cam_geom, res, intrinsics, T_CiF) != 0) {
+    FATAL("Failed to estimate relative pose!");
+  }
+
+  // Get AprilGrid measurements
+  std::vector<int> tag_ids;
+  std::vector<int> corner_idxs;
+  vec2s_t kps;
+  vec3s_t pts;
+  grid.get_measurements(tag_ids, corner_idxs, kps, pts);
+
+  // Calculate reprojection errors
+  std::vector<double> reproj_errors;
+
+  for (size_t i = 0; i < tag_ids.size(); i++) {
+    // const int tag_id = tag_ids[i];
+    // const int corner_idx = corner_idxs[i];
+    const vec2_t z = kps[i];
+    const vec3_t r_FFi = pts[i];
+    const vec3_t r_CiFi = tf_point(T_CiF, r_FFi);
+
+    vec2_t z_hat;
+    cam_geom->project(res, intrinsics, r_CiFi, z_hat);
+    reproj_errors.push_back((z - z_hat).norm());
+  }
+
+  return reproj_errors;
+}
+
+camera_views_t::camera_views_t(ceres::Problem &problem_,
+                               pose_t &extrinsics_,
+                               camera_geometry_t *cam_geom_,
+                               camera_params_t &cam_params_)
+    : problem{problem_}, extrinsics{extrinsics_}, cam_geom{cam_geom_},
+      cam_params{cam_params_} {}
+
+size_t camera_views_t::size() const { return views.size(); }
+
+void camera_views_t::add_view(aprilgrid_t &grid,
+                              pose_t &rel_pose,
+                              const mat2_t &covar_) {
+  views.emplace_back(problem, grid, rel_pose, extrinsics, cam_geom, cam_params);
+}
+
+std::vector<double> camera_views_t::calculate_reproj_errors() const {
+  std::vector<double> reproj_errors;
+  for (auto &view : views) {
+    auto r = view.calculate_reproj_errors();
+    reproj_errors.insert(reproj_errors.end(), r.begin(), r.end());
+  }
+  return reproj_errors;
+}
+
+/********************************* UTILS **************************************/
+
+void initialize_camera(const aprilgrids_t &grids,
+                       camera_geometry_t *cam_geom,
+                       camera_params_t &cam_params,
+                       const bool verbose) {
+  // Problem options
+  ceres::Problem::Options prob_options;
+  prob_options.local_parameterization_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
+  prob_options.cost_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
+  prob_options.enable_fast_removal = true;
+
+  // Problem
+  ceres::Problem problem{prob_options};
+  mat2_t covar = I(2);
+  PoseLocalParameterization pose_plus;
+
+  // Camera
+  const auto cam_idx = cam_params.cam_index;
+  const auto cam_res = cam_params.resolution;
+  problem.AddParameterBlock(cam_params.data(), 8);
+
+  // Extrinsics
+  extrinsics_t cam_exts{};
+  problem.AddParameterBlock(cam_exts.data(), 7);
+  problem.SetParameterization(cam_exts.data(), &pose_plus);
+  problem.SetParameterBlockConstant(cam_exts.data());
+
+  // Poses
+  std::map<timestamp_t, pose_t> poses;
+
+  // Build problem
+  camera_views_t camera_views{problem, cam_exts, cam_geom, cam_params};
+
+  for (auto grid : grids) {
+    const auto ts = grid.timestamp;
+    if (grid.detected == false) {
+      continue;
+    }
+
+    // Estimate relative pose
+    mat4_t T_CiF_k;
+    if (grid.estimate(cam_geom, cam_res, cam_params.param, T_CiF_k) != 0) {
+      FATAL("Failed to estimate relative pose!");
+    }
+
+    // Add relative pose
+    poses[ts] = pose_t{ts, T_CiF_k};
+    problem.AddParameterBlock(poses[ts].data(), 7);
+    problem.SetParameterization(poses[ts].data(), &pose_plus);
+
+    // Add calibration view
+    camera_views.add_view(grid, poses[ts]);
+  }
+
+  // Solver options
+  ceres::Solver::Options options;
+  options.minimizer_progress_to_stdout = verbose;
+  options.max_num_iterations = 30;
+
+  // Solve
+  ceres::Solver::Summary summary;
+  ceres::Solve(options, &problem, &summary);
+  if (verbose) {
+    // Show optimization report
+    std::cout << summary.BriefReport() << std::endl;
+    std::cout << std::endl;
+
+    // Show optimization results
+    const auto reproj_errors = camera_views.calculate_reproj_errors();
+    printf("Optimization results\n");
+    printf("------------------------------------------------------------\n");
+    printf("reproj_errors: [%f, %f, %f] [px] (rmse, mean, median)\n",
+           rmse(reproj_errors),
+           mean(reproj_errors),
+           median(reproj_errors));
+    printf("nb_images: %ld\n", camera_views.size());
+    printf("nb_corners: %ld\n", reproj_errors.size());
+    printf("\n");
+    printf("cam%d:\n", cam_params.cam_index);
+    printf("  proj_model: %s\n", cam_params.proj_model.c_str());
+    printf("  dist_model: %s\n", cam_params.dist_model.c_str());
+    print_vector("  proj_params", cam_params.proj_params());
+    print_vector("  dist_params", cam_params.dist_params());
+  }
 }
 
 /******************************* CALIBRATOR ***********************************/
@@ -278,16 +381,50 @@ void calib_camera_t::add_camera_extrinsics(const int cam_idx,
   }
 }
 
-pose_t &calib_camera_t::add_pose(const timestamp_t &ts,
-                                 const mat4_t &T,
-                                 const bool fixed) {
-  poses[ts] = pose_t{ts, T};
+void calib_camera_t::add_pose(const int cam_idx,
+                              const aprilgrid_t &grid,
+                              const bool fixed) {
+  // Setup
+  const auto ts = grid.timestamp;
+  if (poses.count(ts) > 0) {
+    FATAL("Implementation Error!");
+    return;
+  }
+
+  // Estimate relative pose T_C0F
+  const auto cam_geom = cam_geoms[cam_idx];
+  const auto param = cam_params[cam_idx].param;
+  const auto res = cam_params[cam_idx].resolution;
+  mat4_t T_CiF;
+  if (grid.estimate(cam_geom, res, param, T_CiF) != 0) {
+    FATAL("Failed to estimate relative pose!");
+  }
+
+  // Add relative pose T_C0F
+  const mat4_t T_C0Ci = get_camera_extrinsics(cam_idx);
+  const mat4_t T_C0F = T_C0Ci * T_CiF;
+  poses[ts] = pose_t{ts, T_C0F};
   problem->AddParameterBlock(poses[ts].data(), 7);
   problem->SetParameterization(poses[ts].data(), &pose_plus);
   if (fixed) {
     problem->SetParameterBlockConstant(poses[ts].data());
   }
-  return poses[ts];
+}
+
+void calib_camera_t::add_view(ceres::Problem &problem,
+                              int cam_idx,
+                              aprilgrid_t &grid,
+                              pose_t &rel_pose,
+                              extrinsics_t &extrinsics,
+                              camera_geometry_t *cam_geom,
+                              camera_params_t &cam_params) {
+  const timestamp_t ts = grid.timestamp;
+  calib_views[cam_idx][ts] = new calib_view_t{problem,
+                                              grid,
+                                              rel_pose,
+                                              extrinsics,
+                                              cam_geom,
+                                              cam_params};
 }
 
 void calib_camera_t::_initialize_intrinsics() {
@@ -322,58 +459,32 @@ void calib_camera_t::_setup_problem() {
   for (const auto &ts : timestamps) {
     for (const auto &kv : cam_data[ts]) {
       const auto cam_idx = kv.first;
-      const auto &grid = kv.second;
+      auto grid = kv.second;
+
+      // Check if AprilGrid was detected
       if (grid.detected == false) {
         continue;
       }
 
-      // Estimate relative pose T_C0F
-      const auto cam_geom = cam_geoms[cam_idx];
-      const auto param = cam_params[cam_idx].param;
-      const auto res = cam_params[cam_idx].resolution;
-      mat4_t T_CiF;
-      if (grid.estimate(cam_geom, res, param, T_CiF) != 0) {
-        FATAL("Failed to estimate relative pose!");
-      }
-
-      // Add relative pose T_C0F
-      const mat4_t T_C0Ci = get_camera_extrinsics(cam_idx);
-      const mat4_t T_C0F = T_C0Ci * T_CiF;
+      // Add pose
       if (poses.count(ts) == 0) {
-        add_pose(ts, T_C0F);
+        add_pose(cam_idx, grid);
       }
 
-      // Add reprojection factors to problem
-      std::vector<int> tag_ids;
-      std::vector<int> corner_idxs;
-      vec2s_t kps;
-      vec3s_t pts;
-      grid.get_measurements(tag_ids, corner_idxs, kps, pts);
-
-      for (size_t i = 0; i < tag_ids.size(); i++) {
-        const int tag_id = tag_ids[i];
-        const int corner_idx = corner_idxs[i];
-        const vec2_t z = kps[i];
-        const vec3_t r_FFi = pts[i];
-
-        auto cost_fn = new reproj_error_t{cam_params[cam_idx],
-                                          tag_id,
-                                          corner_idx,
-                                          r_FFi,
-                                          z,
-                                          covar};
-        auto res_id = problem->AddResidualBlock(cost_fn,
-                                                NULL,
-                                                poses[ts].data(),
-                                                cam_exts[cam_idx].data(),
-                                                cam_params[cam_idx].data());
-        UNUSED(res_id);
-      }
+      // Add calibration view
+      add_view(*problem,
+               cam_idx,
+               grid,
+               poses[ts],
+               cam_exts[cam_idx],
+               cam_geoms[cam_idx],
+               cam_params[cam_idx]);
     }
   }
 }
 
 void calib_camera_t::solve() {
+  // Setup
   _initialize_intrinsics();
   _initialize_extrinsics();
   _setup_problem();

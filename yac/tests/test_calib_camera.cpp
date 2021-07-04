@@ -6,38 +6,6 @@ namespace yac {
 
 test_data_t test_data = setup_test_data();
 
-int test_calib_view() {
-
-  ceres::Problem problem;
-  const auto grid = test_data.grids0[0];
-  const auto cam0 = test_data.cam0;
-  const mat4_t T_C0F = I(4);
-  const mat4_t T_C0Ci = I(4);
-  const pose_t rel_pose{0, T_C0F};
-  const pose_t extrinsics{0, T_C0Ci};
-  calib_view_t(problem, grid, cam0, rel_pose, extrinsics);
-
-  return 0;
-}
-
-int test_initialize_camera() {
-  // test_data_t test_data = setup_test_data();
-
-  const int cam_res[2] = {752, 480};
-  const std::string proj_model = "pinhole";
-  const std::string dist_model = "radtan4";
-
-  // const camera_geometry_t cam_geom;
-  // camera_params_t cam_params;
-  // const bool verbose;
-  // initialize_camera(test_data.grids0,
-  //                   const camera_geometry_t *cam_geom,
-  //                   camera_params_t &cam_params,
-  //                   const bool verbose) {
-
-  return 0;
-}
-
 int test_reproj_error() {
   // test_data_t test_data = setup_test_data();
 
@@ -80,7 +48,9 @@ int test_reproj_error() {
   pose_t cam_extrinsics{grid.timestamp, T_C0Ci};
   pose_t rel_pose{grid.timestamp, T_C0F};
 
-  reproj_error_t err(cam_params,
+  reproj_error_t err(&cam_geom,
+                     cam_idx,
+                     cam_res,
                      tag_ids[0],
                      corner_indicies[0],
                      object_points[0],
@@ -155,6 +125,28 @@ int test_reproj_error() {
   return 0;
 }
 
+int test_calib_view() {
+  ceres::Problem problem;
+  auto grid = test_data.grids0[0];
+  auto cam0 = test_data.cam0;
+  const mat4_t T_C0F = I(4);
+  const mat4_t T_C0Ci = I(4);
+  pose_t rel_pose{0, T_C0F};
+  pose_t extrinsics{0, T_C0Ci};
+  pinhole_radtan4_t cam_geom;
+
+  calib_view_t(problem, grid, rel_pose, extrinsics, &cam_geom, cam0);
+
+  return 0;
+}
+
+int test_initialize_camera() {
+  pinhole_radtan4_t cam_geom;
+  initialize_camera(test_data.grids1, &cam_geom, test_data.cam1, true);
+
+  return 0;
+}
+
 int test_calib_camera() {
   // test_data_t test_data = setup_test_data();
 
@@ -177,10 +169,10 @@ int test_calib_camera() {
 }
 
 void test_suite() {
-  MU_ADD_TEST(test_calib_view);
-  // MU_ADD_TEST(test_initialize_camera);
   MU_ADD_TEST(test_reproj_error);
-  MU_ADD_TEST(test_calib_camera);
+  MU_ADD_TEST(test_calib_view);
+  MU_ADD_TEST(test_initialize_camera);
+  // MU_ADD_TEST(test_calib_camera);
 }
 
 } // namespace yac

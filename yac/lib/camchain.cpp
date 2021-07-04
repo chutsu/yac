@@ -45,7 +45,6 @@ camchain_t::camchain_t(const camera_data_t &cam_data,
 
         const mat4_t T_CiCj = T_CiF * T_CjF.inverse();
         insert(cam_i, cam_j, T_CiCj);
-        print_matrix("T_CiCj", T_CiCj);
       }
     }
   }
@@ -72,7 +71,9 @@ void camchain_t::_get_aprilgrids(const timestamp_t &ts,
   }
 }
 
-void camchain_t::insert(const int cam_i, const int cam_j, const mat4_t &T_CiCj) {
+void camchain_t::insert(const int cam_i,
+                        const int cam_j,
+                        const mat4_t &T_CiCj) {
   if (contains(cam_i, cam_j)) {
     return;
   }
@@ -117,7 +118,7 @@ int camchain_t::find(const int cam_i, const int cam_j, mat4_t &T_CiCj) const {
     queue.pop_front();
     visited.at(parent) = true;
 
-    for (const int& child : adj_list.at(parent)) {
+    for (const int &child : adj_list.at(parent)) {
       if (visited.at(child)) {
         continue;
       }

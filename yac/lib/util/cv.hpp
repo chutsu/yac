@@ -390,10 +390,8 @@ mat_t<2, 3> project_jacobian(const vec3_t &p_C);
 /********************************* PINHOLE ************************************/
 
 real_t pinhole_focal(const int image_size, const real_t fov);
-mat3_t pinhole_K(const real_t fx,
-                 const real_t fy,
-                 const real_t cx,
-                 const real_t cy);
+mat3_t
+pinhole_K(const real_t fx, const real_t fy, const real_t cx, const real_t cy);
 int pinhole_project(const int res[2],
                     const vec4_t &proj_params,
                     const vec3_t &p,
@@ -409,8 +407,7 @@ int pinhole_radtan4_project(const int res[2],
                             vec2_t &z_hat);
 matx_t pinhole_radtan4_project_jacobian(const vecx_t &params,
                                         const vec3_t &p_C);
-matx_t pinhole_radtan4_params_jacobian(const vecx_t &params,
-                                       const vec3_t &p_C);
+matx_t pinhole_radtan4_params_jacobian(const vecx_t &params, const vec3_t &p_C);
 int pinhole_radtan4_back_project(const vecx_t &params,
                                  const vec2_t &x,
                                  vec3_t &ray);
@@ -422,10 +419,8 @@ int pinhole_equi4_project(const int res[2],
                           const vecx_t &params,
                           const vec3_t &p_C,
                           vec2_t &z_hat);
-matx_t pinhole_equi4_project_jacobian(const vecx_t &params,
-                                      const vec3_t &p_C);
-matx_t pinhole_equi4_params_jacobian(const vecx_t &params,
-                                     const vec3_t &p_C);
+matx_t pinhole_equi4_project_jacobian(const vecx_t &params, const vec3_t &p_C);
+matx_t pinhole_equi4_params_jacobian(const vecx_t &params, const vec3_t &p_C);
 int pinhole_equi4_back_project(const vecx_t &params,
                                const vec2_t &x,
                                vec3_t &ray);
@@ -434,6 +429,35 @@ vec2_t pinhole_equi4_undistort(const vecx_t &params, const vec2_t &z);
 /****************************** CAMERA GEOMETRY *******************************/
 
 struct camera_geometry_t {
+  // EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
+  //
+  // int cam_index = 0;
+  // int resolution[2] = {0, 0};
+  // std::string proj_model;
+  // std::string dist_model;
+  // int proj_size = 0;
+  // int dist_size = 0;
+  // std::shared_ptr<camera_geometry_t> cam_geom;
+  //
+  // camera_geometry_t() = default;
+  // camera_geometry_t(const int cam_index_,
+  //                   const int resolution_[2],
+  //                   const std::string proj_model_,
+  //                   const std::string dist_model_,
+  //                   const vecx_t &proj_params_,
+  //                   const vecx_t &dist_params_,
+  //                   const bool fixed_ = false);
+  // virtual ~camera_geometry_t() = default;
+  //
+  // int project(const vec3_t &p_C, vec2_t &z_hat) const = 0;
+  // matx_t project_jacobian(const vec3_t &p_C) const = 0;
+  // matx_t params_jacobian(const vec3_t &p_C) const = 0;
+  // int back_project(const vec2_t &x, vec3_t &ray) const = 0;
+  // vec2_t undistort(const vec2_t &z) const = 0;
+
+  camera_geometry_t() = default;
+  virtual ~camera_geometry_t() = default;
+
   virtual int project(const int res[2],
                       const vecx_t &params,
                       const vec3_t &p_C,
@@ -457,16 +481,16 @@ struct pinhole_radtan4_t : camera_geometry_t {
               const vecx_t &params,
               const vec3_t &p_C,
               vec2_t &z_hat) const override {
-    pinhole_radtan4_project(res, params, p_C, z_hat);
+    return pinhole_radtan4_project(res, params, p_C, z_hat);
   }
 
   matx_t project_jacobian(const vecx_t &params,
-                               const vec3_t &p_C) const {
+                          const vec3_t &p_C) const override {
     return pinhole_radtan4_project_jacobian(params, p_C);
   }
 
   matx_t params_jacobian(const vecx_t &params,
-                         const vec3_t &p_C) const {
+                         const vec3_t &p_C) const override {
     return pinhole_radtan4_params_jacobian(params, p_C);
   }
 
@@ -476,7 +500,7 @@ struct pinhole_radtan4_t : camera_geometry_t {
     return pinhole_radtan4_back_project(params, x, ray);
   }
 
-  vec2_t undistort(const vecx_t &params, const vec2_t &z) const override{
+  vec2_t undistort(const vecx_t &params, const vec2_t &z) const override {
     return pinhole_radtan4_undistort(params, z);
   }
 };
@@ -486,16 +510,16 @@ struct pinhole_equi4_t : camera_geometry_t {
               const vecx_t &params,
               const vec3_t &p_C,
               vec2_t &z_hat) const override {
-    pinhole_equi4_project(res, params, p_C, z_hat);
+    return pinhole_equi4_project(res, params, p_C, z_hat);
   }
 
   matx_t project_jacobian(const vecx_t &params,
-                          const vec3_t &p_C) const {
+                          const vec3_t &p_C) const override {
     return pinhole_equi4_project_jacobian(params, p_C);
   }
 
   matx_t params_jacobian(const vecx_t &params,
-                         const vec3_t &p_C) const {
+                         const vec3_t &p_C) const override {
     return pinhole_equi4_params_jacobian(params, p_C);
   }
 

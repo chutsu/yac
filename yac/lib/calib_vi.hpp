@@ -17,7 +17,8 @@
 namespace yac {
 
 /* Form initial poses for visual-inertial calibration */
-void calib_vi_init_poses(const calib_target_t &target, const mat4_t &T_FO,
+void calib_vi_init_poses(const calib_target_t &target,
+                         const mat4_t &T_FO,
                          std::deque<mat4_t> &init_poses);
 
 struct pose_error_t : public ceres::SizedCostFunction<6, 7> {
@@ -32,7 +33,8 @@ struct pose_error_t : public ceres::SizedCostFunction<6, 7> {
 
   virtual ~pose_error_t() {}
 
-  bool Evaluate(double const *const *params, double *residuals,
+  bool Evaluate(double const *const *params,
+                double *residuals,
                 double **jacobians) const {
     // Parameters
     mat4_t pose_meas = pose_meas_.tf();
@@ -89,11 +91,16 @@ struct reproj_fiducial_error_t
   const mat2_t info_;
   const mat2_t sqrt_info_;
 
-  reproj_fiducial_error_t(const timestamp_t &ts_i, const timestamp_t &ts_j,
-                          const int cam_res[2], const int tag_id,
-                          const int corner_idx, const vec3_t &r_FFi,
-                          const vec2_t &z_i, const vec2_t &z_j,
-                          const mat4_t &T_WF, const mat2_t &covar)
+  reproj_fiducial_error_t(const timestamp_t &ts_i,
+                          const timestamp_t &ts_j,
+                          const int cam_res[2],
+                          const int tag_id,
+                          const int corner_idx,
+                          const vec3_t &r_FFi,
+                          const vec2_t &z_i,
+                          const vec2_t &z_j,
+                          const mat4_t &T_WF,
+                          const mat2_t &covar)
       : ts_i_{ts_i}, ts_j_{ts_j}, cam_res_{cam_res[0], cam_res[1]},
         tag_id_{tag_id}, corner_idx_{corner_idx}, r_FFi_{r_FFi}, z_i_{z_i},
         z_j_{z_j}, v_ij_{(z_j_ - z_i_) / ns2sec(ts_j_ - ts_i_)}, T_WF_{T_WF},
@@ -107,7 +114,8 @@ struct reproj_fiducial_error_t
 
   ~reproj_fiducial_error_t() {}
 
-  bool Evaluate(double const *const *params, double *residuals,
+  bool Evaluate(double const *const *params,
+                double *residuals,
                 double **jacobians) const {
     // Pose of fiducial target in world frame
     const mat4_t T_WF = tf(params[0]);
@@ -245,10 +253,15 @@ struct reproj_error_td_t
   const mat2_t info_;
   const mat2_t sqrt_info_;
 
-  reproj_error_td_t(const timestamp_t &ts_i, const timestamp_t &ts_j,
-                    const int cam_res[2], const int tag_id,
-                    const int corner_idx, const vec3_t &r_FFi,
-                    const vec2_t &z_i, const vec2_t &z_j, const mat4_t &T_WF,
+  reproj_error_td_t(const timestamp_t &ts_i,
+                    const timestamp_t &ts_j,
+                    const int cam_res[2],
+                    const int tag_id,
+                    const int corner_idx,
+                    const vec3_t &r_FFi,
+                    const vec2_t &z_i,
+                    const vec2_t &z_j,
+                    const mat4_t &T_WF,
                     const mat2_t &covar)
       : ts_i_{ts_i}, ts_j_{ts_j}, cam_res_{cam_res[0], cam_res[1]},
         tag_id_{tag_id}, corner_idx_{corner_idx}, r_FFi_{r_FFi}, z_i_{z_i},
@@ -263,7 +276,8 @@ struct reproj_error_td_t
 
   ~reproj_error_td_t() {}
 
-  bool Evaluate(double const *const *params, double *residuals,
+  bool Evaluate(double const *const *params,
+                double *residuals,
                 double **jacobians) const {
     // Pose of fiducial target in world frame
 #if FIDUCIAL_PARAMS_SIZE == 2
@@ -339,12 +353,13 @@ struct reproj_error_td_t
                          -x * spsi * stheta + y * sphi * spsi * ctheta +
                              z * spsi * cphi * ctheta,
                          -x * ctheta - y * sphi * stheta - z * stheta * cphi};
-        const vec3_t J_z{
-            -x * spsi * ctheta + y * (-sphi * spsi * stheta - cphi * cpsi) +
-                z * (sphi * cpsi - spsi * stheta * cphi),
-            x * cpsi * ctheta + y * (sphi * stheta * cpsi - spsi * cphi) +
-                z * (sphi * spsi + stheta * cphi * cpsi),
-            0};
+        const vec3_t J_z{-x * spsi * ctheta +
+                             y * (-sphi * spsi * stheta - cphi * cpsi) +
+                             z * (sphi * cpsi - spsi * stheta * cphi),
+                         x * cpsi * ctheta +
+                             y * (sphi * stheta * cpsi - spsi * cphi) +
+                             z * (sphi * spsi + stheta * cphi * cpsi),
+                         0};
 #endif
 
         // Fill Jacobian
@@ -810,7 +825,8 @@ struct calib_vi_init_t {
   ceres::Problem *problem;
   PoseLocalParameterization pose_parameterization;
 
-  template <typename CAMERA_TYPE> struct calib_view_t {
+  template <typename CAMERA_TYPE>
+  struct calib_view_t {
     ceres::Problem *problem = nullptr;
 
     pose_t *fiducial = nullptr;
@@ -830,11 +846,17 @@ struct calib_vi_init_t {
         reproj_errors;
 
     calib_view_t(
-        ceres::Problem *problem_, pose_t *fiducial_, pose_t *pose_i_,
-        pose_t *pose_j_, sb_params_t *sb_i_, sb_params_t *sb_j_,
+        ceres::Problem *problem_,
+        pose_t *fiducial_,
+        pose_t *pose_i_,
+        pose_t *pose_j_,
+        sb_params_t *sb_i_,
+        sb_params_t *sb_j_,
         std::map<int, extrinsics_t *> cam_exts_,
-        std::map<int, camera_params_t *> cam_params_, extrinsics_t *imu_exts_,
-        ceres::ResidualBlockId imu_error_id_, ImuError *imu_error_,
+        std::map<int, camera_params_t *> cam_params_,
+        extrinsics_t *imu_exts_,
+        ceres::ResidualBlockId imu_error_id_,
+        ImuError *imu_error_,
         std::map<int, std::vector<ceres::ResidualBlockId>> reproj_error_ids_,
         std::map<int, std::vector<reproj_fiducial_error_t<CAMERA_TYPE> *>>
             reproj_errors_)
@@ -918,13 +940,20 @@ struct calib_vi_init_t {
 
   void add_imu(const imu_params_t &imu_params_) { imu_params = imu_params_; }
 
-  void add_camera(const int cam_idx, const int resolution[2],
-                  const std::string &proj_model, const std::string &dist_model,
-                  const vecx_t &proj_params, const vecx_t &dist_params,
+  void add_camera(const int cam_idx,
+                  const int resolution[2],
+                  const std::string &proj_model,
+                  const std::string &dist_model,
+                  const vecx_t &proj_params,
+                  const vecx_t &dist_params,
                   const bool fix = false) {
-    auto cam =
-        new camera_params_t(new_param_id++, cam_idx, resolution, proj_model,
-                            dist_model, proj_params, dist_params);
+    auto cam = new camera_params_t(new_param_id++,
+                                   cam_idx,
+                                   resolution,
+                                   proj_model,
+                                   dist_model,
+                                   proj_params,
+                                   dist_params);
     cam_params[cam_idx] = cam;
     grids_buf.nb_cams++; // Very important!
 
@@ -935,7 +964,8 @@ struct calib_vi_init_t {
     }
   }
 
-  void add_cam_extrinsics(const int cam_idx, const mat4_t &T_BCi,
+  void add_cam_extrinsics(const int cam_idx,
+                          const mat4_t &T_BCi,
                           const bool fix = false) {
     auto cam_ext = new extrinsics_t(new_param_id++, T_BCi);
     cam_exts[cam_idx] = cam_ext;
@@ -960,7 +990,8 @@ struct calib_vi_init_t {
     }
   }
 
-  void add_sensor_pose(const timestamp_t ts, const mat4_t &T_WS,
+  void add_sensor_pose(const timestamp_t ts,
+                       const mat4_t &T_WS,
                        const bool fix = false) {
     sensor_poses.push_back(new pose_t{new_param_id++, ts, T_WS});
     problem->AddParameterBlock(sensor_poses.back()->param.data(), 7);
@@ -1022,7 +1053,8 @@ struct calib_vi_init_t {
       retval = grid.estimate(cam, T_C0F);
     } else {
       FATAL("Unsupported projection-distorion type [%s-%s]!",
-            proj_model.c_str(), dist_model.c_str());
+            proj_model.c_str(),
+            dist_model.c_str());
     }
 
     return retval;
@@ -1065,15 +1097,19 @@ struct calib_vi_init_t {
     const auto t1 = pose_j->ts;
 
     auto error = new ImuError(imu_buf, imu_params, t0, t1);
-    error_id = problem->AddResidualBlock(
-        error, NULL, pose_i->param.data(), sb_i->param.data(),
-        pose_j->param.data(), sb_j->param.data());
+    error_id = problem->AddResidualBlock(error,
+                                         NULL,
+                                         pose_i->param.data(),
+                                         sb_i->param.data(),
+                                         pose_j->param.data(),
+                                         sb_j->param.data());
 
     return error;
   }
 
   void add_reproj_errors(
-      const int cam_idx, const aprilgrid_t &grid_j,
+      const int cam_idx,
+      const aprilgrid_t &grid_j,
       std::map<int, std::vector<ceres::ResidualBlockId>> &error_ids,
       std::map<int, std::vector<reproj_fiducial_error_t<pinhole_radtan4_t> *>>
           &errors) {
@@ -1098,8 +1134,12 @@ struct calib_vi_init_t {
     vec2s_t grid_i_keypoints;
     vec2s_t grid_j_keypoints;
     vec3s_t object_points;
-    aprilgrid_t::common_measurements(grid_i, grid_j, tag_ids, corner_indicies,
-                                     grid_i_keypoints, grid_j_keypoints,
+    aprilgrid_t::common_measurements(grid_i,
+                                     grid_j,
+                                     tag_ids,
+                                     corner_indicies,
+                                     grid_i_keypoints,
+                                     grid_j_keypoints,
                                      object_points);
 
     for (size_t i = 0; i < tag_ids.size(); i++) {
@@ -1109,12 +1149,24 @@ struct calib_vi_init_t {
       const vec2_t z_j = grid_j_keypoints[i];
       const vec3_t r_FFi = object_points[i];
 
-      auto error = new reproj_fiducial_error_t<pinhole_radtan4_t>(
-          ts_i, ts_j, cam_res, tag_id, corner_idx, r_FFi, z_i, z_j,
-          fiducial->tf(), covar);
-      auto error_id = problem->AddResidualBlock(
-          error, NULL, T_WF->param.data(), T_WS_i->param.data(),
-          T_BS->param.data(), T_BCi->param.data(), cam->param.data());
+      auto error =
+          new reproj_fiducial_error_t<pinhole_radtan4_t>(ts_i,
+                                                         ts_j,
+                                                         cam_res,
+                                                         tag_id,
+                                                         corner_idx,
+                                                         r_FFi,
+                                                         z_i,
+                                                         z_j,
+                                                         fiducial->tf(),
+                                                         covar);
+      auto error_id = problem->AddResidualBlock(error,
+                                                NULL,
+                                                T_WF->param.data(),
+                                                T_WS_i->param.data(),
+                                                T_BS->param.data(),
+                                                T_BCi->param.data(),
+                                                cam->param.data());
       error_ids[cam_idx].push_back(error_id);
       errors[cam_idx].push_back(error);
     }
@@ -1169,7 +1221,8 @@ struct calib_vi_init_t {
     return zeros(4, 4);
   }
 
-  void initialize(const timestamp_t &ts, const aprilgrids_t &grids,
+  void initialize(const timestamp_t &ts,
+                  const aprilgrids_t &grids,
                   imu_data_t &imu_buf) {
     // Estimate relative pose - T_C0F
     assert(grids.size() > 0);
@@ -1260,9 +1313,19 @@ struct calib_vi_init_t {
     const auto &pose_j = sensor_poses[sensor_poses.size() - 1];
     const auto &sb_i = speed_biases[speed_biases.size() - 2];
     const auto &sb_j = speed_biases[speed_biases.size() - 1];
-    sliding_window.emplace_back(problem, fiducial, pose_i, pose_j, sb_i, sb_j,
-                                cam_exts, cam_params, imu_exts, imu_error_id,
-                                imu_error, reproj_error_ids, reproj_errors);
+    sliding_window.emplace_back(problem,
+                                fiducial,
+                                pose_i,
+                                pose_j,
+                                sb_i,
+                                sb_j,
+                                cam_exts,
+                                cam_params,
+                                imu_exts,
+                                imu_error_id,
+                                imu_error,
+                                reproj_error_ids,
+                                reproj_errors);
 
     trim_imu_data(imu_buf, ts);
     update_prev_grids(grids);
@@ -1273,7 +1336,8 @@ struct calib_vi_init_t {
     cam_grids[cam_idx].push_back(grid);
   }
 
-  void add_measurement(const timestamp_t imu_ts, const vec3_t &a_m,
+  void add_measurement(const timestamp_t imu_ts,
+                       const vec3_t &a_m,
                        const vec3_t &w_m) {
     imu_buf.add(imu_ts, a_m, w_m);
 
@@ -1410,7 +1474,8 @@ struct calib_vi_t {
   // Sliding window
   size_t max_window_size = 5;
 
-  template <typename CAMERA_TYPE> struct calib_view_t {
+  template <typename CAMERA_TYPE>
+  struct calib_view_t {
     ceres::Problem *problem = nullptr;
 
     fiducial_t *fiducial = nullptr;
@@ -1430,11 +1495,17 @@ struct calib_vi_t {
     std::map<int, std::vector<reproj_error_td_t<CAMERA_TYPE> *>> reproj_errors;
 
     calib_view_t(
-        ceres::Problem *problem_, fiducial_t *fiducial_, pose_t *pose_i_,
-        pose_t *pose_j_, sb_params_t *sb_i_, sb_params_t *sb_j_,
+        ceres::Problem *problem_,
+        fiducial_t *fiducial_,
+        pose_t *pose_i_,
+        pose_t *pose_j_,
+        sb_params_t *sb_i_,
+        sb_params_t *sb_j_,
         std::map<int, extrinsics_t *> cam_exts_,
-        std::map<int, camera_params_t *> cam_params_, extrinsics_t *imu_exts_,
-        time_delay_t *time_delay_, ceres::ResidualBlockId imu_error_id_,
+        std::map<int, camera_params_t *> cam_params_,
+        extrinsics_t *imu_exts_,
+        time_delay_t *time_delay_,
+        ceres::ResidualBlockId imu_error_id_,
         ImuError *imu_error_,
         std::map<int, std::vector<ceres::ResidualBlockId>> reproj_error_ids_,
         std::map<int, std::vector<reproj_error_td_t<CAMERA_TYPE> *>>
@@ -1525,13 +1596,20 @@ struct calib_vi_t {
     add_time_delay(td);
   }
 
-  void add_camera(const int cam_idx, const int resolution[2],
-                  const std::string &proj_model, const std::string &dist_model,
-                  const vecx_t &proj_params, const vecx_t &dist_params,
+  void add_camera(const int cam_idx,
+                  const int resolution[2],
+                  const std::string &proj_model,
+                  const std::string &dist_model,
+                  const vecx_t &proj_params,
+                  const vecx_t &dist_params,
                   const bool fix = false) {
-    auto cam =
-        new camera_params_t(new_param_id++, cam_idx, resolution, proj_model,
-                            dist_model, proj_params, dist_params);
+    auto cam = new camera_params_t(new_param_id++,
+                                   cam_idx,
+                                   resolution,
+                                   proj_model,
+                                   dist_model,
+                                   proj_params,
+                                   dist_params);
     cam_params[cam_idx] = cam;
     grids_buf.nb_cams++; // Very important!
 
@@ -1542,7 +1620,8 @@ struct calib_vi_t {
     }
   }
 
-  void add_cam_extrinsics(const int cam_idx, const mat4_t &T_BCi,
+  void add_cam_extrinsics(const int cam_idx,
+                          const mat4_t &T_BCi,
                           const bool fix = false) {
     auto cam_ext = new extrinsics_t(new_param_id++, T_BCi);
     cam_exts[cam_idx] = cam_ext;
@@ -1624,7 +1703,8 @@ struct calib_vi_t {
       retval = grid.estimate(cam, T_C0F);
     } else {
       FATAL("Unsupported projection-distorion type [%s-%s]!",
-            proj_model.c_str(), dist_model.c_str());
+            proj_model.c_str(),
+            dist_model.c_str());
     }
 
     return retval;
@@ -1667,15 +1747,19 @@ struct calib_vi_t {
     const auto t1 = pose_j->ts;
 
     auto error = new ImuError(imu_buf, imu_params, t0, t1);
-    error_id = problem->AddResidualBlock(
-        error, NULL, pose_i->param.data(), sb_i->param.data(),
-        pose_j->param.data(), sb_j->param.data());
+    error_id = problem->AddResidualBlock(error,
+                                         NULL,
+                                         pose_i->param.data(),
+                                         sb_i->param.data(),
+                                         pose_j->param.data(),
+                                         sb_j->param.data());
 
     return error;
   }
 
   void add_reproj_errors(
-      const int cam_idx, const aprilgrid_t &grid_j,
+      const int cam_idx,
+      const aprilgrid_t &grid_j,
       std::map<int, std::vector<ceres::ResidualBlockId>> &error_ids,
       std::map<int, std::vector<reproj_error_td_t<pinhole_radtan4_t> *>>
           &errors) {
@@ -1700,8 +1784,12 @@ struct calib_vi_t {
     vec2s_t grid_i_keypoints;
     vec2s_t grid_j_keypoints;
     vec3s_t object_points;
-    aprilgrid_t::common_measurements(grid_i, grid_j, tag_ids, corner_indicies,
-                                     grid_i_keypoints, grid_j_keypoints,
+    aprilgrid_t::common_measurements(grid_i,
+                                     grid_j,
+                                     tag_ids,
+                                     corner_indicies,
+                                     grid_i_keypoints,
+                                     grid_j_keypoints,
                                      object_points);
 
     for (size_t i = 0; i < tag_ids.size(); i++) {
@@ -1711,13 +1799,25 @@ struct calib_vi_t {
       const vec2_t z_j = grid_j_keypoints[i];
       const vec3_t r_FFi = object_points[i];
 
-      auto error = new reproj_error_td_t<pinhole_radtan4_t>(
-          ts_i, ts_j, cam_res, tag_id, corner_idx, r_FFi, z_i, z_j,
-          fiducial->estimate(), covar);
-      auto error_id = problem->AddResidualBlock(
-          error, NULL, T_WF->param.data(), T_WS_i->param.data(),
-          T_BS->param.data(), T_BCi->param.data(), cam->param.data(),
-          time_delay->param.data());
+      auto error =
+          new reproj_error_td_t<pinhole_radtan4_t>(ts_i,
+                                                   ts_j,
+                                                   cam_res,
+                                                   tag_id,
+                                                   corner_idx,
+                                                   r_FFi,
+                                                   z_i,
+                                                   z_j,
+                                                   fiducial->estimate(),
+                                                   covar);
+      auto error_id = problem->AddResidualBlock(error,
+                                                NULL,
+                                                T_WF->param.data(),
+                                                T_WS_i->param.data(),
+                                                T_BS->param.data(),
+                                                T_BCi->param.data(),
+                                                cam->param.data(),
+                                                time_delay->param.data());
       error_ids[cam_idx].push_back(error_id);
       errors[cam_idx].push_back(error);
     }
@@ -1772,7 +1872,8 @@ struct calib_vi_t {
     return zeros(4, 4);
   }
 
-  void initialize(const timestamp_t &ts, const aprilgrids_t &grids,
+  void initialize(const timestamp_t &ts,
+                  const aprilgrids_t &grids,
                   imu_data_t &imu_buf) {
     // Estimate relative pose - T_C0F
     assert(grids.size() > 0);
@@ -1934,9 +2035,19 @@ struct calib_vi_t {
     const auto &pose_j = sensor_poses[sensor_poses.size() - 1];
     const auto &sb_i = speed_biases[speed_biases.size() - 2];
     const auto &sb_j = speed_biases[speed_biases.size() - 1];
-    sliding_window.emplace_back(problem, fiducial, pose_i, pose_j, sb_i, sb_j,
-                                cam_exts, cam_params, imu_exts, time_delay,
-                                imu_error_id, imu_error, reproj_error_ids,
+    sliding_window.emplace_back(problem,
+                                fiducial,
+                                pose_i,
+                                pose_j,
+                                sb_i,
+                                sb_j,
+                                cam_exts,
+                                cam_params,
+                                imu_exts,
+                                time_delay,
+                                imu_error_id,
+                                imu_error,
+                                reproj_error_ids,
                                 reproj_errors);
 
     trim_imu_data(imu_buf, ts);
@@ -1964,7 +2075,8 @@ struct calib_vi_t {
     cam_grids[cam_idx].push_back(grid);
   }
 
-  void add_measurement(const timestamp_t imu_ts, const vec3_t &a_m,
+  void add_measurement(const timestamp_t imu_ts,
+                       const vec3_t &a_m,
                        const vec3_t &w_m) {
     imu_buf.add(imu_ts, a_m, w_m);
 

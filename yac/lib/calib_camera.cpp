@@ -2,7 +2,7 @@
 
 namespace yac {
 
-/********************************* utils **************************************/
+/********************************* UTILS **************************************/
 
 void initialize_camera(const aprilgrids_t &grids,
                        const camera_geometry_t *cam_geom,
@@ -20,7 +20,6 @@ void initialize_camera(const aprilgrids_t &grids,
   PoseLocalParameterization pose_plus;
 
   // Camera
-  const auto cam_idx = cam_params.cam_index;
   const auto cam_res = cam_params.resolution;
   problem.AddParameterBlock(cam_params.data(), 8);
 
@@ -70,6 +69,7 @@ void initialize_camera(const aprilgrids_t &grids,
                                              poses[ts].data(),
                                              cam_exts.data(),
                                              cam_params.data());
+      UNUSED(res_id);
     }
   }
 
@@ -87,7 +87,7 @@ void initialize_camera(const aprilgrids_t &grids,
   }
 }
 
-/**************************** reproj_error_t **********************************/
+/******************************** RESIDUAL ************************************/
 
 reproj_error_t::reproj_error_t(const camera_params_t &cam_params_,
                                const int tag_id_,
@@ -178,7 +178,7 @@ bool reproj_error_t::Evaluate(double const *const *params,
   return true;
 }
 
-/**************************** calib_camera_t **********************************/
+/******************************* CALIBRATOR ***********************************/
 
 calib_camera_t::calib_camera_t() {
   prob_options.local_parameterization_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
@@ -367,6 +367,7 @@ void calib_camera_t::_setup_problem() {
                                                 poses[ts].data(),
                                                 cam_exts[cam_idx].data(),
                                                 cam_params[cam_idx].data());
+        UNUSED(res_id);
       }
     }
   }

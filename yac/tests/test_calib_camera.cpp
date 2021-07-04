@@ -4,8 +4,42 @@
 
 namespace yac {
 
+test_data_t test_data = setup_test_data();
+
+int test_calib_view() {
+
+  ceres::Problem problem;
+  const auto grid = test_data.grids0[0];
+  const auto cam0 = test_data.cam0;
+  const mat4_t T_C0F = I(4);
+  const mat4_t T_C0Ci = I(4);
+  const pose_t rel_pose{0, T_C0F};
+  const pose_t extrinsics{0, T_C0Ci};
+  calib_view_t(problem, grid, cam0, rel_pose, extrinsics);
+
+  return 0;
+}
+
+int test_initialize_camera() {
+  // test_data_t test_data = setup_test_data();
+
+  const int cam_res[2] = {752, 480};
+  const std::string proj_model = "pinhole";
+  const std::string dist_model = "radtan4";
+
+  // const camera_geometry_t cam_geom;
+  // camera_params_t cam_params;
+  // const bool verbose;
+  // initialize_camera(test_data.grids0,
+  //                   const camera_geometry_t *cam_geom,
+  //                   camera_params_t &cam_params,
+  //                   const bool verbose) {
+
+  return 0;
+}
+
 int test_reproj_error() {
-  test_data_t test_data = setup_test_data();
+  // test_data_t test_data = setup_test_data();
 
   aprilgrid_t grid;
   for (size_t i = 0; i < test_data.grids0.size(); i++) {
@@ -28,9 +62,12 @@ int test_reproj_error() {
   const std::string dist_model = "radtan4";
   const vec4_t proj_params{458.654, 457.296, 367.215, 248.375};
   const vec4_t dist_params{-0.28340811, 0.07395907, 0.00019359, 1.76187114e-05};
-  camera_params_t cam_params{cam_idx, cam_res,
-                             proj_model, dist_model,
-                             proj_params, dist_params};
+  camera_params_t cam_params{cam_idx,
+                             cam_res,
+                             proj_model,
+                             dist_model,
+                             proj_params,
+                             dist_params};
   const pinhole_radtan4_t cam_geom;
 
   mat4_t T_CiF;
@@ -51,9 +88,9 @@ int test_reproj_error() {
                      I(2));
 
   std::vector<double *> params = {
-    rel_pose.param.data(),
-    cam_extrinsics.param.data(),
-    cam_params.param.data(),
+      rel_pose.param.data(),
+      cam_extrinsics.param.data(),
+      cam_params.param.data(),
   };
   vec2_t r;
   Eigen::Matrix<double, 2, 7, Eigen::RowMajor> J0;
@@ -118,14 +155,8 @@ int test_reproj_error() {
   return 0;
 }
 
-// int test_calib_view() {
-//   test_data_t test_data = setup_test_data();
-//
-//   return 0;
-// }
-
 int test_calib_camera() {
-  test_data_t test_data = setup_test_data();
+  // test_data_t test_data = setup_test_data();
 
   const int cam_res[2] = {752, 480};
   const std::string proj_model = "pinhole";
@@ -146,8 +177,9 @@ int test_calib_camera() {
 }
 
 void test_suite() {
-  // MU_ADD_TEST(test_reproj_error);
-  // MU_ADD_TEST(test_calib_view);
+  MU_ADD_TEST(test_calib_view);
+  // MU_ADD_TEST(test_initialize_camera);
+  MU_ADD_TEST(test_reproj_error);
   MU_ADD_TEST(test_calib_camera);
 }
 

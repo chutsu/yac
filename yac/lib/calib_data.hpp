@@ -29,11 +29,8 @@ struct calib_target_t {
                  const int tag_cols_,
                  const real_t tag_size_,
                  const real_t tag_spacing_)
-    : target_type{target_type_},
-      tag_rows{tag_rows_},
-      tag_cols{tag_cols_},
-      tag_size{tag_size_},
-      tag_spacing{tag_spacing_} {}
+      : target_type{target_type_}, tag_rows{tag_rows_}, tag_cols{tag_cols_},
+        tag_size{tag_size_}, tag_spacing{tag_spacing_} {}
   ~calib_target_t() {}
 };
 
@@ -85,8 +82,8 @@ struct calib_data_t {
   void add_calib_target(const calib_target_t &target_);
   void add_imu(const imu_params_t &params);
   void add_camera(const camera_params_t &params);
-  void add_camera_extrinsics(const int cam_idx, const mat4_t &ext=I(4));
-  void add_imu_extrinsics(const int imu_idx, const mat4_t &ext=I(4));
+  void add_camera_extrinsics(const int cam_idx, const mat4_t &ext = I(4));
+  void add_imu_extrinsics(const int imu_idx, const mat4_t &ext = I(4));
   void add_grids(const int cam_idx, const aprilgrids_t &grids);
   pose_t &add_pose(const timestamp_t &ts, const mat4_t &T);
   // void check_data();
@@ -94,16 +91,16 @@ struct calib_data_t {
   static int config_nb_imus(const std::string &config_file);
   static void load_calib_target_params(const config_t &config,
                                        calib_target_t &params,
-                                       bool verbose=false);
+                                       bool verbose = false);
   camera_params_t load_cam_params(const config_t &config,
                                   const int cam_idx,
-                                  bool verbose=false);
+                                  bool verbose = false);
   static imu_params_t load_imu_params(const config_t &config,
                                       const int index,
-                                      bool verbose=false);
+                                      bool verbose = false);
   extrinsics_t load_cam_exts(const config_t &config,
                              const int cam_idx,
-                             bool verbose=false);
+                             bool verbose = false);
 
   int nb_grids(const timestamp_t &ts);
   std::vector<std::pair<int, aprilgrid_t>> get_grids(const timestamp_t &ts);

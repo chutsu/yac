@@ -26,11 +26,11 @@ struct param_t {
           const timestamp_t &ts_,
           const long local_size_,
           const long global_size_,
-          const bool fixed_=false);
+          const bool fixed_ = false);
   param_t(const std::string &type_,
           const long local_size_,
           const long global_size_,
-          const bool fixed_=false);
+          const bool fixed_ = false);
   virtual ~param_t() = default;
 
   double *data();
@@ -47,10 +47,9 @@ struct pose_t : param_t {
   pose_t() = default;
   pose_t(const timestamp_t &ts_,
          const vec_t<7> &pose,
-         const bool fixed_=false);
-  pose_t(const timestamp_t &ts_,
-         const mat4_t &T,
-         const bool fixed_=false);
+         const bool fixed_ = false);
+  pose_t(const timestamp_t &ts_, const mat4_t &T, const bool fixed_ = false);
+  ~pose_t() = default;
 
   quat_t rot() const;
   vec3_t trans() const;
@@ -77,7 +76,7 @@ struct pose_t : param_t {
 struct fiducial_t : param_t {
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
-  fiducial_t(const mat4_t &T_WF_, const bool fixed_=false);
+  fiducial_t(const mat4_t &T_WF_, const bool fixed_ = false);
 
   void plus(const vecx_t &dx) override;
   void minus(const vecx_t &dx) override;
@@ -94,9 +93,7 @@ struct fiducial_t : pose_t {
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
   fiducial_t();
-  fiducial_t(const id_t id_,
-                const mat4_t &T_WF_,
-             const bool fixed_=false);
+  fiducial_t(const id_t id_, const mat4_t &T_WF_, const bool fixed_ = false);
 
   mat4_t estimate();
 };
@@ -105,28 +102,30 @@ public:
 struct extrinsics_t : pose_t {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 
-  extrinsics_t(const mat4_t &T=I(4), const bool fixed_=false)
-    : pose_t{0, T, fixed_} {
+  extrinsics_t(const mat4_t &T = I(4), const bool fixed_ = false)
+      : pose_t{0, T, fixed_} {
     this->type = "extrinsics_t";
   }
 
-  extrinsics_t(const vec_t<7> &pose, const bool fixed_=false)
-    : pose_t{0, pose, fixed_} {
+  extrinsics_t(const vec_t<7> &pose, const bool fixed_ = false)
+      : pose_t{0, pose, fixed_} {
     this->type = "extrinsics_t";
   }
 
   mat4_t tf() { return pose_t::tf(); }
   mat4_t tf() const { return pose_t::tf(); }
   void plus(const vecx_t &dx) { pose_t::plus(dx); }
-  void perturb(const int i, const real_t step_size) { pose_t::perturb(i, step_size); }
+  void perturb(const int i, const real_t step_size) {
+    pose_t::perturb(i, step_size);
+  }
 };
 
 struct landmark_t : param_t {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 
   landmark_t() {}
-  landmark_t(const vec3_t &p_W_, const bool fixed_=false)
-    : param_t{"landmark_t", 3, 3, fixed_} {
+  landmark_t(const vec3_t &p_W_, const bool fixed_ = false)
+      : param_t{"landmark_t", 3, 3, fixed_} {
     param = p_W_;
   }
 };
@@ -141,7 +140,6 @@ int focal_init(const aprilgrid_t &grid, const int axis, double &focal);
 struct camera_params_t : param_t {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 
-  bool ok = false;
   int cam_index = 0;
   int resolution[2] = {0, 0};
   std::string proj_model;
@@ -157,7 +155,7 @@ struct camera_params_t : param_t {
                   const std::string dist_model_,
                   const vecx_t &proj_params_,
                   const vecx_t &dist_params_,
-                  const bool fixed_=false);
+                  const bool fixed_ = false);
 
   vecx_t proj_params() const;
   vecx_t dist_params() const;
@@ -172,7 +170,7 @@ struct camera_params_t : param_t {
                               const int resolution_[2],
                               const std::string proj_model_,
                               const std::string dist_model_,
-                              const bool fixed_=false);
+                              const bool fixed_ = false);
 };
 
 struct sb_params_t : param_t {
@@ -182,27 +180,25 @@ struct sb_params_t : param_t {
               const vec3_t &v_,
               const vec3_t &ba_,
               const vec3_t &bg_,
-              const bool fixed_=false);
+              const bool fixed_ = false);
   sb_params_t(const timestamp_t &ts_,
               const vec_t<9> &sb_,
-              const bool fixed_=false);
+              const bool fixed_ = false);
 };
 
 struct time_delay_t : param_t {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
-  time_delay_t(const double td_, const bool fixed_=false);
+  time_delay_t(const double td_, const bool fixed_ = false);
 };
 
 // struct imu_params_t {
 //   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-//   mat4_t T_BS;         // Transformation from Body frame to IMU (sensor frame S).
-//   double a_max;        // Accelerometer saturation. [m/s^2]
-//   double g_max;        // Gyroscope saturation. [rad/s]
-//   double sigma_g_c;    // Gyroscope noise density.
-//   double sigma_bg;     // Initial gyroscope bias.
-//   double sigma_a_c;    // Accelerometer noise density.
-//   double sigma_ba;     // Initial accelerometer bias
-//   double sigma_gw_c;   // Gyroscope drift noise density.
+//   mat4_t T_BS;         // Transformation from Body frame to IMU (sensor frame
+//   S). double a_max;        // Accelerometer saturation. [m/s^2] double g_max;
+//   // Gyroscope saturation. [rad/s] double sigma_g_c;    // Gyroscope noise
+//   density. double sigma_bg;     // Initial gyroscope bias. double sigma_a_c;
+//   // Accelerometer noise density. double sigma_ba;     // Initial
+//   accelerometer bias double sigma_gw_c;   // Gyroscope drift noise density.
 //   double sigma_aw_c;   // Accelerometer drift noise density.
 //   double tau;          // Reversion time constant of accerometer bias. [s]
 //   double g;            // Earth acceleration.

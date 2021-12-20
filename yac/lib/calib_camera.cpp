@@ -32,7 +32,7 @@ void initialize_camera(const aprilgrids_t &grids,
   std::map<timestamp_t, pose_t> poses;
 
   // Build problem
-  camera_views_t camera_views{problem, cam_exts, cam_geom, cam_params};
+  calib_views_t calib_views{problem, cam_exts, cam_geom, cam_params};
 
   for (auto grid : grids) {
     const auto ts = grid.timestamp;
@@ -52,7 +52,7 @@ void initialize_camera(const aprilgrids_t &grids,
     problem.SetParameterization(poses[ts].data(), &pose_plus);
 
     // Add calibration view
-    camera_views.add_view(grid, poses[ts]);
+    calib_views.add_view(grid, poses[ts]);
   }
 
   // Solver options
@@ -69,14 +69,14 @@ void initialize_camera(const aprilgrids_t &grids,
     std::cout << std::endl;
 
     // Show optimization results
-    const auto reproj_errors = camera_views.calculate_reproj_errors();
+    const auto reproj_errors = calib_views.calculate_reproj_errors();
     printf("Optimization results\n");
     printf("------------------------------------------------------------\n");
     printf("reproj_errors: [%f, %f, %f] [px] (rmse, mean, median)\n",
            rmse(reproj_errors),
            mean(reproj_errors),
            median(reproj_errors));
-    printf("nb_images: %ld\n", camera_views.size());
+    printf("nb_images: %ld\n", calib_views.size());
     printf("nb_corners: %ld\n", reproj_errors.size());
     printf("\n");
     printf("cam%d:\n", cam_params.cam_index);
@@ -87,7 +87,7 @@ void initialize_camera(const aprilgrids_t &grids,
   }
 }
 
-/******************************* CALIBRATOR ***********************************/
+// CALIB CAMERA ////////////////////////////////////////////////////////////////
 
 calib_camera_t::calib_camera_t() {
   prob_options.local_parameterization_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;

@@ -205,6 +205,23 @@ int list_dir(const std::string &path, std::vector<std::string> &results) {
   return 0;
 }
 
+int list_files(const std::string &path, std::vector<std::string> &files) {
+  // Check dir
+  if (dir_exists(path) == false) {
+    LOG_ERROR("Dir [%s] does not exist!", path.c_str());
+    return -1;
+  }
+
+  // Get files
+  if (list_dir(path, files) != 0) {
+    LOG_ERROR("Failed to traverse dir [%s]!", path.c_str());
+    return -1;
+  }
+  std::sort(files.begin(), files.end());
+
+  return 0;
+}
+
 std::vector<std::string> path_split(const std::string path) {
   std::string s;
   std::vector<std::string> splits;

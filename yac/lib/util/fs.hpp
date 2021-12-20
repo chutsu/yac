@@ -130,6 +130,15 @@ std::string remove_ext(const std::string &path);
 int list_dir(const std::string &path, std::vector<std::string> &results);
 
 /**
+ * List files in directory
+ *
+ * @param path Path to directory
+ * @param files List of files only
+ * @returns 0 for success, -1 for failure
+ */
+int list_files(const std::string &path, std::vector<std::string> &files);
+
+/**
  * Split path into a number of elements
  *
  * @param path Path

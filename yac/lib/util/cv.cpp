@@ -470,7 +470,7 @@ std::vector<cv::Point2f> grid_fast(const cv::Mat &image,
   const int dx = image_width / grid_cols;
   const int dy = image_height / grid_rows;
   const int nb_cells = grid_rows * grid_cols;
-  const size_t max_per_cell = std::ceil((float) max_keypoints / (float) nb_cells);
+  const size_t max_per_cell = std::ceil((float)max_keypoints / (float)nb_cells);
 
   // Detect corners in each grid cell
   std::vector<cv::Point2f> keypoints_all;
@@ -527,7 +527,7 @@ std::vector<cv::Point2f> grid_good(const cv::Mat &image,
   const int dx = image_width / grid_cols;
   const int dy = image_height / grid_rows;
   const int nb_cells = grid_rows * grid_cols;
-  const size_t max_per_cell = std::ceil((float) max_keypoints / (float) nb_cells);
+  const size_t max_per_cell = std::ceil((float)max_keypoints / (float)nb_cells);
 
   // Detect corners in each grid cell
   std::vector<cv::Point2f> keypoints_all;
@@ -831,10 +831,8 @@ real_t pinhole_focal(const int image_size, const real_t fov) {
   return ((image_size / 2.0) / tan(deg2rad(fov) / 2.0));
 }
 
-mat3_t pinhole_K(const real_t fx,
-                 const real_t fy,
-                 const real_t cx,
-                 const real_t cy) {
+mat3_t
+pinhole_K(const real_t fx, const real_t fy, const real_t cx, const real_t cy) {
   mat3_t K = zeros(3, 3);
   K(0, 0) = fx;
   K(1, 1) = fy;
@@ -875,15 +873,16 @@ int pinhole_project(const int res[2],
 
 mat2_t pinhole_point_jacobian(const vec4_t &proj_params) {
   mat2_t J = zeros(2, 2);
-  J(0, 0) = proj_params(0);  // fx
-  J(1, 1) = proj_params(1);  // fy
+  J(0, 0) = proj_params(0); // fx
+  J(1, 1) = proj_params(1); // fy
   return J;
 }
 
-mat_t<2, 4> pinhole_params_jacobian(const vec4_t &proj_params, const vec2_t &x) {
+mat_t<2, 4> pinhole_params_jacobian(const vec4_t &proj_params,
+                                    const vec2_t &x) {
   mat_t<2, 4> J = zeros(2, 4);
-  J(0, 0) = x(0);  // x
-  J(1, 1) = x(1);  // y
+  J(0, 0) = x(0); // x
+  J(1, 1) = x(1); // y
   J(0, 2) = 1;
   J(1, 3) = 1;
   return J;
@@ -1027,8 +1026,7 @@ int pinhole_equi4_project(const int res[2],
   return (valid) ? 0 : -2;
 }
 
-matx_t pinhole_equi4_project_jacobian(const vecx_t &params,
-                                           const vec3_t &p_C) {
+matx_t pinhole_equi4_project_jacobian(const vecx_t &params, const vec3_t &p_C) {
   const vec4_t proj_params = params.head(4);
   const vec4_t dist_params = params.tail(4);
   const vec2_t p = project_point(p_C);
@@ -1041,8 +1039,7 @@ matx_t pinhole_equi4_project_jacobian(const vecx_t &params,
   return J_proj;
 }
 
-matx_t pinhole_equi4_params_jacobian(const vecx_t &params,
-                                     const vec3_t &p_C) {
+matx_t pinhole_equi4_params_jacobian(const vecx_t &params, const vec3_t &p_C) {
   const vec4_t proj_params = params.head(4);
   const vec4_t dist_params = params.tail(4);
 
@@ -1098,7 +1095,6 @@ vec2_t pinhole_equi4_undistort(const vecx_t &params, const vec2_t &z) {
 
   return z_undist;
 }
-
 
 int solvepnp(const camera_geometry_t *cam,
              const int cam_res[2],

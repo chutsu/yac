@@ -1,28 +1,6 @@
 #/bin/bash
 set -e
 
-# Install Docker
-# sudo apt install docker.io -yyy -q
-# sudo systemctl start docker
-# sudo systemctl enable docker  # Now reboot computer
-
-# Add user to docker group for permissions
-# sudo groupadd docker
-# sudo usermod -aG docker ${USER}
-# su -s ${USER}
-
-# Build docker image
-# docker image build -t yac_docker .
-
-# Run docker image
-# Note: -v /data:/data means allow docker instance to have access to /data dir
-# docker run \
-#   -e DISPLAY=$DISPLAY \
-#   -v /tmp/.X11-unix:/tmp/.X11-unix \
-#   -v /data:/data \ 
-#   --network="host" \
-#   -it --rm yac_docker
-
 tmux send-keys -t dev -R "\
 cd ~/sync/projects/yac \
 && make lib \
@@ -30,6 +8,7 @@ cd ~/sync/projects/yac \
 && rosrun yac test_calib_camera
 " C-m C-m
 exit
+
 # && rosrun yac test_util_cv
 # && rosrun yac test_util_aprilgrid
 # && rosrun yac test_calib_nbv --target test_calib_orbit_trajs
@@ -61,8 +40,6 @@ make lib
 # make release
 # make tests
 source ~/catkin_ws/devel/setup.bash
-# rm -rf /tmp/aprilgrid_test
-# rosrun yac test_calib_data --target test_blur_measure
 
 # --prefix 'gdb -ex=run -ex=\"set confirm off\" -ex=bt -ex=quit -args'
 # --prefix 'gdb -ex run'

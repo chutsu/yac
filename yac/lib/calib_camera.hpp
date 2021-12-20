@@ -5,88 +5,11 @@
 
 #include "calib_data.hpp"
 #include "calib_params.hpp"
+#include "calib_views.hpp"
 #include "camchain.hpp"
+#include "reproj_error.hpp"
 
 namespace yac {
-
-/******************************** RESIDUAL ************************************/
-
-/** Reprojection Error */
-struct reproj_error_t : public ceres::CostFunction {
-  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-
-  const camera_geometry_t *cam_geom;
-  const int cam_idx;
-  const int cam_res[2];
-  const int tag_id;
-  const int corner_idx;
-  const vec3_t r_FFi;
-  const vec2_t z;
-
-  const mat2_t covar;
-  const mat2_t info;
-  const mat2_t sqrt_info;
-
-  reproj_error_t(const camera_geometry_t *cam_geom_,
-                 const int cam_idx_,
-                 const int cam_res_[2],
-                 const int tag_id_,
-                 const int corner_idx_,
-                 const vec3_t &r_FFi_,
-                 const vec2_t &z_,
-                 const mat2_t &covar_);
-
-  bool Evaluate(double const *const *params,
-                double *residuals,
-                double **jacobians) const;
-};
-
-/**************************** CALIBRATION VIEW ********************************/
-
-/* Calibration View */
-struct calib_view_t {
-  ceres::Problem &problem;
-  aprilgrid_t grid;
-
-  camera_geometry_t *cam_geom;
-  camera_params_t &cam_params;
-  pose_t &T_C0F;
-  pose_t &T_C0Ci;
-
-  mat2_t covar;
-  std::deque<std::shared_ptr<reproj_error_t>> cost_fns;
-  std::deque<ceres::ResidualBlockId> res_ids;
-
-  calib_view_t(ceres::Problem &problem_,
-               aprilgrid_t &grid_,
-               pose_t &T_C0F_,
-               pose_t &T_C0Ci_,
-               camera_geometry_t *cam_geom_,
-               camera_params_t &cam_params_,
-               const mat2_t &covar_ = I(2));
-  ~calib_view_t() = default;
-  std::vector<double> calculate_reproj_errors() const;
-};
-
-/* Camera Views */
-struct camera_views_t {
-  ceres::Problem &problem;
-  pose_t &extrinsics;
-  camera_geometry_t *cam_geom;
-  camera_params_t &cam_params;
-  std::deque<calib_view_t> views;
-
-  camera_views_t(ceres::Problem &problem_,
-                 pose_t &extrinsics_,
-                 camera_geometry_t *cam_geom_,
-                 camera_params_t &cam_params_);
-
-  size_t size() const;
-  void add_view(aprilgrid_t &grid,
-                pose_t &rel_pose,
-                const mat2_t &covar_ = I(2));
-  std::vector<double> calculate_reproj_errors() const;
-};
 
 /********************************* UTILS **************************************/
 

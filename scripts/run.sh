@@ -5,7 +5,7 @@ tmux send-keys -t dev -R "\
 cd ~/sync/projects/yac \
 && make lib \
 && source ~/catkin_ws/devel/setup.bash \
-&& rosrun yac test_calib_camera
+&& rosrun yac test_calib_data
 " C-m C-m
 exit
 

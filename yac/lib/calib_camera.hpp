@@ -3,10 +3,9 @@
 
 #include <ceres/ceres.h>
 
-#include "calib_data.hpp"
+#include "calib_target.hpp"
 #include "calib_params.hpp"
 #include "calib_views.hpp"
-#include "camchain.hpp"
 #include "reproj_error.hpp"
 
 namespace yac {

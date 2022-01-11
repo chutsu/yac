@@ -3,7 +3,6 @@
 
 #include <ceres/ceres.h>
 
-#include "calib_data.hpp"
 #include "calib_params.hpp"
 #include "camchain.hpp"
 #include "reproj_error.hpp"

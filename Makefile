@@ -45,6 +45,14 @@ download_test_data: ## Download test data
 	@bash ./scripts/download_test_data.bash
 
 tests: ## Build and run tests
-	@. /opt/ros/melodic/setup.sh && \
-		source ${CATKIN_WS}/devel/setup.bash && \
-		rosrun yac test_calib_data
+	@. /opt/ros/melodic/setup.sh\
+		&& source ${CATKIN_WS}/devel/setup.bash \
+		&& rosrun yac test_util_aprilgrid \
+		&& rosrun yac test_util_config \
+		&& rosrun yac test_util_cv \
+		&& rosrun yac test_util_data \
+		&& rosrun yac test_util_fs \
+		&& rosrun yac test_util_net \
+		&& rosrun yac test_util_timeline \
+		&& rosrun yac test_calib_data \
+		&& rosrun yac test_calib_camera

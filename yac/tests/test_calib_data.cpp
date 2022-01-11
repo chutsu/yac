@@ -28,28 +28,8 @@ int test_calib_target() {
   return 0;
 }
 
-int test_calib_data() {
-  test_data_t test_data = setup_test_data();
-  const auto image_dir = CAM0_IMAGE_DIR;
-  const auto output_dir = MONO_OUTPUT_DIR "/cam0";
-
-  calib_data_t calib_data;
-  calib_data.add_calib_target(test_data.target);
-  calib_data.add_camera(test_data.cam0);
-  calib_data.add_camera(test_data.cam1);
-  calib_data.add_camera_extrinsics(0);
-  calib_data.add_camera_extrinsics(1);
-  // calib_data.add_grids(0, test_data.grids0);
-  // calib_data.add_grids(1, test_data.grids1);
-  calib_data.preprocess_camera_data(image_dir, output_dir);
-  // calib_data.check_data();
-
-  return 0;
-}
-
 void test_suite() {
   MU_ADD_TEST(test_calib_target);
-  MU_ADD_TEST(test_calib_data);
 }
 
 } // namespace yac

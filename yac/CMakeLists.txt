@@ -84,8 +84,8 @@ TARGET_LINK_LIBRARIES(test_util_timeline yac ${DEPS})
 ADD_EXECUTABLE(test_calib_camera tests/test_calib_camera.cpp)
 TARGET_LINK_LIBRARIES(test_calib_camera yac ${DEPS})
 
-# ADD_EXECUTABLE(test_calib_data tests/test_calib_data.cpp)
-# TARGET_LINK_LIBRARIES(test_calib_data yac ${DEPS})
+ADD_EXECUTABLE(test_calib_data tests/test_calib_data.cpp)
+TARGET_LINK_LIBRARIES(test_calib_data yac ${DEPS})
 
 # ADD_EXECUTABLE(test_calib_mocap tests/test_calib_mocap.cpp)
 # TARGET_LINK_LIBRARIES(test_calib_mocap yac ${DEPS})

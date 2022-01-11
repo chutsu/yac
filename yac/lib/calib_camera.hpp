@@ -5,12 +5,111 @@
 
 #include "calib_target.hpp"
 #include "calib_params.hpp"
-#include "calib_views.hpp"
-#include "reproj_error.hpp"
+#include "calib_data.hpp"
+#include "camchain.hpp"
 
 namespace yac {
 
-/********************************* UTILS **************************************/
+// REPROJECTION ERROR //////////////////////////////////////////////////////////
+
+/** Reprojection Error */
+struct reproj_error_t : public ceres::CostFunction {
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
+  // Data
+  // -- Camera
+  const camera_geometry_t *cam_geom;
+  const int cam_idx;
+  const int cam_res[2];
+  // -- Fiducial target
+  const int tag_id;
+  const int corner_idx;
+  const vec3_t r_FFi;
+  // -- Measurement
+  const vec2_t z;
+  // -- Covariance, information and square-root information
+  const mat2_t covar;
+  const mat2_t info;
+  const mat2_t sqrt_info;
+
+  /** Constructor */
+  reproj_error_t(const camera_geometry_t *cam_geom_,
+                 const int cam_idx_,
+                 const int cam_res_[2],
+                 const int tag_id_,
+                 const int corner_idx_,
+                 const vec3_t &r_FFi_,
+                 const vec2_t &z_,
+                 const mat2_t &covar_);
+
+  /** Evaluate */
+  bool Evaluate(double const *const *params,
+                double *residuals,
+                double **jacobians) const;
+};
+
+// CALIB VIEW //////////////////////////////////////////////////////////////////
+
+struct calib_view_t {
+  // Problem
+  ceres::Problem &problem;
+  std::deque<std::shared_ptr<reproj_error_t>> cost_fns;
+  std::deque<ceres::ResidualBlockId> res_ids;
+
+  // Data
+  aprilgrid_t grid;
+
+  // Parameters
+  camera_geometry_t *cam_geom;
+  camera_params_t &cam_params;
+  pose_t &T_C0F;
+  pose_t &T_BCi;
+  mat2_t covar;
+
+  /** Constructor */
+  calib_view_t(ceres::Problem &problem_,
+               aprilgrid_t &grid_,
+               pose_t &T_C0F_,
+               pose_t &T_BCi_,
+               camera_geometry_t *cam_geom_,
+               camera_params_t &cam_params_,
+               const mat2_t &covar_ = I(2));
+
+  /** Destructor */
+  ~calib_view_t() = default;
+
+  /** Calibrate reprojection errors */
+  std::vector<double> calculate_reproj_errors() const;
+};
+
+// CALIB VIEWS /////////////////////////////////////////////////////////////////
+
+struct calib_views_t {
+  ceres::Problem &problem;
+  pose_t &extrinsics;
+  camera_geometry_t *cam_geom;
+  camera_params_t &cam_params;
+  std::deque<calib_view_t> views;
+
+  /** Constructor */
+  calib_views_t(ceres::Problem &problem_,
+                pose_t &extrinsics_,
+                camera_geometry_t *cam_geom_,
+                camera_params_t &cam_params_);
+
+  /** Return number of views */
+  size_t size() const;
+
+  /** Add view */
+  void add_view(aprilgrid_t &grid,
+                pose_t &rel_pose,
+                const mat2_t &covar_ = I(2));
+
+  /** Calibrate reprojection errors */
+  std::vector<double> calculate_reproj_errors() const;
+};
+
+// CALIBRATOR //////////////////////////////////////////////////////////////////
 
 /**
  * Initialize camera intrinsics using AprilGrids `grids` observed by the camera,
@@ -20,8 +119,6 @@ void initialize_camera(const aprilgrids_t &grids,
                        camera_geometry_t *cam_geom,
                        camera_params_t &cam_params,
                        const bool verbose = false);
-
-/******************************* CALIBRATOR ***********************************/
 
 /** Camera Calibrator **/
 struct calib_camera_t {

@@ -1,14 +1,15 @@
 #/bin/bash
 set -e
 
-# tmux send-keys -t dev -R "\
-# cd ~/sync/projects/yac \
-# && make lib \
-# && source ~/catkin_ws/devel/setup.bash \
-# && rosrun yac test_calib_data
-# " C-m C-m
-# exit
+tmux send-keys -t dev -R "\
+cd ~/projects/yac \
+&& make lib \
+&& source ~/catkin_ws/devel/setup.bash \
+&& rosrun yac test_calib_camera
+" C-m C-m
+exit
 
+# && rosrun yac test_calib_data
 # && rosrun yac test_util_cv
 # && rosrun yac test_util_aprilgrid
 # && rosrun yac test_calib_nbv --target test_calib_orbit_trajs
@@ -37,7 +38,7 @@ set -e
 # make lib_debug
 # make debug
 # make lib
-make release
+# make release
 # make tests
 source ~/catkin_ws/devel/setup.bash
 
@@ -76,14 +77,6 @@ source ~/catkin_ws/devel/setup.bash
 # -- MOCAP CALIBRATION
 # rosrun yac test_calib_mocap
 
-# -- MONOCULAR-CAMERA CALIBRATION
-# rosrun yac test_calib_mono
-# rosrun yac test_calib_mono --target test_calib_mono_solve
-# rosrun yac test_calib_mono --target test_calib_mono_inc_solve
-
-# -- STEREO-CAMERA INCREMENTAL CALIBRATION
-# rosrun yac test_calib_stereo_inc --target test_calib_stereo_inc_solve
-
 # -- VISUAL-INERTIAL CALIBRATION
 # rosrun yac test_calib_vi --target test_calib_vi_init_poses
 # rosrun yac test_calib_vi --target test_reproj_error
@@ -108,7 +101,8 @@ source ~/catkin_ws/devel/setup.bash
 # rosrun yac test_marg_error --target test_marg_block
 
 # -- ROS NODES
-roslaunch yac_ros calib_capture.launch cam0_topic:=/rs/ir0/image
+# roslaunch yac_ros calib_capture.launch \
+#   cam0_topic:=/rs/ir0/image
 
 # roslaunch yac_ros calib_camera.launch
 # roslaunch yac_ros calib_mocap.launch

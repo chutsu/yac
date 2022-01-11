@@ -429,32 +429,6 @@ vec2_t pinhole_equi4_undistort(const vecx_t &params, const vec2_t &z);
 /****************************** CAMERA GEOMETRY *******************************/
 
 struct camera_geometry_t {
-  // EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
-  //
-  // int cam_index = 0;
-  // int resolution[2] = {0, 0};
-  // std::string proj_model;
-  // std::string dist_model;
-  // int proj_size = 0;
-  // int dist_size = 0;
-  // std::shared_ptr<camera_geometry_t> cam_geom;
-  //
-  // camera_geometry_t() = default;
-  // camera_geometry_t(const int cam_index_,
-  //                   const int resolution_[2],
-  //                   const std::string proj_model_,
-  //                   const std::string dist_model_,
-  //                   const vecx_t &proj_params_,
-  //                   const vecx_t &dist_params_,
-  //                   const bool fixed_ = false);
-  // virtual ~camera_geometry_t() = default;
-  //
-  // int project(const vec3_t &p_C, vec2_t &z_hat) const = 0;
-  // matx_t project_jacobian(const vec3_t &p_C) const = 0;
-  // matx_t params_jacobian(const vec3_t &p_C) const = 0;
-  // int back_project(const vec2_t &x, vec3_t &ray) const = 0;
-  // vec2_t undistort(const vec2_t &z) const = 0;
-
   camera_geometry_t() = default;
   virtual ~camera_geometry_t() = default;
 

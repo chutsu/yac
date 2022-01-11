@@ -180,7 +180,9 @@ struct aprilgrid_detector_t {
     det_v3->refine_edges = 1;
   }
 
-  ~aprilgrid_detector_t() { apriltag_detector_destroy(det_v3); }
+  ~aprilgrid_detector_t() {
+    apriltag_detector_destroy(det_v3);
+  }
 
   void filter_tags(const cv::Mat &image,
                    std::vector<AprilTags::TagDetection> &tags,
@@ -395,14 +397,6 @@ struct aprilgrid_detector_t {
       for (int i = 0; i < zarray_size(detections); i++) {
         apriltag_detection_t *det;
         zarray_get(detections, i, &det);
-
-        // if (det->decision_margin < 180.0) {
-        //   continue;
-        // }
-
-        // printf("apriltag hamming: %d\n", det->hamming);
-        // printf("apriltag decision margin: %f\n", det->decision_margin);
-        // printf("\n");
 
         const auto tag_id = det->id;
         const auto kps = det->p;

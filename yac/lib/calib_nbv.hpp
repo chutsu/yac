@@ -98,7 +98,7 @@ aprilgrid_t *nbv_target_grid(const calib_target_t &target,
 template <typename CAMERA>
 mat4_t calib_target_origin(const calib_target_t &target,
                            const camera_params_t &cam_params,
-                           const double target_scale=0.5) {
+                           const double target_scale = 0.5) {
   // Calculate target center
   const double tag_rows = target.tag_rows;
   const double tag_cols = target.tag_cols;
@@ -116,7 +116,7 @@ mat4_t calib_target_origin(const calib_target_t &target,
 start:
   // Calculate distance away from target center
   const double image_width = cam_params.resolution[0];
-  const double target_half_width =  target_width / 2.0;
+  const double target_half_width = target_width / 2.0;
   const double target_half_resolution_x = image_width / 2.0;
   const auto fx = cam_params.proj_params()[0];
   const auto z_FO = fx * target_half_width / (target_half_resolution_x * scale);
@@ -277,7 +277,7 @@ void calib_orbit_trajs(const calib_target_t &target,
   int retry = 20;
   ctrajs_t orbit_trajs;
 start:
-  double rho = (calib_width * scale);  // Sphere radius
+  double rho = (calib_width * scale); // Sphere radius
 
   // Adjust the calibration origin such that trajectories are valid
   mat4_t calib_origin = T_FO;
@@ -312,7 +312,7 @@ start:
         orbit_trajs.clear();
         scale += 0.1;
         retry--;
-        if (retry == 0){
+        if (retry == 0) {
           FATAL("Failed to generate orbit trajectory!");
         }
         goto start;
@@ -321,7 +321,7 @@ start:
         orbit_trajs.clear();
         scale += 0.1;
         retry--;
-        if (retry == 0){
+        if (retry == 0) {
           FATAL("Failed to generate orbit trajectory!");
         }
         goto start;
@@ -332,7 +332,7 @@ start:
     }
 
     // Create return journey
-    for (int i = (int) (positions.size() - 1); i >= 0; i--) {
+    for (int i = (int)(positions.size() - 1); i >= 0; i--) {
       positions.push_back(positions[i]);
       attitudes.push_back(attitudes[i]);
     }
@@ -391,8 +391,8 @@ void calib_pan_trajs(const calib_target_t &target,
 
   double scale = 1.0;
   ctrajs_t pan_trajs;
-//   int retry = 20;
-// start:
+  //   int retry = 20;
+  // start:
   // Trajectory parameters
   const int nb_trajs = 4;
   const int nb_control_points = 5;
@@ -406,7 +406,7 @@ void calib_pan_trajs(const calib_target_t &target,
     vec3s_t positions;
     quats_t attitudes;
 
-    for (const auto &r: linspace(0.0, pan_length, nb_control_points)) {
+    for (const auto &r : linspace(0.0, pan_length, nb_control_points)) {
       const vec2_t x = circle(r, theta);
       const vec3_t p{x(0), x(1), 0.0};
 
@@ -452,7 +452,7 @@ void calib_pan_trajs(const calib_target_t &target,
 template <typename T>
 void calib_figure8_trajs(const calib_target_t &target,
                          const camera_params_t &cam0,
-                                const camera_params_t &cam1,
+                         const camera_params_t &cam1,
                          const mat4_t &T_BC0,
                          const mat4_t &T_BC1,
                          const mat4_t &T_WF,
@@ -485,7 +485,7 @@ void calib_figure8_trajs(const calib_target_t &target,
     const auto x = a * sin(t);
     const auto y = a * sin(t) * cos(t);
     const auto z = 0.0;
-    const vec3_t r_OC{x, y, z};  // Position of camera relative to calib origin
+    const vec3_t r_OC{x, y, z}; // Position of camera relative to calib origin
 
     const vec3_t r_FT = tf_point(T_FO, r_OC);
     const mat4_t T_FC0 = lookat(r_FT, r_FFc);
@@ -501,7 +501,7 @@ void calib_figure8_trajs(const calib_target_t &target,
     const auto x = a * sin(t);
     const auto y = a * sin(t) * cos(t);
     const auto z = 0.0;
-    const vec3_t r_OC{x, y, z};  // Position of camera relative to calib origin
+    const vec3_t r_OC{x, y, z}; // Position of camera relative to calib origin
 
     const vec3_t r_FT = tf_point(T_FO, r_OC);
     const mat4_t T_FC0 = lookat(r_FT, r_FFc);
@@ -589,7 +589,7 @@ template <typename CAMERA>
 aprilgrid_t calib_simulate(const calib_target_t &target,
                            const mat4_t &T_FC0,
                            const camera_params_t &cam_params,
-                           const mat4_t &T_C0Ci=I(4)) {
+                           const mat4_t &T_C0Ci = I(4)) {
   const auto cam_res = cam_params.resolution;
   const auto proj_params = cam_params.proj_params();
   const auto dist_params = cam_params.dist_params();
@@ -624,7 +624,7 @@ template <typename CAMERA>
 aprilgrids_t calib_simulate(const calib_target_t &target,
                             const mat4s_t &rel_poses,
                             const camera_params_t &cam_params,
-                            const mat4_t &T_C0Ci=I(4)) {
+                            const mat4_t &T_C0Ci = I(4)) {
   aprilgrids_t grids;
   for (const mat4_t &T_FC0 : rel_poses) {
     grids.push_back(calib_simulate<CAMERA>(target, T_FC0, cam_params, T_C0Ci));
@@ -686,10 +686,12 @@ int nbv_find(const calib_target_t &target,
       const vec3_t r_FFi = object_points[i];
       const mat2_t covar = I(2);
 
-      auto cost_fn = new calib_mono_residual_t<CAMERA>{
-        cam_res, tag_id, corner_idx,
-        r_FFi, z, covar
-      };
+      auto cost_fn = new calib_mono_residual_t<CAMERA>{cam_res,
+                                                       tag_id,
+                                                       corner_idx,
+                                                       r_FFi,
+                                                       z,
+                                                       covar};
       auto res_id = problem.AddResidualBlock(cost_fn,
                                              NULL,
                                              pose.param.data(),
@@ -732,9 +734,7 @@ int nbv_find(const calib_target_t &target,
 
 // Find next best pose for a stereo-camera calibration
 template <typename CAMERA>
-int nbv_find(const calib_target_t &target,
-             calib_data_t &data,
-             mat4_t &T_FC0) {
+int nbv_find(const calib_target_t &target, calib_data_t &data, mat4_t &T_FC0) {
   assert(data.problem);
 
   camera_params_t &cam0 = data.cam_params[0];
@@ -777,7 +777,7 @@ int nbv_find(const calib_target_t &target,
     pose_t nbv_pose{0, 0, T_C0F};
 
     // Add view from each camera
-    for (int cam_idx = 0; cam_idx < (int) extrinsics.size(); cam_idx++) {
+    for (int cam_idx = 0; cam_idx < (int)extrinsics.size(); cam_idx++) {
       const auto grid = nbv_grids[cam_idx][k];
       if (grid.detected == false) {
         continue;
@@ -797,14 +797,19 @@ int nbv_find(const calib_target_t &target,
         const vec3_t r_FFi = object_points[i];
         const mat2_t covar = I(2);
 
-        auto cost_fn = new reproj_error_t<CAMERA>{cam_idx, cam_res,
-                                                  tag_id, corner_idx,
-                                                  r_FFi, z, covar};
-        auto res_id = problem.AddResidualBlock(cost_fn,
-                                               NULL,
-                                               nbv_pose.param.data(),
-                                               extrinsics[cam_idx]->param.data(),
-                                               cam_params[cam_idx]->param.data());
+        auto cost_fn = new reproj_error_t<CAMERA>{cam_idx,
+                                                  cam_res,
+                                                  tag_id,
+                                                  corner_idx,
+                                                  r_FFi,
+                                                  z,
+                                                  covar};
+        auto res_id =
+            problem.AddResidualBlock(cost_fn,
+                                     NULL,
+                                     nbv_pose.param.data(),
+                                     extrinsics[cam_idx]->param.data(),
+                                     cam_params[cam_idx]->param.data());
 
         cost_fns.push_back(cost_fn);
         res_blocks.push_back(res_id);
@@ -867,7 +872,7 @@ void simulate_cameras(const ctraj_t &traj,
     // Calculate transform of fiducial (F) w.r.t. camera (C)
     const mat4_t T_WC0 = ctraj_get_pose(traj, ts_k);
     const mat4_t T_C0F = T_WC0.inverse() * T_WF;
-    const mat4_t T_FC0 = T_C0F.inverse();  // NBV pose
+    const mat4_t T_FC0 = T_C0F.inverse(); // NBV pose
 
     // Create an AprilGrid that represents what the camera would see if it was
     // positioned at T_C0F
@@ -891,15 +896,15 @@ int nbt_eval_traj(const ctraj_t &traj,
                   const timestamp_t &ts_end,
                   const imu_params_t &imu_params,
                   const camera_params_t &cam0,
-                     const camera_params_t &cam1,
+                  const camera_params_t &cam1,
                   const double cam_rate,
                   const mat4_t T_WF,
                   const mat4_t T_BC0,
                   const mat4_t T_BC1,
                   const mat4_t T_BS,
                   matx_t &calib_covar,
-                  bool save=false,
-                  const std::string save_dir="/tmp/nbt") {
+                  bool save = false,
+                  const std::string save_dir = "/tmp/nbt") {
   // Simulate camera frames
   // clang-format off
   aprilgrids_t grids0;
@@ -955,7 +960,11 @@ int nbt_eval_traj(const ctraj_t &traj,
 
   // Create timeline
   timeline_t timeline;
-  nbt_create_timeline(imu_time, imu_gyro, imu_accel, {grids0, grids1}, timeline);
+  nbt_create_timeline(imu_time,
+                      imu_gyro,
+                      imu_accel,
+                      {grids0, grids1},
+                      timeline);
 
   // Setup calibration
   calib_vi_t calib;
@@ -1097,7 +1106,8 @@ struct nbv_test_grid_t {
 //     const matx_t covar_y = Jx * covar_x * Jx.transpose();
 //
 //     // Check covar_y
-//     if (covar_y(0, 0) < 0 || covar_y(1, 1) < 0 || covar_y.determinant() < 0) {
+//     if (covar_y(0, 0) < 0 || covar_y(1, 1) < 0 || covar_y.determinant() < 0)
+//     {
 //       LOG_WARN("Bad output covar");
 //       print_matrix("covar_y", covar_y);
 //       return INFINITY;

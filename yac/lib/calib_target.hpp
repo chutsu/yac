@@ -31,7 +31,7 @@ struct calib_target_t {
   int load(const std::string &target_file, const std::string &prefix = "");
 
   /** Print calibration target */
-  void print();
+  void print() const;
 };
 
 } // namespace yac

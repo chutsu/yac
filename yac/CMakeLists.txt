@@ -46,12 +46,11 @@ ADD_LIBRARY(
   lib/util/timeline.cpp
   lib/calib_camera.cpp
   lib/calib_data.cpp
-  # lib/calib_mocap.cpp
+  lib/calib_mocap.cpp
   # lib/calib_nbv.cpp
   lib/calib_params.cpp
   lib/calib_target.cpp
   lib/calib_vi.cpp
-  lib/calib_views.cpp
   lib/camchain.cpp
 )
 
@@ -99,6 +98,3 @@ TARGET_LINK_LIBRARIES(test_calib_camera yac ${DEPS})
 
 # ADD_EXECUTABLE(test_marg_error tests/test_marg_error.cpp)
 # TARGET_LINK_LIBRARIES(test_marg_error yac ${DEPS})
-
-ADD_EXECUTABLE(test_reproj_error tests/test_reproj_error.cpp)
-TARGET_LINK_LIBRARIES(test_reproj_error yac ${DEPS})

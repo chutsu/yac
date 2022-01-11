@@ -8,7 +8,8 @@ calib_target_t::calib_target_t(const std::string target_type_,
                                const real_t tag_size_,
                                const real_t tag_spacing_)
     : target_type{target_type_}, tag_rows{tag_rows_}, tag_cols{tag_cols_},
-      tag_size{tag_size_}, tag_spacing{tag_spacing_} {}
+      tag_size{tag_size_}, tag_spacing{tag_spacing_} {
+}
 
 int calib_target_t::load(const std::string &target_file,
                          const std::string &prefix) {
@@ -27,7 +28,7 @@ int calib_target_t::load(const std::string &target_file,
   return 0;
 }
 
-void calib_target_t::print() {
+void calib_target_t::print() const {
   printf("target_type: %s\n", target_type.c_str());
   printf("tag_rows: %d\n", tag_rows);
   printf("tag_cols: %d\n", tag_cols);

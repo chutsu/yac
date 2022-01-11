@@ -3,7 +3,7 @@
 #include <termios.h>
 
 #include "yac.hpp"
-#include "ros.hpp"
+#include "../ros_utils.hpp"
 
 using namespace yac;
 
@@ -40,13 +40,13 @@ static void image_cb(const sensor_msgs::ImageConstPtr &msg) {
     if (show_detection) {
       auto grid = detector.detect(ts.toNSec(), image);
       cv::Scalar color(0, 0, 255);
-      for (const auto &kp: grid.keypoints()) {
+      for (const auto &kp : grid.keypoints()) {
         cv::circle(vis_image, cv::Point(kp(0), kp(1)), 1.0, color, 2, 8);
       }
     }
 
     cv::imshow("Camera View", vis_image);
-    char key = (char) cv::waitKey(1);
+    char key = (char)cv::waitKey(1);
     if (key == 'c') {
       capture_event = true;
     } else if (key == 'q') {
@@ -108,7 +108,7 @@ int main(int argc, char *argv[]) {
   tcsetattr(0, TCSANOW, &term_config);
 
   // Capture thread
-  std::thread keyboard_thread([&](){
+  std::thread keyboard_thread([&]() {
     printf("Press 'c' to capture, 'q' to stop!\n");
     while (keep_running) {
       int n = getchar();
@@ -117,13 +117,13 @@ int main(int argc, char *argv[]) {
         // std::cout << "key: " << key << std::endl;
 
         switch (key) {
-        case 113: // 'q' key
-          keep_running = false;
-          break;
-        case 126: // Presentation clicker up / down key
-        case 99:  // 'c' key
-          capture_event = true;
-          break;
+          case 113: // 'q' key
+            keep_running = false;
+            break;
+          case 126: // Presentation clicker up / down key
+          case 99:  // 'c' key
+            capture_event = true;
+            break;
         }
       }
     }
@@ -138,8 +138,8 @@ int main(int argc, char *argv[]) {
   // Clean up
   tcsetattr(0, TCSANOW, &term_config_orig);
   bag.close();
-  printf("ROS bag saved to [%s]\n", rosbag_path.c_str());
-  printf("- cam0 msgs recorded: %d\n", save_counter);
+  printf("\x1B[1;32mROS bag saved to [%s]\x1B[1;0m\n", rosbag_path.c_str());
+  printf("\x1B[1;32m- cam0 msgs recorded: %d\x1B[1;0m\n", save_counter);
 
   return 0;
 }

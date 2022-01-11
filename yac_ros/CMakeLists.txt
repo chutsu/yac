@@ -72,31 +72,31 @@ SET(
   ${YAC_DEPS}
 )
 
-# # YAC ROS
-# ADD_LIBRARY(yac_ros
-#             src/calib_vi/common/Duration.cpp
-#             src/calib_vi/common/operators.cpp
-#             src/calib_vi/common/Time.cpp
-#             src/calib_vi/common/Transformation.cpp
-#             src/calib_vi/cv/CameraBase.cpp
-#             src/calib_vi/cv/EquidistantDistortion.cpp
-#             src/calib_vi/cv/RadialTangentialDistortion.cpp
-#             src/calib_vi/param/LocalParamizationAdditionalInterfaces.cpp
-#             src/calib_vi/error/MarginalizationError.cpp
-#             src/calib_vi/error/PoseError.cpp
-#             src/calib_vi/error/SpeedAndBiasError.cpp
-#             src/calib_vi/Calibrator.cpp
-#             src/calib_vi/Map.cpp
-#             src/ros_calib.cpp
-#             src/ros_utils.cpp)
-# INSTALL(
-#   DIRECTORY launch/
-#   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/launch
-# )
+# YAC ROS
+ADD_LIBRARY(yac_ros
+            src/calib_vi/common/Duration.cpp
+            src/calib_vi/common/operators.cpp
+            src/calib_vi/common/Time.cpp
+            src/calib_vi/common/Transformation.cpp
+            src/calib_vi/cv/CameraBase.cpp
+            src/calib_vi/cv/EquidistantDistortion.cpp
+            src/calib_vi/cv/RadialTangentialDistortion.cpp
+            src/calib_vi/param/LocalParamizationAdditionalInterfaces.cpp
+            src/calib_vi/error/MarginalizationError.cpp
+            src/calib_vi/error/PoseError.cpp
+            src/calib_vi/error/SpeedAndBiasError.cpp
+            src/calib_vi/Calibrator.cpp
+            src/calib_vi/Map.cpp
+            src/ros_calib.cpp
+            src/ros_utils.cpp)
+INSTALL(
+  DIRECTORY launch/
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/launch
+)
 
-# # ROS NODES
-# ADD_EXECUTABLE(calib_capture_node src/nodes/calib_capture_node.cpp)
-# TARGET_LINK_LIBRARIES(calib_capture_node ${DEPS})
+# ROS NODES
+ADD_EXECUTABLE(calib_capture_node src/nodes/calib_capture_node.cpp)
+TARGET_LINK_LIBRARIES(calib_capture_node ${DEPS})
 
 # ADD_EXECUTABLE(calib_mocap_capture_node src/nodes/calib_mocap_capture_node.cpp)
 # TARGET_LINK_LIBRARIES(calib_mocap_capture_node ${DEPS})
@@ -104,14 +104,8 @@ SET(
 # ADD_EXECUTABLE(calib_mocap_node src/nodes/calib_mocap_node.cpp)
 # TARGET_LINK_LIBRARIES(calib_mocap_node ${DEPS})
 
-# ADD_EXECUTABLE(calib_mono_node src/nodes/calib_mono_node.cpp)
-# TARGET_LINK_LIBRARIES(calib_mono_node ${DEPS})
-#
 # ADD_EXECUTABLE(calib_mono_nbv_node src/nodes/calib_mono_nbv_node.cpp)
 # TARGET_LINK_LIBRARIES(calib_mono_nbv_node ${DEPS})
-#
-# ADD_EXECUTABLE(calib_stereo_node src/nodes/calib_stereo_node.cpp)
-# TARGET_LINK_LIBRARIES(calib_stereo_node ${DEPS})
 
 # ADD_EXECUTABLE(calib_stereo_nbv_node src/nodes/calib_stereo_nbv_node.cpp)
 # TARGET_LINK_LIBRARIES(calib_stereo_nbv_node ${DEPS})

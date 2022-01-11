@@ -1,11 +1,12 @@
 #include "util/euroc.hpp"
 #include "calib_data.hpp"
+#include "calib_target.hpp"
 
 namespace yac {
 
 struct test_data_t {
   const calib_target_t target{"aprilgrid", 6, 6, 0.088, 0.3};
-  const std::string data_path = "/data/euroc/calib/cam_april";
+  const std::string data_path = "/data/euroc/cam_april";
   const std::string grids0_path = data_path + "/grid0/cam0";
   const std::string grids1_path = data_path + "/grid0/cam1";
   euroc_calib_t data{data_path};
@@ -70,8 +71,12 @@ test_data_t setup_test_data() {
         }
 
         switch (cam_idx) {
-        case 0: test_data.grids0.push_back(grid); break;
-        case 1: test_data.grids1.push_back(grid); break;
+          case 0:
+            test_data.grids0.push_back(grid);
+            break;
+          case 1:
+            test_data.grids1.push_back(grid);
+            break;
         }
       }
     }
@@ -90,4 +95,4 @@ test_data_t setup_test_data() {
   return test_data;
 }
 
-}  // namespace yac
+} // namespace yac

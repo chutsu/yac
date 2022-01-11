@@ -15,7 +15,7 @@ aprilgrid_detector_t detector(6, 6, 0.088, 0.3);
 rosbag::Bag bag;
 bool imshow = true;
 bool show_detection = true;
-std::string cam0_topic;
+std::map<int, std::string> cam_topics;
 
 static void signal_handler(int sig) {
   UNUSED(sig);
@@ -38,7 +38,7 @@ static void image_cb(const sensor_msgs::ImageConstPtr &msg) {
     auto vis_image = gray2rgb(image);
 
     if (show_detection) {
-      auto grid = detector.detect(ts.toNSec(), image);
+      auto grid = detector.detect(ts.toNSec(), image, true);
       cv::Scalar color(0, 0, 255);
       for (const auto &kp : grid.keypoints()) {
         cv::circle(vis_image, cv::Point(kp(0), kp(1)), 1.0, color, 2, 8);
@@ -56,7 +56,7 @@ static void image_cb(const sensor_msgs::ImageConstPtr &msg) {
 
   if (capture_event) {
     printf("Capturing cam0 image [%d]\n", save_counter);
-    bag.write(cam0_topic, ts, msg);
+    bag.write(cam_topics[0], ts, msg);
     capture_event = false;
     save_counter++;
   }
@@ -76,23 +76,37 @@ int main(int argc, char *argv[]) {
   ROS_PARAM(nh, node_name + "/imshow", imshow);
   ROS_PARAM(nh, node_name + "/show_detection", show_detection);
   ROS_PARAM(nh, node_name + "/rosbag_path", rosbag_path);
-  ROS_PARAM(nh, node_name + "/cam0_topic", cam0_topic);
+  ROS_PARAM(nh, node_name + "/cam0_topic", cam_topics[0]);
+  // ROS_OPTIONAL_PARAM(nh, node_name + "/cam1_topic", cam_topics[1], "");
 
   // Setup ROS bag
   bag.open(rosbag_path, rosbag::bagmode::Write);
 
   // Setup subscribers
-  // -- Camera subscriber
-  const auto cam0_sub = nh.subscribe(cam0_topic, 1, image_cb);
+  // -- Camera subscribers
+  std::map<int, ros::Subscriber> cam_subs;
+  for (size_t i = 0; i < cam_topics.size(); i++) {
+    if (cam_topics[i].empty()) {
+      continue;
+    }
 
-  // -- Spin for 2 seconds then check if cam0_topic exists
-  for (int i = 0; i < 2; i++) {
-    sleep(1);
-    ros::spinOnce();
+    // Subscribe to camera topic
+    cam_subs[i] = nh.subscribe(cam_topics[i], i, image_cb);
+
+    // Spin for 2 seconds then check if cam0_topic exists
+    for (int i = 0; i < 2; i++) {
+      sleep(1);
+      ros::spinOnce();
+    }
+
+    // Check
+    if (cam_subs[i].getNumPublishers() == 0) {
+      ROS_FATAL("Topic [%s] not found!", cam_topics[i].c_str());
+      return -1;
+    }
   }
-  if (cam0_sub.getNumPublishers() == 0) {
-    ROS_FATAL("Topic [%s] not found!", cam0_topic.c_str());
-    return -1;
+  if (cam_subs.size() == 0) {
+    ROS_FATAL("Not subscribing to any camera?");
   }
 
   // Non-blocking keyboard handler

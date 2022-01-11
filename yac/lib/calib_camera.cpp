@@ -96,9 +96,13 @@ calib_camera_t::calib_camera_t() {
   problem = new ceres::Problem(prob_options);
 }
 
-calib_camera_t::~calib_camera_t() { delete problem; }
+calib_camera_t::~calib_camera_t() {
+  delete problem;
+}
 
-int calib_camera_t::nb_cams() const { return cam_params.size(); }
+int calib_camera_t::nb_cams() const {
+  return cam_params.size();
+}
 
 aprilgrids_t calib_camera_t::get_cam_data(const int cam_idx) const {
   aprilgrids_t grids;

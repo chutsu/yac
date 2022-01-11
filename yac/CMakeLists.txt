@@ -45,14 +45,14 @@ ADD_LIBRARY(
   lib/util/sim.cpp
   lib/util/timeline.cpp
   lib/calib_camera.cpp
-  lib/calib_target.cpp
   lib/calib_data.cpp
   # lib/calib_mocap.cpp
   # lib/calib_nbv.cpp
   lib/calib_params.cpp
+  lib/calib_target.cpp
+  lib/calib_vi.cpp
   lib/calib_views.cpp
   lib/camchain.cpp
-  lib/calib_vi.cpp
 )
 
 # TESTS

@@ -14,7 +14,7 @@ static void lerp_body_poses(const aprilgrids_t &grids,
                             const mat4s_t &body_poses,
                             aprilgrids_t &lerped_grids,
                             mat4s_t &lerped_poses,
-                            timestamp_t ts_offset=0) {
+                            timestamp_t ts_offset = 0) {
   // Make sure AprilGrids are between body poses else we can't lerp poses
   timestamps_t grid_timestamps;
   for (const auto &grid : grids) {
@@ -155,9 +155,14 @@ struct calib_mocap_data_t {
 
       // -- Initialize camera parameters
       const int cam_idx = 0;
-      const int cam_res[2] = {(int) resolution[0], (int) resolution[1]};
-      this->cam0 = camera_params_t{param_id++, cam_idx, cam_res,
-                                   proj_model, dist_model, 4, 4};
+      const int cam_res[2] = {(int)resolution[0], (int)resolution[1]};
+      this->cam0 = camera_params_t{param_id++,
+                                   cam_idx,
+                                   cam_res,
+                                   proj_model,
+                                   dist_model,
+                                   4,
+                                   4};
       this->cam0.initialize(cam0_grids);
 
       // -- Calibrate camera intrinsics
@@ -182,10 +187,14 @@ struct calib_mocap_data_t {
       parse(config, "cam0.dist_params", dist_params);
 
       const int cam_idx = 0;
-      const int cam_res[2] = {(int) resolution[0], (int) resolution[1]};
-      this->cam0 = camera_params_t{param_id++, cam_idx, cam_res,
-                                   proj_model, dist_model,
-                                   proj_params, dist_params};
+      const int cam_res[2] = {(int)resolution[0], (int)resolution[1]};
+      this->cam0 = camera_params_t{param_id++,
+                                   cam_idx,
+                                   cam_res,
+                                   proj_model,
+                                   dist_model,
+                                   proj_params,
+                                   dist_params};
     }
 
     // Load dataset
@@ -197,8 +206,11 @@ struct calib_mocap_data_t {
     load_poses(body0_csv_path, body_timestamps, body_poses);
     // -- Synchronize aprilgrids and body poses
     mat4s_t marker_poses;
-    lerp_body_poses(grids_raw, body_timestamps, body_poses,
-                    this->grids, marker_poses);
+    lerp_body_poses(grids_raw,
+                    body_timestamps,
+                    body_poses,
+                    this->grids,
+                    marker_poses);
     // -- Fiducial target pose
     const mat4_t fiducial_pose = load_pose(target0_csv_path);
     this->T_WF = pose_t(param_id++, 0, fiducial_pose);
@@ -234,16 +246,14 @@ struct calib_mocap_residual_t : public ceres::SizedCostFunction<2, 7, 7, 7, 8> {
                          const vec3_t &r_FFi,
                          const vec2_t &z,
                          const mat2_t &covar)
-      : cam_res_{cam_res[0], cam_res[1]},
-        r_FFi_{r_FFi},
-        z_{z},
-        covar_{covar},
-        info_{covar.inverse()},
-        sqrt_info_{info_.llt().matrixL().transpose()} {}
+      : cam_res_{cam_res[0], cam_res[1]}, r_FFi_{r_FFi}, z_{z}, covar_{covar},
+        info_{covar.inverse()}, sqrt_info_{info_.llt().matrixL().transpose()} {
+  }
 
-  ~calib_mocap_residual_t() {}
+  ~calib_mocap_residual_t() {
+  }
 
-  bool Evaluate(double const * const *params,
+  bool Evaluate(double const *const *params,
                 double *residuals,
                 double **jacobians) const {
     // Map optimization variables to Eigen
@@ -585,10 +595,8 @@ int calib_mocap_solve(calib_mocap_data_t &data) {
   }
 
   // Set ficuial and marker-cam pose parameterization
-  problem.SetParameterization(data.T_WF.param.data(),
-                              &pose_parameterization);
-  problem.SetParameterization(data.T_MC0.param.data(),
-                              &pose_parameterization);
+  problem.SetParameterization(data.T_WF.param.data(), &pose_parameterization);
+  problem.SetParameterization(data.T_MC0.param.data(), &pose_parameterization);
 
   // Fix fiducial pose - assumes camera intrincs and PnP is good
   if (data.fix_fiducial_pose) {
@@ -619,7 +627,7 @@ int calib_mocap_solve(calib_mocap_data_t &data) {
   // Reject outliers
   LOG_INFO("Rejecting outliers...");
   std::deque<pose_t> poses;
-  for (int i = 0; i < (int) data.grids.size(); i++) {
+  for (int i = 0; i < (int)data.grids.size(); i++) {
     const mat4_t T_WF = data.T_WF.tf();
     const mat4_t T_C0M = data.T_MC0.tf().inverse();
     const mat4_t T_MW = data.T_WM[i].tf().inverse();
@@ -631,7 +639,7 @@ int calib_mocap_solve(calib_mocap_data_t &data) {
 
   const auto nb_res_before = problem.NumResidualBlocks();
   const auto threshold = 4.0 * stddev(errs);
-  for (int i = 0; i < (int) errs.size(); i++) {
+  for (int i = 0; i < (int)errs.size(); i++) {
     if (errs[i] > threshold) {
       problem.RemoveResidualBlock(block_ids[i]);
     }

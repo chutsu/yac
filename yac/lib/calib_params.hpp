@@ -2,7 +2,6 @@
 #define YAC_CALIB_PARAMS_HPP
 
 #include "util/util.hpp"
-// #include "calib_data.hpp"
 
 namespace yac {
 

@@ -45,13 +45,14 @@ ADD_LIBRARY(
   lib/util/sim.cpp
   lib/util/timeline.cpp
   lib/calib_camera.cpp
+  lib/calib_target.cpp
   lib/calib_data.cpp
   # lib/calib_mocap.cpp
   # lib/calib_nbv.cpp
   lib/calib_params.cpp
   lib/calib_views.cpp
   lib/camchain.cpp
-  # lib/calib_vi.cpp
+  lib/calib_vi.cpp
 )
 
 # TESTS
@@ -84,8 +85,8 @@ TARGET_LINK_LIBRARIES(test_util_timeline yac ${DEPS})
 ADD_EXECUTABLE(test_calib_camera tests/test_calib_camera.cpp)
 TARGET_LINK_LIBRARIES(test_calib_camera yac ${DEPS})
 
-ADD_EXECUTABLE(test_calib_data tests/test_calib_data.cpp)
-TARGET_LINK_LIBRARIES(test_calib_data yac ${DEPS})
+# ADD_EXECUTABLE(test_calib_data tests/test_calib_data.cpp)
+# TARGET_LINK_LIBRARIES(test_calib_data yac ${DEPS})
 
 # ADD_EXECUTABLE(test_calib_mocap tests/test_calib_mocap.cpp)
 # TARGET_LINK_LIBRARIES(test_calib_mocap yac ${DEPS})

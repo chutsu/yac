@@ -1,13 +1,13 @@
 #/bin/bash
 set -e
 
-tmux send-keys -t dev -R "\
-cd ~/sync/projects/yac \
-&& make lib \
-&& source ~/catkin_ws/devel/setup.bash \
-&& rosrun yac test_calib_data
-" C-m C-m
-exit
+# tmux send-keys -t dev -R "\
+# cd ~/sync/projects/yac \
+# && make lib \
+# && source ~/catkin_ws/devel/setup.bash \
+# && rosrun yac test_calib_data
+# " C-m C-m
+# exit
 
 # && rosrun yac test_util_cv
 # && rosrun yac test_util_aprilgrid
@@ -36,8 +36,8 @@ exit
 # make
 # make lib_debug
 # make debug
-make lib
-# make release
+# make lib
+make release
 # make tests
 source ~/catkin_ws/devel/setup.bash
 
@@ -81,12 +81,6 @@ source ~/catkin_ws/devel/setup.bash
 # rosrun yac test_calib_mono --target test_calib_mono_solve
 # rosrun yac test_calib_mono --target test_calib_mono_inc_solve
 
-# -- STEREO-CAMERA CALIBRATION
-# rosrun yac test_calib_stereo
-# rosrun yac test_calib_stereo --target test_reproj_error
-# rosrun yac test_calib_stereo --target test_calib_stereo_solve
-# rm -rf /data/euroc/calib/cam_april/grid0
-
 # -- STEREO-CAMERA INCREMENTAL CALIBRATION
 # rosrun yac test_calib_stereo_inc --target test_calib_stereo_inc_solve
 
@@ -114,9 +108,9 @@ source ~/catkin_ws/devel/setup.bash
 # rosrun yac test_marg_error --target test_marg_block
 
 # -- ROS NODES
-# roslaunch yac_ros calib_capture.launch
-# roslaunch yac_ros calib_mono.launch
-# roslaunch yac_ros calib_stereo.launch
+roslaunch yac_ros calib_capture.launch cam0_topic:=/rs/ir0/image
+
+# roslaunch yac_ros calib_camera.launch
 # roslaunch yac_ros calib_mocap.launch
 # roslaunch yac_ros calib_mono_nbv.launch
 

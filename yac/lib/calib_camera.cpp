@@ -417,12 +417,12 @@ void calib_camera_t::add_view(ceres::Problem &problem,
                               camera_geometry_t *cam_geom,
                               camera_params_t &cam_params) {
   const timestamp_t ts = grid.timestamp;
-  calib_views[cam_idx][ts] = new calib_view_t{problem,
-                                              grid,
-                                              rel_pose,
-                                              extrinsics,
-                                              cam_geom,
-                                              cam_params};
+  calib_views[cam_idx][ts] = std::make_unique<calib_view_t>(problem,
+                                                            grid,
+                                                            rel_pose,
+                                                            extrinsics,
+                                                            cam_geom,
+                                                            cam_params);
 }
 
 void calib_camera_t::_initialize_intrinsics() {

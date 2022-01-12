@@ -137,12 +137,14 @@ struct calib_camera_t {
   camera_data_t cam_data;
 
   // Calib views
-  std::map<int, std::map<timestamp_t, calib_view_t *>> calib_views;
+  std::map<int, std::map<timestamp_t, std::unique_ptr<calib_view_t>>>
+      calib_views;
 
   // Camera geometries
   pinhole_radtan4_t pinhole_radtan4;
   pinhole_equi4_t pinhole_equi4;
 
+  // Constructor / Destructor
   calib_camera_t();
   ~calib_camera_t();
 

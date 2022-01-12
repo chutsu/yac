@@ -47,23 +47,20 @@ bool pose_error_t::Evaluate(double const *const *params,
 
 // FIDUCIAL ERROR //////////////////////////////////////////////////////////////
 
-fiducial_error_t::fiducial_error_t(const timestamp_t &ts_i,
-                                   const timestamp_t &ts_j,
+fiducial_error_t::fiducial_error_t(const timestamp_t &ts,
                                    const camera_geometry_t *cam_geom,
                                    const int cam_idx,
                                    const int cam_res[2],
                                    const int tag_id,
                                    const int corner_idx,
                                    const vec3_t &r_FFi,
-                                   const vec2_t &z_i,
-                                   const vec2_t &z_j,
+                                   const vec2_t &z,
                                    const mat4_t &T_WF,
                                    const mat2_t &covar)
-    : ts_i_{ts_i}, ts_j_{ts_j}, cam_geom_{cam_geom}, cam_idx_{cam_idx},
+    : ts_{ts}, cam_geom_{cam_geom}, cam_idx_{cam_idx},
       cam_res_{cam_res[0], cam_res[1]}, tag_id_{tag_id},
-      corner_idx_{corner_idx}, r_FFi_{r_FFi}, z_i_{z_i}, z_j_{z_j},
-      v_ij_{(z_j_ - z_i_) / ns2sec(ts_j_ - ts_i_)}, T_WF_{T_WF}, covar_{covar},
-      info_{covar.inverse()}, sqrt_info_{info_.llt().matrixL().transpose()} {
+      corner_idx_{corner_idx}, r_FFi_{r_FFi}, z_{z}, T_WF_{T_WF}, covar_{covar},
+      info_{covar.inverse()}, sqrt_info_{info_.llt().matrixU()} {
   assert(ts_i != ts_j && ts_j > ts_i);
   assert(cam_res[0] != 0 && cam_res[1] != 0);
   assert(tag_id_ >= 0);
@@ -71,6 +68,7 @@ fiducial_error_t::fiducial_error_t(const timestamp_t &ts_i,
 
   set_num_residuals(2);
   auto block_sizes = mutable_parameter_block_sizes();
+  block_sizes->push_back(7); // T_WF
   block_sizes->push_back(7); // T_WS
   block_sizes->push_back(7); // T_BS
   block_sizes->push_back(7); // T_BCi
@@ -100,7 +98,7 @@ bool fiducial_error_t::Evaluate(double const *const *params,
   }
 
   // Residuals
-  const vec2_t r = sqrt_info_ * (z_i_ - z_hat);
+  const vec2_t r = sqrt_info_ * (z_ - z_hat);
   residuals[0] = r(0);
   residuals[1] = r(1);
 
@@ -392,6 +390,16 @@ bool fiducial_td_error_t::Evaluate(double const *const *params,
 }
 
 // INERTIAL ERROR //////////////////////////////////////////////////////////////
+
+ImuError::ImuError(const imu_data_t &imu_data,
+                   const imu_params_t &imu_params,
+                   const timestamp_t &t0,
+                   const timestamp_t &t1) {
+  imu_data_ = imu_data;
+  imu_params_ = imu_params;
+  t0_ = t0;
+  t1_ = t1;
+}
 
 int ImuError::propagation(const imu_data_t &imu_data,
                           const imu_params_t &imu_params,
@@ -1087,15 +1095,12 @@ bool aprilgrid_buffer_t::ready() const {
   return true;
 }
 
-aprilgrids_t aprilgrid_buffer_t::pop_front() {
-  aprilgrids_t results;
-
-  for (auto &kv : buf) {
-    auto &deque = kv.second;
-    results.push_back(deque.front());
-    deque.pop_front();
+CameraGrids aprilgrid_buffer_t::pop_front() {
+  CameraGrids results;
+  for (auto &[cam_idx, grids] : buf) {
+    results[cam_idx] = grids.front();
+    grids.pop_front();
   }
-
   return results;
 }
 
@@ -1213,34 +1218,70 @@ mat4_t calib_vi_t::get_sensor_pose(const int pose_index) {
 
 mat4_t calib_vi_t::get_fiducial_pose() { return fiducial->estimate(); }
 
-void calib_vi_t::trim_imu_data(imu_data_t &imu_data, const timestamp_t t1) {
-  // Makesure the trim timestamp is after the first
-  // imu measurement
-  if (t1 < imu_data.timestamps.front()) {
-    return;
-  }
-
-  // Trim IMU measurements
-  imu_data_t trimmed_imu_data;
-  for (size_t k = 0; k < imu_data.timestamps.size(); k++) {
-    const timestamp_t ts = imu_data.timestamps[k];
-    if (ts >= t1) {
-      const vec3_t acc = imu_data.accel[k];
-      const vec3_t gyr = imu_data.gyro[k];
-      trimmed_imu_data.add(ts, acc, gyr);
-    }
-  }
-
-  imu_data = trimmed_imu_data;
-}
-
-void calib_vi_t::update_prev_grids(const aprilgrids_t &grids) {
-  // Keep track of old aprilgrids
-  grids_prev.clear();
-  for (int i = 0; i < nb_cams(); i++) {
-    grids_prev[i] = grids[i];
-  }
-}
+// void calib_vi_t::add_reproj_errors(
+//     const int cam_idx,
+//     const aprilgrid_t &grid_j,
+//     std::map<int, std::vector<ceres::ResidualBlockId>> &error_ids,
+//     std::map<int, std::vector<reproj_error_td_t<pinhole_radtan4_t> *>>
+//         &errors) {
+//   assert(cam_params.count(cam_idx) > 0);
+//   assert(cam_exts.count(cam_idx) > 0);
+//   assert(imu_exts != nullptr);
+//   assert(sensor_poses.size() >= 1);
+//
+//   const aprilgrid_t &grid_i = grids_prev[cam_idx];
+//   const auto ts_i = grid_i.timestamp;
+//   const auto ts_j = grid_j.timestamp;
+//   const auto &T_WF = fiducial;
+//   const auto &T_WS_i = sensor_poses[sensor_poses.size() - 2];
+//   const auto &T_BS = imu_exts;
+//   const auto &T_BCi = cam_exts[cam_idx];
+//   const auto &cam = cam_params[cam_idx];
+//   const int *cam_res = cam->resolution;
+//   const mat2_t covar = pow(sigma_vision, 2) * I(2);
+//
+//   std::vector<int> tag_ids;
+//   std::vector<int> corner_indicies;
+//   vec2s_t grid_i_keypoints;
+//   vec2s_t grid_j_keypoints;
+//   vec3s_t object_points;
+//   aprilgrid_t::common_measurements(grid_i,
+//                                    grid_j,
+//                                    tag_ids,
+//                                    corner_indicies,
+//                                    grid_i_keypoints,
+//                                    grid_j_keypoints,
+//                                    object_points);
+//
+//   for (size_t i = 0; i < tag_ids.size(); i++) {
+//     const int tag_id = tag_ids[i];
+//     const int corner_idx = corner_indicies[i];
+//     const vec2_t z_i = grid_i_keypoints[i];
+//     const vec2_t z_j = grid_j_keypoints[i];
+//     const vec3_t r_FFi = object_points[i];
+//
+//     auto error = new reproj_error_td_t<pinhole_radtan4_t>(ts_i,
+//                                                           ts_j,
+//                                                           cam_res,
+//                                                           tag_id,
+//                                                           corner_idx,
+//                                                           r_FFi,
+//                                                           z_i,
+//                                                           z_j,
+//                                                           fiducial->estimate(),
+//                                                           covar);
+//     auto error_id = problem->AddResidualBlock(error,
+//                                               NULL,
+//                                               T_WF->param.data(),
+//                                               T_WS_i->param.data(),
+//                                               T_BS->param.data(),
+//                                               T_BCi->param.data(),
+//                                               cam->param.data(),
+//                                               time_delay->param.data());
+//     error_ids[cam_idx].push_back(error_id);
+//     errors[cam_idx].push_back(error);
+//   }
+// }
 
 // ImuError
 // *calib_vi_t::add_imu_error(ceres::ResidualBlockId
@@ -1267,83 +1308,17 @@ void calib_vi_t::update_prev_grids(const aprilgrids_t &grids) {
 //   return error;
 // }
 
-// void calib_vi_t::add_reproj_errors(
-//     const int cam_idx,
-//     const aprilgrid_t &grid_j,
-//     std::map<int,
-//     std::vector<ceres::ResidualBlockId>>
-//     &error_ids, std::map<int,
-//     std::vector<reproj_error_td_t<pinhole_radtan4_t>
-//     *>>
-//         &errors) {
-//   assert(cam_params.count(cam_idx) > 0);
-//   assert(cam_exts.count(cam_idx) > 0);
-//   assert(imu_exts != nullptr);
-//   assert(sensor_poses.size() >= 1);
-//
-//   const aprilgrid_t &grid_i =
-//   grids_prev[cam_idx]; const auto ts_i =
-//   grid_i.timestamp; const auto ts_j =
-//   grid_j.timestamp; const auto &T_WF = fiducial;
-//   const auto &T_WS_i =
-//   sensor_poses[sensor_poses.size() - 2]; const
-//   auto &T_BS = imu_exts; const auto &T_BCi =
-//   cam_exts[cam_idx]; const auto &cam =
-//   cam_params[cam_idx]; const int *cam_res =
-//   cam->resolution; const mat2_t covar =
-//   pow(sigma_vision, 2) * I(2);
-//
-//   std::vector<int> tag_ids;
-//   std::vector<int> corner_indicies;
-//   vec2s_t grid_i_keypoints;
-//   vec2s_t grid_j_keypoints;
-//   vec3s_t object_points;
-//   aprilgrid_t::common_measurements(grid_i,
-//                                    grid_j,
-//                                    tag_ids,
-//                                    corner_indicies,
-//                                    grid_i_keypoints,
-//                                    grid_j_keypoints,
-//                                    object_points);
-//
-//   for (size_t i = 0; i < tag_ids.size(); i++) {
-//     const int tag_id = tag_ids[i];
-//     const int corner_idx = corner_indicies[i];
-//     const vec2_t z_i = grid_i_keypoints[i];
-//     const vec2_t z_j = grid_j_keypoints[i];
-//     const vec3_t r_FFi = object_points[i];
-//
-//     auto error = new
-//     reproj_error_td_t<pinhole_radtan4_t>(ts_i,
-//                                                           ts_j,
-//                                                           cam_res,
-//                                                           tag_id,
-//                                                           corner_idx,
-//                                                           r_FFi,
-//                                                           z_i,
-//                                                           z_j,
-//                                                           fiducial->estimate(),
-//                                                           covar);
-//     auto error_id =
-//     problem->AddResidualBlock(error,
-//                                               NULL,
-//                                               T_WF->param.data(),
-//                                               T_WS_i->param.data(),
-//                                               T_BS->param.data(),
-//                                               T_BCi->param.data(),
-//                                               cam->param.data(),
-//                                               time_delay->param.data());
-//     error_ids[cam_idx].push_back(error_id);
-//     errors[cam_idx].push_back(error);
-//   }
-// }
+void calib_vi_t::update_prev_grids(const CameraGrids &grids) {
+  grids_prev.clear();
+  grids_prev = grids;
+}
 
-bool calib_vi_t::fiducial_detected(const aprilgrids_t &grids) {
+bool calib_vi_t::fiducial_detected(const CameraGrids &grids) {
   assert(grids.size() > 0);
 
   bool detected = false;
-  for (int i = 0; i < nb_cams(); i++) {
-    if (grids[i].detected) {
+  for (const auto &[cam_idx, grid] : grids) {
+    if (grid.detected) {
       detected = true;
     }
   }
@@ -1351,7 +1326,7 @@ bool calib_vi_t::fiducial_detected(const aprilgrids_t &grids) {
   return detected;
 }
 
-mat4_t calib_vi_t::estimate_sensor_pose(const aprilgrids_t &grids) {
+mat4_t calib_vi_t::estimate_sensor_pose(const CameraGrids &grids) {
   assert(grids.size() > 0);
   assert(initialized);
 
@@ -1359,9 +1334,9 @@ mat4_t calib_vi_t::estimate_sensor_pose(const aprilgrids_t &grids) {
     FATAL("No fiducials detected!");
   }
 
-  for (int i = 0; i < nb_cams(); i++) {
+  for (const auto &[cam_idx, grid] : grids) {
     // Skip if not detected
-    if (grids[i].detected == false) {
+    if (grid.detected == false) {
       continue;
     }
 
@@ -1390,17 +1365,17 @@ mat4_t calib_vi_t::estimate_sensor_pose(const aprilgrids_t &grids) {
 }
 
 void calib_vi_t::initialize(const timestamp_t &ts,
-                            const aprilgrids_t &grids,
+                            const CameraGrids &grids,
                             imu_data_t &imu_buf) {
   assert(grids.size() > 0);
-  assert(grids[0].detected);
+  assert(grids.at(0).detected);
 
   // Estimate relative pose - T_C0F
   const camera_geometry_t *cam = cam_geoms.at(0);
   const int *cam_res = cam_params.at(0)->resolution;
   const vecx_t params = get_cam_params(0);
   mat4_t T_C0F;
-  if (grids[0].estimate(cam, cam_res, params, T_C0F) != 0) {
+  if (grids.at(0).estimate(cam, cam_res, params, T_C0F) != 0) {
     FATAL("Failed to estimate relative pose!");
     return;
   }
@@ -1439,13 +1414,12 @@ void calib_vi_t::initialize(const timestamp_t &ts,
   print_matrix("T_BC1", get_cam_extrinsics(1));
 
   initialized = true;
-  // trim_imu_data(imu_buf, ts); // Remove imu measurements up to ts
-  // update_prev_grids(grids);
+  update_prev_grids(grids);
 }
 
-void calib_vi_t::add_state(const timestamp_t &ts, const aprilgrids_t &grids) {
+void calib_vi_t::add_view(const timestamp_t &ts, const CameraGrids &grids) {
   // Estimate current pose
-  // const mat4_t T_WS_k = estimate_sensor_pose(grids);
+  const mat4_t T_WS_k = estimate_sensor_pose(grids);
 
   // // Propagate imu measurements to obtain speed
   // and biases const auto t0 =
@@ -1520,7 +1494,6 @@ void calib_vi_t::add_state(const timestamp_t &ts, const aprilgrids_t &grids) {
 
 void calib_vi_t::add_measurement(const int cam_idx, const aprilgrid_t &grid) {
   grids_buf.add(cam_idx, grid);
-  cam_grids[cam_idx].push_back(grid);
 }
 
 void calib_vi_t::add_measurement(const timestamp_t imu_ts,
@@ -1533,7 +1506,7 @@ void calib_vi_t::add_measurement(const timestamp_t imu_ts,
 
     // Initialize T_WS and T_WF
     if (initialized == false) {
-      if (grids[0].detected && imu_buf.size() > 2) {
+      if (grids.at(0).detected && imu_buf.size() > 2) {
         const auto ts = imu_buf.timestamps.front();
         initialize(ts, grids, imu_buf);
       }
@@ -1543,14 +1516,14 @@ void calib_vi_t::add_measurement(const timestamp_t imu_ts,
     // Add new state
     timestamp_t grid_ts = 0;
     for (int i = 0; i < nb_cams(); i++) {
-      if (grids[i].detected) {
-        grid_ts = grids[i].timestamp;
+      if (grids.at(i).detected) {
+        grid_ts = grids.at(i).timestamp;
         break;
       }
     }
     if (fiducial_detected(grids) && imu_ts >= grid_ts) {
       const auto ts = imu_buf.timestamps.back();
-      add_state(ts, grids);
+      add_view(ts, grids);
     }
   }
 }

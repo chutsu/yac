@@ -10,11 +10,13 @@
 #include <ceres/ceres.h>
 
 #include "util/util.hpp"
-// #include "calib_data.hpp"
+#include "calib_data.hpp"
+#include "calib_target.hpp"
 #include "calib_params.hpp"
-#include "marg_error.hpp"
 
 namespace yac {
+
+using CameraGrids = std::map<int, aprilgrid_t>;
 
 // POSE ERROR //////////////////////////////////////////////////////////////////
 
@@ -26,6 +28,7 @@ struct pose_error_t : public ceres::SizedCostFunction<6, 7> {
 
   pose_error_t(const pose_t &pose, const matx_t &covar);
   ~pose_error_t() = default;
+
   bool Evaluate(double const *const *params,
                 double *residuals,
                 double **jacobians) const;
@@ -36,33 +39,28 @@ struct pose_error_t : public ceres::SizedCostFunction<6, 7> {
 struct fiducial_error_t : public ceres::CostFunction {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 
-  const timestamp_t ts_i_ = 0;
-  const timestamp_t ts_j_ = 0;
+  const timestamp_t ts_ = 0;
   const camera_geometry_t *cam_geom_;
   const int cam_idx_;
   const int cam_res_[2] = {0, 0};
   const int tag_id_ = -1;
   const int corner_idx_ = -1;
   const vec3_t r_FFi_{0.0, 0.0, 0.0};
-  const vec2_t z_i_{0.0, 0.0};
-  const vec2_t z_j_{0.0, 0.0};
-  const vec2_t v_ij_{0.0, 0.0}; // pixel velocity: (z_j - z_i) / dt
+  const vec2_t z_{0.0, 0.0};
   const mat4_t T_WF_ = I(4);
 
   const mat2_t covar_;
   const mat2_t info_;
   const mat2_t sqrt_info_;
 
-  fiducial_error_t(const timestamp_t &ts_i,
-                   const timestamp_t &ts_j,
+  fiducial_error_t(const timestamp_t &ts,
                    const camera_geometry_t *cam_geom,
                    const int cam_idx,
                    const int cam_res[2],
                    const int tag_id,
                    const int corner_idx,
                    const vec3_t &r_FFi,
-                   const vec2_t &z_i,
-                   const vec2_t &z_j,
+                   const vec2_t &z,
                    const mat4_t &T_WF,
                    const mat2_t &covar);
   ~fiducial_error_t() = default;
@@ -155,17 +153,10 @@ public:
   typedef Eigen::Matrix<double, 15, 9> jacobian1_t;
 
   ImuError() = default;
-
   ImuError(const imu_data_t &imu_data,
            const imu_params_t &imu_params,
            const timestamp_t &t0,
-           const timestamp_t &t1) {
-    imu_data_ = imu_data;
-    imu_params_ = imu_params;
-    t0_ = t0;
-    t1_ = t1;
-  }
-
+           const timestamp_t &t1);
   virtual ~ImuError() = default;
 
   static int propagation(const imu_data_t &imu_data,
@@ -241,19 +232,45 @@ struct aprilgrid_buffer_t {
   std::map<int, std::deque<aprilgrid_t>> buf;
 
   aprilgrid_buffer_t() = default;
+  ~aprilgrid_buffer_t() = default;
+
   std::map<int, std::deque<aprilgrid_t>> &data();
   void add(const int cam_idx, const aprilgrid_t &grid);
   bool ready() const;
-  aprilgrids_t pop_front();
+  CameraGrids pop_front();
 };
 
 // VISUAL INERTIAL CALIBRATOR //////////////////////////////////////////////////
 
+struct calib_vi_view_t {
+  // Problem
+  ceres::Problem &problem;
+  std::deque<std::shared_ptr<fiducial_error_t>> cost_fns;
+  std::deque<ceres::ResidualBlockId> res_ids;
+
+  // Data
+  timestamp_t ts;
+  aprilgrid_t grid;
+
+  // Parameters
+  std::unique_ptr<pose_t> pose;
+  std::unique_ptr<sb_params_t> sb;
+
+  /** Constructor */
+  calib_vi_view_t(ceres::Problem &problem_,
+                  aprilgrid_t &grid_,
+                  camera_geometry_t *cam_geom_,
+                  camera_params_t &cam_params_,
+                  const mat2_t &covar_ = I(2));
+
+  /** Destructor */
+  ~calib_vi_view_t() = default;
+};
+
 struct calib_vi_t {
   // Data
   aprilgrid_buffer_t grids_buf;
-  std::map<int, aprilgrids_t> cam_grids;
-  std::map<int, aprilgrid_t> grids_prev;
+  CameraGrids grids_prev;
   imu_params_t imu_params;
   imu_data_t imu_buf;
   bool initialized = false;
@@ -281,6 +298,7 @@ struct calib_vi_t {
   ceres::Problem::Options prob_options;
   std::unique_ptr<ceres::Problem> problem;
   PoseLocalParameterization pose_plus;
+  std::deque<calib_vi_view_t> calib_views;
 
   calib_vi_t();
   ~calib_vi_t() = default;
@@ -310,22 +328,21 @@ struct calib_vi_t {
   mat4_t get_sensor_pose(const int pose_index);
   mat4_t get_fiducial_pose();
 
-  void trim_imu_data(imu_data_t &imu_data, const timestamp_t t1);
-  void update_prev_grids(const aprilgrids_t &grids);
-  ImuError *add_imu_error(ceres::ResidualBlockId &error_id);
   // void add_reproj_errors(
   //     const int cam_idx,
-  //     const aprilgrid_t &grid_j,
+  //     const aprilgrid_t &grid,
   //     std::map<int, std::vector<ceres::ResidualBlockId>> &error_ids,
   //     std::map<int, std::vector<fiducial_td_error_t<pinhole_radtan4_t> *>>
   //         &errors);
+  // ImuError *add_imu_error(ceres::ResidualBlockId &error_id);
 
-  bool fiducial_detected(const aprilgrids_t &grids);
-  mat4_t estimate_sensor_pose(const aprilgrids_t &grids);
+  void update_prev_grids(const CameraGrids &grids);
+  bool fiducial_detected(const CameraGrids &grids);
+  mat4_t estimate_sensor_pose(const CameraGrids &grids);
   void initialize(const timestamp_t &ts,
-                  const aprilgrids_t &grids,
+                  const CameraGrids &grids,
                   imu_data_t &imu_buf);
-  void add_state(const timestamp_t &ts, const aprilgrids_t &grids);
+  void add_view(const timestamp_t &ts, const CameraGrids &grids);
 
   void add_measurement(const int cam_idx, const aprilgrid_t &grid);
   void add_measurement(const timestamp_t imu_ts,

@@ -32,19 +32,13 @@ static void signal_handler(int sig) {
   ros::shutdown();
 }
 
-static std::string keyboard_event() {
-  std::string event;
-  std::cin >> event;
-  return event;
-}
-
 static void image_cb(const sensor_msgs::ImageConstPtr &msg) {
   // Convert ROS message to cv::Mat
   const cv::Mat image = msg_convert(msg);
   const auto ts = msg->header.stamp;
   if (imshow) {
     cv::imshow("Camera View", image);
-    char key = (char) cv::waitKey(1);
+    char key = (char)cv::waitKey(1);
     if (key == 'c') {
       capture_event = true;
     } else if (key == 'q') {
@@ -212,7 +206,7 @@ int main(int argc, char *argv[]) {
   term_config.c_cc[VTIME] = 0;
   tcsetattr(0, TCSANOW, &term_config);
 
-  std::thread keyboard_thread([&](){
+  std::thread keyboard_thread([&]() {
     printf("Press 'c' to capture, 'q' to stop!\n");
     while (keep_running) {
       int n = getchar();
@@ -221,13 +215,13 @@ int main(int argc, char *argv[]) {
         // std::cout << "key: " << key << std::endl;
 
         switch (key) {
-        case 113: // 'q' key
-          keep_running = false;
-          break;
-        case 126: // Presentation clicker up / down key
-        case 99:  // 'c' key
-          capture_event = true;
-          break;
+          case 113: // 'q' key
+            keep_running = false;
+            break;
+          case 126: // Presentation clicker up / down key
+          case 99:  // 'c' key
+            capture_event = true;
+            break;
         }
       }
     }

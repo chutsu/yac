@@ -23,12 +23,6 @@ static void signal_handler(int sig) {
   ros::shutdown();
 }
 
-static std::string keyboard_event() {
-  std::string event;
-  std::cin >> event;
-  return event;
-}
-
 static void image_cb(const sensor_msgs::ImageConstPtr &msg) {
   // Convert ROS message to cv::Mat
   const cv::Mat image = msg_convert(msg);

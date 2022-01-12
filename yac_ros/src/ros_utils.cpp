@@ -118,7 +118,7 @@ geometry_msgs::TransformStamped build_msg(const ros::Time &ts,
 }
 
 void msg_convert(const std_msgs::Header &msg,
-                 size_t seq,
+                 size_t &seq,
                  yac::timestamp_t &ts,
                  std::string &frame_id) {
   seq = msg.seq;
@@ -355,7 +355,6 @@ void load_imu_data(const std::string &csv_file,
 }
 
 void pose_message_handler(const rosbag::MessageInstance &msg,
-                          const std::string &output_path,
                           std::ofstream &pose_data) {
   const auto pose_msg = msg.instantiate<geometry_msgs::PoseStamped>();
   const auto ts = ros::Time(pose_msg->header.stamp);
@@ -435,7 +434,6 @@ void accel_message_handler(const rosbag::MessageInstance &msg,
   const auto ts_str = std::to_string(ts.toNSec());
 
   // Convert ros msg data
-  const vec3_t gyro = msg_convert(accel_msg->angular_velocity);
   const vec3_t accel = msg_convert(accel_msg->linear_acceleration);
 
   // Save imu measurement to file
@@ -461,7 +459,6 @@ void gyro_message_handler(const rosbag::MessageInstance &msg,
 
   // Convert ros msg data
   const vec3_t gyro = msg_convert(gyro_msg->angular_velocity);
-  const vec3_t accel = msg_convert(gyro_msg->linear_acceleration);
 
   // Save imu measurement to file
   // -- Timestamp [ns]

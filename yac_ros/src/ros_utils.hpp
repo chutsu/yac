@@ -66,7 +66,7 @@ geometry_msgs::TransformStamped build_msg(const ros::Time &ts,
                                           const yac::mat4_t &T);
 
 void msg_convert(const std_msgs::Header &msg,
-                 size_t seq,
+                 size_t &seq,
                  yac::timestamp_t &ts,
                  std::string &frame_id);
 uint8_t msg_convert(const std_msgs::UInt8 &msg);
@@ -97,7 +97,6 @@ void load_imu_data(const std::string &csv_file,
                    vec3s_t &gyro,
                    vec3s_t &accel);
 void pose_message_handler(const rosbag::MessageInstance &msg,
-                          const std::string &output_path,
                           std::ofstream &pose_data);
 void image_message_handler(const rosbag::MessageInstance &msg,
                            const std::string &output_path,
@@ -143,7 +142,7 @@ void gyro_message_handler(const rosbag::MessageInstance &msg,
   int main(int argc, char **argv) {                                            \
     std::string node_name;                                                     \
     if (ros::isInitialized() == false) {                                       \
-      node_name = yac::ros_node_name(argc, argv);                            \
+      node_name = yac::ros_node_name(argc, argv);                              \
       ros::init(argc, argv, node_name, ros::init_options::NoSigintHandler);    \
     }                                                                          \
                                                                                \
@@ -161,7 +160,7 @@ void gyro_message_handler(const rosbag::MessageInstance &msg,
   int main(int argc, char **argv) {                                            \
     std::string node_name;                                                     \
     if (ros::isInitialized() == false) {                                       \
-      node_name = yac::ros_node_name(argc, argv);                            \
+      node_name = yac::ros_node_name(argc, argv);                              \
       ros::init(argc, argv, node_name, ros::init_options::NoSigintHandler);    \
     }                                                                          \
                                                                                \
@@ -176,8 +175,7 @@ void gyro_message_handler(const rosbag::MessageInstance &msg,
   }
 
 std::string ros_node_name(int argc, char *argv[]);
-void ros_topic_subscribed(const ros::Subscriber &sub,
-                          const std::string &topic);
+void ros_topic_subscribed(const ros::Subscriber &sub, const std::string &topic);
 
 struct ros_node_t {
   bool configured_ = false;

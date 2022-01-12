@@ -6,6 +6,7 @@ SET(apriltag3_DIR "../deps/share/apriltag3/cmake")
 # SET(Ceres_DIR "../deps/lib/cmake/Ceres")
 
 # COMPILATION SETTINGS
+SET(CMAKE_CXX_STANDARD 17)
 ADD_COMPILE_OPTIONS(
   -Wall
   -Wextra

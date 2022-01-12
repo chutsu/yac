@@ -6,6 +6,7 @@ SET(apriltag3_DIR "../deps/share/apriltag3/cmake")
 # SET(Ceres_DIR "../deps/lib/cmake/Ceres")
 
 # COMPILATION SETTINGS
+SET(CMAKE_CXX_STANDARD 17)
 ADD_COMPILE_OPTIONS(
   -Wall
   -Wextra
@@ -119,5 +120,5 @@ TARGET_LINK_LIBRARIES(calib_mocap_capture_node ${DEPS})
 # ADD_EXECUTABLE(calib_camera_nbv_node src/nodes/calib_mono_nbv_node.cpp)
 # TARGET_LINK_LIBRARIES(calib_camera_nbv_node ${DEPS})
 
-# ADD_EXECUTABLE(calib_vi_smart_node src/nodes/calib_vi_smart_node.cpp)
-# TARGET_LINK_LIBRARIES(calib_vi_smart_node ${DEPS})
+ADD_EXECUTABLE(calib_vi_smart_node src/nodes/calib_vi_smart_node.cpp)
+TARGET_LINK_LIBRARIES(calib_vi_smart_node ${DEPS})

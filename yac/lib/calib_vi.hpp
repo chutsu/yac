@@ -16,11 +16,6 @@
 
 namespace yac {
 
-// /* Form initial poses for visual-inertial calibration */
-// void calib_vi_init_poses(const calib_target_t &target,
-//                          const mat4_t &T_FO,
-//                          std::deque<mat4_t> &init_poses);
-
 // POSE ERROR //////////////////////////////////////////////////////////////////
 
 struct pose_error_t : public ceres::SizedCostFunction<6, 7> {
@@ -79,240 +74,53 @@ struct fiducial_error_t : public ceres::CostFunction {
 
 // FIDUCIAL WITH TIME DELAY ERROR //////////////////////////////////////////////
 
-// template <typename CAMERA_TYPE>
-// #if FIDUCIAL_PARAMS_SIZE == 2
-// struct fiducial_td_error_t
-//     : public ceres::SizedCostFunction<2, 2, 7, 7, 7, 8, 1> {
-// #elif FIDUCIAL_PARAMS_SIZE == 3
-// struct fiducial_td_error_t
-//     : public ceres::SizedCostFunction<2, 3, 7, 7, 7, 8, 1> {
-// #elif FIDUCIAL_PARAMS_SIZE == 7
-// struct fiducial_td_error_t
-//     : public ceres::SizedCostFunction<2, 7, 7, 7, 7, 8, 1> {
-// #endif
-//   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
-//
-//   const timestamp_t ts_i_ = 0;
-//   const timestamp_t ts_j_ = 0;
-//   const int cam_res_[2] = {0, 0};
-//   const int tag_id_ = -1;
-//   const int corner_idx_ = -1;
-//   const vec3_t r_FFi_{0.0, 0.0, 0.0};
-//   const vec2_t z_i_{0.0, 0.0};
-//   const vec2_t z_j_{0.0, 0.0};
-//   const vec2_t v_ij_{0.0, 0.0}; // pixel velocity: (z_j - z_i) / dt
-//   const mat4_t T_WF_ = I(4);
-//
-//   const mat2_t covar_;
-//   const mat2_t info_;
-//   const mat2_t sqrt_info_;
-//
-//   fiducial_td_error_t(const timestamp_t &ts_i,
-//                     const timestamp_t &ts_j,
-//                     const int cam_res[2],
-//                     const int tag_id,
-//                     const int corner_idx,
-//                     const vec3_t &r_FFi,
-//                     const vec2_t &z_i,
-//                     const vec2_t &z_j,
-//                     const mat4_t &T_WF,
-//                     const mat2_t &covar)
-//       : ts_i_{ts_i}, ts_j_{ts_j}, cam_res_{cam_res[0], cam_res[1]},
-//         tag_id_{tag_id}, corner_idx_{corner_idx}, r_FFi_{r_FFi}, z_i_{z_i},
-//         z_j_{z_j}, v_ij_{(z_j_ - z_i_) / ns2sec(ts_j_ - ts_i_)}, T_WF_{T_WF},
-//         covar_{covar}, info_{covar.inverse()},
-//         sqrt_info_{info_.llt().matrixL().transpose()} {
-//     assert(ts_i != ts_j && ts_j > ts_i);
-//     assert(cam_res[0] != 0 && cam_res[1] != 0);
-//     assert(tag_id_ >= 0);
-//     assert(corner_idx_ >= 0);
-//   }
-//
-//   ~fiducial_td_error_t() {}
-//
-//   bool Evaluate(double const *const *params,
-//                 double *residuals,
-//                 double **jacobians) const {
-//     // Pose of fiducial target in world frame
-// #if FIDUCIAL_PARAMS_SIZE == 2
-//     const double roll = params[0][0];
-//     const double pitch = params[0][1];
-//     const double yaw = quat2euler(tf_quat(T_WF_))(2);
-//     const vec3_t rpy{roll, pitch, yaw};
-//     const mat3_t C_WF = euler321(rpy);
-//     const vec3_t r_WF = tf_trans(T_WF_);
-//     const mat4_t T_WF = tf(C_WF, r_WF);
-// #elif FIDUCIAL_PARAMS_SIZE == 3
-//     const double roll = params[0][0];
-//     const double pitch = params[0][1];
-//     const double yaw = params[0][2];
-//     const vec3_t rpy{roll, pitch, yaw};
-//     const mat3_t C_WF = euler321(rpy);
-//     const vec3_t r_WF = tf_trans(T_WF_);
-//     const mat4_t T_WF = tf(C_WF, r_WF);
-// #elif FIDUCIAL_PARAMS_SIZE == 7
-//     const mat4_t T_WF = tf(params[0]);
-// #endif
-//
-//     // Sensor pose, sensor-camera extrinsics, camera parameters
-//     const mat4_t T_WS = tf(params[1]);
-//     const mat4_t T_BS = tf(params[2]);
-//     const mat4_t T_BCi = tf(params[3]);
-//     Eigen::Map<const vecx_t> cam_params(params[4], 8);
-//     const double td = params[5][0];
-//
-//     // Transform and project point to image plane
-//     bool valid = true;
-//     CAMERA_TYPE camera{cam_res_, cam_params};
-//     const mat4_t T_CiB = T_BCi.inverse();
-//     const mat4_t T_SW = T_WS.inverse();
-//     const vec3_t r_CFi = tf_point(T_CiB * T_BS * T_SW * T_WF, r_FFi_);
-//     mat_t<2, 3> Jh;
-//     vec2_t z_hat;
-//     if (camera.project(r_CFi, z_hat, Jh) != 0) {
-//       valid = false;
-//     }
-//
-//     // Residuals
-//     const vec2_t r = sqrt_info_ * ((z_i_ + td * v_ij_) - z_hat);
-//     residuals[0] = r(0);
-//     residuals[1] = r(1);
-//
-//     // Jacobians
-//     const matx_t Jh_weighted = sqrt_info_ * Jh;
-//
-//     if (jacobians) {
-//       // Jacobians w.r.t. T_WF
-//       if (jacobians[0]) {
-//         // Form jacobians
-// #if FIDUCIAL_PARAMS_SIZE == 2 || FIDUCIAL_PARAMS_SIZE == 3
-//         const double cphi = cos(roll);
-//         const double sphi = sin(roll);
-//         const double ctheta = cos(pitch);
-//         const double stheta = sin(pitch);
-//         const double cpsi = cos(yaw);
-//         const double spsi = sin(yaw);
-//
-//         const double x = r_FFi_(0);
-//         const double y = r_FFi_(1);
-//         const double z = r_FFi_(2);
-//
-//         const vec3_t J_x{y * (sphi * spsi + stheta * cphi * cpsi) +
-//                              z * (-sphi * stheta * cpsi + spsi * cphi),
-//                          y * (-sphi * cpsi + spsi * stheta * cphi) +
-//                              z * (-sphi * spsi * stheta - cphi * cpsi),
-//                          y * cphi * ctheta - z * sphi * ctheta};
-//         const vec3_t J_y{-x * stheta * cpsi + y * sphi * cpsi * ctheta +
-//                              z * cphi * cpsi * ctheta,
-//                          -x * spsi * stheta + y * sphi * spsi * ctheta +
-//                              z * spsi * cphi * ctheta,
-//                          -x * ctheta - y * sphi * stheta - z * stheta *
-//                          cphi};
-//         const vec3_t J_z{-x * spsi * ctheta +
-//                              y * (-sphi * spsi * stheta - cphi * cpsi) +
-//                              z * (sphi * cpsi - spsi * stheta * cphi),
-//                          x * cpsi * ctheta +
-//                              y * (sphi * stheta * cpsi - spsi * cphi) +
-//                              z * (sphi * spsi + stheta * cphi * cpsi),
-//                          0};
-// #endif
-//
-//         // Fill Jacobian
-//         const mat3_t C_CiW = tf_rot(T_CiB * T_BS * T_SW);
-// #if FIDUCIAL_PARAMS_SIZE == 2
-//         Eigen::Map<mat_t<2, 2, row_major_t>> J(jacobians[0]);
-//         J.block(0, 0, 2, 1) = -1 * Jh_weighted * C_CiW * J_x;
-//         J.block(0, 1, 2, 1) = -1 * Jh_weighted * C_CiW * J_y;
-// #elif FIDUCIAL_PARAMS_SIZE == 3
-//         Eigen::Map<mat_t<2, 3, row_major_t>> J(jacobians[0]);
-//         J.block(0, 0, 2, 1) = -1 * Jh_weighted * C_CiW * J_x;
-//         J.block(0, 1, 2, 1) = -1 * Jh_weighted * C_CiW * J_y;
-//         J.block(0, 2, 2, 1) = -1 * Jh_weighted * C_CiW * J_z;
-// #elif FIDUCIAL_PARAMS_SIZE == 7
-//         const mat3_t C_WF = tf_rot(T_WF);
-//         Eigen::Map<mat_t<2, 7, row_major_t>> J(jacobians[0]);
-//         J.setZero();
-//         J.block(0, 0, 2, 3) = -1 * Jh_weighted * C_CiW * I(3);
-//         J.block(0, 3, 2, 3) = -1 * Jh_weighted * C_CiW * -skew(C_WF *
-//         r_FFi_);
-// #endif
-//         if (valid == false) {
-//           J.setZero();
-//         }
-//       }
-//
-//       // Jacobians w.r.t T_WS
-//       if (jacobians[1]) {
-//         const mat3_t C_CiS = tf_rot(T_CiB * T_BS);
-//         const mat3_t C_WS = tf_rot(T_WS);
-//         const mat3_t C_SW = C_WS.transpose();
-//         const mat3_t C_CiW = C_CiS * C_SW;
-//         const mat4_t T_SW = T_WS.inverse();
-//         const vec3_t r_SFi = tf_point(T_SW * T_WF, r_FFi_);
-//
-//         Eigen::Map<mat_t<2, 7, row_major_t>> J(jacobians[1]);
-//         J.setZero();
-//         J.block(0, 0, 2, 3) = Jh_weighted * C_CiW * I(3);
-//         J.block(0, 3, 2, 3) = Jh_weighted * C_CiW * -skew(C_WS * r_SFi);
-//         if (valid == false) {
-//           J.setZero();
-//         }
-//       }
-//
-//       // Jacobians w.r.t T_BS
-//       if (jacobians[2]) {
-//         const mat3_t C_CiB = tf_rot(T_CiB);
-//         const mat3_t C_BS = tf_rot(T_BS);
-//         const vec3_t r_SFi = tf_point(T_SW * T_WF, r_FFi_);
-//
-//         Eigen::Map<mat_t<2, 7, row_major_t>> J(jacobians[2]);
-//         J.setZero();
-//         J.block(0, 0, 2, 3) = -1 * Jh_weighted * C_CiB * I(3);
-//         J.block(0, 3, 2, 3) = -1 * Jh_weighted * C_CiB * -skew(C_BS * r_SFi);
-//         if (valid == false) {
-//           J.setZero();
-//         }
-//       }
-//
-//       // Jacobians w.r.t T_BCi
-//       if (jacobians[3]) {
-//         const mat3_t C_CiB = tf_rot(T_CiB);
-//         const mat3_t C_BCi = C_CiB.transpose();
-//         const vec3_t r_CiFi = tf_point(T_CiB * T_BS * T_SW * T_WF, r_FFi_);
-//
-//         Eigen::Map<mat_t<2, 7, row_major_t>> J(jacobians[3]);
-//         J.setZero();
-//         J.block(0, 0, 2, 3) = -1 * Jh_weighted * -C_CiB * I(3);
-//         J.block(0, 3, 2, 3) = -1 * Jh_weighted * -C_CiB * -skew(C_BCi *
-//         r_CiFi); if (valid == false) {
-//           J.setZero();
-//         }
-//       }
-//
-//       // Jacobians w.r.t. camera parameters
-//       if (jacobians[4]) {
-//         const vec2_t p{r_CFi(0) / r_CFi(2), r_CFi(1) / r_CFi(2)};
-//
-//         Eigen::Map<mat_t<2, 8, row_major_t>> J(jacobians[4]);
-//         J.block(0, 0, 2, 8) = -1 * sqrt_info_ * camera.J_params(p);
-//         if (valid == false) {
-//           J.setZero();
-//         }
-//       }
-//
-//       // Jacobians w.r.t. time delay
-//       if (jacobians[5]) {
-//         Eigen::Map<vec2_t> J(jacobians[5]);
-//         J = sqrt_info_ * v_ij_;
-//         if (valid == false) {
-//           J.setZero();
-//         }
-//       }
-//     }
-//
-//     return true;
-//   }
-// };
+#if FIDUCIAL_PARAMS_SIZE == 2
+struct fiducial_td_error_t
+    : public ceres::SizedCostFunction<2, 2, 7, 7, 7, 8, 1> {
+#elif FIDUCIAL_PARAMS_SIZE == 3
+struct fiducial_td_error_t
+    : public ceres::SizedCostFunction<2, 3, 7, 7, 7, 8, 1> {
+#elif FIDUCIAL_PARAMS_SIZE == 7
+struct fiducial_td_error_t
+    : public ceres::SizedCostFunction<2, 7, 7, 7, 7, 8, 1> {
+#endif
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
+
+  const timestamp_t ts_i_ = 0;
+  const timestamp_t ts_j_ = 0;
+  const camera_geometry_t *cam_geom_;
+  const int cam_idx_;
+  const int cam_res_[2] = {0, 0};
+  const int tag_id_ = -1;
+  const int corner_idx_ = -1;
+  const vec3_t r_FFi_{0.0, 0.0, 0.0};
+  const vec2_t z_i_{0.0, 0.0};
+  const vec2_t z_j_{0.0, 0.0};
+  const vec2_t v_ij_{0.0, 0.0}; // pixel velocity: (z_j - z_i) / dt
+  const mat4_t T_WF_ = I(4);
+
+  const mat2_t covar_;
+  const mat2_t info_;
+  const mat2_t sqrt_info_;
+
+  fiducial_td_error_t(const timestamp_t &ts_i,
+                      const timestamp_t &ts_j,
+                      const camera_geometry_t *cam_geom,
+                      const int cam_idx,
+                      const int cam_res[2],
+                      const int tag_id,
+                      const int corner_idx,
+                      const vec3_t &r_FFi,
+                      const vec2_t &z_i,
+                      const vec2_t &z_j,
+                      const mat4_t &T_WF,
+                      const mat2_t &covar);
+  ~fiducial_td_error_t() = default;
+
+  bool Evaluate(double const *const *params,
+                double *residuals,
+                double **jacobians) const;
+};
 
 // INERTIAL ERROR //////////////////////////////////////////////////////////////
 
@@ -446,78 +254,53 @@ struct calib_vi_t {
   aprilgrid_buffer_t grids_buf;
   std::map<int, aprilgrids_t> cam_grids;
   std::map<int, aprilgrid_t> grids_prev;
+  imu_params_t imu_params;
   imu_data_t imu_buf;
   bool initialized = false;
 
   // State-Variables
-  fiducial_t *fiducial = nullptr;
-  time_delay_t *time_delay = nullptr;
-  std::vector<pose_t *> sensor_poses;
-  std::vector<sb_params_t *> speed_biases;
-  std::map<int, camera_params_t *> cam_params;
-  std::map<int, extrinsics_t *> cam_exts;
+  std::unique_ptr<fiducial_t> fiducial;
+  std::unique_ptr<time_delay_t> time_delay;
+  std::vector<std::unique_ptr<pose_t>> sensor_poses;
+  std::vector<std::unique_ptr<sb_params_t>> speed_biases;
+  std::map<int, std::unique_ptr<camera_params_t>> cam_params;
+  std::map<int, std::unique_ptr<extrinsics_t>> cam_exts;
+  std::unique_ptr<extrinsics_t> imu_exts;
 
-  // Optimization
-  imu_params_t imu_params;
+  // Settings
   double sigma_vision = 1.0;
-  ceres::Problem::Options prob_options;
-  ceres::Problem *problem;
-  PoseLocalParameterization pose_parameterization;
-
   int batch_max_iter = 30;
   bool enable_outlier_rejection = true;
 
-  calib_vi_t() {
-    // clang-format off
-    prob_options.local_parameterization_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
-    prob_options.cost_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
-    problem = new ceres::Problem(prob_options);
-    // clang-format on
-  }
+  // Optimization
+  ceres::Problem::Options prob_options;
+  std::unique_ptr<ceres::Problem> problem;
+  PoseLocalParameterization pose_plus;
 
-  ~calib_vi_t() {
-    if (fiducial) {
-      delete fiducial;
-    }
-    if (time_delay) {
-      delete time_delay;
-    }
-    for (const auto &pose : sensor_poses) {
-      delete pose;
-    }
-    for (const auto &sb : speed_biases) {
-      delete sb;
-    }
-    for (const auto &kv : cam_params) {
-      delete kv.second;
-    }
-    for (const auto &kv : cam_exts) {
-      delete kv.second;
-    }
-    if (problem) {
-      delete problem;
-    }
-  }
+  calib_vi_t();
+  ~calib_vi_t() = default;
 
-  void add_imu(const imu_params_t &imu_params_, const double td = 0.0);
+  void add_imu(const imu_params_t &imu_params_,
+               const mat4_t &T_BS,
+               const double td = 0.0,
+               const bool fix_extrinsics = false,
+               const bool fix_time_delay = false);
   void add_camera(const int cam_idx,
                   const int resolution[2],
                   const std::string &proj_model,
                   const std::string &dist_model,
                   const vecx_t &proj_params,
                   const vecx_t &dist_params,
-                  const bool fix = false);
-  void add_cam_extrinsics(const int cam_idx,
-                          const mat4_t &T_BCi,
-                          const bool fix = false);
-  void add_imu_extrinsics(const mat4_t &T_BS, const bool fix = false);
+                  const mat4_t &T_BCi = I(4),
+                  const bool fix_params = false,
+                  const bool fix_extrinsics = false);
   void add_sensor_pose(const timestamp_t ts, const mat4_t &T_WS);
   void add_speed_biases(const timestamp_t ts, const vec_t<9> &sb);
-  void add_time_delay(const double td);
   void add_fiducial_pose(const mat4_t &T_WF);
 
   vecx_t get_camera(const int cam_idx);
   mat4_t get_cam_extrinsics(const int cam_idx);
+  mat4_t get_imu_extrinsics();
   mat4_t get_sensor_pose(const int pose_index);
   mat4_t get_fiducial_pose();
   int nb_cams();
@@ -549,15 +332,13 @@ struct calib_vi_t {
   // void show_results();
   // int recover_calib_covar(matx_t &calib_covar);
 
-  // clang-format off
   int save_results(const std::string &save_path);
-  void save_poses(const std::string &save_path, const std::vector<pose_t *> &poses);
-  void save_speed_biases(const std::string &save_path, const std::vector<sb_params_t *> &speed_biases);
-  void save_cameras(const std::string &save_path, const std::map<int, camera_params_t *> &cam_params);
-  void save_cam_extrinsics(const std::string &save_path);
-  // void save_imu_extrinsics(const std::string &save_path);
-  void save();
-  // clang-format on
+  // void save_poses(const std::string &save_path);
+  // void save_speed_biases(const std::string &save_path);
+  // void save_cameras(const std::string &save_path);
+  // void save_cam_extrinsics(const std::string &save_path);
+  // // void save_imu_extrinsics(const std::string &save_path);
+  // void save();
 };
 
 } //  namespace yac

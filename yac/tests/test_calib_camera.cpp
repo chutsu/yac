@@ -21,7 +21,6 @@ int test_reproj_error() {
   vec3s_t object_points;
   grid.get_measurements(tag_ids, corner_indicies, keypoints, object_points);
 
-  id_t param_id = 0;
   const int cam_idx = 0;
   const int cam_res[2] = {752, 480};
   const std::string proj_model = "pinhole";

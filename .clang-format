@@ -1,5 +1,5 @@
 AllowShortCaseLabelsOnASingleLine: false
-AllowShortFunctionsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: true
 AllowShortBlocksOnASingleLine: false
 AlwaysBreakTemplateDeclarations: true
 BinPackArguments: false

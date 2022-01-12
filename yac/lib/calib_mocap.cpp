@@ -238,7 +238,7 @@ calib_mocap_data_t::calib_mocap_data_t(const std::string &config_file) {
 }
 
 int calib_mocap_solve(const std::string &config_file) {
-  calib_mocap_data_t data{config_file};
+  // calib_mocap_data_t data{config_file};
 
   // std::string proj_model = data.cam0.proj_model;
   // std::string dist_model = data.cam0.dist_model;

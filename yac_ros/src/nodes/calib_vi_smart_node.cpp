@@ -39,10 +39,7 @@ public:
   bool loop_ = true;
 
   // State
-  enum CALIB_STATE {
-    INIT = 0,
-    NBT = 1
-  };
+  enum CALIB_STATE { INIT = 0, NBT = 1 };
   int state_ = INIT;
   size_t frame_idx_ = 0;
 
@@ -52,7 +49,9 @@ public:
   // -- IMU subscriber
   ros::Subscriber imu0_sub_;
   // -- Image subscribers
-  typedef message_filters::sync_policies::ExactTime<sensor_msgs::Image, sensor_msgs::Image> ImageSyncPolicy;
+  typedef message_filters::sync_policies::ExactTime<sensor_msgs::Image,
+                                                    sensor_msgs::Image>
+      ImageSyncPolicy;
   typedef message_filters::Subscriber<sensor_msgs::Image> ImageSubscriber;
   ImageSubscriber cam0_sub_;
   ImageSubscriber cam1_sub_;
@@ -78,7 +77,7 @@ public:
   calib_target_t target_;
   camera_params_t cam0_params_;
   aprilgrid_detector_t *detector_ = nullptr;
-  mat4_t calib_origin_;  // Calibration origin (X) w.r.t camera frame(C): T_XC
+  mat4_t calib_origin_; // Calibration origin (X) w.r.t camera frame(C): T_XC
   Estimator est_;
 
   // NBV
@@ -105,9 +104,9 @@ public:
   bool finding_nbt_ = false;
 
   calib_vi_node_t(ros_config_t &config, calib_data_t &calib_data)
-      : config_{config},
-        calib_data_{calib_data},
-        cam0_sub_{*config_.ros_nh, config.cam0_topic, 30},
+      : config_{config}, calib_data_{calib_data}, cam0_sub_{*config_.ros_nh,
+                                                            config.cam0_topic,
+                                                            30},
         cam1_sub_{*config_.ros_nh, config.cam1_topic, 30},
         image_sync_(ImageSyncPolicy(10), cam0_sub_, cam1_sub_) {
     // Set terminal to be non-blocking
@@ -127,7 +126,9 @@ public:
     image_sync_.registerCallback(&calib_vi_node_t::image_callback, this);
     // clang-format on
     // -- Rviz marker publisher
-    rviz_pub_ = config_.ros_nh->advertise<visualization_msgs::Marker>("/yac_ros/rviz", 0);
+    rviz_pub_ =
+        config_.ros_nh->advertise<visualization_msgs::Marker>("/yac_ros/rviz",
+                                                              0);
     nbt_pub_ = config_.ros_nh->advertise<nav_msgs::Path>("/yac_ros/nbt", 0);
 
     // Setup detector
@@ -139,12 +140,14 @@ public:
                                          target_.tag_spacing);
 
     // Setup calibration origin
-    calib_origin_ = calib_init_poses<pinhole_radtan4_t>(target_, cam0_params_)[0];
+    calib_origin_ =
+        calib_init_poses<pinhole_radtan4_t>(target_, cam0_params_)[0];
 
     // Setup initial poses
     calib_vi_init_poses(target_, calib_origin_, init_poses_);
     target_pose_ = init_poses_.front();
-    target_grid_ = nbv_target_grid<pinhole_radtan4_t>(target_, cam0_params_, target_pose_);
+    target_grid_ =
+        nbv_target_grid<pinhole_radtan4_t>(target_, cam0_params_, target_pose_);
     init_poses_.pop_front();
 
     // Configure estimator
@@ -177,26 +180,25 @@ public:
     }
 
     switch (key) {
-    case 'q': // q
-    case 27:  // ESC
-    case 3:   // Control-C
-    case 4:   // Control-D
-      halt();
-      break;
-    case 'r':
-      reset();
-      break;
-    case 'm':
-      {
+      case 'q': // q
+      case 27:  // ESC
+      case 3:   // Control-C
+      case 4:   // Control-D
+        halt();
+        break;
+      case 'r':
+        reset();
+        break;
+      case 'm': {
         std::lock_guard<std::mutex> guard(mtx_);
         matx_t calib_covar;
         est_.recoverCalibCovariance(calib_covar);
         printf("entropy(calib_covar): %f\n", entropy(calib_covar));
         break;
       }
-    case 'f':
-      find_nbt();
-      break;
+      case 'f':
+        find_nbt();
+        break;
     }
   }
 
@@ -282,7 +284,6 @@ public:
       return false;
     }
 
-
     return true;
   }
 
@@ -291,9 +292,8 @@ public:
     if (target_grid_) {
       delete target_grid_;
     }
-    target_grid_ = nbv_target_grid<pinhole_radtan4_t>(target_,
-                                                      cam0_params_,
-                                                      target_pose_);
+    target_grid_ =
+        nbv_target_grid<pinhole_radtan4_t>(target_, cam0_params_, target_pose_);
   }
 
   void reset() {
@@ -316,9 +316,7 @@ public:
     init_poses_.pop_front();
   }
 
-  void halt() {
-    loop_ = false;
-  }
+  void halt() { loop_ = false; }
 
   int estimate_relative_pose(const aprilgrid_t &grid, mat4_t &T_C0F) {
     auto cam = est_.getCamera(0);
@@ -437,7 +435,8 @@ public:
     //   return;
     // }
 
-    // if (finding_nbt_ == false && (nbt_hold_tic.tv_sec == 0 || toc(&nbt_hold_tic) > 4.0)) {
+    // if (finding_nbt_ == false && (nbt_hold_tic.tv_sec == 0 ||
+    // toc(&nbt_hold_tic) > 4.0)) {
     //   find_nbt();
     //   nbt_hold_tic = tic();
     // }
@@ -457,8 +456,7 @@ public:
     // }
   }
 
-  void draw_detected(const aprilgrid_t &grid,
-                     cv::Mat &image) {
+  void draw_detected(const aprilgrid_t &grid, cv::Mat &image) {
     // Visualize detected
     std::string text = "AprilGrid: ";
     cv::Scalar text_color;
@@ -507,18 +505,18 @@ public:
     // Detect AprilGrids
     // -- Form images
     const timestamp_t ts = cam0_ts.toNSec();
-    std::vector<cv::Mat> cam_images{
-      cv_bridge::toCvCopy(cam0_msg)->image,
-      cv_bridge::toCvCopy(cam1_msg)->image
-    };
+    std::vector<cv::Mat> cam_images{cv_bridge::toCvCopy(cam0_msg)->image,
+                                    cv_bridge::toCvCopy(cam1_msg)->image};
     // -- Tresholding
     // cv::threshold(cam_images[0], cam_images[0], 100, 255, cv::THRESH_BINARY);
     // cv::threshold(cam_images[1], cam_images[1], 100, 255, cv::THRESH_BINARY);
-    // cv::adaptiveThreshold(cam_images[0], cam_images[0], 100, cv::ADAPTIVE_THRESH_GAUSSIAN_C, cv::THRESH_BINARY_INV, 7, 0);
-    // cv::adaptiveThreshold(cam_images[1], cam_images[1], 100, cv::ADAPTIVE_THRESH_GAUSSIAN_C, cv::THRESH_BINARY_INV, 7, 0);
+    // cv::adaptiveThreshold(cam_images[0], cam_images[0], 100,
+    // cv::ADAPTIVE_THRESH_GAUSSIAN_C, cv::THRESH_BINARY_INV, 7, 0);
+    // cv::adaptiveThreshold(cam_images[1], cam_images[1], 100,
+    // cv::ADAPTIVE_THRESH_GAUSSIAN_C, cv::THRESH_BINARY_INV, 7, 0);
     // -- Detect
     std::vector<aprilgrid_t> grids;
-    for (int i = 0; i < (int) est_.nb_cams(); i++) {
+    for (int i = 0; i < (int)est_.nb_cams(); i++) {
       auto grid = detector_->detect(ts, cam_images[i], true);
       grid.timestamp = ts;
       grids.push_back(grid);
@@ -547,8 +545,12 @@ public:
 
     // State machine
     switch (state_) {
-    case INIT: mode_init(grid, image_rgb); break;
-    case NBT: mode_nbt(grid, image_rgb); break;
+      case INIT:
+        mode_init(grid, image_rgb);
+        break;
+      case NBT:
+        mode_nbt(grid, image_rgb);
+        break;
     }
 
     // Show
@@ -619,9 +621,15 @@ public:
     auto T_BC1 = est_.getCameraExtrinsicsEstimate(1);
     nbt_compute<pinhole_radtan4_t>(est_.target_params_,
                                    est_.imu_params_,
-                                   cam0, cam1, cam_rate,
-                                   T_WF, T_BC0, T_BC1, T_BS,
-                                   nbt_trajs_, nbt_calib_infos_);
+                                   cam0,
+                                   cam1,
+                                   cam_rate,
+                                   T_WF,
+                                   T_BC0,
+                                   T_BC1,
+                                   T_BS,
+                                   nbt_trajs_,
+                                   nbt_calib_infos_);
 
     // Obtain calibration covariance
     // The mutex lock is needed because we need to block the estimator from
@@ -635,7 +643,8 @@ public:
     // auto T_BC0 = est_.getCameraExtrinsicsEstimate(0);
     // auto T_BS = est_.getImuExtrinsicsEstimate();
     int retval = nbt_find(cam0_geom,
-                          T_BC0, T_BS,
+                          T_BC0,
+                          T_BS,
                           calib_covar,
                           nbt_trajs_,
                           nbt_calib_infos_);
@@ -656,7 +665,7 @@ public:
 
   void loop() {
     // Terminal capture thread
-    keyboard_thread_ = std::thread([&](){
+    keyboard_thread_ = std::thread([&]() {
       print_usage();
 
       while (loop_) {
@@ -672,7 +681,7 @@ public:
   }
 };
 
-}  // namespace yac
+} // namespace yac
 
 int main(int argc, char **argv) {
   // Load config and data
@@ -685,9 +694,11 @@ int main(int argc, char **argv) {
   //   const auto proj_model = calib_data.cam_params[0].proj_model;
   //   const auto dist_model = calib_data.cam_params[0].dist_model;
   //   if (proj_model == "pinhole" && dist_model == "radtan4") {
-  //     yac::calib_stereo_nbv_t<yac::pinhole_radtan4_t> calib{config, calib_data};
+  //     yac::calib_stereo_nbv_t<yac::pinhole_radtan4_t> calib{config,
+  //     calib_data};
   //   } else if (proj_model == "pinhole" && dist_model == "equi4") {
-  //     yac::calib_stereo_nbv_t<yac::pinhole_equi4_t> calib{config, calib_data};
+  //     yac::calib_stereo_nbv_t<yac::pinhole_equi4_t> calib{config,
+  //     calib_data};
   //   } else {
   //     FATAL("Unsupported projection-distorion type [%s-%s]!",
   //           proj_model.c_str(), dist_model.c_str());

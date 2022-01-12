@@ -6,59 +6,12 @@
 namespace yac {
 
 #ifndef TEST_PATH
-  #define TEST_PATH "."
+#define TEST_PATH "."
 #endif
 
 #define TEST_OUTPUT "/tmp/aprilgrid.csv"
 #define TEST_IMAGE TEST_PATH "/test_data/calib/aprilgrid/aprilgrid.png"
 #define TEST_CONF TEST_PATH "/test_data/calib/aprilgrid/target.yaml"
-
-static void visualize_grid(const cv::Mat &image,
-                           const mat3_t &K,
-                           const vec4_t &D,
-                           const vec3s_t &landmarks,
-                           const vec2s_t &keypoints,
-                           const bool show) {
-  // Undistort image
-  cv::Mat image_undistorted;
-  cv::Mat intrinsics = convert(K);
-  cv::Mat distortions = convert(D);
-  cv::undistort(image, image_undistorted, intrinsics, distortions);
-
-  // Project landmarks in 3D to image plane
-  for (size_t i = 0; i < landmarks.size(); i++) {
-    // Project then scale to image plane
-    vec3_t x = landmarks[i];
-    x(0) = x(0) / x(2);
-    x(1) = x(1) / x(2);
-    x(2) = x(2) / x(2);
-    x = K * x;
-
-    // Draw corner, Set color to yellow on first corner (origin), else blue
-    auto color = (i == 0) ? cv::Scalar(0, 255, 255) : cv::Scalar(0, 0, 255);
-    cv::circle(image_undistorted, cv::Point(x(0), x(1)), 1.0, color, 2, 8);
-
-    // Label corner
-    cv::Point2f cxy(keypoints[i](0), keypoints[i](1));
-    cv::Scalar text_color(0, 255, 0);
-    std::string text = std::to_string(i);
-    int font = cv::FONT_HERSHEY_PLAIN;
-    double font_scale = 1.0;
-    int thickness = 2;
-    cv::putText(image_undistorted,
-                text,
-                cxy,
-                font,
-                font_scale,
-                text_color,
-                thickness);
-  }
-
-  if (show) {
-    cv::imshow("Visualize grid", image_undistorted);
-    cv::waitKey(0);
-  }
-}
 
 int test_aprilgrid_constructor() {
   aprilgrid_t grid(0, 6, 6, 0.088, 0.3);
@@ -274,7 +227,9 @@ int test_aprilgrid_estimate() {
   for (const auto &tag : tags) {
     // Image points (counter-clockwise, from bottom left)
     grid.add(tag.id, 0, vec2_t(tag.p[0].first, tag.p[0].second)); // Bottom left
-    grid.add(tag.id, 1, vec2_t(tag.p[1].first, tag.p[1].second)); // Bottom right
+    grid.add(tag.id,
+             1,
+             vec2_t(tag.p[1].first, tag.p[1].second)); // Bottom right
     grid.add(tag.id, 2, vec2_t(tag.p[2].first, tag.p[2].second)); // Top right
     grid.add(tag.id, 3, vec2_t(tag.p[3].first, tag.p[3].second)); // Top left
   }
@@ -459,12 +414,15 @@ int test_aprilgrid_detect() {
   return 0;
 }
 
-cv::Mat obtainIregularROI(cv::Mat& origImag,
+cv::Mat obtainIregularROI(cv::Mat &origImag,
                           cv::Point2f topLeft,
-                           cv::Point2f topRight,
+                          cv::Point2f topRight,
                           cv::Point2f botLeft,
-                          cv::Point2f botRight){
-  cv::Mat black(origImag.rows, origImag.cols, origImag.type(), cv::Scalar::all(0));
+                          cv::Point2f botRight) {
+  cv::Mat black(origImag.rows,
+                origImag.cols,
+                origImag.type(),
+                cv::Scalar::all(0));
   cv::Mat mask(origImag.rows, origImag.cols, CV_8UC1, cv::Scalar(0));
 
   std::vector<std::vector<cv::Point>> co_ordinates;
@@ -557,7 +515,8 @@ cv::Mat obtainIregularROI(cv::Mat& origImag,
 //       top_left = cv::Point2f(z3.x(), z3.y());
 //
 //
-//       cv::Mat image_roi = obtainIregularROI(image, top_left, top_right, bot_left, bot_right);
+//       cv::Mat image_roi = obtainIregularROI(image, top_left, top_right,
+//       bot_left, bot_right);
 //
 //       cv::Mat image_laplacian;
 //       cv::Laplacian(image_roi, image_laplacian, CV_64F);
@@ -595,7 +554,8 @@ int test_aprilgrid_detect3() {
 
   for (std::string image_path : cam0_images) {
     auto timestamp = strip_end(image_path, ".png");
-    const auto image = cv::imread("/data/grid_detection/data/cam0/" + image_path);
+    const auto image =
+        cv::imread("/data/grid_detection/data/cam0/" + image_path);
     printf("processing [%s]\n", image_path.c_str());
 
     auto grid = detector.detect(std::stoull(timestamp), image);
@@ -603,7 +563,8 @@ int test_aprilgrid_detect3() {
       continue;
     }
 
-    std::string csv_path = "/data/grid_detection/yac_cam0_grids/" + timestamp + ".csv";
+    std::string csv_path =
+        "/data/grid_detection/yac_cam0_grids/" + timestamp + ".csv";
     FILE *csv = fopen(csv_path.c_str(), "w");
     fprintf(csv, "kp_x,kp_y,pt_x,pt_y\n");
 
@@ -630,23 +591,24 @@ int test_aprilgrid_detect3() {
 
   // for (std::string image_path : cam1_images) {
   //   auto timestamp = strip_end(image_path, ".png");
-  //   const auto image = cv::imread("/data/grid_detection/data/cam1/" + image_path);
-  //   printf("processing [%s]\n", image_path.c_str());
+  //   const auto image = cv::imread("/data/grid_detection/data/cam1/" +
+  //   image_path); printf("processing [%s]\n", image_path.c_str());
   //
   //   auto grid = detector.detect(std::stoull(timestamp), image);
   //   if (grid.nb_detections == 0) {
   //     continue;
   //   }
   //
-  //   std::string csv_path = "/data/grid_detection/yac_cam1_grids/" + timestamp + ".csv";
-  //   FILE *csv = fopen(csv_path.c_str(), "w");
-  //   fprintf(csv, "kp_x,kp_y,pt_x,pt_y\n");
+  //   std::string csv_path = "/data/grid_detection/yac_cam1_grids/" + timestamp
+  //   + ".csv"; FILE *csv = fopen(csv_path.c_str(), "w"); fprintf(csv,
+  //   "kp_x,kp_y,pt_x,pt_y\n");
   //
   //   std::vector<int> tag_ids;
   //   std::vector<int> corner_indicies;
   //   vec2s_t keypoints;
   //   vec3s_t object_points;
-  //   grid.get_measurements(tag_ids, corner_indicies, keypoints, object_points);
+  //   grid.get_measurements(tag_ids, corner_indicies, keypoints,
+  //   object_points);
   //
   //   for (size_t i = 0; i < tag_ids.size(); i++) {
   //     const vec2_t z = keypoints[i];

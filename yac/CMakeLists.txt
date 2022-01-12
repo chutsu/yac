@@ -45,7 +45,7 @@ INSTALL(DIRECTORY lib/
 # LIBRARY
 INCLUDE_DIRECTORIES(lib)
 ADD_LIBRARY(
-  yac
+  yac_util
   lib/util/aprilgrid.cpp
   lib/util/ceres_utils.cpp
   lib/util/config.cpp
@@ -56,6 +56,9 @@ ADD_LIBRARY(
   lib/util/net.cpp
   lib/util/sim.cpp
   lib/util/timeline.cpp
+)
+ADD_LIBRARY(
+  yac
   lib/calib_camera.cpp
   lib/calib_data.cpp
   lib/calib_mocap.cpp
@@ -73,40 +76,40 @@ FILE(COPY tests/test_data/mocap_data DESTINATION /tmp)
 ADD_DEFINITIONS(-DTEST_PATH="${TEST_BIN_PATH}")
 
 ADD_EXECUTABLE(test_util_aprilgrid tests/util/test_aprilgrid.cpp)
-TARGET_LINK_LIBRARIES(test_util_aprilgrid yac ${DEPS})
+TARGET_LINK_LIBRARIES(test_util_aprilgrid yac yac_util ${DEPS})
 
 ADD_EXECUTABLE(test_util_config tests/util/test_config.cpp)
-TARGET_LINK_LIBRARIES(test_util_config yac ${DEPS})
+TARGET_LINK_LIBRARIES(test_util_config yac yac_util ${DEPS})
 
 ADD_EXECUTABLE(test_util_cv tests/util/test_cv.cpp)
-TARGET_LINK_LIBRARIES(test_util_cv yac ${DEPS})
+TARGET_LINK_LIBRARIES(test_util_cv yac yac_util ${DEPS})
 
 ADD_EXECUTABLE(test_util_data tests/util/test_data.cpp)
-TARGET_LINK_LIBRARIES(test_util_data yac ${DEPS})
+TARGET_LINK_LIBRARIES(test_util_data yac yac_util ${DEPS})
 
 ADD_EXECUTABLE(test_util_fs tests/util/test_fs.cpp)
-TARGET_LINK_LIBRARIES(test_util_fs yac ${DEPS})
+TARGET_LINK_LIBRARIES(test_util_fs yac yac_util ${DEPS})
 
 ADD_EXECUTABLE(test_util_net tests/util/test_net.cpp)
-TARGET_LINK_LIBRARIES(test_util_net yac ${DEPS})
+TARGET_LINK_LIBRARIES(test_util_net yac yac_util ${DEPS})
 
 ADD_EXECUTABLE(test_util_timeline tests/util/test_timeline.cpp)
-TARGET_LINK_LIBRARIES(test_util_timeline yac ${DEPS})
+TARGET_LINK_LIBRARIES(test_util_timeline yac yac_util ${DEPS})
 
 ADD_EXECUTABLE(test_calib_camera tests/test_calib_camera.cpp)
-TARGET_LINK_LIBRARIES(test_calib_camera yac ${DEPS})
+TARGET_LINK_LIBRARIES(test_calib_camera yac yac_util ${DEPS})
 
 ADD_EXECUTABLE(test_calib_data tests/test_calib_data.cpp)
-TARGET_LINK_LIBRARIES(test_calib_data yac ${DEPS})
+TARGET_LINK_LIBRARIES(test_calib_data yac yac_util ${DEPS})
 
 # ADD_EXECUTABLE(test_calib_mocap tests/test_calib_mocap.cpp)
-# TARGET_LINK_LIBRARIES(test_calib_mocap yac ${DEPS})
+# TARGET_LINK_LIBRARIES(test_calib_mocap yac yac_util ${DEPS})
 
 # ADD_EXECUTABLE(test_calib_nbv tests/test_calib_nbv.cpp)
-# TARGET_LINK_LIBRARIES(test_calib_nbv yac ${DEPS})
+# TARGET_LINK_LIBRARIES(test_calib_nbv yac yac_util ${DEPS})
 
 ADD_EXECUTABLE(test_calib_vi tests/test_calib_vi.cpp)
-TARGET_LINK_LIBRARIES(test_calib_vi yac ${DEPS})
+TARGET_LINK_LIBRARIES(test_calib_vi yac yac_util ${DEPS})
 
 # ADD_EXECUTABLE(test_marg_error tests/test_marg_error.cpp)
-# TARGET_LINK_LIBRARIES(test_marg_error yac ${DEPS})
+# TARGET_LINK_LIBRARIES(test_marg_error yac yac_util ${DEPS})

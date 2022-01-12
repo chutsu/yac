@@ -101,9 +101,7 @@ struct calib_views_t {
   size_t size() const;
 
   /** Add view */
-  void add_view(aprilgrid_t &grid,
-                pose_t &rel_pose,
-                const mat2_t &covar_ = I(2));
+  void add_view(aprilgrid_t &grid, pose_t &rel_pose);
 
   /** Calibrate reprojection errors */
   std::vector<double> calculate_reproj_errors() const;

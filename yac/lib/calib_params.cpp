@@ -377,7 +377,8 @@ camera_params_t camera_params_t::init(const int cam_index_,
                          proj_model_,
                          dist_model_,
                          proj_params,
-                         dist_params};
+                         dist_params,
+                         fixed_};
 }
 
 /****************************** sb_params_t ***********************************/

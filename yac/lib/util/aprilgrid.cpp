@@ -215,11 +215,31 @@ void aprilgrid_t::remove(const int tag_id) {
 cv::Mat aprilgrid_t::draw(const cv::Mat &image,
                           const int marker_size,
                           const cv::Scalar &color) const {
+  const cv::Scalar text_color(0, 255, 0);
+  const int font = cv::FONT_HERSHEY_PLAIN;
+  const double font_scale = 1.0;
+  const int thickness = 2;
   cv::Mat image_rgb = gray2rgb(image);
 
-  for (const vec2_t &kp : keypoints()) {
+  std::vector<int> tag_ids;
+  std::vector<int> corner_indicies;
+  vec2s_t keypoints;
+  vec3s_t object_points;
+  get_measurements(tag_ids, corner_indicies, keypoints, object_points);
+
+  for (size_t i = 0; i < tag_ids.size(); i++) {
+    // Setup
+    const auto tag_id = tag_ids[i];
+    const auto kp = keypoints[i];
+
+    // Draw corners
     cv::Point2f p(kp(0), kp(1));
     cv::circle(image_rgb, p, marker_size, color, -1);
+
+    // Label corner
+    cv::Point2f cxy(kp.x(), kp.y());
+    std::string text = std::to_string(tag_id);
+    cv::putText(image_rgb, text, cxy, font, font_scale, text_color, thickness);
   }
 
   return image_rgb;

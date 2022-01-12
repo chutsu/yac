@@ -71,11 +71,11 @@ namespace yac {
 #define PRECISION 2 // Double Precision
 
 #if PRECISION == 1
-  #define real_t float
+#define real_t float
 #elif PRECISION == 2
-  #define real_t double
+#define real_t double
 #else
-  #define real_t double
+#define real_t double
 #endif
 
 #define dynamic_t Eigen::Dynamic
@@ -92,7 +92,8 @@ typedef Eigen::Matrix<real_t, 2, 2> mat2_t;
 typedef Eigen::Matrix<real_t, 3, 3> mat3_t;
 typedef Eigen::Matrix<real_t, 4, 4> mat4_t;
 typedef Eigen::Matrix<real_t, Eigen::Dynamic, Eigen::Dynamic> matx_t;
-typedef Eigen::Matrix<real_t, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> matx_row_major_t;
+typedef Eigen::Matrix<real_t, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
+    matx_row_major_t;
 typedef Eigen::Matrix<real_t, 3, 4> mat34_t;
 typedef Eigen::Quaternion<real_t> quat_t;
 typedef Eigen::AngleAxis<real_t> angle_axis_t;
@@ -181,7 +182,7 @@ typedef std::vector<timestamp_t> timestamps_t;
 
 #define UNUSED(expr)                                                           \
   do {                                                                         \
-    (void) (expr);                                                             \
+    (void)(expr);                                                              \
   } while (0)
 
 #ifndef CHECK
@@ -570,7 +571,7 @@ void load_matrix(const std::vector<real_t> &x,
 void load_matrix(const matx_t A, std::vector<real_t> &x);
 
 /** Pseudo Inverse via SVD **/
-matx_t pinv(const matx_t &A, const real_t tol=1e-4);
+matx_t pinv(const matx_t &A, const real_t tol = 1e-4);
 
 /** Rank of matrix A **/
 long int rank(const matx_t &A);
@@ -581,14 +582,16 @@ bool full_rank(const matx_t &A);
 /**
  * Perform Schur's Complement
  */
-int schurs_complement(matx_t &H, vecx_t &b,
-                      const size_t m, const size_t r,
-                      const bool precond=false);
-
+int schurs_complement(matx_t &H,
+                      vecx_t &b,
+                      const size_t m,
+                      const size_t r,
+                      const bool precond = false);
 
 // /**
 //  * Recover covariance(i, l) (a specific value in the covariance matrix) from
-//  * the upper triangular matrix `U` with precomputed diagonal vector containing
+//  * the upper triangular matrix `U` with precomputed diagonal vector
+//  containing
 //  * `diag(U)^{-1}`. Computed covariances will be stored in the `hash` to avoid
 //  * recomputing the value again.
 //  */
@@ -743,8 +746,12 @@ void fit_circle(const vec2s_t &points, double &cx, double &cy, double &radius);
 /**
  * Find the intersect of two circles.
  */
-vec2s_t intersect_circles(const double cx0, const double cy0, const double r0,
-                          const double cx1, const double cy1, const double r1);
+vec2s_t intersect_circles(const double cx0,
+                          const double cy0,
+                          const double r0,
+                          const double cx1,
+                          const double cy1,
+                          const double r1);
 
 #define EARTH_RADIUS_M 6378137.0
 
@@ -940,7 +947,6 @@ inline quat_t tf_quat(const mat4_t &tf) { return quat_t{tf.block<3, 3>(0, 0)}; }
  * Extract translation from transform
  */
 inline vec3_t tf_trans(const mat4_t &tf) { return tf.block<3, 1>(0, 3); }
-
 
 /**
  * Perturb the rotation element in the tranform `T` by `step_size` at index
@@ -1145,9 +1151,7 @@ struct profiler_t {
 
   profiler_t() {}
 
-  void start(const std::string &key) {
-    timers[key] = tic();
-  }
+  void start(const std::string &key) { timers[key] = tic(); }
 
   float stop(const std::string &key) {
     record[key] = toc(&timers[key]);
@@ -1208,7 +1212,6 @@ void closest_poses(const timestamps_t &timestamps,
                    const mat4s_t &poses,
                    const timestamps_t &interp_ts,
                    mat4s_t &result);
-
 
 /**
  * Let `t0` and `t1` be timestamps from two signals. If one of them is measured
@@ -1345,14 +1348,14 @@ int ctraj_save(const ctraj_t &ctraj, const std::string &save_path);
  */
 struct sim_imu_t {
   // IMU parameters
-  real_t rate = 0.0;        // IMU rate [Hz]
-  real_t tau_a = 3600.0;    // Reversion time constant for accel [s]
-  real_t tau_g = 3600.0;    // Reversion time constant for gyro [s]
-  real_t sigma_g_c = 0.0;   // Gyro noise density [rad/s/sqrt(Hz)]
-  real_t sigma_a_c = 0.0;   // Accel noise density [m/s^s/sqrt(Hz)]
-  real_t sigma_gw_c = 0.0;  // Gyro drift noise density [rad/s^s/sqrt(Hz)]
-  real_t sigma_aw_c = 0.0;  // Accel drift noise density [m/s^2/sqrt(Hz)]
-  real_t g = 9.81;          // Gravity vector [ms-2]
+  real_t rate = 0.0;       // IMU rate [Hz]
+  real_t tau_a = 3600.0;   // Reversion time constant for accel [s]
+  real_t tau_g = 3600.0;   // Reversion time constant for gyro [s]
+  real_t sigma_g_c = 0.0;  // Gyro noise density [rad/s/sqrt(Hz)]
+  real_t sigma_a_c = 0.0;  // Accel noise density [m/s^s/sqrt(Hz)]
+  real_t sigma_gw_c = 0.0; // Gyro drift noise density [rad/s^s/sqrt(Hz)]
+  real_t sigma_aw_c = 0.0; // Accel drift noise density [m/s^2/sqrt(Hz)]
+  real_t g = 9.81;         // Gravity vector [ms-2]
 
   // IMU flags and biases
   bool started = false;
@@ -1444,7 +1447,8 @@ void sim_imu_measurement(sim_imu_t &imu,
 // };
 //
 // /**
-//  * Configure carrot control using a list of position `waypoints` (x, y, z), and
+//  * Configure carrot control using a list of position `waypoints` (x, y, z),
+//  and
 //  * a `look_ahead` distance in [m].
 //  *
 //  * @returns 0 for success, -1 for failure
@@ -1466,7 +1470,8 @@ void sim_imu_measurement(sim_imu_t &imu,
 //                               vec3_t &result);
 //
 // /**
-//  * Calculate carrot point using current position `pos`, and outputs the carrot
+//  * Calculate carrot point using current position `pos`, and outputs the
+//  carrot
 //  * point in `result`.
 //  *
 //  * @returns A number to denote progress along the waypoint, if -1 then the
@@ -1478,12 +1483,14 @@ void sim_imu_measurement(sim_imu_t &imu,
 //                              vec3_t &result);
 //
 // /**
-//  * Update carrot controller using current position `pos` and outputs the carrot
+//  * Update carrot controller using current position `pos` and outputs the
+//  carrot
 //  * point in `result`.
 //  *
 //  * @returns 0 for success, 1 for all waypoints reached and -1 for failure
 //  */
-// int carrot_ctrl_update(carrot_ctrl_t &cc, const vec3_t &pos, vec3_t &carrot_pt);
+// int carrot_ctrl_update(carrot_ctrl_t &cc, const vec3_t &pos, vec3_t
+// &carrot_pt);
 
 /******************************************************************************
  *                               MEASUREMENTS
@@ -1492,9 +1499,9 @@ void sim_imu_measurement(sim_imu_t &imu,
 struct meas_t {
   timestamp_t ts = 0;
 
-  meas_t() {}
+  meas_t() = default;
   meas_t(const timestamp_t &ts_) : ts{ts_} {}
-  virtual ~meas_t() {}
+  virtual ~meas_t() = default;
 };
 
 struct imu_meas_t {
@@ -1502,19 +1509,20 @@ struct imu_meas_t {
   vec3_t accel{0.0, 0.0, 0.0};
   vec3_t gyro{0.0, 0.0, 0.0};
 
-  imu_meas_t() {}
-
+  imu_meas_t() = default;
+  ~imu_meas_t() = default;
   imu_meas_t(const timestamp_t &ts_, const vec3_t &accel_, const vec3_t &gyro_)
-    : ts{ts_}, accel{accel_}, gyro{gyro_} {}
-
-  ~imu_meas_t() {}
+      : ts{ts_}, accel{accel_}, gyro{gyro_} {}
 };
 
 struct imu_data_t {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
-  timestamps_t timestamps;
-  vec3s_t accel;
-  vec3s_t gyro;
+  std::deque<timestamp_t> timestamps;
+  std::deque<vec3_t> accel;
+  std::deque<vec3_t> gyro;
+
+  imu_data_t() = default;
+  ~imu_data_t() = default;
 
   void add(const timestamp_t &ts, const vec3_t &acc, const vec3_t &gyr) {
     timestamps.push_back(ts);
@@ -1523,10 +1531,14 @@ struct imu_data_t {
   }
 
   size_t size() const { return timestamps.size(); }
+
   size_t size() { return static_cast<const imu_data_t &>(*this).size(); }
 
   timestamp_t last_ts() const { return timestamps.back(); }
-  timestamp_t last_ts() { return static_cast<const imu_data_t &>(*this).last_ts(); }
+
+  timestamp_t last_ts() {
+    return static_cast<const imu_data_t &>(*this).last_ts();
+  }
 
   void clear() {
     timestamps.clear();
@@ -1534,7 +1546,104 @@ struct imu_data_t {
     gyro.clear();
   }
 
-  friend std::ostream& operator<<(std::ostream &os, const imu_data_t &data) {
+  imu_data_t extract(const timestamp_t ts_start, const timestamp_t ts_end) {
+    assert(ts_start >= timestamps.front());
+    assert(ts_end <= timestamps.back());
+
+    // Extract data between ts_start and ts_end
+    imu_data_t buf;
+    size_t remove_idx = 0;
+    timestamp_t ts_km1;
+    vec3_t acc_km1;
+    vec3_t gyr_km1;
+
+    for (size_t k = 0; k < timestamps.size(); k++) {
+      // Check if within the extraction zone
+      auto ts_k = timestamps[k];
+      if (ts_k < ts_start) {
+        continue;
+      }
+
+      // Setup
+      const vec3_t acc_k = accel[k];
+      const vec3_t gyr_k = gyro[k];
+
+      // Interpolate start or end?
+      if (buf.timestamps.size() == 0 and ts_k > ts_start) {
+        // Interpolate start
+        ts_km1 = timestamps[k - 1];
+        acc_km1 = accel[k - 1];
+        gyr_km1 = gyro[k - 1];
+
+        const real_t alpha = (ts_start - ts_km1) / (ts_k - ts_km1);
+        const vec3_t acc_km1 = (1.0 - alpha) * acc_km1 + alpha * acc_k;
+        const vec3_t gyr_km1 = (1.0 - alpha) * gyr_km1 + alpha * gyr_k;
+        ts_km1 = ts_start;
+
+        buf.add(ts_km1, acc_km1, gyr_km1);
+
+      } else if (ts_k > ts_end) {
+        // Interpolate end
+        ts_km1 = timestamps[k - 1];
+        acc_km1 = accel[k - 1];
+        gyr_km1 = gyro[k - 1];
+
+        const real_t alpha = (ts_end - ts_km1) / (ts_k - ts_km1);
+        const vec3_t acc_k = (1.0 - alpha) * acc_km1 + alpha * acc_k;
+        const vec3_t gyr_k = (1.0 - alpha) * gyr_km1 + alpha * gyr_k;
+        ts_k = ts_end;
+      }
+
+      // Add to subset
+      buf.add(ts_k, acc_k, gyr_k);
+
+      // End?
+      if (ts_k == ts_end) {
+        break;
+      }
+
+      // Update
+      remove_idx = k;
+    }
+
+    // Remove data before ts_end
+    for (size_t k = 0; k < remove_idx; k++) {
+      timestamps.pop_front();
+      accel.pop_front();
+      gyro.pop_front();
+    }
+
+    return buf;
+  }
+
+  mat3_t initial_attitude(ssize_t limit = -1) {
+    // Sample IMU measurements
+    vec3_t sum_angular_vel = vec3_t::Zero();
+    vec3_t sum_linear_acc = vec3_t::Zero();
+    auto buf_size = (limit == -1) ? timestamps.size() : limit;
+    for (size_t k = 0; k < buf_size; k++) {
+      sum_angular_vel += gyro[k];
+      sum_linear_acc += accel[k];
+    }
+
+    // Initialize the initial orientation, so that the estimation
+    // is consistent with the inertial frame.
+    const vec3_t mean_accel = sum_linear_acc / buf_size;
+    const vec3_t gravity{0.0, 0.0, -9.81};
+    mat3_t C_WS = vecs2rot(mean_accel, -gravity);
+
+    // Extract roll, pitch and set yaw to 0
+    const quat_t q_WS = quat_t(C_WS);
+    const vec3_t rpy = quat2euler(q_WS);
+    const real_t roll = rpy(0);
+    const real_t pitch = rpy(1);
+    const real_t yaw = 0.0;
+    C_WS = euler321(vec3_t{roll, pitch, yaw});
+
+    return C_WS;
+  }
+
+  friend std::ostream &operator<<(std::ostream &os, const imu_data_t &data) {
     os << "nb_measurements: " << data.size() << std::endl;
     for (size_t k = 0; k < data.timestamps.size(); k++) {
       os << "ts: " << std::to_string(data.timestamps[k]) << " ";
@@ -1543,7 +1652,7 @@ struct imu_data_t {
     }
     return os;
   }
-};
+}; // namespace yac
 
 // struct image_t : meas_t {
 //   int width = 0;
@@ -1580,7 +1689,7 @@ struct cam_frame_t {
   cam_frame_t(const timestamp_t &ts_,
               const vec2s_t &keypoints_,
               const std::vector<size_t> feature_ids_)
-    : ts{ts_}, keypoints{keypoints_}, feature_ids{feature_ids_} {}
+      : ts{ts_}, keypoints{keypoints_}, feature_ids{feature_ids_} {}
 
   ~cam_frame_t() {}
 };
@@ -1715,7 +1824,8 @@ struct cam_frame_t {
 //  * @param[in] w Target angular velocity
 //  * @param[in] time Target time taken to complete circle trajectory
 //  **/
-// void circle_trajectory(const real_t r, const real_t v, real_t *w, real_t *time);
+// void circle_trajectory(const real_t r, const real_t v, real_t *w, real_t
+// *time);
 //
 // /**
 //  * Two wheel robot
@@ -1770,9 +1880,10 @@ struct cam_frame_t {
 //  */
 // struct mav_model_t {
 //   vec3_t attitude{0.0, 0.0, 0.0};         ///< Attitude in global frame
-//   vec3_t angular_velocity{0.0, 0.0, 0.0}; ///< Angular velocity in global frame
-//   vec3_t position{0.0, 0.0, 0.0};         ///< Position in global frame
-//   vec3_t linear_velocity{0.0, 0.0, 0.0};  ///< Linear velocity in global frame
+//   vec3_t angular_velocity{0.0, 0.0, 0.0}; ///< Angular velocity in global
+//   frame vec3_t position{0.0, 0.0, 0.0};         ///< Position in global
+//   frame vec3_t linear_velocity{0.0, 0.0, 0.0};  ///< Linear velocity in
+//   global frame
 //
 //   real_t Ix = 0.0963; ///< Moment of inertia in x-axis
 //   real_t Iy = 0.0963; ///< Moment of inertia in y-axis
@@ -1805,16 +1916,16 @@ struct cam_frame_t {
  *****************************************************************************/
 
 struct imu_params_t {
-  real_t rate = 0.0;        // IMU rate [Hz]
-  real_t a_max = 160.0;     // Max accelerometer measurement [m/s^2]
-  real_t g_max = 10.0;      // Max gyroscope measurement [rad/s]
-  real_t sigma_g_c = 0.0;   // Gyro noise density [rad/s/sqrt(Hz)]
-  real_t sigma_a_c = 0.0;   // Accel noise density [m/s^s/sqrt(Hz)]
-  real_t sigma_gw_c = 0.0;  // Gyro drift noise density [rad/s^s/sqrt(Hz)]
-  real_t sigma_aw_c = 0.0;  // Accel drift noise density [m/s^2/sqrt(Hz)]
-  real_t sigma_bg = 0.03;   // Gyro bias prior [rad/s]
-  real_t sigma_ba = 0.1;    // Accel bias prior [m/s^2]
-  real_t g = 9.81;          // Gravity vector [ms^-2]
+  real_t rate = 0.0;       // IMU rate [Hz]
+  real_t a_max = 160.0;    // Max accelerometer measurement [m/s^2]
+  real_t g_max = 10.0;     // Max gyroscope measurement [rad/s]
+  real_t sigma_g_c = 0.0;  // Gyro noise density [rad/s/sqrt(Hz)]
+  real_t sigma_a_c = 0.0;  // Accel noise density [m/s^s/sqrt(Hz)]
+  real_t sigma_gw_c = 0.0; // Gyro drift noise density [rad/s^s/sqrt(Hz)]
+  real_t sigma_aw_c = 0.0; // Accel drift noise density [m/s^2/sqrt(Hz)]
+  real_t sigma_bg = 0.03;  // Gyro bias prior [rad/s]
+  real_t sigma_ba = 0.1;   // Accel bias prior [m/s^2]
+  real_t g = 9.81;         // Gravity vector [ms^-2]
 };
 
 } //  namespace yac

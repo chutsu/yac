@@ -261,11 +261,16 @@ struct calib_vi_t {
   // State-Variables
   std::unique_ptr<fiducial_t> fiducial;
   std::unique_ptr<time_delay_t> time_delay;
-  std::vector<std::unique_ptr<pose_t>> sensor_poses;
-  std::vector<std::unique_ptr<sb_params_t>> speed_biases;
+  std::map<timestamp_t, std::unique_ptr<pose_t>> sensor_poses;
+  std::map<timestamp_t, std::unique_ptr<sb_params_t>> speed_biases;
+  std::map<int, const camera_geometry_t *> cam_geoms;
   std::map<int, std::unique_ptr<camera_params_t>> cam_params;
   std::map<int, std::unique_ptr<extrinsics_t>> cam_exts;
   std::unique_ptr<extrinsics_t> imu_exts;
+
+  // Camera geometries
+  pinhole_radtan4_t pinhole_radtan4;
+  pinhole_equi4_t pinhole_equi4;
 
   // Settings
   double sigma_vision = 1.0;
@@ -298,12 +303,12 @@ struct calib_vi_t {
   void add_speed_biases(const timestamp_t ts, const vec_t<9> &sb);
   void add_fiducial_pose(const mat4_t &T_WF);
 
-  vecx_t get_camera(const int cam_idx);
+  int nb_cams();
+  vecx_t get_cam_params(const int cam_idx);
   mat4_t get_cam_extrinsics(const int cam_idx);
   mat4_t get_imu_extrinsics();
   mat4_t get_sensor_pose(const int pose_index);
   mat4_t get_fiducial_pose();
-  int nb_cams();
 
   void trim_imu_data(imu_data_t &imu_data, const timestamp_t t1);
   void update_prev_grids(const aprilgrids_t &grids);

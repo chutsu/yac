@@ -103,8 +103,8 @@ calib_view_t::calib_view_t(ceres::Problem &problem_,
                            camera_geometry_t *cam_geom_,
                            camera_params_t &cam_params_,
                            const mat2_t &covar_)
-    : problem{problem_}, grid{grid_}, T_C0F{T_C0F_}, T_BCi{T_BCi_},
-      cam_geom{cam_geom_}, cam_params{cam_params_}, covar{covar_} {
+    : problem{problem_}, grid{grid_}, cam_geom{cam_geom_},
+      cam_params{cam_params_}, T_C0F{T_C0F_}, T_BCi{T_BCi_}, covar{covar_} {
   // Get AprilGrid measurements
   std::vector<int> tag_ids;
   std::vector<int> corner_idxs;
@@ -177,16 +177,11 @@ calib_views_t::calib_views_t(ceres::Problem &problem_,
                              camera_geometry_t *cam_geom_,
                              camera_params_t &cam_params_)
     : problem{problem_}, extrinsics{extrinsics_}, cam_geom{cam_geom_},
-      cam_params{cam_params_} {
-}
+      cam_params{cam_params_} {}
 
-size_t calib_views_t::size() const {
-  return views.size();
-}
+size_t calib_views_t::size() const { return views.size(); }
 
-void calib_views_t::add_view(aprilgrid_t &grid,
-                             pose_t &rel_pose,
-                             const mat2_t &covar_) {
+void calib_views_t::add_view(aprilgrid_t &grid, pose_t &rel_pose) {
   views.emplace_back(problem, grid, rel_pose, extrinsics, cam_geom, cam_params);
 }
 
@@ -213,11 +208,9 @@ void initialize_camera(const aprilgrids_t &grids,
 
   // Problem
   ceres::Problem problem{prob_options};
-  mat2_t covar = I(2);
   PoseLocalParameterization pose_plus;
 
   // Camera
-  const auto cam_idx = cam_params.cam_index;
   const auto cam_res = cam_params.resolution;
   problem.AddParameterBlock(cam_params.data(), 8);
 
@@ -295,13 +288,9 @@ calib_camera_t::calib_camera_t() {
   problem = new ceres::Problem(prob_options);
 }
 
-calib_camera_t::~calib_camera_t() {
-  delete problem;
-}
+calib_camera_t::~calib_camera_t() { delete problem; }
 
-int calib_camera_t::nb_cams() const {
-  return cam_params.size();
-}
+int calib_camera_t::nb_cams() const { return cam_params.size(); }
 
 aprilgrids_t calib_camera_t::get_cam_data(const int cam_idx) const {
   aprilgrids_t grids;
@@ -463,8 +452,6 @@ void calib_camera_t::_initialize_extrinsics() {
 }
 
 void calib_camera_t::_setup_problem() {
-  mat2_t covar = I(2);
-
   for (const auto &ts : timestamps) {
     for (const auto &kv : cam_data[ts]) {
       const auto cam_idx = kv.first;

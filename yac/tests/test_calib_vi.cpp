@@ -312,7 +312,7 @@ struct sim_data_t {
   vec3s_t imu_vel;
 };
 
-int test_calib_add_imu() {
+int test_calib_vi_add_imu() {
   calib_vi_t calib;
 
   imu_params_t imu_params;
@@ -337,7 +337,7 @@ int test_calib_add_imu() {
   return 0;
 }
 
-int test_calib_add_camera() {
+int test_calib_vi_add_camera() {
   calib_vi_t calib;
 
   // Camera
@@ -367,6 +367,59 @@ int test_calib_add_camera() {
   MU_CHECK(calib.cam_exts[cam_idx] != nullptr);
   MU_CHECK(calib.cam_exts[cam_idx]->fixed == false);
 
+  return 0;
+}
+
+int test_calib_vi_add_sensor_pose() {
+  calib_vi_t calib;
+
+  const timestamp_t ts = 0;
+  const mat4_t T_WS = I(4);
+  calib.add_sensor_pose(ts, T_WS);
+
+  MU_CHECK(calib.sensor_poses.size() == 1);
+  MU_CHECK(calib.sensor_poses[ts] != NULL);
+  MU_CHECK(calib.sensor_poses[ts]->tf().isApprox(T_WS));
+
+  return 0;
+}
+
+int test_calib_vi_add_speed_biases() {
+  calib_vi_t calib;
+
+  const timestamp_t ts = 0;
+  vec_t<9> sb;
+  sb << 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0;
+  calib.add_speed_biases(ts, sb);
+
+  MU_CHECK(calib.speed_biases.size() == 1);
+  MU_CHECK(calib.speed_biases[ts] != NULL);
+  MU_CHECK(calib.speed_biases[ts]->param.isApprox(sb));
+
+  return 0;
+}
+
+int test_calib_vi_add_fiducial_pose() {
+  calib_vi_t calib;
+
+  const mat4_t T_WF = I(4);
+  calib.add_fiducial_pose(T_WF);
+
+  MU_CHECK(calib.fiducial != NULL);
+  MU_CHECK(calib.fiducial->estimate().isApprox(T_WF));
+
+  return 0;
+}
+
+int test_calib_vi_trim_imu_data() {
+  return 0;
+}
+
+int test_calib_vi_update_prev_grids() {
+  return 0;
+}
+
+int test_calib_vi_add_imu_error() {
   return 0;
 }
 
@@ -699,8 +752,14 @@ int test_calib_add_camera() {
 
 void test_suite() {
   // MU_ADD_TEST(test_reproj_error_td);
-  MU_ADD_TEST(test_calib_add_imu);
-  MU_ADD_TEST(test_calib_add_camera);
+  MU_ADD_TEST(test_calib_vi_add_imu);
+  MU_ADD_TEST(test_calib_vi_add_camera);
+  MU_ADD_TEST(test_calib_vi_add_sensor_pose);
+  MU_ADD_TEST(test_calib_vi_add_speed_biases);
+  MU_ADD_TEST(test_calib_vi_add_fiducial_pose);
+  MU_ADD_TEST(test_calib_vi_trim_imu_data);
+  MU_ADD_TEST(test_calib_vi_update_prev_grids);
+  MU_ADD_TEST(test_calib_vi_add_imu_error);
   // MU_ADD_TEST(test_calib_vi_sim);
   // MU_ADD_TEST(test_calib_vi);
 }

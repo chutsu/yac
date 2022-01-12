@@ -6,8 +6,7 @@ namespace yac {
 
 pose_error_t::pose_error_t(const pose_t &pose, const matx_t &covar)
     : pose_meas_{pose}, covar_{covar}, info_{covar.inverse()},
-      sqrt_info_{info_.llt().matrixL().transpose()} {
-}
+      sqrt_info_{info_.llt().matrixL().transpose()} {}
 
 bool pose_error_t::Evaluate(double const *const *params,
                             double *residuals,
@@ -1159,6 +1158,17 @@ void calib_vi_t::add_camera(const int cam_idx,
     problem->SetParameterBlockConstant(data_ptr);
   }
 
+  // Camera geometry
+  if (proj_model == "pinhole" && dist_model == "radtan4") {
+    cam_geoms[cam_idx] = &pinhole_radtan4;
+  } else if (proj_model == "pinhole" && dist_model == "equi4") {
+    cam_geoms[cam_idx] = &pinhole_equi4;
+  } else {
+    FATAL("Invalid [%s-%s] camera model!",
+          proj_model.c_str(),
+          dist_model.c_str());
+  }
+
   // Camera extrinsics
   cam_exts[cam_idx] = std::make_unique<extrinsics_t>(T_BCi);
   problem->AddParameterBlock(cam_exts[cam_idx]->param.data(), 7);
@@ -1170,14 +1180,14 @@ void calib_vi_t::add_camera(const int cam_idx,
 }
 
 void calib_vi_t::add_sensor_pose(const timestamp_t ts, const mat4_t &T_WS) {
-  sensor_poses.push_back(std::make_unique<pose_t>(ts, T_WS));
-  problem->AddParameterBlock(sensor_poses.back()->param.data(), 7);
-  problem->SetParameterization(sensor_poses.back()->param.data(), &pose_plus);
+  sensor_poses[ts] = std::make_unique<pose_t>(ts, T_WS);
+  problem->AddParameterBlock(sensor_poses[ts]->param.data(), 7);
+  problem->SetParameterization(sensor_poses[ts]->param.data(), &pose_plus);
 }
 
 void calib_vi_t::add_speed_biases(const timestamp_t ts, const vec_t<9> &sb) {
-  speed_biases.push_back(std::make_unique<sb_params_t>(ts, sb));
-  problem->AddParameterBlock(speed_biases.back()->param.data(), 9);
+  speed_biases[ts] = std::make_unique<sb_params_t>(ts, sb);
+  problem->AddParameterBlock(speed_biases[ts]->param.data(), 9);
 }
 
 void calib_vi_t::add_fiducial_pose(const mat4_t &T_WF) {
@@ -1185,7 +1195,9 @@ void calib_vi_t::add_fiducial_pose(const mat4_t &T_WF) {
   problem->AddParameterBlock(fiducial->param.data(), FIDUCIAL_PARAMS_SIZE);
 }
 
-vecx_t calib_vi_t::get_camera(const int cam_idx) {
+int calib_vi_t::nb_cams() { return cam_params.size(); }
+
+vecx_t calib_vi_t::get_cam_params(const int cam_idx) {
   return cam_params[cam_idx]->param;
 }
 
@@ -1193,21 +1205,13 @@ mat4_t calib_vi_t::get_cam_extrinsics(const int cam_idx) {
   return cam_exts[cam_idx]->tf();
 }
 
-mat4_t calib_vi_t::get_imu_extrinsics() {
-  return imu_exts->tf();
-}
+mat4_t calib_vi_t::get_imu_extrinsics() { return imu_exts->tf(); }
 
 mat4_t calib_vi_t::get_sensor_pose(const int pose_index) {
   return sensor_poses[pose_index]->tf();
 }
 
-mat4_t calib_vi_t::get_fiducial_pose() {
-  return fiducial->estimate();
-}
-
-int calib_vi_t::nb_cams() {
-  return cam_params.size();
-}
+mat4_t calib_vi_t::get_fiducial_pose() { return fiducial->estimate(); }
 
 void calib_vi_t::trim_imu_data(imu_data_t &imu_data, const timestamp_t t1) {
   // Makesure the trim timestamp is after the first
@@ -1388,33 +1392,34 @@ mat4_t calib_vi_t::estimate_sensor_pose(const aprilgrids_t &grids) {
 void calib_vi_t::initialize(const timestamp_t &ts,
                             const aprilgrids_t &grids,
                             imu_data_t &imu_buf) {
-  // Estimate relative pose - T_C0F
   assert(grids.size() > 0);
   assert(grids[0].detected);
-  mat4_t T_C0F = I(4);
-  // if (estimate_relative_pose(grids[0], T_C0F) !=
-  // 0) {
-  //   FATAL("Failed to estimate relative pose!");
-  //   return;
-  // }
+
+  // Estimate relative pose - T_C0F
+  const camera_geometry_t *cam = cam_geoms.at(0);
+  const int *cam_res = cam_params.at(0)->resolution;
+  const vecx_t params = get_cam_params(0);
+  mat4_t T_C0F;
+  if (grids[0].estimate(cam, cam_res, params, T_C0F) != 0) {
+    FATAL("Failed to estimate relative pose!");
+    return;
+  }
 
   // Estimate initial IMU attitude
-  mat3_t C_WS;
-  imu_init_attitude(imu_buf.gyro, imu_buf.accel, C_WS, 1);
+  mat3_t C_WS = imu_buf.initial_attitude();
 
   // Sensor pose - T_WS
   mat4_t T_WS = tf(C_WS, zeros(3, 1));
 
   // Fiducial pose - T_WF
   const mat4_t T_BC0 = get_cam_extrinsics(0);
-  // const mat4_t T_BS = get_imu_extrinsics();
-  // const mat4_t T_SC0 = T_BS.inverse() * T_BC0;
-  // mat4_t T_WF = T_WS * T_SC0 * T_C0F;
-  mat4_t T_WF = I(4);
+  const mat4_t T_BS = get_imu_extrinsics();
+  const mat4_t T_SC0 = T_BS.inverse() * T_BC0;
+  mat4_t T_WF = T_WS * T_SC0 * T_C0F;
 
-  // Set fiducial target as origin (with r_WF (0, 0,
-  // 0)) and calculate the sensor pose offset
-  // relative to target origin
+  // Set:
+  // 1. Fiducial target as origin (with r_WF (0, 0, 0))
+  // 2. Calculate the sensor pose offset relative to target origin
   const vec3_t offset = -1.0 * tf_trans(T_WF);
   const mat3_t C_WF = tf_rot(T_WF);
   const vec3_t r_WF{0.0, 0.0, 0.0};
@@ -1426,23 +1431,21 @@ void calib_vi_t::initialize(const timestamp_t &ts,
   add_speed_biases(ts, zeros(9, 1));
   add_fiducial_pose(T_WF);
 
-  // LOG_INFO("Initialize:");
-  // print_matrix("T_WS", T_WS);
-  // print_matrix("T_WF", T_WF);
-  // print_matrix("T_BS", T_BS);
-  // print_matrix("T_BC0", get_cam_extrinsics(0));
-  // print_matrix("T_BC1", get_cam_extrinsics(1));
+  LOG_INFO("Initialize:");
+  print_matrix("T_WS", T_WS);
+  print_matrix("T_WF", T_WF);
+  print_matrix("T_BS", T_BS);
+  print_matrix("T_BC0", get_cam_extrinsics(0));
+  print_matrix("T_BC1", get_cam_extrinsics(1));
 
   initialized = true;
-  trim_imu_data(imu_buf,
-                ts); // Remove imu measurements up
-                     // to ts
-  update_prev_grids(grids);
+  // trim_imu_data(imu_buf, ts); // Remove imu measurements up to ts
+  // update_prev_grids(grids);
 }
 
 void calib_vi_t::add_state(const timestamp_t &ts, const aprilgrids_t &grids) {
   // Estimate current pose
-  const mat4_t T_WS_k = estimate_sensor_pose(grids);
+  // const mat4_t T_WS_k = estimate_sensor_pose(grids);
 
   // // Propagate imu measurements to obtain speed
   // and biases const auto t0 =
@@ -1452,15 +1455,15 @@ void calib_vi_t::add_state(const timestamp_t &ts, const aprilgrids_t &grids) {
   // ImuError::propagation(imu_buf, imu_params,
   // T_WS, sb_k, t0, t1);
 
-  // Infer velocity from two poses T_WS_k and
-  // T_WS_km1
-  const mat4_t T_WS_km1 = tf(sensor_poses.back()->param);
-  const vec3_t r_WS_km1 = tf_trans(T_WS_km1);
-  const vec3_t r_WS_k = tf_trans(T_WS_k);
-  const vec3_t v_WS_k = r_WS_k - r_WS_km1;
-  vec_t<9> sb_k;
-  sb_k.setZero();
-  sb_k << v_WS_k, zeros(3, 1), zeros(3, 1);
+  // // Infer velocity from two poses T_WS_k and
+  // // T_WS_km1
+  // const mat4_t T_WS_km1 = tf(sensor_poses.back()->param);
+  // const vec3_t r_WS_km1 = tf_trans(T_WS_km1);
+  // const vec3_t r_WS_k = tf_trans(T_WS_k);
+  // const vec3_t v_WS_k = r_WS_k - r_WS_km1;
+  // vec_t<9> sb_k;
+  // sb_k.setZero();
+  // sb_k << v_WS_k, zeros(3, 1), zeros(3, 1);
 
   // Add updated sensor pose T_WS_k and speed and
   // biases sb_k Note: instead of using the
@@ -1470,8 +1473,8 @@ void calib_vi_t::add_state(const timestamp_t &ts, const aprilgrids_t &grids) {
   // fiducial target, we actually have a better
   // estimation of the sensor pose, as supposed to
   // the imu propagated sensor pose.
-  add_sensor_pose(ts, T_WS_k);
-  add_speed_biases(ts, sb_k);
+  // add_sensor_pose(ts, T_WS_k);
+  // add_speed_biases(ts, sb_k);
 
   // Add inertial factors
   // ceres::ResidualBlockId imu_error_id = nullptr;

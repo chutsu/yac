@@ -21,22 +21,22 @@ deps: ## Install dependencies
 	@sudo bash ./scripts/deps/install.bash
 	@make -s -C deps
 
-lib_debug: ${CATKIN_WS} ${YAC_PATH}  ## Build library in debug mode
+lib_debug: ${CATKIN_WS} ${YAC_PATH}  ## Build libyac in debug mode
 	@cd ${CATKIN_WS} && \
 		. /opt/ros/melodic/setup.sh && \
 		catkin build yac -DCMAKE_BUILD_TYPE=RelWithDebInfo -j4
 
-lib: ${CATKIN_WS} ${YAC_PATH}  ## Build library in release mode
+lib: ${CATKIN_WS} ${YAC_PATH}  ## Build libyac in release mode
 	@cd ${CATKIN_WS} && \
 		. /opt/ros/melodic/setup.sh && \
 		catkin build yac -DCMAKE_BUILD_TYPE=Release -j4
 
-debug: ${CATKIN_WS} ${YAC_PATH} ## Build in debug mode
+debug: ${CATKIN_WS} ${YAC_PATH} ## Build libyac and yac_ros in debug mode
 	@cd ${CATKIN_WS} && \
 		. /opt/ros/melodic/setup.sh && \
 		catkin build yac yac_ros -DCMAKE_BUILD_TYPE=Debug -j4
 
-release: ${CATKIN_WS} ${YAC_PATH} ## Build in release mode
+release: ${CATKIN_WS} ${YAC_PATH} ## Build libyac and yac_ros in release mode
 	@cd ${CATKIN_WS} && \
 		. /opt/ros/melodic/setup.sh && \
 		catkin build yac yac_ros -DCMAKE_BUILD_TYPE=Release -j4

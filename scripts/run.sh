@@ -1,106 +1,64 @@
 #/bin/bash
 set -e
 
-tmux send-keys -t dev -R "\
-cd ~/projects/yac \
-&& make lib \
-&& source ~/catkin_ws/devel/setup.bash \
-&& rosrun yac test_calib_camera
-" C-m C-m
-exit
+# YAC-UTIL
+# RUN_CMD="rosrun yac test_util_aprilgrid --target test_aprilgrid_constructor"
+# RUN_CMD="rosrun yac test_util_aprilgrid --target test_aprilgrid_grid_index"
+# RUN_CMD="rosrun yac test_util_aprilgrid --target test_aprilgrid_object_point"
+# RUN_CMD="rosrun yac test_util_aprilgrid --target test_aprilgrid_keypoint"
+# RUN_CMD="rosrun yac test_util_aprilgrid --target test_aprilgrid_keypoints"
+# RUN_CMD="rosrun yac test_util_aprilgrid --target test_aprilgrid_add"
+# RUN_CMD="rosrun yac test_util_aprilgrid --target test_aprilgrid_remove"
+# RUN_CMD="rosrun yac test_util_aprilgrid --target test_aprilgrid_estimate"
+# RUN_CMD="rosrun yac test_util_aprilgrid --target test_aprilgrid_intersect"
+# RUN_CMD="rosrun yac test_util_aprilgrid --target test_aprilgrid_intersect2"
+# RUN_CMD="rosrun yac test_util_aprilgrid --target test_aprilgrid_sample"
+# RUN_CMD="rosrun yac test_util_aprilgrid --target test_aprilgrid_save_and_load"
+# RUN_CMD="rosrun yac test_util_aprilgrid --target test_aprilgrid_print"
+# RUN_CMD="rosrun yac test_util_aprilgrid --target test_aprilgrid_detect"
+# RUN_CMD="rosrun yac test_util_aprilgrid --target test_aprilgrid_detect2"
+# RUN_CMD="rosrun yac test_util_aprilgrid --target test_aprilgrid_detect3"
+# RUN_CMD="rosrun yac test_util_config"
+# RUN_CMD="rosrun yac test_util_cv"
+# RUN_CMD="rosrun yac test_util_data"
+# RUN_CMD="rosrun yac test_util_fs"
+# RUN_CMD="rosrun yac test_util_net"
+# RUN_CMD="rosrun yac test_util_sim"
+# RUN_CMD="rosrun yac test_util_timeline"
 
-# && rosrun yac test_calib_data
-# && rosrun yac test_util_cv
-# && rosrun yac test_util_aprilgrid
-# && rosrun yac test_calib_nbv --target test_calib_orbit_trajs
-# && cd scripts/octave; octave-cli plot_nbt_trajs.m
+# YAC - CALIBRATION DATA
+# RUN_CMD="rosrun yac test_calib_data"
 
-# && rosrun yac test_calib_vi --target test_calib_vi_init
-# && rosrun yac test_calib_vi --target test_calib_vi
-# && rosrun yac test_marg_error --target test_marg_error_swe
-# && rosrun yac test_marg_error --target test_marg_error_swe
-# && rosrun yac test_calib_vi --target test_reproj_error_td
-# && cd scripts/octave && octave-cli plot_nbt_sim_imu.m
-# && rosrun yac test_calib_nbv --target test_calib_orbit_trajs
-# && roslaunch yac_ros calib_stereo_nbv.launch
-# && roslaunch yac_ros calib_stereo_nbv.launch
-# && rosrun yac test_calib_stereo_inc --target test_calib_stereo_inc_solve
-# && rosrun yac test_calib_stereo --target test_calib_stereo_solve
-# && rosrun yac test_calib_stereo --target test_calib_stereo_solve \
-# && rosrun yac test_calib_stereo_inc --target test_calib_stereo_inc_solve \
-# && rosrun yac test_calib_stereo --target test_calib_stereo_solve
-# && roslaunch yac_ros calib_stereo_nbv.launch
-# && roslaunch yac_ros calib_mono_nbv.launch
-# && rosrun yac test_calib_stereo_inc --target test_calib_stereo_inc_solve
+# YAC - CAMERA CALIBRATION
+# RUN_CMD="rosrun yac test_calib_camera"
 
+# YAC - MOCAP CALIBRATION
+# RUN_CMD="rosrun yac test_calib_mocap"
 
-# make
-# make lib_debug
-# make debug
-# make lib
-# make release
-# make tests
-source ~/catkin_ws/devel/setup.bash
+# YAC - VISUAL-INERTIAL CALIBRATION
+RUN_CMD="rosrun yac test_calib_vi"
+# RUN_CMD="rosrun yac test_calib_vi --target test_reproj_error"
+# RUN_CMD="rosrun yac test_calib_vi --target test_calib_vi_sim"
+# RUN_CMD="rosrun yac test_calib_vi --target test_calib_vi"
 
-# --prefix 'gdb -ex=run -ex=\"set confirm off\" -ex=bt -ex=quit -args'
-# --prefix 'gdb -ex run'
-# --prefix 'gdb -ex run -args'
+# YAC - NBV
+# RUN_CMD="rosrun yac test_calib_nbv --target test_calib_target_origin"
+# RUN_CMD="rosrun yac test_calib_nbv --target test_calib_init_poses"
+# RUN_CMD="rosrun yac test_calib_nbv --target test_calib_nbv_poses"
+# RUN_CMD="rosrun yac test_calib_nbv --target test_calib_orbit_trajs"
+# RUN_CMD="rosrun yac test_calib_nbv --target test_calib_pan_trajs"
+# RUN_CMD="rosrun yac test_calib_nbv --target test_nbv_draw"
+# RUN_CMD="rosrun yac test_calib_nbv --target test_nbv_test_grid"
+# RUN_CMD="rosrun yac test_calib_nbv --target test_nbv_find"
+# RUN_CMD="rosrun yac test_calib_nbv --target test_nbv_find2"
+# RUN_CMD="rosrun yac test_calib_nbv --target test_simulate_cameras"
+# RUN_CMD="rosrun yac test_calib_nbv --target test_simulate_imu"
+# RUN_CMD="rosrun yac test_calib_nbv --target test_nbt_eval_traj"
 
-# UTIL
-# rosrun yac test_util_aprilgrid --target test_aprilgrid_constructor
-# rosrun yac test_util_aprilgrid --target test_aprilgrid_grid_index
-# rosrun yac test_util_aprilgrid --target test_aprilgrid_object_point
-# rosrun yac test_util_aprilgrid --target test_aprilgrid_keypoint
-# rosrun yac test_util_aprilgrid --target test_aprilgrid_keypoints
-# rosrun yac test_util_aprilgrid --target test_aprilgrid_add
-# rosrun yac test_util_aprilgrid --target test_aprilgrid_remove
-# rosrun yac test_util_aprilgrid --target test_aprilgrid_estimate
-# rosrun yac test_util_aprilgrid --target test_aprilgrid_intersect
-# rosrun yac test_util_aprilgrid --target test_aprilgrid_intersect2
-# rosrun yac test_util_aprilgrid --target test_aprilgrid_sample
-# rosrun yac test_util_aprilgrid --target test_aprilgrid_save_and_load
-# rosrun yac test_util_aprilgrid --target test_aprilgrid_print
-# rosrun yac test_util_aprilgrid --target test_aprilgrid_detect
-# rosrun yac test_util_aprilgrid --target test_aprilgrid_detect2
-# rosrun yac test_util_aprilgrid --target test_aprilgrid_detect3
-# rosrun yac test_util_config
-# rosrun yac test_util_cv
-# rosrun yac test_util_data
-# rosrun yac test_util_fs
-# rosrun yac test_util_net
-# rosrun yac test_util_sim
-# rosrun yac test_util_timeline
+# YAC - MARG ERROR
+# RUN_CMD="rosrun yac test_marg_error --target test_marg_block"
 
-# -- CALIBRATION DATA
-# rosrun yac test_calib_data
-
-# -- MOCAP CALIBRATION
-# rosrun yac test_calib_mocap
-
-# -- VISUAL-INERTIAL CALIBRATION
-# rosrun yac test_calib_vi --target test_calib_vi_init_poses
-# rosrun yac test_calib_vi --target test_reproj_error
-# rosrun yac test_calib_vi --target test_calib_vi_sim
-# rosrun yac test_calib_vi --target test_calib_vi
-
-# -- NBV
-# rosrun yac test_calib_nbv --target test_calib_target_origin
-# rosrun yac test_calib_nbv --target test_calib_init_poses
-# rosrun yac test_calib_nbv --target test_calib_nbv_poses
-# rosrun yac test_calib_nbv --target test_calib_orbit_trajs
-# rosrun yac test_calib_nbv --target test_calib_pan_trajs
-# rosrun yac test_calib_nbv --target test_nbv_draw
-# rosrun yac test_calib_nbv --target test_nbv_test_grid
-# rosrun yac test_calib_nbv --target test_nbv_find
-# rosrun yac test_calib_nbv --target test_nbv_find2
-# rosrun yac test_calib_nbv --target test_simulate_cameras
-# rosrun yac test_calib_nbv --target test_simulate_imu
-# rosrun yac test_calib_nbv --target test_nbt_eval_traj
-
-# -- MARG ERROR
-# rosrun yac test_marg_error --target test_marg_block
-
-# -- ROS NODES
+# YAC - ROS NODES
 # roslaunch yac_ros calib_capture.launch \
 #   cam0_topic:=/rs/ir0/image
 
@@ -129,3 +87,22 @@ source ~/catkin_ws/devel/setup.bash
 # octave-cli plot_nbt_sim_imu.m
 # octave-cli plot_nbt_trajs.m
 # python3 scripts/analyze_detections.py
+
+tmux send-keys -t dev -R "\
+cd ~/projects/yac \
+&& make lib \
+&& source ~/catkin_ws/devel/setup.bash \
+&& ${RUN_CMD}
+" C-m C-m
+exit
+
+# make
+# make lib_debug
+# make debug
+# make lib
+# make release
+# make tests
+# source ~/catkin_ws/devel/setup.bash
+# --prefix 'gdb -ex=run -ex=\"set confirm off\" -ex=bt -ex=quit -args'
+# --prefix 'gdb -ex run'
+# --prefix 'gdb -ex run -args'

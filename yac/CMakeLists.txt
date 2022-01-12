@@ -5,6 +5,18 @@ PROJECT(yac)
 SET(apriltag3_DIR "../deps/share/apriltag3/cmake")
 # SET(Ceres_DIR "../deps/lib/cmake/Ceres")
 
+# COMPILATION SETTINGS
+ADD_COMPILE_OPTIONS(
+  -Wall
+  -Wextra
+  -fsanitize=address
+  -fno-omit-frame-pointer
+)
+LINK_LIBRARIES(
+  -fsanitize=address
+  -static-libasan # Use -static-libsan for Clang
+)
+
 # DEPENDENCIES
 FIND_PACKAGE(Ceres REQUIRED)
 FIND_PACKAGE(OpenCV REQUIRED)
@@ -93,8 +105,8 @@ TARGET_LINK_LIBRARIES(test_calib_data yac ${DEPS})
 # ADD_EXECUTABLE(test_calib_nbv tests/test_calib_nbv.cpp)
 # TARGET_LINK_LIBRARIES(test_calib_nbv yac ${DEPS})
 
-# ADD_EXECUTABLE(test_calib_vi tests/test_calib_vi.cpp)
-# TARGET_LINK_LIBRARIES(test_calib_vi yac ${DEPS})
+ADD_EXECUTABLE(test_calib_vi tests/test_calib_vi.cpp)
+TARGET_LINK_LIBRARIES(test_calib_vi yac ${DEPS})
 
 # ADD_EXECUTABLE(test_marg_error tests/test_marg_error.cpp)
 # TARGET_LINK_LIBRARIES(test_marg_error yac ${DEPS})

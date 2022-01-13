@@ -111,7 +111,7 @@ struct aprilgrid_t {
 };
 
 /* AprilGrids */
-typedef std::vector<aprilgrid_t> aprilgrids_t;
+using aprilgrids_t = std::vector<aprilgrid_t>;
 
 /* Load AprilGrids */
 inline aprilgrids_t load_aprilgrids(const std::string &dir_path) {

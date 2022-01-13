@@ -7,7 +7,7 @@ namespace yac {
 timeline_t setup_test_data() {
   // Load calibration data
   const calib_target_t target{"aprilgrid", 6, 6, 0.088, 0.3};
-  const std::string data_path = "/data/euroc/cam_april";
+  const std::string data_path = "/data/euroc/imu_april";
   std::map<int, std::string> grid_paths = {
       {0, data_path + "/grid0/cam0"},
       {1, data_path + "/grid0/cam1"},
@@ -586,60 +586,6 @@ int test_calib_vi_add_camera() {
   return 0;
 }
 
-int test_calib_vi_add_sensor_pose() {
-  calib_vi_t calib;
-
-  const timestamp_t ts = 0;
-  const mat4_t T_WS = I(4);
-  calib.add_sensor_pose(ts, T_WS);
-
-  MU_CHECK(calib.sensor_poses.size() == 1);
-  MU_CHECK(calib.sensor_poses[ts] != NULL);
-  MU_CHECK(calib.sensor_poses[ts]->tf().isApprox(T_WS));
-
-  return 0;
-}
-
-int test_calib_vi_add_speed_biases() {
-  calib_vi_t calib;
-
-  const timestamp_t ts = 0;
-  vec_t<9> sb;
-  sb << 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0;
-  calib.add_speed_biases(ts, sb);
-
-  MU_CHECK(calib.speed_biases.size() == 1);
-  MU_CHECK(calib.speed_biases[ts] != NULL);
-  MU_CHECK(calib.speed_biases[ts]->param.isApprox(sb));
-
-  return 0;
-}
-
-int test_calib_vi_add_fiducial_pose() {
-  calib_vi_t calib;
-
-  const mat4_t T_WF = I(4);
-  calib.add_fiducial_pose(T_WF);
-
-  MU_CHECK(calib.fiducial != NULL);
-  MU_CHECK(calib.fiducial->estimate().isApprox(T_WF));
-
-  return 0;
-}
-
-int test_calib_vi_update_prev_grids() {
-  calib_vi_t calib;
-
-  std::map<int, aprilgrid_t> grids;
-  grids[0] = aprilgrid_t();
-  grids[1] = aprilgrid_t();
-
-  calib.update_prev_grids(grids);
-  MU_CHECK(calib.grids_prev.size() == 2);
-
-  return 0;
-}
-
 int test_calib_vi() {
   const auto timeline = setup_test_data();
 
@@ -744,11 +690,6 @@ void test_suite() {
 
   MU_ADD_TEST(test_calib_vi_add_imu);
   MU_ADD_TEST(test_calib_vi_add_camera);
-  MU_ADD_TEST(test_calib_vi_add_sensor_pose);
-  MU_ADD_TEST(test_calib_vi_add_speed_biases);
-  MU_ADD_TEST(test_calib_vi_add_fiducial_pose);
-  MU_ADD_TEST(test_calib_vi_update_prev_grids);
-
   MU_ADD_TEST(test_calib_vi);
 }
 

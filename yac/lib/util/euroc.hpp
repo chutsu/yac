@@ -38,7 +38,7 @@ struct euroc_imu_t {
   double accel_noise_density = 0.0;
   double accel_random_walk = 0.0;
 
-  euroc_imu_t() {}
+  euroc_imu_t() = default;
 
   euroc_imu_t(const std::string &data_dir_) : data_dir{data_dir_} {
     const std::string data_path = data_dir + "/data.csv";
@@ -99,11 +99,11 @@ struct euroc_imu_t {
     ok = true;
   }
 
-  ~euroc_imu_t() {}
+  ~euroc_imu_t() = default;
 
   /**
-  * EuRoC IMU data to output stream
-  */
+   * EuRoC IMU data to output stream
+   */
   friend std::ostream &operator<<(std::ostream &os, const euroc_imu_t &data) {
     // clang-format off
     os << "sensor_type: " << data.sensor_type << std::endl;
@@ -149,8 +149,8 @@ struct euroc_camera_t {
 
   euroc_camera_t() {}
 
-  euroc_camera_t(const std::string &data_dir_, bool is_calib_data=false)
-    : data_dir{data_dir_} {
+  euroc_camera_t(const std::string &data_dir_, bool is_calib_data = false)
+      : data_dir{data_dir_} {
     const std::string data_path = data_dir + "/data.csv";
     const std::string sensor_path = data_dir + "/sensor.yaml";
 
@@ -214,9 +214,10 @@ struct euroc_camera_t {
   ~euroc_camera_t() {}
 
   /**
-  * EuRoC camera to output stream
-  */
-  friend std::ostream &operator<<(std::ostream &os, const euroc_camera_t &data) {
+   * EuRoC camera to output stream
+   */
+  friend std::ostream &operator<<(std::ostream &os,
+                                  const euroc_camera_t &data) {
     // clang-format off
     os << "sensor_type: " << data.sensor_type << std::endl;
     os << "comment: " << data.comment << std::endl;
@@ -255,8 +256,7 @@ struct euroc_ground_truth_t {
 
   euroc_ground_truth_t() {}
 
-  euroc_ground_truth_t(const std::string &data_dir_)
-      : data_dir{data_dir_} {
+  euroc_ground_truth_t(const std::string &data_dir_) : data_dir{data_dir_} {
     // Open file for loading
     const std::string data_path = data_dir + "/data.csv";
     int nb_rows = 0;
@@ -403,7 +403,7 @@ struct euroc_data_t {
     auto it_end = timeline.timestamps.end();
     while (it != it_end) {
       const timestamp_t ts = *it;
-      time[ts] = ((double) ts - ts_start) * 1e-9;
+      time[ts] = ((double)ts - ts_start) * 1e-9;
 
       // Advance to next non-duplicate entry.
       do {
@@ -442,7 +442,8 @@ struct euroc_data_t {
 
     timestamps_t last_ts{cam0_last_ts, imu_last_ts};
     auto last_result = std::max_element(last_ts.begin(), last_ts.end());
-    const timestamp_t last_ts_index = std::distance(last_ts.begin(), last_result);
+    const timestamp_t last_ts_index =
+        std::distance(last_ts.begin(), last_result);
     const timestamp_t max_ts = last_ts[last_ts_index];
 
     return max_ts;
@@ -484,7 +485,8 @@ struct euroc_target_t {
 
   ~euroc_target_t() {}
 
-  friend std::ostream &operator<<(std::ostream &os, const euroc_target_t &target) {
+  friend std::ostream &operator<<(std::ostream &os,
+                                  const euroc_target_t &target) {
     os << "target_type: " << target.type << std::endl;
     os << "tag_rows: " << target.tag_rows << std::endl;
     os << "tag_cols: " << target.tag_cols << std::endl;
@@ -493,7 +495,6 @@ struct euroc_target_t {
     return os;
   }
 };
-
 
 /*****************************************************************************
  * euroc_calib_t

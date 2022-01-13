@@ -1,0 +1,39 @@
+[MASTER]
+
+jobs=8
+
+# A comma-separated list of package or module names from where C extensions may
+# be loaded. Extensions are loading into the active Python interpreter and may
+# run arbitrary code.
+extension-pkg-whitelist=numpy,cv2
+
+
+[MESSAGES CONTROL]
+disable=
+  invalid-name,
+  too-many-arguments,
+  too-many-function-args,
+  too-many-locals,
+  too-many-lines,
+  too-many-statements,
+  too-many-branches,
+  too-many-instance-attributes,
+  too-many-public-methods,
+  too-few-public-methods,
+  line-too-long,
+  len-as-condition,
+  assignment-from-no-return,
+  ungrouped-imports,
+  wrong-import-order,
+  wrong-import-position,
+  protected-access,
+
+
+[TYPECHECK]
+
+ignored-modules = numpy,cv2,websockets
+
+
+[FORMAT]
+# Use 2 spaces
+indent-string='  '

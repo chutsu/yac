@@ -82,6 +82,13 @@ namespace yac {
 #define col_major_t Eigen::ColMajor
 #define row_major_t Eigen::RowMajor
 
+typedef Eigen::Matrix<int, 2, 1> veci2_t;
+typedef Eigen::Matrix<int, 3, 1> veci3_t;
+typedef Eigen::Matrix<int, 4, 1> veci4_t;
+typedef Eigen::Matrix<int, 5, 1> veci5_t;
+typedef Eigen::Matrix<int, 6, 1> veci6_t;
+typedef Eigen::Matrix<int, Eigen::Dynamic, 1> vecix_t;
+
 typedef Eigen::Matrix<real_t, 2, 1> vec2_t;
 typedef Eigen::Matrix<real_t, 3, 1> vec3_t;
 typedef Eigen::Matrix<real_t, 4, 1> vec4_t;
@@ -1544,6 +1551,20 @@ struct imu_data_t {
     timestamps.clear();
     accel.clear();
     gyro.clear();
+  }
+
+  void trim(const timestamp_t ts_end) {
+    // Make sure the trim timestamp is after the first imu measurement
+    if (ts_end < timestamps.front()) {
+      return;
+    }
+
+    // Trim IMU measurements
+    while (ts_end > timestamps.front()) {
+      timestamps.pop_front();
+      accel.pop_front();
+      gyro.pop_front();
+    }
   }
 
   imu_data_t extract(const timestamp_t ts_start, const timestamp_t ts_end) {

@@ -168,6 +168,7 @@ struct camera_params_t : param_t {
 struct sb_params_t : param_t {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 
+  sb_params_t() = default;
   sb_params_t(const timestamp_t &ts_,
               const vec3_t &v_,
               const vec3_t &ba_,

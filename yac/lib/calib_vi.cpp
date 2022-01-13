@@ -78,10 +78,26 @@ fiducial_error_t::fiducial_error_t(const timestamp_t &ts,
 bool fiducial_error_t::Evaluate(double const *const *params,
                                 double *residuals,
                                 double **jacobians) const {
-  // Pose of fiducial target in world frame
+  // Map parameters
+  // #if FIDUCIAL_PARAMS_SIZE == 2
+  //   const double roll = params[0][0];
+  //   const double pitch = params[0][1];
+  //   const double yaw = quat2euler(tf_quat(T_WF_))(2);
+  //   const vec3_t rpy{roll, pitch, yaw};
+  //   const mat3_t C_WF = euler321(rpy);
+  //   const vec3_t r_WF = tf_trans(T_WF_);
+  //   const mat4_t T_WF = tf(C_WF, r_WF);
+  // #elif FIDUCIAL_PARAMS_SIZE == 3
+  //   const double roll = params[0][0];
+  //   const double pitch = params[0][1];
+  //   const double yaw = params[0][2];
+  //   const vec3_t rpy{roll, pitch, yaw};
+  //   const mat3_t C_WF = euler321(rpy);
+  //   const vec3_t r_WF = tf_trans(T_WF_);
+  //   const mat4_t T_WF = tf(C_WF, r_WF);
+  // #elif FIDUCIAL_PARAMS_SIZE == 7
   const mat4_t T_WF = tf(params[0]);
-
-  // Sensor pose, sensor-camera extrinsics, camera parameters
+  // #endif
   const mat4_t T_WS = tf(params[1]);
   const mat4_t T_BS = tf(params[2]);
   const mat4_t T_BCi = tf(params[3]);
@@ -99,8 +115,8 @@ bool fiducial_error_t::Evaluate(double const *const *params,
 
   // Residuals
   const vec2_t r = sqrt_info_ * (z_ - z_hat);
-  residuals[0] = r(0);
-  residuals[1] = r(1);
+  residuals[0] = r.x();
+  residuals[1] = r.y();
 
   // Jacobians
   const matx_t Jh = cam_geom_->project_jacobian(cam_params, r_CiFi);
@@ -109,13 +125,56 @@ bool fiducial_error_t::Evaluate(double const *const *params,
   if (jacobians) {
     // Jacobians w.r.t. T_WF
     if (jacobians[0]) {
+      // #if FIDUCIAL_PARAMS_SIZE == 2 || FIDUCIAL_PARAMS_SIZE == 3
+      //       const double cphi = cos(roll);
+      //       const double sphi = sin(roll);
+      //       const double ctheta = cos(pitch);
+      //       const double stheta = sin(pitch);
+      //       const double cpsi = cos(yaw);
+      //       const double spsi = sin(yaw);
+      //
+      //       const double x = r_FFi_(0);
+      //       const double y = r_FFi_(1);
+      //       const double z = r_FFi_(2);
+      //
+      //       const vec3_t J_x{y * (sphi * spsi + stheta * cphi * cpsi) +
+      //                            z * (-sphi * stheta * cpsi + spsi * cphi),
+      //                        y * (-sphi * cpsi + spsi * stheta * cphi) +
+      //                            z * (-sphi * spsi * stheta - cphi * cpsi),
+      //                        y * cphi * ctheta - z * sphi * ctheta};
+      //       const vec3_t J_y{-x * stheta * cpsi + y * sphi * cpsi * ctheta +
+      //                            z * cphi * cpsi * ctheta,
+      //                        -x * spsi * stheta + y * sphi * spsi * ctheta +
+      //                            z * spsi * cphi * ctheta,
+      //                        -x * ctheta - y * sphi * stheta - z * stheta *
+      //                        cphi};
+      //       const vec3_t J_z{-x * spsi * ctheta +
+      //                            y * (-sphi * spsi * stheta - cphi * cpsi) +
+      //                            z * (sphi * cpsi - spsi * stheta * cphi),
+      //                        x * cpsi * ctheta +
+      //                            y * (sphi * stheta * cpsi - spsi * cphi) +
+      //                            z * (sphi * spsi + stheta * cphi * cpsi),
+      //                        0};
+      // #endif
+
       // Fill Jacobian
       const mat3_t C_CiW = tf_rot(T_CiB * T_BS * T_SW);
+      // #if FIDUCIAL_PARAMS_SIZE == 2
+      //       Eigen::Map<mat_t<2, 2, row_major_t>> J(jacobians[0]);
+      //       J.block(0, 0, 2, 1) = -1 * Jh_weighted * C_CiW * J_x;
+      //       J.block(0, 1, 2, 1) = -1 * Jh_weighted * C_CiW * J_y;
+      // #elif FIDUCIAL_PARAMS_SIZE == 3
+      //       Eigen::Map<mat_t<2, 3, row_major_t>> J(jacobians[0]);
+      //       J.block(0, 0, 2, 1) = -1 * Jh_weighted * C_CiW * J_x;
+      //       J.block(0, 1, 2, 1) = -1 * Jh_weighted * C_CiW * J_y;
+      //       J.block(0, 2, 2, 1) = -1 * Jh_weighted * C_CiW * J_z;
+      // #elif FIDUCIAL_PARAMS_SIZE == 7
       const mat3_t C_WF = tf_rot(T_WF);
       Eigen::Map<mat_t<2, 7, row_major_t>> J(jacobians[0]);
       J.setZero();
       J.block(0, 0, 2, 3) = -1 * Jh_weighted * C_CiW * I(3);
       J.block(0, 3, 2, 3) = -1 * Jh_weighted * C_CiW * -skew(C_WF * r_FFi_);
+      // #endif
       if (valid == false) {
         J.setZero();
       }
@@ -132,8 +191,8 @@ bool fiducial_error_t::Evaluate(double const *const *params,
 
       Eigen::Map<mat_t<2, 7, row_major_t>> J(jacobians[1]);
       J.setZero();
-      J.block(0, 0, 2, 3) = Jh_weighted * C_CiW * I(3);
-      J.block(0, 3, 2, 3) = Jh_weighted * C_CiW * -skew(C_WS * r_SFi);
+      J.block(0, 0, 2, 3) = -1 * Jh_weighted * -C_CiW * I(3);
+      J.block(0, 3, 2, 3) = -1 * Jh_weighted * -C_CiW * -skew(C_WS * r_SFi);
       if (valid == false) {
         J.setZero();
       }
@@ -179,6 +238,15 @@ bool fiducial_error_t::Evaluate(double const *const *params,
         J.setZero();
       }
     }
+
+    // // Jacobians w.r.t. time delay
+    // if (jacobians[5]) {
+    //   Eigen::Map<vec2_t> J(jacobians[5]);
+    //   J = sqrt_info_ * v_ij_;
+    //   if (valid == false) {
+    //     J.setZero();
+    //   }
+    // }
   }
 
   return true;
@@ -252,8 +320,8 @@ bool fiducial_td_error_t::Evaluate(double const *const *params,
 
   // Residuals
   const vec2_t r = sqrt_info_ * ((z_i_ + td * v_ij_) - z_hat);
-  residuals[0] = r(0);
-  residuals[1] = r(1);
+  residuals[0] = r.x();
+  residuals[1] = r.y();
 
   // Jacobians
   const matx_t Jh = cam_geom_->project_jacobian(cam_params, r_CiFi);

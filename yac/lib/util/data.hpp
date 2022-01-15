@@ -150,7 +150,7 @@ void pop_front(std::vector<T1, T2> &vec) {
  * Extend `std::vector`.
  */
 template <typename T>
-void extend(std::vector<T> &x, std::vector<T> &add) {
+void extend(std::vector<T> &x, const std::vector<T> &add) {
   x.reserve(x.size() + add.size());
   x.insert(x.end(), add.begin(), add.end());
 }
@@ -167,7 +167,7 @@ void extend(std::vector<T1, T2> &x, std::vector<T1, T2> &add) {
 /**
  * Slice `std::vector`.
  */
-template<typename T>
+template <typename T>
 std::vector<T> slice(std::vector<T> const &v, int m, int n) {
   auto first = v.cbegin() + m;
   auto last = v.cbegin() + n + 1;
@@ -179,7 +179,7 @@ std::vector<T> slice(std::vector<T> const &v, int m, int n) {
 /**
  * Slice `std::vector`.
  */
-template<typename T1, typename T2>
+template <typename T1, typename T2>
 std::vector<T1, T2> slice(std::vector<T1, T2> const &v, int m, int n) {
   auto first = v.cbegin() + m;
   auto last = v.cbegin() + n + 1;
@@ -300,25 +300,31 @@ std::set<T> intersection(const std::list<std::vector<T>> &vecs) {
 template <class T>
 class ordered_set_t {
 public:
-  using iterator                     = typename std::vector<T>::iterator;
-  using const_iterator               = typename std::vector<T>::const_iterator;
+  using iterator = typename std::vector<T>::iterator;
+  using const_iterator = typename std::vector<T>::const_iterator;
 
-  iterator begin()                   { return vector.begin(); }
-  iterator end()                     { return vector.end(); }
-  const_iterator begin() const       { return vector.begin(); }
-  const_iterator end() const         { return vector.end(); }
-  const T& at(const size_t i) const  { return vector.at(i); }
-  const T& front() const             { return vector.front(); }
-  const T& back() const              { return vector.back(); }
-  void insert(const T& item)         { if (set.insert(item).second) vector.push_back(item); }
-  size_t count(const T& item) const  { return set.count(item); }
-  bool empty() const                 { return set.empty(); }
-  size_t size() const                { return set.size(); }
-  void clear()                       { vector.clear(); set.clear(); }
+  iterator begin() { return vector.begin(); }
+  iterator end() { return vector.end(); }
+  const_iterator begin() const { return vector.begin(); }
+  const_iterator end() const { return vector.end(); }
+  const T &at(const size_t i) const { return vector.at(i); }
+  const T &front() const { return vector.front(); }
+  const T &back() const { return vector.back(); }
+  void insert(const T &item) {
+    if (set.insert(item).second)
+      vector.push_back(item);
+  }
+  size_t count(const T &item) const { return set.count(item); }
+  bool empty() const { return set.empty(); }
+  size_t size() const { return set.size(); }
+  void clear() {
+    vector.clear();
+    set.clear();
+  }
 
 private:
   std::vector<T> vector;
-  std::set<T>    set;
+  std::set<T> set;
 };
 
 /* Save vector of size 3 `y` with timestamps `ts` to `save_path`. */
@@ -404,7 +410,7 @@ int check_jacobian(const std::string &jac_name,
                    const matx_t &fdiff,
                    const matx_t &jac,
                    const real_t threshold,
-                   const bool print=false);
+                   const bool print = false);
 
 } // namespace yac
 #endif // YAC_DATA_HPP

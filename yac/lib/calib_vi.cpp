@@ -49,16 +49,20 @@ bool pose_error_t::Evaluate(double const *const *params,
 
 fiducial_error_t::fiducial_error_t(const timestamp_t &ts,
                                    const camera_geometry_t *cam_geom,
-                                   const int cam_idx,
-                                   const int cam_res[2],
+                                   const camera_params_t *cam_params,
+                                   const extrinsics_t *cam_exts,
+                                   const extrinsics_t *imu_exts,
+                                   const fiducial_t *fiducial,
+                                   const pose_t *pose,
                                    const int tag_id,
                                    const int corner_idx,
                                    const vec3_t &r_FFi,
                                    const vec2_t &z,
                                    const mat4_t &T_WF,
                                    const mat2_t &covar)
-    : ts_{ts}, cam_geom_{cam_geom}, cam_idx_{cam_idx},
-      cam_res_{cam_res[0], cam_res[1]}, tag_id_{tag_id},
+    : ts_{ts}, cam_geom_{cam_geom},
+      cam_params_{cam_params}, cam_exts_{cam_exts}, imu_exts_{imu_exts},
+      fiducial_{fiducial}, pose_{pose}, tag_id_{tag_id},
       corner_idx_{corner_idx}, r_FFi_{r_FFi}, z_{z}, T_WF_{T_WF}, covar_{covar},
       info_{covar.inverse()}, sqrt_info_{info_.llt().matrixU()} {
   assert(ts_i != ts_j && ts_j > ts_i);
@@ -73,6 +77,39 @@ fiducial_error_t::fiducial_error_t(const timestamp_t &ts,
   block_sizes->push_back(7); // T_BS
   block_sizes->push_back(7); // T_BCi
   block_sizes->push_back(8); // camera parameters
+}
+
+int fiducial_error_t::get_residual(vec2_t &r) const {
+  // Map parameters
+  const mat4_t T_WF = fiducial_->estimate();
+  const mat4_t T_WS = tf(pose_->param.data());
+  const mat4_t T_BS = tf(imu_exts_->param.data());
+  const mat4_t T_BCi = tf(cam_exts_->param.data());
+  Eigen::Map<const vecx_t> params(cam_params_->param.data(), 8);
+
+  // Transform and project point to image plane
+  const auto res = cam_params_->resolution;
+  const mat4_t T_CiB = T_BCi.inverse();
+  const mat4_t T_SW = T_WS.inverse();
+  const vec3_t r_CiFi = tf_point(T_CiB * T_BS * T_SW * T_WF, r_FFi_);
+  vec2_t z_hat;
+  if (cam_geom_->project(res, params, r_CiFi, z_hat) != 0) {
+    return -1;
+  }
+
+  // Calculate residual
+  r = z_ - z_hat;
+
+  return 0;
+}
+
+int fiducial_error_t::get_reproj_error(real_t &error) const {
+  vec2_t r;
+  if (get_residual(r) != 0) {
+    return -1;
+  }
+  error = r.norm();
+  return 0;
 }
 
 bool fiducial_error_t::Evaluate(double const *const *params,
@@ -105,11 +142,12 @@ bool fiducial_error_t::Evaluate(double const *const *params,
 
   // Transform and project point to image plane
   bool valid = true;
+  const auto cam_res = cam_params_->resolution;
   const mat4_t T_CiB = T_BCi.inverse();
   const mat4_t T_SW = T_WS.inverse();
   const vec3_t r_CiFi = tf_point(T_CiB * T_BS * T_SW * T_WF, r_FFi_);
   vec2_t z_hat;
-  if (cam_geom_->project(cam_res_, cam_params, r_CiFi, z_hat) != 0) {
+  if (cam_geom_->project(cam_res, cam_params, r_CiFi, z_hat) != 0) {
     valid = false;
   }
 
@@ -1127,7 +1165,7 @@ bool ImuError::EvaluateWithMinimalJacobians(double const *const *params,
   return true;
 }
 
-// VISUAL INERTIAL CALIBRATOR //////////////////////////////////////////////////
+// VISUAL INERTIAL CALIBRATION VIEW ////////////////////////////////////////////
 
 calib_vi_view_t::calib_vi_view_t(const timestamp_t ts_,
                                  ceres::Problem *problem_,
@@ -1173,8 +1211,11 @@ calib_vi_view_t::calib_vi_view_t(const timestamp_t ts_,
       // Form residual
       fiducial_errors[cam_idx].emplace_back(ts,
                                             cam_geoms[cam_idx],
-                                            cam_idx,
-                                            cam_params[cam_idx]->resolution,
+                                            cam_params[cam_idx],
+                                            cam_exts[cam_idx],
+                                            imu_exts,
+                                            fiducial,
+                                            &pose,
                                             tag_id,
                                             corner_idx,
                                             r_FFi,
@@ -1196,6 +1237,39 @@ calib_vi_view_t::calib_vi_view_t(const timestamp_t ts_,
   }
 }
 
+std::vector<real_t>
+calib_vi_view_t::get_reproj_errors(const int cam_idx) const {
+  std::vector<real_t> cam_errors;
+
+  for (const auto &error : fiducial_errors.at(cam_idx)) {
+    real_t e;
+    if (error.get_reproj_error(e) == 0) {
+      cam_errors.push_back(e);
+    }
+  }
+
+  return cam_errors;
+}
+
+std::vector<real_t> calib_vi_view_t::get_reproj_errors() const {
+  std::vector<real_t> cam_errors;
+
+  for (const auto &[cam_idx, errors] : fiducial_errors) {
+    for (const auto &error : errors) {
+      real_t e;
+      if (error.get_reproj_error(e) == 0) {
+        cam_errors.push_back(e);
+      }
+    }
+  }
+
+  return cam_errors;
+}
+
+// std::vector<real_t> calib_vi_view_t::get_imu_errors() const {
+//
+// }
+
 void calib_vi_view_t::form_imu_error(const imu_params_t &imu_params,
                                      const imu_data_t &imu_buf,
                                      pose_t *pose_j,
@@ -1210,6 +1284,8 @@ void calib_vi_view_t::form_imu_error(const imu_params_t &imu_params,
                                            pose_j->param.data(),
                                            sb_j->param.data());
 }
+
+// VISUAL INERTIAL CALIBRATOR //////////////////////////////////////////////////
 
 calib_vi_t::calib_vi_t() {
   prob_options.local_parameterization_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
@@ -1320,24 +1396,32 @@ void calib_vi_t::add_camera(const int cam_idx,
   }
 }
 
-int calib_vi_t::nb_cams() { return cam_params.size(); }
+int calib_vi_t::nb_cams() const { return cam_params.size(); }
 
-veci2_t calib_vi_t::get_cam_resolution(const int cam_idx) {
-  auto cam_res = cam_params[cam_idx]->resolution;
+veci2_t calib_vi_t::get_cam_resolution(const int cam_idx) const {
+  auto cam_res = cam_params.at(cam_idx)->resolution;
   return veci2_t{cam_res[0], cam_res[1]};
 }
 
-vecx_t calib_vi_t::get_cam_params(const int cam_idx) {
-  return cam_params[cam_idx]->param;
+vecx_t calib_vi_t::get_cam_params(const int cam_idx) const {
+  return cam_params.at(cam_idx)->param;
 }
 
-mat4_t calib_vi_t::get_cam_extrinsics(const int cam_idx) {
-  return cam_exts[cam_idx]->tf();
+mat4_t calib_vi_t::get_cam_extrinsics(const int cam_idx) const {
+  return cam_exts.at(cam_idx)->tf();
 }
 
-mat4_t calib_vi_t::get_imu_extrinsics() { return imu_exts->tf(); }
+mat4_t calib_vi_t::get_imu_extrinsics() const { return imu_exts->tf(); }
 
-mat4_t calib_vi_t::get_fiducial_pose() { return fiducial->estimate(); }
+mat4_t calib_vi_t::get_fiducial_pose() const { return fiducial->estimate(); }
+
+std::vector<real_t> calib_vi_t::get_reproj_errors() const {
+  std::vector<real_t> errors;
+  for (const auto &view : calib_views) {
+    extend(errors, view.get_reproj_errors());
+  }
+  return errors;
+}
 
 mat4_t calib_vi_t::estimate_sensor_pose(const CameraGrids &grids) {
   assert(grids.size() > 0);
@@ -1612,8 +1696,12 @@ void calib_vi_t::show_results() {
   printf("Optimization results:\n");
   printf("---------------------\n");
 
-  // // Stats
-  // std::map<int, std::vector<double>> cam_errs = get_camera_errors();
+  // Stats
+  const std::vector<real_t> reproj_errors = get_reproj_errors();
+  printf("[rmse: %f,", rmse(reproj_errors));
+  printf(" mean: %f,", mean(reproj_errors));
+  printf("median: %f]\n", median(reproj_errors));
+
   // printf("stats:\n");
   // for (int cam_idx = 0; cam_idx < nb_cams(); cam_idx++) {
   //   printf("cam%d reprojection error [px]: ", cam_idx);
@@ -1637,15 +1725,11 @@ void calib_vi_t::show_results() {
     printf("\n ");
   }
 
-  // Imu extrinsics
-  print_matrix("T_BS", get_imu_extrinsics());
-  print_matrix("T_SB", get_imu_extrinsics().inverse());
-
+  // Camera Extrinsics
   const auto key = "T_C0C" + std::to_string(0);
   const mat4_t T_C0Ci = get_cam_extrinsics(0);
   print_matrix(key, T_C0Ci);
 
-  // Camera Extrinsics
   for (int cam_idx = 1; cam_idx < nb_cams(); cam_idx++) {
     const auto key = "T_C0C" + std::to_string(cam_idx);
     const mat4_t T_C0Ci = get_cam_extrinsics(cam_idx);
@@ -1657,6 +1741,9 @@ void calib_vi_t::show_results() {
       print_matrix(key, T_CiC0);
     }
   }
+
+  // Imu extrinsics
+  print_matrix("T_C0S", get_imu_extrinsics());
 }
 
 // int calib_vi_t::recover_calib_covar(matx_t

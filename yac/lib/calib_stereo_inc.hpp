@@ -25,8 +25,8 @@ public:
   std::deque<pose_t> rel_poses;
   camera_params_t &cam0;
   camera_params_t &cam1;
-  extrinsics_t &cam0_exts;  // T_BC0
-  extrinsics_t &cam1_exts;  // T_BC1
+  extrinsics_t &cam0_exts; // T_BC0
+  extrinsics_t &cam1_exts; // T_BC1
   calib_views_t<CAMERA> views0;
   calib_views_t<CAMERA> views1;
   std::vector<int> nbv_indicies;
@@ -54,13 +54,9 @@ public:
   ceres::Solver::Summary summary;
 
   calib_stereo_inc_solver_t(calib_data_t &data)
-      : target{data.target},
-        covar{data.covar},
-        grids0{data.cam_grids[0]},
-        grids1{data.cam_grids[1]},
-        cam0{data.cam_params[0]},
-        cam1{data.cam_params[1]},
-        cam0_exts{data.cam_exts[0]},
+      : target{data.target}, covar{data.covar}, grids0{data.cam_grids[0]},
+        grids1{data.cam_grids[1]}, cam0{data.cam_params[0]},
+        cam1{data.cam_params[1]}, cam0_exts{data.cam_exts[0]},
         cam1_exts{data.cam_exts[1]} {
     // Seed random
     srand(time(NULL));
@@ -71,7 +67,8 @@ public:
     initialize();
 
     // Setup optimization problem
-    prob_options.local_parameterization_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
+    prob_options.local_parameterization_ownership =
+        ceres::DO_NOT_TAKE_OWNERSHIP;
     prob_options.loss_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
     problem = new ceres::Problem{prob_options};
 
@@ -94,9 +91,7 @@ public:
     }
   }
 
-  size_t nb_grids() {
-    return grids0.size();
-  }
+  size_t nb_grids() { return grids0.size(); }
 
   /* Preprocess stereo data */
   void preprocess_stereo_data() {
@@ -220,7 +215,7 @@ public:
     LOG_INFO("Initializing cam0-cam1 extrinsics ...");
     auto cam0_grids = grids0;
     auto cam1_grids = grids1;
-    std::map<timestamp_t, pose_t> poses;  // T_BF
+    std::map<timestamp_t, pose_t> poses; // T_BF
 
     calib_data_t data;
     data.add_calib_target(target);
@@ -304,14 +299,14 @@ public:
   }
 
   /**
-  * Find random indicies.
-  *
-  * Aside from creating a set of random indicies to randomly sample the image
-  * frames, the goal is to find a set that yeilds the lowest reprojection error
-  * for the first 20 frames. The intuition is to start the incremental solver in
-  * a certain state, then add / remove frames that improve the calibration.
-  */
-  std::vector<int> find_random_indicies(bool verbose=false) {
+   * Find random indicies.
+   *
+   * Aside from creating a set of random indicies to randomly sample the image
+   * frames, the goal is to find a set that yeilds the lowest reprojection error
+   * for the first 20 frames. The intuition is to start the incremental solver
+   * in a certain state, then add / remove frames that improve the calibration.
+   */
+  std::vector<int> find_random_indicies(bool verbose = false) {
     id_t param_counter = 0;
     int best_idx = 0;
     double best_rmse = 0.0;
@@ -325,7 +320,8 @@ public:
     for (int j = 0; j < random_indicies_attempts; j++) {
       // Create random index vector (same length as grids)
       std::vector<int> indicies;
-      for (size_t i = 0; i < grids0.size(); i++) indicies.push_back(i);
+      for (size_t i = 0; i < grids0.size(); i++)
+        indicies.push_back(i);
       std::random_shuffle(std::begin(indicies), std::end(indicies));
 
       // Views
@@ -393,8 +389,8 @@ public:
 
   /* Show progress */
   void show_progress(const int nb_outliers) {
-    std::vector<double>cam0_errs;
-    std::vector<double>cam1_errs;
+    std::vector<double> cam0_errs;
+    std::vector<double> cam1_errs;
     reproj_errors(views0, cam0_errs);
     reproj_errors(views1, cam1_errs);
 
@@ -537,8 +533,8 @@ public:
   /* Filter view */
   int filter_view(ceres::Problem &problem,
                   calib_view_t<CAMERA> &view,
-                  double threshold_x=1.0,
-                  double threshold_y=1.0) {
+                  double threshold_x = 1.0,
+                  double threshold_y = 1.0) {
     auto &grid = view.grid;
     const auto cam = view.cam;
     int nb_outliers = 0;
@@ -609,14 +605,11 @@ public:
   /* Filter views */
   int filter_views(ceres::Problem &problem,
                    calib_views_t<CAMERA> &views,
-                   double threshold_x=1.0,
-                   double threshold_y=1.0) {
+                   double threshold_x = 1.0,
+                   double threshold_y = 1.0) {
     int nb_outliers = 0;
     for (auto &view : views) {
-      nb_outliers += filter_view(problem,
-                                 view,
-                                 threshold_x,
-                                 threshold_y);
+      nb_outliers += filter_view(problem, view, threshold_x, threshold_y);
     }
 
     return nb_outliers;
@@ -668,7 +661,7 @@ public:
       return;
     }
 
-      // Check if we have min-views before removing outliers
+    // Check if we have min-views before removing outliers
     if (processed < min_views) {
       batch_info = view_info;
       return;

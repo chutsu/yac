@@ -81,7 +81,7 @@ public:
   void minus(const vecx_t &dx) override;
   void perturb(const int i, const real_t step_size) override;
   void update();
-  mat4_t estimate();
+  mat4_t estimate() const;
 
 private:
   mat4_t T_WF;
@@ -94,7 +94,7 @@ public:
   fiducial_t();
   fiducial_t(const mat4_t &T_WF_, const bool fixed_ = false);
 
-  mat4_t estimate();
+  mat4_t estimate() const;
 };
 #endif
 

@@ -202,7 +202,7 @@ void fiducial_t::update() {
 }
 #endif
 
-mat4_t fiducial_t::estimate() {
+mat4_t fiducial_t::estimate() const {
 #if FIDUCIAL_PARAMS_SIZE == 2
   update();
   const double yaw = quat2euler(tf_quat(T_WF))(2);

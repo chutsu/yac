@@ -40,9 +40,14 @@ struct fiducial_error_t : public ceres::CostFunction {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 
   const timestamp_t ts_ = 0;
+
   const camera_geometry_t *cam_geom_;
-  const int cam_idx_;
-  const int cam_res_[2] = {0, 0};
+  const camera_params_t *cam_params_;
+  const extrinsics_t *cam_exts_;
+  const extrinsics_t *imu_exts_;
+  const fiducial_t *fiducial_;
+  const pose_t *pose_;
+
   const int tag_id_ = -1;
   const int corner_idx_ = -1;
   const vec3_t r_FFi_{0.0, 0.0, 0.0};
@@ -55,8 +60,11 @@ struct fiducial_error_t : public ceres::CostFunction {
 
   fiducial_error_t(const timestamp_t &ts,
                    const camera_geometry_t *cam_geom,
-                   const int cam_idx,
-                   const int cam_res[2],
+                   const camera_params_t *cam_params,
+                   const extrinsics_t *cam_exts,
+                   const extrinsics_t *imu_exts,
+                   const fiducial_t *fiducial,
+                   const pose_t *pose,
                    const int tag_id,
                    const int corner_idx,
                    const vec3_t &r_FFi,
@@ -65,6 +73,8 @@ struct fiducial_error_t : public ceres::CostFunction {
                    const mat2_t &covar);
   ~fiducial_error_t() = default;
 
+  int get_residual(vec2_t &r) const;
+  int get_reproj_error(real_t &error) const;
   bool Evaluate(double const *const *params,
                 double *residuals,
                 double **jacobians) const;
@@ -225,7 +235,7 @@ protected:
   mutable information_t squareRootInformation_;
 };
 
-// VISUAL INERTIAL CALIBRATOR //////////////////////////////////////////////////
+// VISUAL INERTIAL CALIBRATION VIEW ////////////////////////////////////////////
 
 struct calib_vi_view_t {
   // Data
@@ -267,11 +277,16 @@ struct calib_vi_view_t {
                   PoseLocalParameterization *pose_plus);
   ~calib_vi_view_t() = default;
 
+  std::vector<real_t> get_reproj_errors(const int cam_idx) const;
+  std::vector<real_t> get_reproj_errors() const;
+  // std::vector<real_t> get_imu_errors() const;
   void form_imu_error(const imu_params_t &imu_params,
                       const imu_data_t &imu_buf,
                       pose_t *pose_j,
                       sb_params_t *sb_j);
 };
+
+// VISUAL INERTIAL CALIBRATOR //////////////////////////////////////////////////
 
 struct calib_vi_t {
   // Settings
@@ -326,12 +341,13 @@ struct calib_vi_t {
                   const bool fix_params = true,
                   const bool fix_extrinsics = true);
 
-  int nb_cams();
-  veci2_t get_cam_resolution(const int cam_idx);
-  vecx_t get_cam_params(const int cam_idx);
-  mat4_t get_cam_extrinsics(const int cam_idx);
-  mat4_t get_imu_extrinsics();
-  mat4_t get_fiducial_pose();
+  int nb_cams() const;
+  veci2_t get_cam_resolution(const int cam_idx) const;
+  vecx_t get_cam_params(const int cam_idx) const;
+  mat4_t get_cam_extrinsics(const int cam_idx) const;
+  mat4_t get_imu_extrinsics() const;
+  mat4_t get_fiducial_pose() const;
+  std::vector<real_t> get_reproj_errors() const;
 
   mat4_t estimate_sensor_pose(const CameraGrids &grids);
   void initialize(const CameraGrids &grids, imu_data_t &imu_buf);

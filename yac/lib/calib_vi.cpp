@@ -1237,9 +1237,23 @@ calib_vi_view_t::calib_vi_view_t(const timestamp_t ts_,
   }
 }
 
+std::vector<int> calib_vi_view_t::get_cam_indices() const {
+  std::vector<int> cam_idxs;
+  for (const auto &[cam_idx, params] : cam_params) {
+    UNUSED(params);
+    cam_idxs.push_back(cam_idx);
+  }
+
+  return cam_idxs;
+}
+
 std::vector<real_t>
 calib_vi_view_t::get_reproj_errors(const int cam_idx) const {
   std::vector<real_t> cam_errors;
+
+  if (fiducial_errors.count(cam_idx) == 0) {
+    return cam_errors;
+  }
 
   for (const auto &error : fiducial_errors.at(cam_idx)) {
     real_t e;
@@ -1251,14 +1265,14 @@ calib_vi_view_t::get_reproj_errors(const int cam_idx) const {
   return cam_errors;
 }
 
-std::vector<real_t> calib_vi_view_t::get_reproj_errors() const {
-  std::vector<real_t> cam_errors;
+std::map<int, std::vector<real_t>> calib_vi_view_t::get_reproj_errors() const {
+  std::map<int, std::vector<real_t>> cam_errors;
 
   for (const auto &[cam_idx, errors] : fiducial_errors) {
     for (const auto &error : errors) {
       real_t e;
       if (error.get_reproj_error(e) == 0) {
-        cam_errors.push_back(e);
+        cam_errors[cam_idx].push_back(e);
       }
     }
   }
@@ -1267,6 +1281,8 @@ std::vector<real_t> calib_vi_view_t::get_reproj_errors() const {
 }
 
 // std::vector<real_t> calib_vi_view_t::get_imu_errors() const {
+//
+//
 //
 // }
 
@@ -1415,10 +1431,12 @@ mat4_t calib_vi_t::get_imu_extrinsics() const { return imu_exts->tf(); }
 
 mat4_t calib_vi_t::get_fiducial_pose() const { return fiducial->estimate(); }
 
-std::vector<real_t> calib_vi_t::get_reproj_errors() const {
-  std::vector<real_t> errors;
+std::map<int, std::vector<real_t>> calib_vi_t::get_reproj_errors() const {
+  std::map<int, std::vector<real_t>> errors;
   for (const auto &view : calib_views) {
-    extend(errors, view.get_reproj_errors());
+    for (const auto cam_idx : view.get_cam_indices()) {
+      extend(errors[cam_idx], view.get_reproj_errors(cam_idx));
+    }
   }
   return errors;
 }
@@ -1697,19 +1715,23 @@ void calib_vi_t::show_results() {
   printf("---------------------\n");
 
   // Stats
-  const std::vector<real_t> reproj_errors = get_reproj_errors();
-  printf("[rmse: %f,", rmse(reproj_errors));
-  printf(" mean: %f,", mean(reproj_errors));
-  printf("median: %f]\n", median(reproj_errors));
+  const auto reproj_errors = get_reproj_errors();
+  std::vector<real_t> reproj_errors_all;
+  for (const auto &[cam_idx, cam_errors] : reproj_errors) {
+    extend(reproj_errors_all, cam_errors);
+  }
+  printf("Total reprojection error: ");
+  printf("[rmse: %f,", rmse(reproj_errors_all));
+  printf(" mean: %f,", mean(reproj_errors_all));
+  printf("median: %f]\n", median(reproj_errors_all));
 
-  // printf("stats:\n");
-  // for (int cam_idx = 0; cam_idx < nb_cams(); cam_idx++) {
-  //   printf("cam%d reprojection error [px]: ", cam_idx);
-  //   printf("[rmse: %f,", rmse(cam_errs[cam_idx])); printf(" mean:
-  //   %f,", mean(cam_errs[cam_idx])); printf("
-  //   median: %f]\n", median(cam_errs[cam_idx]));
-  // }
-  // printf("\n");
+  for (const auto &[cam_idx, cam_errors] : reproj_errors) {
+    printf("camera[%d] reprojection error: ", cam_idx);
+    printf("[rmse: %f,", rmse(cam_errors));
+    printf(" mean: %f,", mean(cam_errors));
+    printf("median: %f]\n", median(cam_errors));
+  }
+  printf("\n");
 
   // Cameras
   for (int cam_idx = 0; cam_idx < nb_cams(); cam_idx++) {

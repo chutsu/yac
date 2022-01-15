@@ -277,9 +277,10 @@ struct calib_vi_view_t {
                   PoseLocalParameterization *pose_plus);
   ~calib_vi_view_t() = default;
 
+  std::vector<int> get_cam_indices() const;
   std::vector<real_t> get_reproj_errors(const int cam_idx) const;
-  std::vector<real_t> get_reproj_errors() const;
-  // std::vector<real_t> get_imu_errors() const;
+  std::map<int, std::vector<real_t>> get_reproj_errors() const;
+  std::vector<real_t> get_imu_errors() const;
   void form_imu_error(const imu_params_t &imu_params,
                       const imu_data_t &imu_buf,
                       pose_t *pose_j,
@@ -347,7 +348,7 @@ struct calib_vi_t {
   mat4_t get_cam_extrinsics(const int cam_idx) const;
   mat4_t get_imu_extrinsics() const;
   mat4_t get_fiducial_pose() const;
-  std::vector<real_t> get_reproj_errors() const;
+  std::map<int, std::vector<real_t>> get_reproj_errors() const;
 
   mat4_t estimate_sensor_pose(const CameraGrids &grids);
   void initialize(const CameraGrids &grids, imu_data_t &imu_buf);

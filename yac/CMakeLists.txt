@@ -7,16 +7,16 @@ SET(apriltag3_DIR "../deps/share/apriltag3/cmake")
 
 # COMPILATION SETTINGS
 SET(CMAKE_CXX_STANDARD 17)
-ADD_COMPILE_OPTIONS(
-  -Wall
-  -Wextra
-  -fsanitize=address
-  -fno-omit-frame-pointer
-)
-LINK_LIBRARIES(
-  -fsanitize=address
-  -static-libasan # Use -static-libsan for Clang
-)
+# ADD_COMPILE_OPTIONS(
+#   -Wall
+#   -Wextra
+#   -fsanitize=address
+#   -fno-omit-frame-pointer
+# )
+# LINK_LIBRARIES(
+#   -fsanitize=address
+#   -static-libasan # Use -static-libsan for Clang
+# )
 
 # DEPENDENCIES
 FIND_PACKAGE(Ceres REQUIRED)

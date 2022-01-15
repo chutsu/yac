@@ -242,79 +242,40 @@ struct calib_vi_view_t {
   std::map<int, extrinsics_t *> &cam_exts;
   extrinsics_t *imu_exts = nullptr;
   fiducial_t *fiducial = nullptr;
+  PoseLocalParameterization *pose_plus = nullptr;
 
   // Problem
   ceres::Problem *problem = nullptr;
+  // -- Fiducial errors
   std::map<int, std::deque<ceres::ResidualBlockId>> fiducial_error_ids;
   std::map<int, std::deque<fiducial_error_t>> fiducial_errors;
+  // -- Imu error
   ceres::ResidualBlockId imu_error_id;
-  ImuError imu_errors;
+  std::unique_ptr<ImuError> imu_error;
 
   calib_vi_view_t() = default;
-
   calib_vi_view_t(const timestamp_t ts_,
                   ceres::Problem *problem_,
                   const CameraGrids &grids_,
                   const mat4_t &T_WS,
+                  const vec_t<9> &sb,
                   std::map<int, camera_geometry_t *> &cam_geoms_,
                   std::map<int, camera_params_t *> &cam_params_,
                   std::map<int, extrinsics_t *> &cam_exts_,
                   extrinsics_t *imu_exts_,
-                  fiducial_t *fiducial_)
-      : ts{ts_}, grids{grids_}, pose{ts_, T_WS}, cam_geoms{cam_geoms_},
-        cam_params{cam_params_}, cam_exts{cam_exts_}, imu_exts{imu_exts_},
-        fiducial{fiducial_}, problem{problem_} {
-
-    // Add fiducial errors
-    const mat4_t T_WF = fiducial->estimate();
-    const mat2_t covar = I(2);
-
-    for (const auto &[cam_idx, grid] : grids) {
-      // Get AprilGrid measurements
-      std::vector<int> tag_ids;
-      std::vector<int> corner_idxs;
-      vec2s_t kps;
-      vec3s_t pts;
-      grid.get_measurements(tag_ids, corner_idxs, kps, pts);
-
-      // Add residuals to problem
-      for (size_t i = 0; i < tag_ids.size(); i++) {
-        const int tag_id = tag_ids[i];
-        const int corner_idx = corner_idxs[i];
-        const vec2_t z = kps[i];
-        const vec3_t r_FFi = pts[i];
-
-        // Form residual
-        fiducial_errors[cam_idx].emplace_back(ts,
-                                              cam_geoms[cam_idx],
-                                              cam_idx,
-                                              cam_params[cam_idx]->resolution,
-                                              tag_id,
-                                              corner_idx,
-                                              r_FFi,
-                                              z,
-                                              T_WF,
-                                              covar);
-
-        // Add to problem
-        auto error_id =
-            problem->AddResidualBlock(&fiducial_errors[cam_idx].back(),
-                                      NULL,
-                                      fiducial->param.data(),
-                                      pose.param.data(),
-                                      imu_exts->param.data(),
-                                      cam_exts[cam_idx]->param.data(),
-                                      cam_params[cam_idx]->param.data());
-        fiducial_error_ids[cam_idx].push_back(error_id);
-      }
-    }
-  }
-
+                  fiducial_t *fiducial_,
+                  PoseLocalParameterization *pose_plus);
   ~calib_vi_view_t() = default;
+
+  void form_imu_error(const imu_params_t &imu_params,
+                      const imu_data_t &imu_buf,
+                      pose_t *pose_j,
+                      sb_params_t *sb_j);
 };
 
 struct calib_vi_t {
   // Settings
+  bool verbose = true;
   double sigma_vision = 1.0;
   int batch_max_iter = 30;
   bool enable_outlier_rejection = true;
@@ -324,7 +285,7 @@ struct calib_vi_t {
   pinhole_equi4_t pinhole_equi4;
 
   // State-Variables
-  std::map<int, const camera_geometry_t *> cam_geoms;
+  std::map<int, camera_geometry_t *> cam_geoms;
   std::map<int, camera_params_t *> cam_params;
   std::map<int, extrinsics_t *> cam_exts;
   extrinsics_t *imu_exts;
@@ -332,11 +293,13 @@ struct calib_vi_t {
   time_delay_t *time_delay;
 
   // Data
+  bool initialized = false;
+  // -- Vision data
   std::map<int, std::deque<aprilgrid_t>> grid_buf;
   CameraGrids prev_grids;
+  // -- Imu data
   imu_params_t imu_params;
   imu_data_t imu_buf;
-  bool initialized = false;
 
   // Optimization
   ceres::Problem::Options prob_options;
@@ -360,29 +323,26 @@ struct calib_vi_t {
                   const vecx_t &proj_params,
                   const vecx_t &dist_params,
                   const mat4_t &T_BCi = I(4),
-                  const bool fix_params = false,
-                  const bool fix_extrinsics = false);
+                  const bool fix_params = true,
+                  const bool fix_extrinsics = true);
 
   int nb_cams();
   veci2_t get_cam_resolution(const int cam_idx);
   vecx_t get_cam_params(const int cam_idx);
   mat4_t get_cam_extrinsics(const int cam_idx);
   mat4_t get_imu_extrinsics();
-  mat4_t get_sensor_pose(const int pose_index);
   mat4_t get_fiducial_pose();
 
   mat4_t estimate_sensor_pose(const CameraGrids &grids);
-  void initialize(const timestamp_t &ts,
-                  const CameraGrids &grids,
-                  imu_data_t &imu_buf);
+  void initialize(const CameraGrids &grids, imu_data_t &imu_buf);
   void add_view(const CameraGrids &grids);
   void add_measurement(const int cam_idx, const aprilgrid_t &grid);
   void add_measurement(const timestamp_t imu_ts,
                        const vec3_t &a_m,
                        const vec3_t &w_m);
 
-  // void solve(bool verbose = true);
-  // void show_results();
+  void solve();
+  void show_results();
   // int recover_calib_covar(matx_t &calib_covar);
 
   int save_results(const std::string &save_path);

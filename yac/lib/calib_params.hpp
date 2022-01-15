@@ -69,7 +69,7 @@ struct pose_t : param_t {
   virtual void perturb(const int i, const real_t step_size);
 };
 
-#define FIDUCIAL_PARAMS_SIZE 2
+#define FIDUCIAL_PARAMS_SIZE 7
 
 #if FIDUCIAL_PARAMS_SIZE == 2 || FIDUCIAL_PARAMS_SIZE == 3
 struct fiducial_t : param_t {
@@ -92,7 +92,7 @@ struct fiducial_t : pose_t {
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
   fiducial_t();
-  fiducial_t(const id_t id_, const mat4_t &T_WF_, const bool fixed_ = false);
+  fiducial_t(const mat4_t &T_WF_, const bool fixed_ = false);
 
   mat4_t estimate();
 };

@@ -621,6 +621,20 @@ int test_calib_vi() {
           0.999598781151, 0.0130119051815, 0.0251588363115, 0.0453689425024,
           -0.0253898008918, 0.0179005838253, 0.999517347078, 0.00786212447038,
           0.0, 0.0, 0.0, 1.0;
+
+  mat4_t T_C0C1;
+  T_C0C1 = T_BC0.inverse() * T_BC1;
+  T_BC0 = I(4);
+  T_BC1 = T_C0C1;
+
+  // T_BC0 <<  0.0, -1.0,  0.0, 0.0,
+  //           1.0,  0.0,  0.0, 0.0,
+  //           0.0,  0.0,  1.0, 0.0,
+  //           0.0,  0.0,  0.0, 1.0;
+  // T_BC1 <<  0.0, -1.0,  0.0, 0.0,
+  //           1.0,  0.0,  0.0, 0.0,
+  //           0.0,  0.0,  1.0, 0.0,
+  //           0.0,  0.0,  0.0, 1.0;
   // clang-format on
 
   // Imu
@@ -649,6 +663,7 @@ int test_calib_vi() {
                    cam0_proj_params,
                    cam0_dist_params,
                    T_BC0,
+                   true,
                    true);
   calib.add_camera(1,
                    res,
@@ -657,20 +672,26 @@ int test_calib_vi() {
                    cam1_proj_params,
                    cam1_dist_params,
                    T_BC1,
+                   true,
                    true);
 
   LOG_INFO("Adding data to problem ...");
   for (const auto &ts : timeline.timestamps) {
     const auto kv = timeline.data.equal_range(ts);
 
+    // Handle multiple events in the same timestamp
     for (auto it = kv.first; it != kv.second; it++) {
       const auto event = it->second;
 
+      // Aprilgrid event
       if (auto grid_event = dynamic_cast<aprilgrid_event_t *>(event)) {
         auto cam_idx = grid_event->cam_idx;
         auto &grid = grid_event->grid;
         calib.add_measurement(cam_idx, grid);
-      } else if (auto imu_event = dynamic_cast<imu_event_t *>(event)) {
+      }
+
+      // Imu event
+      if (auto imu_event = dynamic_cast<imu_event_t *>(event)) {
         const auto ts = imu_event->ts;
         const auto &acc = imu_event->acc;
         const auto &gyr = imu_event->gyr;
@@ -678,7 +699,7 @@ int test_calib_vi() {
       }
     }
   }
-  // calib.solve();
+  calib.solve();
   // calib.save();
 
   return 0;

@@ -5,11 +5,15 @@ jobs:
     runs-on: ubuntu-18.04
     steps:
     - uses: actions/checkout@master
+
     - name: install dependencies
       run: make deps
+
     - name: build
       run: make release
+
     - name: download test data
       run: sudo make download_test_data
+
     - name: run tests
       run: sudo make tests

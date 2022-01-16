@@ -1,6 +1,5 @@
 #include "util/euroc.hpp"
 #include "calib_data.hpp"
-#include "calib_target.hpp"
 
 namespace yac {
 

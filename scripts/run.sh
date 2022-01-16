@@ -1,6 +1,10 @@
 #/bin/bash
 set -e
 
+# --prefix 'gdb -ex=run -ex=\"set confirm off\" -ex=bt -ex=quit -args'
+# --prefix 'gdb -ex run'
+# --prefix 'gdb -ex run -args'
+
 # YAC-UTIL
 # RUN_CMD="rosrun yac test_util_aprilgrid --target test_aprilgrid_constructor"
 # RUN_CMD="rosrun yac test_util_aprilgrid --target test_aprilgrid_grid_index"
@@ -30,15 +34,15 @@ set -e
 # RUN_CMD="rosrun yac test_calib_data"
 
 # YAC - CAMERA CALIBRATION
-# RUN_CMD="rosrun yac test_calib_camera"
+RUN_CMD="rosrun yac test_calib_camera"
 
 # YAC - MOCAP CALIBRATION
 # RUN_CMD="rosrun yac test_calib_mocap"
 
 # YAC - VISUAL-INERTIAL CALIBRATION
-RUN_CMD="rosrun yac test_calib_vi"
-# RUN_CMD="rosrun yac test_calib_vi --target test_reproj_error"
-# RUN_CMD="rosrun yac test_calib_vi --target test_calib_vi_sim"
+# RUN_CMD="rosrun yac test_calib_vi"
+# RUN_CMD="rosrun yac test_calib_vi --target test_fiducial_error"
+# RUN_CMD="rosrun yac test_calib_vi --target test_fiducial_td_error"
 # RUN_CMD="rosrun yac test_calib_vi --target test_calib_vi"
 
 # YAC - NBV
@@ -59,23 +63,10 @@ RUN_CMD="rosrun yac test_calib_vi"
 # RUN_CMD="rosrun yac test_marg_error --target test_marg_block"
 
 # YAC - ROS NODES
-# roslaunch yac_ros calib_capture.launch \
-#   cam0_topic:=/rs/ir0/image
-
-# roslaunch yac_ros calib_camera.launch
-# roslaunch yac_ros calib_mocap.launch
-# roslaunch yac_ros calib_mono_nbv.launch
-
-# gnuplot -p scripts/plots/residuals.gpi
-# gnuplot -p scripts/plots/reprojection_errors.gpi
-
-# make
-# RUNS=(1 2 3 4 5 6 7 8 9 10)
-# for RUN in ${RUNS[@]}; do
-#   rosrun yac test_calib_stereo --target test_calib_stereo_inc_solve >> output.txt
-#   cp /tmp/calib_stereo.yaml ./calib_stereo-${RUN}.yaml
-# done
-# python3 scripts/analyze_calibs.py
+# RUN_CMD="roslaunch yac_ros calib_capture.launch cam0_topic:=/rs/ir0/image"
+# RUN_CMD="roslaunch yac_ros calib_camera.launch"
+# RUN_CMD="roslaunch yac_ros calib_mocap.launch"
+# RUN_CMD="roslaunch yac_ros calib_mono_nbv.launch"
 
 # cd scripts/octave
 # octave-cli nbt.m
@@ -90,7 +81,7 @@ RUN_CMD="rosrun yac test_calib_vi"
 
 tmux send-keys -t dev -R "\
 cd ~/projects/yac \
-&& make lib \
+&& make lib_debug \
 && source ~/catkin_ws/devel/setup.bash \
 && ${RUN_CMD}
 " C-m C-m
@@ -102,7 +93,3 @@ exit
 # make lib
 # make release
 # make tests
-# source ~/catkin_ws/devel/setup.bash
-# --prefix 'gdb -ex=run -ex=\"set confirm off\" -ex=bt -ex=quit -args'
-# --prefix 'gdb -ex run'
-# --prefix 'gdb -ex run -args'

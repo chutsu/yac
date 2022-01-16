@@ -216,6 +216,7 @@ struct calib_camera_t {
   void solve();
   void solve_incremental();
   void show_results();
+  int save_results(const std::string &save_path);
 };
 
 } //  namespace yac

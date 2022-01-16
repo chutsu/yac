@@ -1723,19 +1723,6 @@ int calib_vi_t::save_results(const std::string &save_path) const {
   fprintf(outfile, "\n");
   fprintf(outfile, "\n");
 
-  // Sensor-Camera extrinsics
-  const mat4_t T_BS = get_imu_extrinsics();
-  const mat4_t T_SB = T_BS.inverse();
-  const mat4_t T_BCi = get_cam_extrinsics(0);
-  const mat4_t T_SCi = T_SB * T_BCi;
-  fprintf(outfile, "T_imu0_cam%d:\n", 0);
-  fprintf(outfile, "  rows: 4\n");
-  fprintf(outfile, "  cols: 4\n");
-  fprintf(outfile, "  data: [\n");
-  fprintf(outfile, "%s\n", mat2str(T_SCi, "    ").c_str());
-  fprintf(outfile, "  ]\n");
-  fprintf(outfile, "\n");
-
   // Camera-Camera extrinsics
   const mat4_t T_BC0 = get_cam_extrinsics(0);
   const mat4_t T_C0B = T_BC0.inverse();
@@ -1753,6 +1740,19 @@ int calib_vi_t::save_results(const std::string &save_path) const {
       fprintf(outfile, "\n");
     }
   }
+
+  // Sensor-Camera extrinsics
+  const mat4_t T_BS = get_imu_extrinsics();
+  const mat4_t T_SB = T_BS.inverse();
+  const mat4_t T_BCi = get_cam_extrinsics(0);
+  const mat4_t T_SCi = T_SB * T_BCi;
+  fprintf(outfile, "T_imu0_cam%d:\n", 0);
+  fprintf(outfile, "  rows: 4\n");
+  fprintf(outfile, "  cols: 4\n");
+  fprintf(outfile, "  data: [\n");
+  fprintf(outfile, "%s\n", mat2str(T_SCi, "    ").c_str());
+  fprintf(outfile, "  ]\n");
+  fprintf(outfile, "\n");
 
   // Finsh up
   fclose(outfile);

@@ -807,7 +807,6 @@ int calib_camera_t::recover_calib_covar(matx_t &calib_covar) {
     }
     const auto idx = nb_cams() * 8 + ((cam_idx - 1) * 6);
     calib_covar.block(idx, idx, 6, 6) = covar;
-    print_matrix("exts covar", covar);
   }
 
   // Check if calib_covar is full-rank?
@@ -910,6 +909,87 @@ void calib_camera_t::show_results() {
     const mat4_t T_C0Ci = get_camera_extrinsics(cam_idx);
     print_matrix(key, T_C0Ci, "  ");
   }
+}
+
+int calib_camera_t::save_results(const std::string &save_path) {
+  LOG_INFO(KGRN "Saved results to [%s]" KNRM, save_path.c_str());
+
+  // Open results file
+  FILE *outfile = fopen(save_path.c_str(), "w");
+  if (outfile == NULL) {
+    return -1;
+  }
+
+  // Get reprojection errors
+  std::vector<real_t> reproj_errors_all;
+  std::map<int, std::vector<real_t>> reproj_errors_cams;
+  for (auto &[cam_idx, cam_views] : calib_views) {
+    for (auto &[ts, view] : cam_views) {
+      UNUSED(ts);
+      const auto view_reproj_errors = view->get_reproj_errors();
+      extend(reproj_errors_all, view_reproj_errors);
+      extend(reproj_errors_cams[cam_idx], view_reproj_errors);
+    }
+  }
+
+  // Calibration metrics
+  fprintf(outfile, "calib_metrics:\n");
+  fprintf(outfile, "  total_reproj_error:\n");
+  fprintf(outfile, "    rmse:   %f # [px]\n", rmse(reproj_errors_all));
+  fprintf(outfile, "    mean:   %f # [px]\n", mean(reproj_errors_all));
+  fprintf(outfile, "    median: %f # [px]\n", median(reproj_errors_all));
+  fprintf(outfile, "    stddev: %f # [px]\n", stddev(reproj_errors_all));
+  fprintf(outfile, "\n");
+  for (const auto &[cam_idx, errors] : reproj_errors_cams) {
+    const auto cam_str = "cam" + std::to_string(cam_idx);
+    fprintf(outfile, "  %s_reproj_error:\n", cam_str.c_str());
+    fprintf(outfile, "    rmse:   %f # [px]\n", rmse(errors));
+    fprintf(outfile, "    mean:   %f # [px]\n", mean(errors));
+    fprintf(outfile, "    median: %f # [px]\n", median(errors));
+    fprintf(outfile, "    stddev: %f # [px]\n", stddev(errors));
+    fprintf(outfile, "\n");
+  }
+  fprintf(outfile, "\n");
+
+  // Camera parameters
+  for (auto &kv : cam_params) {
+    const auto cam_idx = kv.first;
+    const auto cam = cam_params.at(cam_idx);
+    const int *cam_res = cam->resolution;
+    const char *proj_model = cam->proj_model.c_str();
+    const char *dist_model = cam->dist_model.c_str();
+    const std::string proj_params = vec2str(cam->proj_params(), 4);
+    const std::string dist_params = vec2str(cam->dist_params(), 4);
+
+    fprintf(outfile, "cam%d:\n", cam_idx);
+    fprintf(outfile, "  resolution: [%d, %d]\n", cam_res[0], cam_res[1]);
+    fprintf(outfile, "  proj_model: \"%s\"\n", proj_model);
+    fprintf(outfile, "  dist_model: \"%s\"\n", dist_model);
+    fprintf(outfile, "  proj_params: %s\n", proj_params.c_str());
+    fprintf(outfile, "  dist_params: %s\n", dist_params.c_str());
+    fprintf(outfile, "\n");
+  }
+  fprintf(outfile, "\n");
+
+  // Camera-Camera extrinsics
+  const mat4_t T_BC0 = get_camera_extrinsics(0);
+  const mat4_t T_C0B = T_BC0.inverse();
+  if (nb_cams() >= 2) {
+    for (int i = 1; i < nb_cams(); i++) {
+      const mat4_t T_BCi = get_camera_extrinsics(i);
+      const mat4_t T_C0Ci = T_C0B * T_BCi;
+      const mat4_t T_CiC0 = T_C0Ci.inverse();
+      fprintf(outfile, "T_cam0_cam%d:\n", i);
+      fprintf(outfile, "  rows: 4\n");
+      fprintf(outfile, "  cols: 4\n");
+      fprintf(outfile, "  data: [\n");
+      fprintf(outfile, "%s\n", mat2str(T_C0Ci, "    ").c_str());
+      fprintf(outfile, "  ]\n");
+      fprintf(outfile, "\n");
+    }
+  }
+
+  return -1;
 }
 
 } //  namespace yac

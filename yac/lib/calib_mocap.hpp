@@ -29,7 +29,6 @@ struct mocap_residual_t : public ceres::CostFunction {
                    const vec3_t &r_FFi,
                    const vec2_t &z,
                    const mat2_t &covar);
-
   ~mocap_residual_t() = default;
 
   bool Evaluate(double const *const *params,

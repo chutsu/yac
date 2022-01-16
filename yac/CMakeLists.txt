@@ -63,7 +63,7 @@ ADD_LIBRARY(
   lib/calib_camera.cpp
   lib/calib_data.cpp
   lib/calib_mocap.cpp
-  # lib/calib_nbv.cpp
+  lib/calib_nbv.cpp
   lib/calib_params.cpp
   lib/calib_vi.cpp
 )

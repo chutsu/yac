@@ -42,12 +42,13 @@ int test_reproj_error() {
 
   mat4_t T_C0Ci = I(4);
   mat4_t T_C0F = T_C0Ci * T_CiF;
-  pose_t cam_extrinsics{grid.timestamp, T_C0Ci};
+  pose_t cam_exts{grid.timestamp, T_C0Ci};
   pose_t rel_pose{grid.timestamp, T_C0F};
 
   reproj_error_t err(&cam_geom,
-                     cam_idx,
-                     cam_res,
+                     &cam_params,
+                     &cam_exts,
+                     &rel_pose,
                      tag_ids[0],
                      corner_indicies[0],
                      object_points[0],
@@ -56,7 +57,7 @@ int test_reproj_error() {
 
   std::vector<double *> params = {
       rel_pose.param.data(),
-      cam_extrinsics.param.data(),
+      cam_exts.param.data(),
       cam_params.param.data(),
   };
   vec2_t r;
@@ -88,16 +89,16 @@ int test_reproj_error() {
     MU_CHECK(check_jacobian("J0", fdiff, J0_min, threshold, true) == 0);
   }
 
-  // -- Test cam extrinsics T_C0Ci jacobian
+  // -- Test cam exts T_C0Ci jacobian
   {
     mat_t<2, 6> fdiff;
 
     for (int i = 0; i < 6; i++) {
       vec2_t r_fd;
-      cam_extrinsics.perturb(i, step);
+      cam_exts.perturb(i, step);
       err.Evaluate(params.data(), r_fd.data(), nullptr);
       fdiff.col(i) = (r_fd - r) / step;
-      cam_extrinsics.perturb(i, -step);
+      cam_exts.perturb(i, -step);
     }
 
     const mat_t<2, 6> J1_min = J1.block(0, 0, 2, 6);
@@ -128,18 +129,18 @@ int test_calib_view() {
   auto cam0 = test_data.cam0;
   const mat4_t T_C0F = I(4);
   const mat4_t T_C0Ci = I(4);
-  pose_t rel_pose{0, T_C0F};
   pose_t extrinsics{0, T_C0Ci};
+  pose_t rel_pose{0, T_C0F};
   pinhole_radtan4_t cam_geom;
-  calib_view_t(problem, grid, rel_pose, extrinsics, &cam_geom, cam0);
+
+  calib_view_t(&problem, &cam_geom, &cam0, &extrinsics, &rel_pose, grid);
 
   return 0;
 }
 
 int test_initialize_camera() {
   pinhole_radtan4_t cam_geom;
-  initialize_camera(test_data.grids1, &cam_geom, test_data.cam1, true);
-
+  initialize_camera(test_data.grids1, &cam_geom, &test_data.cam1, true);
   return 0;
 }
 

@@ -32,18 +32,18 @@ void simulate_imu(const ctraj_t &traj,
   std::default_random_engine rndeng;
 
   sim_imu_t sim_imu;
-  sim_imu.rate       = imu_params.rate;
+  sim_imu.rate = imu_params.rate;
   // sim_imu.tau_a      = imu_params.tau;
   // sim_imu.tau_g      = imu_params.tau;
   // sim_imu.sigma_g_c  = imu_params.sigma_g_c;
   // sim_imu.sigma_a_c  = imu_params.sigma_a_c;
   // sim_imu.sigma_gw_c = imu_params.sigma_gw_c;
   // sim_imu.sigma_aw_c = imu_params.sigma_aw_c;
-  sim_imu.sigma_g_c  = 0.0;
-  sim_imu.sigma_a_c  = 0.0;
+  sim_imu.sigma_g_c = 0.0;
+  sim_imu.sigma_a_c = 0.0;
   sim_imu.sigma_gw_c = 0.0;
   sim_imu.sigma_aw_c = 0.0;
-  sim_imu.g          = imu_params.g;
+  sim_imu.g = imu_params.g;
 
   while (ts_k <= ts_end) {
     // Get camera pose, angular velocity and acceleration in camera frame
@@ -65,16 +65,14 @@ void simulate_imu(const ctraj_t &traj,
 
     vec3_t a_WS_S{0.0, 0.0, 0.0};
     vec3_t w_WS_S{0.0, 0.0, 0.0};
-    sim_imu_measurement(
-      sim_imu,
-      rndeng,
-      ts_k,
-      T_WS_W,
-      w_WS_W,
-      a_WS_W,
-      a_WS_S,
-      w_WS_S
-    );
+    sim_imu_measurement(sim_imu,
+                        rndeng,
+                        ts_k,
+                        T_WS_W,
+                        w_WS_W,
+                        a_WS_W,
+                        a_WS_S,
+                        w_WS_S);
 
     // printf("ts: %ld\n", ts_k);
     // print_matrix("T_WS_W", T_WS_W);
@@ -93,33 +91,33 @@ void simulate_imu(const ctraj_t &traj,
   }
 }
 
-void nbt_create_timeline(const timestamps_t &imu_ts,
-                         const vec3s_t &imu_gyr,
-                         const vec3s_t &imu_acc,
-                         const std::vector<aprilgrids_t> grid_data,
-                         timeline_t &timeline) {
-  // -- Add imu events
-  for (size_t i = 0; i < imu_ts.size(); i++) {
-    const timestamp_t ts = imu_ts[i];
-    const vec3_t a_B = imu_acc[i];
-    const vec3_t w_B = imu_gyr[i];
-    const timeline_event_t event{ts, a_B, w_B};
-    timeline.add(event);
-  }
-
-  // -- Add aprilgrids observed from all cameras
-  for (size_t cam_idx = 0; cam_idx < grid_data.size(); cam_idx++) {
-    const auto grids = grid_data[cam_idx];
-    for (const auto &grid : grids) {
-      if (grid.detected == false) {
-        continue;
-      }
-
-      const auto ts = grid.timestamp;
-      const timeline_event_t event{ts, (int) cam_idx, grid};
-      timeline.add(event);
-    }
-  }
-}
+// void nbt_create_timeline(const timestamps_t &imu_ts,
+//                          const vec3s_t &imu_gyr,
+//                          const vec3s_t &imu_acc,
+//                          const std::vector<aprilgrids_t> grid_data,
+//                          timeline_t &timeline) {
+//   // -- Add imu events
+//   for (size_t i = 0; i < imu_ts.size(); i++) {
+//     const timestamp_t ts = imu_ts[i];
+//     const vec3_t a_B = imu_acc[i];
+//     const vec3_t w_B = imu_gyr[i];
+//     const timeline_event_t event{ts, a_B, w_B};
+//     timeline.add(event);
+//   }
+//
+//   // -- Add aprilgrids observed from all cameras
+//   for (size_t cam_idx = 0; cam_idx < grid_data.size(); cam_idx++) {
+//     const auto grids = grid_data[cam_idx];
+//     for (const auto &grid : grids) {
+//       if (grid.detected == false) {
+//         continue;
+//       }
+//
+//       const auto ts = grid.timestamp;
+//       const timeline_event_t event{ts, (int) cam_idx, grid};
+//       timeline.add(event);
+//     }
+//   }
+// }
 
 } // namespace yac

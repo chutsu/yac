@@ -1,8 +1,6 @@
 #ifndef YAC_CALIB_DATA_HPP
 #define YAC_CALIB_DATA_HPP
 
-#include <ceres/ceres.h>
-
 #include "util/util.hpp"
 #include "calib_params.hpp"
 

@@ -581,9 +581,9 @@ int test_calib_vi_add_camera() {
                    T_BCi);
 
   MU_CHECK(calib.cam_params[cam_idx] != nullptr);
-  MU_CHECK(calib.cam_params[cam_idx]->fixed == false);
+  MU_CHECK(calib.cam_params[cam_idx]->fixed == true);
   MU_CHECK(calib.cam_exts[cam_idx] != nullptr);
-  MU_CHECK(calib.cam_exts[cam_idx]->fixed == false);
+  MU_CHECK(calib.cam_exts[cam_idx]->fixed == true);
 
   return 0;
 }

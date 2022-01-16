@@ -3,7 +3,6 @@ PROJECT(yac)
 
 # Tell cmake where to find custom AprilTag3 and Ceres-Solver
 SET(apriltag3_DIR "../deps/share/apriltag3/cmake")
-# SET(Ceres_DIR "../deps/lib/cmake/Ceres")
 
 # COMPILATION SETTINGS
 SET(CMAKE_CXX_STANDARD 17)

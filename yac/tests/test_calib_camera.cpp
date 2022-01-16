@@ -157,9 +157,6 @@ int test_calib_camera() {
   calib.add_camera(1, cam_res, proj_model, dist_model);
   calib.solve();
 
-  print_matrix("T_C0C0", calib.get_camera_extrinsics(0));
-  print_matrix("T_C0C1", calib.get_camera_extrinsics(1));
-
   return 0;
 }
 

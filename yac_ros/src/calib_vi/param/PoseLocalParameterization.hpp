@@ -10,8 +10,9 @@
 namespace yac {
 
 /// \brief Pose local parameterisation, i.e. for orientation dq(dalpha) x q_bar.
-class OKVISPoseLocalParameterization : public ::ceres::LocalParameterization,
-                                  public LocalParamizationAdditionalInterfaces {
+class OKVISPoseLocalParameterization
+    : public ::ceres::LocalParameterization,
+      public LocalParamizationAdditionalInterfaces {
 public:
   /// \brief Trivial destructor.
   virtual ~OKVISPoseLocalParameterization() {}
@@ -69,10 +70,7 @@ public:
 
     // transform to yac::kinematics framework
     yac::Transformation T(Eigen::Vector3d(x[0], x[1], x[2]),
-                                          Eigen::Quaterniond(x[6],
-                                                            x[3],
-                                                            x[4],
-                                                            x[5]));
+                          Eigen::Quaterniond(x[6], x[3], x[4], x[5]));
 
     // call oplus operator in yac::kinematis
     T.oplus(delta_);
@@ -101,10 +99,7 @@ public:
   static bool plusJacobian(const double *x, double *jacobian) {
     Eigen::Map<Eigen::Matrix<double, 7, 6, Eigen::RowMajor>> Jp(jacobian);
     yac::Transformation T(Eigen::Vector3d(x[0], x[1], x[2]),
-                                          Eigen::Quaterniond(x[6],
-                                                            x[3],
-                                                            x[4],
-                                                            x[5]));
+                          Eigen::Quaterniond(x[6], x[3], x[4], x[5]));
     T.oplusJacobian(Jp);
 
     return true;
@@ -116,14 +111,16 @@ public:
   /// @param[in] x_plus_delta Perturbed variable.
   /// @param[out] delta minimal difference.
   /// \return True on success.
-  static bool minus(const double *x, const double *x_plus_delta, double *delta) {
+  static bool minus(const double *x,
+                    const double *x_plus_delta,
+                    double *delta) {
     delta[0] = x_plus_delta[0] - x[0];
     delta[1] = x_plus_delta[1] - x[1];
     delta[2] = x_plus_delta[2] - x[2];
     const Eigen::Quaterniond q_plus_delta_(x_plus_delta[6],
-                                          x_plus_delta[3],
-                                          x_plus_delta[4],
-                                          x_plus_delta[5]);
+                                           x_plus_delta[3],
+                                           x_plus_delta[4],
+                                           x_plus_delta[5]);
     const Eigen::Quaterniond q_(x[6], x[3], x[4], x[5]);
     Eigen::Map<Eigen::Vector3d> delta_q_(&delta[3]);
     delta_q_ = 2 * (q_plus_delta_ * q_.inverse()).coeffs().template head<3>();
@@ -164,7 +161,8 @@ public:
                              double *jacobianNumDiff) {
     plusJacobian(x, jacobian);
     Eigen::Map<Eigen::Matrix<double, 7, 6, Eigen::RowMajor>> Jp(jacobian);
-    Eigen::Map<Eigen::Matrix<double, 7, 6, Eigen::RowMajor>> Jpn(jacobianNumDiff);
+    Eigen::Map<Eigen::Matrix<double, 7, 6, Eigen::RowMajor>> Jpn(
+        jacobianNumDiff);
     double dx = 1e-9;
     Eigen::Matrix<double, 7, 1> xp;
     Eigen::Matrix<double, 7, 1> xm;

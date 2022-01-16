@@ -207,10 +207,13 @@ bool fiducial_error_t::Evaluate(double const *const *params,
       J.block(0, 2, 2, 1) = -1 * Jh_weighted * C_CiW * J_z;
 #elif FIDUCIAL_PARAMS_SIZE == 7
       const mat3_t C_WF = tf_rot(T_WF);
+      mat_t<2, 6, row_major_t> J_min;
+      J_min.setZero();
+      J_min.block(0, 0, 2, 3) = -1 * Jh_weighted * C_CiW * I(3);
+      J_min.block(0, 3, 2, 3) = -1 * Jh_weighted * C_CiW * -skew(C_WF * r_FFi_);
+
       Eigen::Map<mat_t<2, 7, row_major_t>> J(jacobians[0]);
-      J.setZero();
-      J.block(0, 0, 2, 3) = -1 * Jh_weighted * C_CiW * I(3);
-      J.block(0, 3, 2, 3) = -1 * Jh_weighted * C_CiW * -skew(C_WF * r_FFi_);
+      J = J_min * lift_pose_jacobian(T_WF);
 #endif
       if (valid == false) {
         J.setZero();
@@ -226,10 +229,13 @@ bool fiducial_error_t::Evaluate(double const *const *params,
       const mat4_t T_SW = T_WS.inverse();
       const vec3_t r_SFi = tf_point(T_SW * T_WF, r_FFi_);
 
+      mat_t<2, 6, row_major_t> J_min;
+      J_min.setZero();
+      J_min.block(0, 0, 2, 3) = -1 * Jh_weighted * -C_CiW * I(3);
+      J_min.block(0, 3, 2, 3) = -1 * Jh_weighted * -C_CiW * -skew(C_WS * r_SFi);
+
       Eigen::Map<mat_t<2, 7, row_major_t>> J(jacobians[1]);
-      J.setZero();
-      J.block(0, 0, 2, 3) = -1 * Jh_weighted * -C_CiW * I(3);
-      J.block(0, 3, 2, 3) = -1 * Jh_weighted * -C_CiW * -skew(C_WS * r_SFi);
+      J = J_min * lift_pose_jacobian(T_WS);
       if (valid == false) {
         J.setZero();
       }
@@ -241,10 +247,12 @@ bool fiducial_error_t::Evaluate(double const *const *params,
       const mat3_t C_BS = tf_rot(T_BS);
       const vec3_t r_SFi = tf_point(T_SW * T_WF, r_FFi_);
 
+      mat_t<2, 6, row_major_t> J_min;
+      J_min.block(0, 0, 2, 3) = -1 * Jh_weighted * C_CiB * I(3);
+      J_min.block(0, 3, 2, 3) = -1 * Jh_weighted * C_CiB * -skew(C_BS * r_SFi);
+
       Eigen::Map<mat_t<2, 7, row_major_t>> J(jacobians[2]);
-      J.setZero();
-      J.block(0, 0, 2, 3) = -1 * Jh_weighted * C_CiB * I(3);
-      J.block(0, 3, 2, 3) = -1 * Jh_weighted * C_CiB * -skew(C_BS * r_SFi);
+      J = J_min * lift_pose_jacobian(T_BS);
       if (valid == false) {
         J.setZero();
       }
@@ -256,10 +264,14 @@ bool fiducial_error_t::Evaluate(double const *const *params,
       const mat3_t C_BCi = C_CiB.transpose();
       const vec3_t r_CiFi = tf_point(T_CiB * T_BS * T_SW * T_WF, r_FFi_);
 
+      // clang-format off
+      mat_t<2, 6, row_major_t> J_min;
+      J_min.block(0, 0, 2, 3) = -1 * Jh_weighted * -C_CiB * I(3);
+      J_min.block(0, 3, 2, 3) = -1 * Jh_weighted * -C_CiB * -skew(C_BCi * r_CiFi);
+      // clang-format on
+
       Eigen::Map<mat_t<2, 7, row_major_t>> J(jacobians[3]);
-      J.setZero();
-      J.block(0, 0, 2, 3) = -1 * Jh_weighted * -C_CiB * I(3);
-      J.block(0, 3, 2, 3) = -1 * Jh_weighted * -C_CiB * -skew(C_BCi * r_CiFi);
+      J = J_min * lift_pose_jacobian(T_BCi);
       if (valid == false) {
         J.setZero();
       }
@@ -873,8 +885,9 @@ bool ImuError::EvaluateWithMinimalJacobians(double const *const *params,
           Eigen::Matrix<double, 15, 6> J0_minimal = squareRootInformation_ * F0.block<15, 6>(0, 0);
 
           Eigen::Map<Eigen::Matrix<double, 15, 7, Eigen::RowMajor>> J0(jacobians[0]);
-          J0.setZero();
-          J0.block(0, 0, 15, 6) = J0_minimal;
+          // J0.setZero();
+          // J0.block(0, 0, 15, 6) = J0_minimal;
+          J0 = J0_minimal * lift_pose_jacobian(T_WS_0);
           if (valid == false) {
             J0.setZero();
           }
@@ -916,8 +929,9 @@ bool ImuError::EvaluateWithMinimalJacobians(double const *const *params,
           Eigen::Matrix<double, 15, 6> J2_minimal = squareRootInformation_ * F1.block<15, 6>(0, 0);
 
           Eigen::Map<Eigen::Matrix<double, 15, 7, Eigen::RowMajor>> J2(jacobians[2]);
-          J2.setZero();
-          J2.block(0, 0, 15, 6) = J2_minimal;
+          // J2.setZero();
+          // J2.block(0, 0, 15, 6) = J2_minimal;
+          J2 = J2_minimal * lift_pose_jacobian(T_WS_1);
           if (valid == false) {
             J2.setZero();
           }
@@ -1586,8 +1600,7 @@ void calib_vi_t::show_results() {
   print_matrix("T_C0S", get_imu_extrinsics(), "  ");
 }
 
-// int calib_vi_t::recover_calib_covar(matx_t
-// &calib_covar) {
+// int calib_vi_t::recover_calib_covar(matx_t &calib_covar) {
 //   // Recover calibration covariance
 //   auto T_BS = imu_exts->param.data();
 //   auto td = time_delay->param.data();

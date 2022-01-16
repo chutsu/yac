@@ -211,7 +211,10 @@ struct calib_camera_t {
   void _initialize_extrinsics();
   void _setup_problem();
   void _filter_views();
+
+  int recover_calib_covar(matx_t &calib_covar);
   void solve();
+  void solve_incremental();
   void show_results();
 };
 

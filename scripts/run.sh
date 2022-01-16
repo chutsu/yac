@@ -34,7 +34,7 @@ set -e
 # RUN_CMD="rosrun yac test_calib_data"
 
 # YAC - CAMERA CALIBRATION
-RUN_CMD="rosrun yac test_calib_camera"
+# RUN_CMD="rosrun yac test_calib_camera"
 
 # YAC - MOCAP CALIBRATION
 # RUN_CMD="rosrun yac test_calib_mocap"
@@ -42,7 +42,6 @@ RUN_CMD="rosrun yac test_calib_camera"
 # YAC - VISUAL-INERTIAL CALIBRATION
 # RUN_CMD="rosrun yac test_calib_vi"
 # RUN_CMD="rosrun yac test_calib_vi --target test_fiducial_error"
-# RUN_CMD="rosrun yac test_calib_vi --target test_fiducial_td_error"
 # RUN_CMD="rosrun yac test_calib_vi --target test_calib_vi"
 
 # YAC - NBV

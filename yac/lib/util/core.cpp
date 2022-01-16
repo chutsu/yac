@@ -73,7 +73,7 @@ void print_matrix(const std::string &name,
   for (long i = 0; i < m.rows(); i++) {
     printf("%s", indent.c_str());
     for (long j = 0; j < m.cols(); j++) {
-      printf("%f", m(i, j));
+      printf("%e", m(i, j));
       if ((j + 1) != m.cols()) {
         printf(", ");
       }

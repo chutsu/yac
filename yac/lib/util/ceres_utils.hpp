@@ -22,14 +22,8 @@ mat3_t rightJacobian(const vec3_t &PhiVec);
 // Delta quaternion.
 quat_t deltaQ(const vec3_t &dAlpha);
 
-// Compute matrix to lift a quaternion.
-matx_t lift_quaternion(const quat_t &q);
-
-// Only computes the J_lift jacobian. J = J_min * J_lift.
-void lift_pose_jacobian(const quat_t &q, mat_t<6, 7, row_major_t> &J_lift);
-
-// Convert from pose minimial 2x6 jacobians to the full 2x7 jacobian
-void lift_pose_jacobian(const mat_t<2, 6> &J_min, const quat_t &q, double *J_raw);
+// Calculate lift jacobian
+mat_t<6, 7, row_major_t> lift_pose_jacobian(const mat4_t pose);
 
 // Evaluate residual block
 bool evaluate_residual_block(const ceres::Problem &problem,

@@ -56,7 +56,7 @@ public:
   ///< Pixel velocity
   vec2_t z_i_{0.0, 0.0};
   vec2_t z_j_{0.0, 0.0};
-  vec2_t v_ij_{0.0, 0.0};  // pixel velocity: (z_j - z_i) / dt
+  vec2_t v_ij_{0.0, 0.0}; // pixel velocity: (z_j - z_i) / dt
 
   CalibReprojError() : cameraGeometry_(new camera_geometry_t) {}
 
@@ -156,16 +156,16 @@ public:
     CameraBase::ProjectionStatus status;
     if (jacobians != NULL) {
       status = camera_geometry.projectWithExternalParameters(hp_C.head(3),
-                                                    cam_params,
-                                                    &kp_projected_,
-                                                    &Jh,
-                                                    &J_cam_params);
+                                                             cam_params,
+                                                             &kp_projected_,
+                                                             &Jh,
+                                                             &J_cam_params);
       Jh_weighted = squareRootInformation_ * Jh;
     } else {
       status = camera_geometry.projectWithExternalParameters(hp_C.head(3),
-                                                    cam_params,
-                                                    &kp_projected_,
-                                                    nullptr);
+                                                             cam_params,
+                                                             &kp_projected_,
+                                                             nullptr);
     }
     measurement_t error = measurement_ - kp_projected_;
     // measurement_t error = (measurement_ + td * v_ij_) - kp_projected_;
@@ -180,11 +180,11 @@ public:
     bool valid = true;
     if (status != CameraBase::ProjectionStatus::Successful) {
       valid = false;
-    // } else if (fabs(hp_C[3]) > 1.0e-8) {
-    //   Eigen::Vector3d p_C = hp_C.template head<3>() / hp_C[3];
-    //   if (p_C[2] < 0.0) {
-    //     valid = false;
-    //   }
+      // } else if (fabs(hp_C[3]) > 1.0e-8) {
+      //   Eigen::Vector3d p_C = hp_C.template head<3>() / hp_C[3];
+      //   if (p_C[2] < 0.0) {
+      //     valid = false;
+      //   }
       // printf("FALSE\n");
       // printf("error: %f %f\n", error(0), error(1));
     }
@@ -205,7 +205,8 @@ public:
         mat_t<2, 6, row_major_t> J_min;
         J_min.setZero();
         J_min.block(0, 0, 2, 3) = -1 * Jh_weighted * -C_CiW * I(3);
-        J_min.block(0, 3, 2, 3) = -1 * Jh_weighted * -C_CiW * -skew(C_WS * r_SFi);
+        J_min.block(0, 3, 2, 3) =
+            -1 * Jh_weighted * -C_CiW * -skew(C_WS * r_SFi);
         if (valid == false) {
           J_min.setZero();
         }
@@ -239,21 +240,23 @@ public:
         const double y = p_F_(1);
         const double z = p_F_(2);
 
-        const vec3_t J_x{
-          y * (sphi * spsi + stheta * cphi * cpsi) + z * (-sphi * stheta * cpsi + spsi * cphi),
-          y * (-sphi * cpsi + spsi * stheta * cphi) + z * (-sphi * spsi * stheta - cphi * cpsi),
-          y * cphi * ctheta - z * sphi * ctheta
-        };
-        const vec3_t J_y{
-          -x * stheta * cpsi + y * sphi * cpsi * ctheta + z * cphi * cpsi * ctheta,
-          -x * spsi * stheta + y * sphi * spsi * ctheta + z * spsi * cphi * ctheta,
-          -x * ctheta - y * sphi * stheta - z * stheta * cphi
-        };
-        const vec3_t J_z{
-          -x * spsi * ctheta + y * (-sphi * spsi * stheta - cphi * cpsi) + z * (sphi * cpsi - spsi * stheta * cphi),
-          x * cpsi * ctheta + y * (sphi * stheta * cpsi - spsi * cphi) + z * (sphi * spsi + stheta * cphi * cpsi),
-          0
-        };
+        const vec3_t J_x{y * (sphi * spsi + stheta * cphi * cpsi) +
+                             z * (-sphi * stheta * cpsi + spsi * cphi),
+                         y * (-sphi * cpsi + spsi * stheta * cphi) +
+                             z * (-sphi * spsi * stheta - cphi * cpsi),
+                         y * cphi * ctheta - z * sphi * ctheta};
+        const vec3_t J_y{-x * stheta * cpsi + y * sphi * cpsi * ctheta +
+                             z * cphi * cpsi * ctheta,
+                         -x * spsi * stheta + y * sphi * spsi * ctheta +
+                             z * spsi * cphi * ctheta,
+                         -x * ctheta - y * sphi * stheta - z * stheta * cphi};
+        const vec3_t J_z{-x * spsi * ctheta +
+                             y * (-sphi * spsi * stheta - cphi * cpsi) +
+                             z * (sphi * cpsi - spsi * stheta * cphi),
+                         x * cpsi * ctheta +
+                             y * (sphi * stheta * cpsi - spsi * cphi) +
+                             z * (sphi * spsi + stheta * cphi * cpsi),
+                         0};
 
         // Fill Jacobian
         const mat3_t C_CiW = tf_rot(T_CiB * T_BS * T_SW);
@@ -270,7 +273,6 @@ public:
         }
       }
 
-
       // Jacobians w.r.t T_BS
       if (jacobians[2]) {
         const mat3_t C_CiB = tf_rot(T_CiB);
@@ -280,7 +282,8 @@ public:
         mat_t<2, 6, row_major_t> J_min;
         J_min.setZero();
         J_min.block(0, 0, 2, 3) = -1 * Jh_weighted * C_CiB * I(3);
-        J_min.block(0, 3, 2, 3) = -1 * Jh_weighted * C_CiB * -skew(C_BS * r_SFi);
+        J_min.block(0, 3, 2, 3) =
+            -1 * Jh_weighted * C_CiB * -skew(C_BS * r_SFi);
         if (valid == false) {
           J_min.setZero();
         }
@@ -309,7 +312,8 @@ public:
         mat_t<2, 6, row_major_t> J_min;
         J_min.setZero();
         J_min.block(0, 0, 2, 3) = -1 * Jh_weighted * -C_CiB * I(3);
-        J_min.block(0, 3, 2, 3) = -1 * Jh_weighted * -C_CiB * -skew(C_BCi * r_CiFi);
+        J_min.block(0, 3, 2, 3) =
+            -1 * Jh_weighted * -C_CiB * -skew(C_BCi * r_CiFi);
         if (valid == false) {
           J_min.setZero();
         }
@@ -333,7 +337,8 @@ public:
       if (jacobians[4]) {
         const vec2_t p{r_CFi(0) / r_CFi(2), r_CFi(1) / r_CFi(2)};
 
-        Eigen::Map<Eigen::Matrix<double, 2, 8, Eigen::RowMajor>> J(jacobians[4]);
+        Eigen::Map<Eigen::Matrix<double, 2, 8, Eigen::RowMajor>> J(
+            jacobians[4]);
         J = -1 * squareRootInformation_ * J_cam_params;
         if (valid == false) {
           J.setZero();

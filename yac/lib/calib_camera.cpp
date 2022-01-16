@@ -251,8 +251,12 @@ bool reproj_error_t::Evaluate(double const *const *params,
       if (valid) {
         const mat3_t C_CiC0 = tf_rot(T_CiC0);
         const mat3_t C_C0F = tf_rot(T_C0F);
-        J.block(0, 0, 2, 3) = Jh_weighted * C_CiC0;
-        J.block(0, 3, 2, 3) = Jh_weighted * C_CiC0 * -skew(C_C0F * r_FFi);
+
+        mat_t<2, 6, row_major_t> J_min;
+        J_min.block(0, 0, 2, 3) = Jh_weighted * C_CiC0;
+        J_min.block(0, 3, 2, 3) = Jh_weighted * C_CiC0 * -skew(C_C0F * r_FFi);
+
+        J = J_min * lift_pose_jacobian(T_C0F);
       }
     }
 
@@ -265,9 +269,14 @@ bool reproj_error_t::Evaluate(double const *const *params,
         const mat3_t C_CiC0 = tf_rot(T_CiC0);
         const mat3_t C_C0Ci = C_CiC0.transpose();
         const vec3_t r_CiFi = tf_point(T_CiC0 * T_C0F, r_FFi);
-        J.block(0, 0, 2, 3) = -1 * Jh_weighted * C_CiC0;
-        J.block(0, 3, 2, 3) =
-            -1 * Jh_weighted * C_CiC0 * -skew(C_C0Ci * r_CiFi);
+
+        // clang-format off
+        mat_t<2, 6, row_major_t> J_min;
+        J_min.block(0, 0, 2, 3) = -1 * Jh_weighted * C_CiC0;
+        J_min.block(0, 3, 2, 3) = -1 * Jh_weighted * C_CiC0 * -skew(C_C0Ci * r_CiFi);
+        // clang-format on
+
+        J = J_min * lift_pose_jacobian(T_C0Ci);
       }
     }
 
@@ -513,8 +522,6 @@ calib_camera_t::calib_camera_t() {
 }
 
 calib_camera_t::~calib_camera_t() {
-  delete problem;
-
   for (auto &[cam_idx, param] : cam_params) {
     UNUSED(cam_idx);
     delete param;
@@ -528,6 +535,10 @@ calib_camera_t::~calib_camera_t() {
   for (auto &[ts, pose] : poses) {
     UNUSED(ts);
     delete pose;
+  }
+
+  if (problem) {
+    delete problem;
   }
 }
 
@@ -722,13 +733,90 @@ void calib_camera_t::_setup_problem() {
 void calib_camera_t::_filter_views() {
   int nb_outliers = 0;
   for (auto &[cam_idx, cam_views] : calib_views) {
+    UNUSED(cam_idx);
+
     for (auto &[ts, view] : cam_views) {
       UNUSED(ts);
       nb_outliers += view->filter_view(outlier_threshold);
     }
   }
+}
 
-  printf("nb_outliers: %d\n", nb_outliers);
+int calib_camera_t::recover_calib_covar(matx_t &calib_covar) {
+  // Setup covariance blocks to estimate
+  std::vector<std::pair<const double *, const double *>> covar_blocks;
+  // -- Add camera parameter blocks
+  for (auto &[cam_idx, param] : cam_params) {
+    UNUSED(cam_idx);
+    covar_blocks.push_back({param->param.data(), param->param.data()});
+  }
+  // -- Add camera extrinsics blocks
+  for (auto &[cam_idx, param] : cam_exts) {
+    if (cam_idx == 0) {
+      continue;
+    }
+    UNUSED(cam_idx);
+    covar_blocks.push_back({param->param.data(), param->param.data()});
+  }
+
+  // Estimate covariance
+  ::ceres::Covariance::Options options;
+  ::ceres::Covariance covar_est(options);
+  if (covar_est.Compute(covar_blocks, problem) == false) {
+    LOG_ERROR("Failed to estimate covariance!");
+    LOG_ERROR("Maybe Hessian is not full rank?");
+    return -1;
+  }
+
+  // Extract covariances sub-blocks
+  std::map<int, Eigen::Matrix<double, 8, 8, Eigen::RowMajor>> covar_cam_params;
+  std::map<int, Eigen::Matrix<double, 6, 6, Eigen::RowMajor>> covar_cam_exts;
+  for (auto &[cam_idx, param] : cam_params) {
+    UNUSED(cam_idx);
+    auto param_ptr = param->param.data();
+    auto covar_ptr = covar_cam_params[cam_idx].data();
+    if (!covar_est.GetCovarianceBlock(param_ptr, param_ptr, covar_ptr)) {
+      LOG_ERROR("Failed to estimate cam%d parameter covariance!", cam_idx);
+      return -1;
+    }
+  }
+  for (auto &[cam_idx, param] : cam_exts) {
+    if (cam_idx == 0) {
+      continue;
+    }
+    auto param_ptr = param->param.data();
+    auto covar_ptr = covar_cam_exts[cam_idx].data();
+    if (!covar_est.GetCovarianceBlockInTangentSpace(param_ptr,
+                                                    param_ptr,
+                                                    covar_ptr)) {
+      LOG_ERROR("Failed to estimate cam%d extrinsics covariance!", cam_idx);
+      return -1;
+    }
+  }
+
+  // Form covariance matrix block
+  const int calib_covar_size = (nb_cams() * 8) + ((nb_cams() - 1) * 6);
+  calib_covar = zeros(calib_covar_size, calib_covar_size);
+  for (auto &[cam_idx, covar] : covar_cam_params) {
+    const auto idx = cam_idx * 8;
+    calib_covar.block(idx, idx, 8, 8) = covar;
+  }
+  for (auto &[cam_idx, covar] : covar_cam_exts) {
+    if (cam_idx == 0) {
+      continue;
+    }
+    const auto idx = nb_cams() * 8 + ((cam_idx - 1) * 6);
+    calib_covar.block(idx, idx, 6, 6) = covar;
+    print_matrix("exts covar", covar);
+  }
+
+  // Check if calib_covar is full-rank?
+  if (rank(calib_covar) != calib_covar.rows()) {
+    LOG_ERROR("calib_covar is not full rank!");
+    return -1;
+  }
+
+  return 0;
 }
 
 void calib_camera_t::solve() {
@@ -749,6 +837,9 @@ void calib_camera_t::solve() {
   std::cout << summary.BriefReport() << std::endl;
   std::cout << std::endl;
 
+  matx_t calib_covar;
+  recover_calib_covar(calib_covar);
+
   // Filter views
   if (enable_outlier_rejection) {
     _filter_views();
@@ -763,6 +854,12 @@ void calib_camera_t::solve() {
 
   // Show results
   show_results();
+}
+
+void calib_camera_t::solve_incremental() {
+  // Setup
+  _initialize_intrinsics();
+  _initialize_extrinsics();
 }
 
 void calib_camera_t::show_results() {

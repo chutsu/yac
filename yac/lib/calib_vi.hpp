@@ -266,9 +266,9 @@ struct calib_vi_t {
   CamIdx2Geometry cam_geoms;
   CamIdx2Parameters cam_params;
   CamIdx2Extrinsics cam_exts;
-  extrinsics_t *imu_exts;
-  fiducial_t *fiducial;
-  time_delay_t *time_delay;
+  extrinsics_t *imu_exts = nullptr;
+  fiducial_t *fiducial = nullptr;
+  time_delay_t *time_delay = nullptr;
 
   // Data
   bool initialized = false;
@@ -281,7 +281,7 @@ struct calib_vi_t {
 
   // Optimization
   ceres::Problem::Options prob_options;
-  ceres::Problem *problem;
+  ceres::Problem *problem = nullptr;
   PoseLocalParameterization pose_plus;
   std::deque<calib_vi_view_t> calib_views;
 

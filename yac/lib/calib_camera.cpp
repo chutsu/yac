@@ -297,13 +297,14 @@ bool reproj_error_t::Evaluate(double const *const *params,
 // CALIB VIEW //////////////////////////////////////////////////////////////////
 
 calib_view_t::calib_view_t(ceres::Problem *problem_,
+                           ceres::LossFunction *loss_,
                            camera_geometry_t *cam_geom_,
                            camera_params_t *cam_params_,
                            pose_t *T_BCi_,
                            pose_t *T_C0F_,
                            const aprilgrid_t &grid_,
                            const mat2_t &covar_)
-    : problem{problem_}, grid{grid_}, cam_geom{cam_geom_},
+    : problem{problem_}, loss{loss_}, grid{grid_}, cam_geom{cam_geom_},
       cam_params{cam_params_}, T_BCi{T_BCi_}, T_C0F{T_C0F_}, covar{covar_} {
   // Get AprilGrid measurements
   std::vector<int> tag_ids;
@@ -328,8 +329,7 @@ calib_view_t::calib_view_t(ceres::Problem *problem_,
                                                    z,
                                                    covar);
     auto res_id = problem->AddResidualBlock(res_fn.get(),
-                                            // &loss,
-                                            nullptr,
+                                            loss,
                                             T_C0F->data(),
                                             T_BCi->data(),
                                             cam_params->data());
@@ -407,16 +407,23 @@ int calib_view_t::filter_view(const real_t outlier_threshold) {
 // CALIB VIEWS /////////////////////////////////////////////////////////////////
 
 calib_views_t::calib_views_t(ceres::Problem *problem_,
+                             ceres::LossFunction *loss_,
                              camera_geometry_t *cam_geom_,
                              camera_params_t *cam_params_,
                              pose_t *cam_exts_)
-    : problem{problem_}, cam_geom{cam_geom_},
+    : problem{problem_}, loss{loss_}, cam_geom{cam_geom_},
       cam_params{cam_params_}, cam_exts{cam_exts_} {}
 
 size_t calib_views_t::nb_views() const { return views.size(); }
 
 void calib_views_t::add_view(const aprilgrid_t &grid, pose_t *rel_pose) {
-  views.emplace_back(problem, cam_geom, cam_params, cam_exts, rel_pose, grid);
+  views.emplace_back(problem,
+                     loss,
+                     cam_geom,
+                     cam_params,
+                     cam_exts,
+                     rel_pose,
+                     grid);
 }
 
 std::vector<real_t> calib_views_t::get_reproj_errors() const {
@@ -442,6 +449,7 @@ void initialize_camera(const aprilgrids_t &grids,
   prob_options.enable_fast_removal = true;
 
   // Problem
+  ceres::CauchyLoss loss = ceres::CauchyLoss(0.5);
   ceres::Problem problem{prob_options};
   PoseLocalParameterization pose_plus;
 
@@ -459,7 +467,7 @@ void initialize_camera(const aprilgrids_t &grids,
   std::map<timestamp_t, pose_t> poses;
 
   // Build problem
-  calib_views_t calib_views{&problem, cam_geom, cam_params, &cam_exts};
+  calib_views_t calib_views{&problem, &loss, cam_geom, cam_params, &cam_exts};
 
   for (auto grid : grids) {
     const auto ts = grid.timestamp;
@@ -519,8 +527,10 @@ void initialize_camera(const aprilgrids_t &grids,
 calib_camera_t::calib_camera_t() {
   prob_options.local_parameterization_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
   prob_options.cost_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
+  prob_options.loss_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
   prob_options.enable_fast_removal = true;
   problem = new ceres::Problem(prob_options);
+  loss = new ceres::HuberLoss(2.0);
 }
 
 calib_camera_t::~calib_camera_t() {
@@ -537,6 +547,10 @@ calib_camera_t::~calib_camera_t() {
   for (auto &[ts, pose] : poses) {
     UNUSED(ts);
     delete pose;
+  }
+
+  if (loss) {
+    delete loss;
   }
 
   if (problem) {
@@ -664,6 +678,7 @@ void calib_camera_t::add_pose(const int cam_idx,
 
 void calib_camera_t::add_view(const aprilgrid_t &grid,
                               ceres::Problem *problem,
+                              ceres::LossFunction *loss,
                               int cam_idx,
                               camera_geometry_t *cam_geom,
                               camera_params_t *cam_params,
@@ -671,6 +686,7 @@ void calib_camera_t::add_view(const aprilgrid_t &grid,
                               pose_t *rel_pose) {
   const timestamp_t ts = grid.timestamp;
   calib_views[cam_idx][ts] = std::make_unique<calib_view_t>(problem,
+                                                            loss,
                                                             cam_geom,
                                                             cam_params,
                                                             cam_exts,
@@ -723,6 +739,7 @@ void calib_camera_t::_setup_problem() {
       // Add calibration view
       add_view(grid,
                problem,
+               loss,
                cam_idx,
                cam_geoms[cam_idx],
                cam_params[cam_idx],

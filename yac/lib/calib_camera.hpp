@@ -90,8 +90,8 @@ struct reproj_error_t : public ceres::CostFunction {
 
 struct calib_view_t {
   // Problem
-  ceres::Problem *problem;
-  ceres::CauchyLoss loss = ceres::CauchyLoss(1.0);
+  ceres::Problem *problem = nullptr;
+  ceres::LossFunction *loss = nullptr;
   std::deque<std::shared_ptr<reproj_error_t>> res_fns;
   std::deque<ceres::ResidualBlockId> res_ids;
 
@@ -99,13 +99,14 @@ struct calib_view_t {
   const aprilgrid_t grid;
 
   // Parameters
-  camera_geometry_t *cam_geom;
-  camera_params_t *cam_params;
-  pose_t *T_BCi;
-  pose_t *T_C0F;
+  camera_geometry_t *cam_geom = nullptr;
+  camera_params_t *cam_params = nullptr;
+  pose_t *T_BCi = nullptr;
+  pose_t *T_C0F = nullptr;
   mat2_t covar;
 
   calib_view_t(ceres::Problem *problem_,
+               ceres::LossFunction *loss_,
                camera_geometry_t *cam_geom_,
                camera_params_t *cam_params_,
                pose_t *T_BCi_,
@@ -123,13 +124,15 @@ struct calib_view_t {
 struct calib_views_t {
   std::deque<calib_view_t> views;
 
-  ceres::Problem *problem;
-  camera_geometry_t *cam_geom;
-  camera_params_t *cam_params;
-  pose_t *cam_exts;
+  ceres::Problem *problem = nullptr;
+  ceres::LossFunction *loss = nullptr;
+  camera_geometry_t *cam_geom = nullptr;
+  camera_params_t *cam_params = nullptr;
+  pose_t *cam_exts = nullptr;
 
   /** Constructor */
   calib_views_t(ceres::Problem *problem_,
+                ceres::LossFunction *loss_,
                 camera_geometry_t *cam_geom_,
                 camera_params_t *cam_params_,
                 pose_t *cam_exts_);
@@ -153,12 +156,13 @@ void initialize_camera(const aprilgrids_t &grids,
 /** Camera Calibrator **/
 struct calib_camera_t {
   // Settings
-  bool enable_outlier_rejection = false;
+  bool enable_outlier_rejection = true;
   real_t outlier_threshold = 3.0;
 
   // Problem
   ceres::Problem::Options prob_options;
-  ceres::Problem *problem;
+  ceres::Problem *problem = nullptr;
+  ceres::LossFunction *loss = nullptr;
   PoseLocalParameterization pose_plus;
 
   // State variables
@@ -202,6 +206,7 @@ struct calib_camera_t {
                 const bool fixed = false);
   void add_view(const aprilgrid_t &grid,
                 ceres::Problem *problem,
+                ceres::LossFunction *loss,
                 int cam_idx,
                 camera_geometry_t *cam_geom,
                 camera_params_t *cam_params,

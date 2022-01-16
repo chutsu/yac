@@ -125,6 +125,7 @@ int test_reproj_error() {
 
 int test_calib_view() {
   ceres::Problem problem;
+  ceres::CauchyLoss loss(1.0);
   auto grid = test_data.grids0[0];
   auto cam0 = test_data.cam0;
   const mat4_t T_C0F = I(4);
@@ -133,7 +134,7 @@ int test_calib_view() {
   pose_t rel_pose{0, T_C0F};
   pinhole_radtan4_t cam_geom;
 
-  calib_view_t(&problem, &cam_geom, &cam0, &extrinsics, &rel_pose, grid);
+  calib_view_t(&problem, &loss, &cam_geom, &cam0, &extrinsics, &rel_pose, grid);
 
   return 0;
 }

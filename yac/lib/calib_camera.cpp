@@ -170,7 +170,7 @@ reproj_error_t::reproj_error_t(const camera_geometry_t *cam_geom_,
                                const vec2_t &z_,
                                const mat2_t &covar_)
     : cam_geom{cam_geom_},
-      cam_params{cam_params_}, T_BCi{T_BCi}, T_C0F{T_C0F_}, tag_id{tag_id_},
+      cam_params{cam_params_}, T_BCi{T_BCi_}, T_C0F{T_C0F_}, tag_id{tag_id_},
       corner_idx{corner_idx_}, r_FFi{r_FFi_}, z{z_}, covar{covar_},
       info{covar.inverse()}, sqrt_info{info.llt().matrixL().transpose()} {
   set_num_residuals(2);
@@ -181,9 +181,12 @@ reproj_error_t::reproj_error_t(const camera_geometry_t *cam_geom_,
 }
 
 int reproj_error_t::get_residual(vec2_t &r) const {
+  assert(T_BCi != nullptr);
+  assert(T_C0F != nullptr);
+
   // Map parameters out
-  const mat4_t T_C0F_ = T_C0F->tf();
   const mat4_t T_C0Ci_ = T_BCi->tf();
+  const mat4_t T_C0F_ = T_C0F->tf();
 
   // Transform and project point to image plane
   // -- Transform point from fiducial frame to camera-n
@@ -365,6 +368,7 @@ int calib_view_t::filter_view(const real_t outlier_threshold) {
   const auto error_stddev = stddev(reproj_errors);
   const auto threshold = outlier_threshold * error_stddev;
 
+  // Filter
   int nb_inliers = 0;
   int nb_outliers = 0;
   auto res_fns_it = res_fns.begin();
@@ -715,6 +719,18 @@ void calib_camera_t::_setup_problem() {
   }
 }
 
+void calib_camera_t::_filter_views() {
+  int nb_outliers = 0;
+  for (auto &[cam_idx, cam_views] : calib_views) {
+    for (auto &[ts, view] : cam_views) {
+      UNUSED(ts);
+      nb_outliers += view->filter_view(outlier_threshold);
+    }
+  }
+
+  printf("nb_outliers: %d\n", nb_outliers);
+}
+
 void calib_camera_t::solve() {
   // Setup
   _initialize_intrinsics();
@@ -732,6 +748,71 @@ void calib_camera_t::solve() {
   std::cout << std::endl;
   std::cout << summary.BriefReport() << std::endl;
   std::cout << std::endl;
+
+  // Filter views
+  if (enable_outlier_rejection) {
+    _filter_views();
+
+    // Solve again - second pass
+    ceres::Solver::Summary summary;
+    ceres::Solve(options, problem, &summary);
+    std::cout << std::endl;
+    std::cout << summary.BriefReport() << std::endl;
+    std::cout << std::endl;
+  }
+
+  // Show results
+  show_results();
+}
+
+void calib_camera_t::show_results() {
+  // Show results
+  printf("Optimization results:\n");
+  printf("---------------------\n");
+
+  // Stats - Reprojection Errors
+  std::vector<real_t> reproj_errors_all;
+  std::map<int, std::vector<real_t>> reproj_errors_cams;
+  for (auto &[cam_idx, cam_views] : calib_views) {
+    for (auto &[ts, view] : cam_views) {
+      UNUSED(ts);
+      const auto view_reproj_errors = view->get_reproj_errors();
+      extend(reproj_errors_all, view_reproj_errors);
+      extend(reproj_errors_cams[cam_idx], view_reproj_errors);
+    }
+  }
+  // -- Print total reprojection error
+  printf("Total reprojection error:\n");
+  printf("  rmse:   %.4f # px\n", rmse(reproj_errors_all));
+  printf("  mean:   %.4f # px\n", mean(reproj_errors_all));
+  printf("  median: %.4f # px\n", median(reproj_errors_all));
+  printf("  stddev: %.4f # px\n", stddev(reproj_errors_all));
+  printf("\n");
+  // -- Print camera reprojection error
+  for (const auto &[cam_idx, cam_errors] : reproj_errors_cams) {
+    printf("cam[%d] reprojection error:\n", cam_idx);
+    printf("  rmse:   %.4f # px\n", rmse(cam_errors));
+    printf("  mean:   %.4f # px\n", mean(cam_errors));
+    printf("  median: %.4f # px\n", median(cam_errors));
+    printf("  stddev: %.4f # px\n", stddev(cam_errors));
+    printf("\n");
+  }
+  printf("\n");
+
+  // Cameras
+  for (int cam_idx = 0; cam_idx < nb_cams(); cam_idx++) {
+    printf("cam%d:\n", cam_idx);
+    print_vector("  proj_params", cam_params[cam_idx]->proj_params());
+    print_vector("  dist_params", cam_params[cam_idx]->dist_params());
+    printf("\n");
+  }
+
+  // Camera Extrinsics
+  for (int cam_idx = 1; cam_idx < nb_cams(); cam_idx++) {
+    const auto key = "T_C0C" + std::to_string(cam_idx);
+    const mat4_t T_C0Ci = get_camera_extrinsics(cam_idx);
+    print_matrix(key, T_C0Ci, "  ");
+  }
 }
 
 } //  namespace yac

@@ -164,9 +164,9 @@ int test_calib_camera() {
 }
 
 void test_suite() {
-  MU_ADD_TEST(test_reproj_error);
-  MU_ADD_TEST(test_calib_view);
-  MU_ADD_TEST(test_initialize_camera);
+  // MU_ADD_TEST(test_reproj_error);
+  // MU_ADD_TEST(test_calib_view);
+  // MU_ADD_TEST(test_initialize_camera);
   MU_ADD_TEST(test_calib_camera);
 }
 

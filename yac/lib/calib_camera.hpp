@@ -48,10 +48,10 @@ struct reproj_error_t : public ceres::CostFunction {
 
   // Data
   // -- Camera
-  const camera_geometry_t *cam_geom;
-  const camera_params_t *cam_params;
-  const pose_t *T_BCi;
-  const pose_t *T_C0F;
+  const camera_geometry_t *cam_geom = nullptr;
+  const camera_params_t *cam_params = nullptr;
+  const pose_t *T_BCi = nullptr;
+  const pose_t *T_C0F = nullptr;
   // -- Fiducial target
   const int tag_id;
   const int corner_idx;
@@ -141,8 +141,7 @@ struct calib_views_t {
 // CALIBRATOR //////////////////////////////////////////////////////////////////
 
 /**
- * Initialize camera intrinsics using AprilGrids `grids` observed by the
- camera,
+ * Initialize camera intrinsics using AprilGrids `grids` observed by the camera,
  * the camera geometry `cam_geom`, and camera parameters `cam_params`.
  */
 void initialize_camera(const aprilgrids_t &grids,
@@ -152,6 +151,10 @@ void initialize_camera(const aprilgrids_t &grids,
 
 /** Camera Calibrator **/
 struct calib_camera_t {
+  // Settings
+  bool enable_outlier_rejection = false;
+  real_t outlier_threshold = 3.0;
+
   // Problem
   ceres::Problem::Options prob_options;
   ceres::Problem *problem;
@@ -207,7 +210,9 @@ struct calib_camera_t {
   void _initialize_intrinsics();
   void _initialize_extrinsics();
   void _setup_problem();
+  void _filter_views();
   void solve();
+  void show_results();
 };
 
 } //  namespace yac

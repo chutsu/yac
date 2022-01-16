@@ -149,6 +149,15 @@ typedef std::vector<timestamp_t> timestamps_t;
  *                                MACROS
  *****************************************************************************/
 
+#define KNRM "\x1B[1;0m"
+#define KRED "\x1B[1;31m"
+#define KGRN "\x1B[1;32m"
+#define KYEL "\x1B[1;33m"
+#define KBLU "\x1B[1;34m"
+#define KMAG "\x1B[1;35m"
+#define KCYN "\x1B[1;36m"
+#define KWHT "\x1B[1;37m"
+
 #define __FILENAME__                                                           \
   (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 
@@ -299,7 +308,9 @@ void print_vector(const std::string &name, const vecx_t &v);
 /**
  * Print matrix `m` with a `name`.
  */
-void print_matrix(const std::string &name, const matx_t &m);
+void print_matrix(const std::string &name,
+                  const matx_t &m,
+                  const std::string &indent = "");
 
 /**
  * Print quaternion `q` with a `name`.

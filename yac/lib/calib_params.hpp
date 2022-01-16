@@ -69,7 +69,7 @@ struct pose_t : param_t {
   virtual void perturb(const int i, const real_t step_size);
 };
 
-#define FIDUCIAL_PARAMS_SIZE 7
+#define FIDUCIAL_PARAMS_SIZE 2
 
 #if FIDUCIAL_PARAMS_SIZE == 2 || FIDUCIAL_PARAMS_SIZE == 3
 struct fiducial_t : param_t {
@@ -81,7 +81,7 @@ public:
   void minus(const vecx_t &dx) override;
   void perturb(const int i, const real_t step_size) override;
   void update();
-  mat4_t estimate() const;
+  mat4_t estimate();
 
 private:
   mat4_t T_WF;
@@ -94,7 +94,7 @@ public:
   fiducial_t();
   fiducial_t(const mat4_t &T_WF_, const bool fixed_ = false);
 
-  mat4_t estimate() const;
+  mat4_t estimate();
 };
 #endif
 

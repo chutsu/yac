@@ -66,9 +66,12 @@ void print_vector(const std::string &name, const vecx_t &v) {
   printf("\n");
 }
 
-void print_matrix(const std::string &name, const matx_t &m) {
+void print_matrix(const std::string &name,
+                  const matx_t &m,
+                  const std::string &indent) {
   printf("%s:\n", name.c_str());
   for (long i = 0; i < m.rows(); i++) {
+    printf("%s", indent.c_str());
     for (long j = 0; j < m.cols(); j++) {
       printf("%f", m(i, j));
       if ((j + 1) != m.cols()) {
@@ -103,7 +106,7 @@ void array2vec(const real_t *x, const size_t size, vecx_t y) {
 }
 
 real_t *vec2array(const vecx_t &v) {
-  real_t *array = (real_t *) malloc(sizeof(real_t) * v.size());
+  real_t *array = (real_t *)malloc(sizeof(real_t) * v.size());
   for (int i = 0; i < v.size(); i++) {
     array[i] = v(i);
   }
@@ -111,7 +114,7 @@ real_t *vec2array(const vecx_t &v) {
 }
 
 real_t *mat2array(const matx_t &m) {
-  real_t *array = (real_t *) malloc(sizeof(real_t) * m.size());
+  real_t *array = (real_t *)malloc(sizeof(real_t) * m.size());
 
   int index = 0;
   for (int i = 0; i < m.rows(); i++) {
@@ -124,7 +127,7 @@ real_t *mat2array(const matx_t &m) {
 }
 
 real_t *quat2array(const quat_t &q) {
-  real_t *array = (real_t *) malloc(sizeof(real_t) * 4);
+  real_t *array = (real_t *)malloc(sizeof(real_t) * 4);
 
   array[0] = q.x();
   array[1] = q.y();
@@ -419,9 +422,9 @@ matx_t pinv(const matx_t &A, const real_t tol) {
 
   for (unsigned int i = 0; i < vals_.size(); ++i) {
     if (vals_(i) > tol) {
-      vals_inv(i, i) = ((real_t) 1.0) / vals_(i);
+      vals_inv(i, i) = ((real_t)1.0) / vals_(i);
     } else {
-      vals_inv(i, i) = ((real_t) 0);
+      vals_inv(i, i) = ((real_t)0);
     }
   }
 
@@ -441,9 +444,8 @@ bool full_rank(const matx_t &A) {
   return true;
 }
 
-int schurs_complement(matx_t &H, vecx_t &b,
-                      const size_t m, const size_t r,
-                      const bool precond) {
+int schurs_complement(
+    matx_t &H, vecx_t &b, const size_t m, const size_t r, const bool precond) {
   assert(m > 0 && r > 0);
   assert(H.isZero() == false);
 
@@ -677,11 +679,15 @@ void fit_circle(const vec2s_t &points, double &cx, double &cy, double &radius) {
   // Results
   cx = x(0);
   cy = x(1);
-  radius= sqrt((cx * cx) + (cy * cy) - x(2));
+  radius = sqrt((cx * cx) + (cy * cy) - x(2));
 }
 
-vec2s_t intersect_circles(const double cx0, const double cy0, const double r0,
-                          const double cx1, const double cy1, const double r1) {
+vec2s_t intersect_circles(const double cx0,
+                          const double cy0,
+                          const double r0,
+                          const double cx1,
+                          const double cy1,
+                          const double r1) {
   vec2s_t ipts;
 
   // Check if circles are separate
@@ -781,7 +787,7 @@ mat3_t Jr(const vec3_t &psi) {
 
   mat3_t J = I(3);
   J -= ((1 - cos(psi_norm)) / psi_norm_sq) * psi_skew;
-  J += (psi_norm - sin(psi_norm)) / (psi_norm_cube) * psi_skew_sq;
+  J += (psi_norm - sin(psi_norm)) / (psi_norm_cube)*psi_skew_sq;
   return J;
 }
 
@@ -794,7 +800,7 @@ mat3_t Jr(const vec3_t &psi) {
 int randi(int ub, int lb) { return rand() % lb + ub; }
 
 real_t randf(const real_t ub, const real_t lb) {
-  const real_t f = (real_t) rand() / RAND_MAX;
+  const real_t f = (real_t)rand() / RAND_MAX;
   return lb + f * (ub - lb);
 }
 
@@ -873,9 +879,7 @@ vec3_t var(const vec3s_t &vecs) {
   return vec3_t{var(x), var(y), var(z)};
 }
 
-real_t stddev(const std::vector<real_t> &x) {
-  return sqrt(var(x));
-}
+real_t stddev(const std::vector<real_t> &x) { return sqrt(var(x)); }
 
 real_t rmse(const std::vector<real_t> &residuals) {
   real_t sse = 0.0;
@@ -911,8 +915,8 @@ real_t gauss_normal() {
 
   if (phase == 0) {
     do {
-      real_t U1 = (real_t) rand() / RAND_MAX;
-      real_t U2 = (real_t) rand() / RAND_MAX;
+      real_t U1 = (real_t)rand() / RAND_MAX;
+      real_t U2 = (real_t)rand() / RAND_MAX;
 
       V1 = 2 * U1 - 1;
       V2 = 2 * U2 - 1;
@@ -1277,9 +1281,7 @@ mat3_t quat_rmul_xyz(const quat_t &q) {
   return Q.bottomRightCorner<3, 3>();
 }
 
-mat3_t quat_mat_xyz(const mat4_t &Q) {
-  return Q.bottomRightCorner<3, 3>();
-}
+mat3_t quat_mat_xyz(const mat4_t &Q) { return Q.bottomRightCorner<3, 3>(); }
 
 mat3_t add_noise(const mat3_t &rot, const real_t n) {
   const vec3_t rpy_n{randf(-n, n), randf(-n, n), randf(-n, n)};
@@ -1331,7 +1333,10 @@ void imu_init_attitude(const vec3s_t w_m,
 
 void timestamp_print(const timestamp_t &ts, const std::string &prefix) {
   if (prefix != "") {
-    printf("%s: " "%" PRIu64 "\n", prefix.c_str(), ts);
+    printf("%s: "
+           "%" PRIu64 "\n",
+           prefix.c_str(),
+           ts);
   } else {
     printf("%" PRIu64 "\n", ts);
   }
@@ -1365,7 +1370,7 @@ float mtoc(struct timespec *tic) { return toc(tic) * 1000.0; }
 real_t time_now() {
   struct timeval t;
   gettimeofday(&t, NULL);
-  return ((real_t) t.tv_sec + ((real_t) t.tv_usec) / 1000000.0);
+  return ((real_t)t.tv_sec + ((real_t)t.tv_usec) / 1000000.0);
 }
 
 /*****************************************************************************
@@ -1532,7 +1537,6 @@ void closest_poses(const timestamps_t &timestamps,
     }
   }
 }
-
 
 std::deque<timestamp_t> lerp_timestamps(const std::deque<timestamp_t> &t0,
                                         const std::deque<timestamp_t> &t1) {
@@ -1905,7 +1909,7 @@ void sim_imu_measurement(sim_imu_t &imu,
 
   // Compute accel measurement
   const vec3_t g{0.0, 0.0, imu.g}; // Gravity vector
-  const vec3_t w_a = mvn(rndeng);   // Accel white noise
+  const vec3_t w_a = mvn(rndeng);  // Accel white noise
   a_WS_S = C_SW * (a_WS_W + g) + imu.b_a + w_a * imu.sigma_a_c * sqrt(dt);
 
   imu.ts_prev = ts;
@@ -2053,10 +2057,10 @@ void sim_imu_measurement(sim_imu_t &imu,
 //                     const real_t alpha) {
 //   // clang-format off
 //   mat4_t T;
-//   T << cos(theta), -sin(theta) * cos(alpha), sin(theta) * sin(alpha), a * cos(theta),
-//        sin(theta), cos(theta) * cos(alpha), -cos(theta) * sin(alpha), a * sin(theta),
-//        0.0, sin(alpha), cos(alpha), d,
-//        0.0, 0.0, 0.0, 1.0;
+//   T << cos(theta), -sin(theta) * cos(alpha), sin(theta) * sin(alpha), a *
+//   cos(theta),
+//        sin(theta), cos(theta) * cos(alpha), -cos(theta) * sin(alpha), a *
+//        sin(theta), 0.0, sin(alpha), cos(alpha), d, 0.0, 0.0, 0.0, 1.0;
 //   // clang-format on
 //
 //   return T;
@@ -2205,18 +2209,20 @@ void sim_imu_measurement(sim_imu_t &imu,
 //
 //   // update
 //   // clang-format off
-//   model.attitude(0) = ph + (p + q * sin(ph) * tan(th) + r * cos(ph) * tan(th)) * dt;
-//   model.attitude(1) = th + (q * cos(ph) - r * sin(ph)) * dt;
-//   model.attitude(2) = ps + ((1 / cos(th)) * (q * sin(ph) + r * cos(ph))) * dt;
-//   model.angular_velocity(0) = p + (-((Iz - Iy) / Ix) * q * r - (kr * p / Ix) + (1 / Ix) * taup) * dt;
-//   model.angular_velocity(1) = q + (-((Ix - Iz) / Iy) * p * r - (kr * q / Iy) + (1 / Iy) * tauq) * dt;
-//   model.angular_velocity(2) = r + (-((Iy - Ix) / Iz) * p * q - (kr * r / Iz) + (1 / Iz) * taur) * dt;
-//   model.position(0) = x + vx * dt;
-//   model.position(1) = y + vy * dt;
-//   model.position(2) = z + vz * dt;
-//   model.linear_velocity(0) = vx + ((-kt * vx / m) + (1 / m) * (cos(ph) * sin(th) * cos(ps) + sin(ph) * sin(ps)) * tauf) * dt;
-//   model.linear_velocity(1) = vy + ((-kt * vy / m) + (1 / m) * (cos(ph) * sin(th) * sin(ps) - sin(ph) * cos(ps)) * tauf) * dt;
-//   model.linear_velocity(2) = vz + (-(kt * vz / m) + (1 / m) * (cos(ph) * cos(th)) * tauf - g) * dt;
+//   model.attitude(0) = ph + (p + q * sin(ph) * tan(th) + r * cos(ph) *
+//   tan(th)) * dt; model.attitude(1) = th + (q * cos(ph) - r * sin(ph)) * dt;
+//   model.attitude(2) = ps + ((1 / cos(th)) * (q * sin(ph) + r * cos(ph))) *
+//   dt; model.angular_velocity(0) = p + (-((Iz - Iy) / Ix) * q * r - (kr * p /
+//   Ix) + (1 / Ix) * taup) * dt; model.angular_velocity(1) = q + (-((Ix - Iz) /
+//   Iy) * p * r - (kr * q / Iy) + (1 / Iy) * tauq) * dt;
+//   model.angular_velocity(2) = r + (-((Iy - Ix) / Iz) * p * q - (kr * r / Iz)
+//   + (1 / Iz) * taur) * dt; model.position(0) = x + vx * dt; model.position(1)
+//   = y + vy * dt; model.position(2) = z + vz * dt; model.linear_velocity(0) =
+//   vx + ((-kt * vx / m) + (1 / m) * (cos(ph) * sin(th) * cos(ps) + sin(ph) *
+//   sin(ps)) * tauf) * dt; model.linear_velocity(1) = vy + ((-kt * vy / m) + (1
+//   / m) * (cos(ph) * sin(th) * sin(ps) - sin(ph) * cos(ps)) * tauf) * dt;
+//   model.linear_velocity(2) = vz + (-(kt * vz / m) + (1 / m) * (cos(ph) *
+//   cos(th)) * tauf - g) * dt;
 //   // clang-format on
 //
 //   // constrain yaw to be [-180, 180]

@@ -64,8 +64,8 @@ static std::string test_target = "";
              KNRM);                                                            \
       printf("%sReason: %f != %f%s\n",                                         \
              KRED,                                                             \
-             (float) expected,                                                 \
-             (float) actual,                                                   \
+             (float)expected,                                                  \
+             (float)actual,                                                    \
              KNRM);                                                            \
       return -1;                                                               \
     }                                                                          \

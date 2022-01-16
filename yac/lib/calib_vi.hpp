@@ -16,7 +16,18 @@
 
 namespace yac {
 
-using CameraGrids = std::map<int, aprilgrid_t>;
+// Forward declaration
+struct fiducial_error_t;
+
+// Typedefs
+// clang-format off
+using CamIdx2Grids = std::map<int, aprilgrid_t>;
+using CamIdx2Geometry = std::map<int, camera_geometry_t *>;
+using CamIdx2Parameters = std::map<int, camera_params_t *>;
+using CamIdx2Extrinsics = std::map<int, extrinsics_t *>;
+using CamIdx2FiducialErrors = std::map<int, std::deque<std::unique_ptr<fiducial_error_t>>>;
+using CamIdx2FiducialErrorIds = std::map<int, std::deque<ceres::ResidualBlockId>>;
+// clang-format on
 
 // POSE ERROR //////////////////////////////////////////////////////////////////
 
@@ -41,12 +52,12 @@ struct fiducial_error_t : public ceres::CostFunction {
 
   const timestamp_t ts_ = 0;
 
-  const camera_geometry_t *cam_geom_;
-  const camera_params_t *cam_params_;
-  const extrinsics_t *cam_exts_;
-  const extrinsics_t *imu_exts_;
-  const fiducial_t *fiducial_;
-  const pose_t *pose_;
+  camera_geometry_t *cam_geom_;
+  camera_params_t *cam_params_;
+  extrinsics_t *cam_exts_;
+  extrinsics_t *imu_exts_;
+  fiducial_t *fiducial_;
+  pose_t *pose_;
 
   const int tag_id_ = -1;
   const int corner_idx_ = -1;
@@ -59,12 +70,12 @@ struct fiducial_error_t : public ceres::CostFunction {
   const mat2_t sqrt_info_;
 
   fiducial_error_t(const timestamp_t &ts,
-                   const camera_geometry_t *cam_geom,
-                   const camera_params_t *cam_params,
-                   const extrinsics_t *cam_exts,
-                   const extrinsics_t *imu_exts,
-                   const fiducial_t *fiducial,
-                   const pose_t *pose,
+                   camera_geometry_t *cam_geom,
+                   camera_params_t *cam_params,
+                   extrinsics_t *cam_exts,
+                   extrinsics_t *imu_exts,
+                   fiducial_t *fiducial,
+                   pose_t *pose,
                    const int tag_id,
                    const int corner_idx,
                    const vec3_t &r_FFi,
@@ -75,56 +86,6 @@ struct fiducial_error_t : public ceres::CostFunction {
 
   int get_residual(vec2_t &r) const;
   int get_reproj_error(real_t &error) const;
-  bool Evaluate(double const *const *params,
-                double *residuals,
-                double **jacobians) const;
-};
-
-// FIDUCIAL WITH TIME DELAY ERROR //////////////////////////////////////////////
-
-#if FIDUCIAL_PARAMS_SIZE == 2
-struct fiducial_td_error_t
-    : public ceres::SizedCostFunction<2, 2, 7, 7, 7, 8, 1> {
-#elif FIDUCIAL_PARAMS_SIZE == 3
-struct fiducial_td_error_t
-    : public ceres::SizedCostFunction<2, 3, 7, 7, 7, 8, 1> {
-#elif FIDUCIAL_PARAMS_SIZE == 7
-struct fiducial_td_error_t
-    : public ceres::SizedCostFunction<2, 7, 7, 7, 7, 8, 1> {
-#endif
-  EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
-
-  const timestamp_t ts_i_ = 0;
-  const timestamp_t ts_j_ = 0;
-  const camera_geometry_t *cam_geom_;
-  const int cam_idx_;
-  const int cam_res_[2] = {0, 0};
-  const int tag_id_ = -1;
-  const int corner_idx_ = -1;
-  const vec3_t r_FFi_{0.0, 0.0, 0.0};
-  const vec2_t z_i_{0.0, 0.0};
-  const vec2_t z_j_{0.0, 0.0};
-  const vec2_t v_ij_{0.0, 0.0}; // pixel velocity: (z_j - z_i) / dt
-  const mat4_t T_WF_ = I(4);
-
-  const mat2_t covar_;
-  const mat2_t info_;
-  const mat2_t sqrt_info_;
-
-  fiducial_td_error_t(const timestamp_t &ts_i,
-                      const timestamp_t &ts_j,
-                      const camera_geometry_t *cam_geom,
-                      const int cam_idx,
-                      const int cam_res[2],
-                      const int tag_id,
-                      const int corner_idx,
-                      const vec3_t &r_FFi,
-                      const vec2_t &z_i,
-                      const vec2_t &z_j,
-                      const mat4_t &T_WF,
-                      const mat2_t &covar);
-  ~fiducial_td_error_t() = default;
-
   bool Evaluate(double const *const *params,
                 double *residuals,
                 double **jacobians) const;
@@ -240,16 +201,16 @@ protected:
 struct calib_vi_view_t {
   // Data
   timestamp_t ts;
-  CameraGrids grids;
+  CamIdx2Grids grids;
 
   // Parameters (internal)
   pose_t pose;
   sb_params_t sb;
 
   // Parameters (external)
-  std::map<int, camera_geometry_t *> &cam_geoms;
-  std::map<int, camera_params_t *> &cam_params;
-  std::map<int, extrinsics_t *> &cam_exts;
+  CamIdx2Geometry &cam_geoms;
+  CamIdx2Parameters &cam_params;
+  CamIdx2Extrinsics &cam_exts;
   extrinsics_t *imu_exts = nullptr;
   fiducial_t *fiducial = nullptr;
   PoseLocalParameterization *pose_plus = nullptr;
@@ -257,8 +218,8 @@ struct calib_vi_view_t {
   // Problem
   ceres::Problem *problem = nullptr;
   // -- Fiducial errors
-  std::map<int, std::deque<ceres::ResidualBlockId>> fiducial_error_ids;
-  std::map<int, std::deque<fiducial_error_t>> fiducial_errors;
+  CamIdx2FiducialErrorIds fiducial_error_ids;
+  CamIdx2FiducialErrors fiducial_errors;
   // -- Imu error
   ceres::ResidualBlockId imu_error_id;
   std::unique_ptr<ImuError> imu_error;
@@ -266,12 +227,12 @@ struct calib_vi_view_t {
   calib_vi_view_t() = default;
   calib_vi_view_t(const timestamp_t ts_,
                   ceres::Problem *problem_,
-                  const CameraGrids &grids_,
+                  const CamIdx2Grids &grids_,
                   const mat4_t &T_WS,
                   const vec_t<9> &sb,
-                  std::map<int, camera_geometry_t *> &cam_geoms_,
-                  std::map<int, camera_params_t *> &cam_params_,
-                  std::map<int, extrinsics_t *> &cam_exts_,
+                  CamIdx2Geometry &cam_geoms_,
+                  CamIdx2Parameters &cam_params_,
+                  CamIdx2Extrinsics &cam_exts_,
                   extrinsics_t *imu_exts_,
                   fiducial_t *fiducial_,
                   PoseLocalParameterization *pose_plus);
@@ -281,6 +242,7 @@ struct calib_vi_view_t {
   std::vector<real_t> get_reproj_errors(const int cam_idx) const;
   std::map<int, std::vector<real_t>> get_reproj_errors() const;
   std::vector<real_t> get_imu_errors() const;
+  int filter_view();
   void form_imu_error(const imu_params_t &imu_params,
                       const imu_data_t &imu_buf,
                       pose_t *pose_j,
@@ -294,16 +256,16 @@ struct calib_vi_t {
   bool verbose = true;
   double sigma_vision = 1.0;
   int batch_max_iter = 30;
-  bool enable_outlier_rejection = true;
+  bool enable_outlier_rejection = false;
 
   // Camera geometries
   pinhole_radtan4_t pinhole_radtan4;
   pinhole_equi4_t pinhole_equi4;
 
   // State-Variables
-  std::map<int, camera_geometry_t *> cam_geoms;
-  std::map<int, camera_params_t *> cam_params;
-  std::map<int, extrinsics_t *> cam_exts;
+  CamIdx2Geometry cam_geoms;
+  CamIdx2Parameters cam_params;
+  CamIdx2Extrinsics cam_exts;
   extrinsics_t *imu_exts;
   fiducial_t *fiducial;
   time_delay_t *time_delay;
@@ -312,7 +274,7 @@ struct calib_vi_t {
   bool initialized = false;
   // -- Vision data
   std::map<int, std::deque<aprilgrid_t>> grid_buf;
-  CameraGrids prev_grids;
+  CamIdx2Grids prev_grids;
   // -- Imu data
   imu_params_t imu_params;
   imu_data_t imu_buf;
@@ -350,25 +312,19 @@ struct calib_vi_t {
   mat4_t get_fiducial_pose() const;
   std::map<int, std::vector<real_t>> get_reproj_errors() const;
 
-  mat4_t estimate_sensor_pose(const CameraGrids &grids);
-  void initialize(const CameraGrids &grids, imu_data_t &imu_buf);
-  void add_view(const CameraGrids &grids);
+  mat4_t estimate_sensor_pose(const CamIdx2Grids &grids);
+  void initialize(const CamIdx2Grids &grids, imu_data_t &imu_buf);
+  void add_view(const CamIdx2Grids &grids);
   void add_measurement(const int cam_idx, const aprilgrid_t &grid);
   void add_measurement(const timestamp_t imu_ts,
                        const vec3_t &a_m,
                        const vec3_t &w_m);
+  // int recover_calib_covar(matx_t &calib_covar);
 
   void solve();
   void show_results();
-  // int recover_calib_covar(matx_t &calib_covar);
-
-  int save_results(const std::string &save_path);
-  // void save_poses(const std::string &save_path);
-  // void save_speed_biases(const std::string &save_path);
-  // void save_cameras(const std::string &save_path);
-  // void save_cam_extrinsics(const std::string &save_path);
-  // // void save_imu_extrinsics(const std::string &save_path);
-  // void save();
+  int save_results(const std::string &save_path) const;
+  void save_estimates(const std::string &dir_path) const;
 };
 
 } //  namespace yac

@@ -242,7 +242,7 @@ struct calib_vi_view_t {
   std::vector<real_t> get_reproj_errors(const int cam_idx) const;
   std::map<int, std::vector<real_t>> get_reproj_errors() const;
   std::vector<real_t> get_imu_errors() const;
-  int filter_view();
+  int filter_view(const real_t outlier_threshold);
   void form_imu_error(const imu_params_t &imu_params,
                       const imu_data_t &imu_buf,
                       pose_t *pose_j,
@@ -256,7 +256,8 @@ struct calib_vi_t {
   bool verbose = true;
   double sigma_vision = 1.0;
   int batch_max_iter = 30;
-  bool enable_outlier_rejection = false;
+  bool enable_outlier_rejection = true;
+  double outlier_threshold = 3.0;
 
   // Camera geometries
   pinhole_radtan4_t pinhole_radtan4;

@@ -1075,7 +1075,7 @@ std::map<int, std::vector<real_t>> calib_vi_view_t::get_reproj_errors() const {
   return cam_errors;
 }
 
-int calib_vi_view_t::filter_view() {
+int calib_vi_view_t::filter_view(const real_t outlier_threshold) {
   // Get reprojection errors
   const auto reproj_errors = get_reproj_errors();
   std::vector<real_t> reproj_errors_all;
@@ -1085,7 +1085,8 @@ int calib_vi_view_t::filter_view() {
 
   // Calculate threshold
   const auto error_stddev = stddev(reproj_errors_all);
-  const auto threshold = 3.0 * error_stddev;
+  const auto threshold = outlier_threshold * error_stddev;
+  // const auto threshold = outlier_threshold;
 
   int nb_inliers = 0;
   int nb_outliers = 0;
@@ -1113,12 +1114,12 @@ int calib_vi_view_t::filter_view() {
     }
   }
 
-  printf("view_ts: %ld\n", ts);
-  printf("error_stddev: %f\n", error_stddev);
-  printf("threshold: %f\n", threshold);
-  printf("nb_inliers: %d\n", nb_inliers);
-  printf("nb_outliers: %d\n", nb_outliers);
-  printf("\n");
+  // printf("view_ts: %ld\n", ts);
+  // printf("error_stddev: %f\n", error_stddev);
+  // printf("threshold: %f\n", threshold);
+  // printf("nb_inliers: %d\n", nb_inliers);
+  // printf("nb_outliers: %d\n", nb_outliers);
+  // printf("\n");
 
   return nb_outliers;
 }
@@ -1509,7 +1510,7 @@ void calib_vi_t::solve() {
     LOG_INFO("Filter outliers");
     int nb_outliers = 0;
     for (auto &view : calib_views) {
-      nb_outliers += view.filter_view();
+      nb_outliers += view.filter_view(outlier_threshold);
     }
     LOG_INFO("Removed %d outliers!", nb_outliers);
 

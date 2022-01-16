@@ -91,6 +91,7 @@ struct reproj_error_t : public ceres::CostFunction {
 struct calib_view_t {
   // Problem
   ceres::Problem *problem;
+  ceres::CauchyLoss loss = ceres::CauchyLoss(1.0);
   std::deque<std::shared_ptr<reproj_error_t>> res_fns;
   std::deque<ceres::ResidualBlockId> res_ids;
 

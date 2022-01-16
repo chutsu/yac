@@ -328,7 +328,8 @@ calib_view_t::calib_view_t(ceres::Problem *problem_,
                                                    z,
                                                    covar);
     auto res_id = problem->AddResidualBlock(res_fn.get(),
-                                            NULL,
+                                            // &loss,
+                                            nullptr,
                                             T_C0F->data(),
                                             T_BCi->data(),
                                             cam_params->data());
@@ -437,6 +438,7 @@ void initialize_camera(const aprilgrids_t &grids,
   ceres::Problem::Options prob_options;
   prob_options.local_parameterization_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
   prob_options.cost_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
+  prob_options.loss_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
   prob_options.enable_fast_removal = true;
 
   // Problem

@@ -5,6 +5,7 @@
 
 #include "calib_params.hpp"
 #include "calib_data.hpp"
+#include "calib_nbv.hpp"
 
 namespace yac {
 
@@ -157,7 +158,9 @@ void initialize_camera(const aprilgrids_t &grids,
 struct calib_camera_t {
   // Settings
   bool enable_outlier_rejection = true;
-  real_t outlier_threshold = 3.0;
+  bool enable_nbv = true;
+  real_t outlier_threshold = 4.0;
+  real_t info_gain_threshold = 0.3;
 
   // Problem
   ceres::Problem::Options prob_options;
@@ -175,6 +178,7 @@ struct calib_camera_t {
   calib_target_t target;
   std::set<timestamp_t> timestamps;
   camera_data_t cam_data;
+  real_t calib_info_k = 0;
 
   // Calib views
   std::map<int, std::map<timestamp_t, std::unique_ptr<calib_view_t>>>
@@ -212,15 +216,18 @@ struct calib_camera_t {
                 camera_params_t *cam_params,
                 extrinsics_t *cam_exts,
                 pose_t *rel_pose);
+  void remove_view(const timestamp_t ts, ceres::Problem *problem);
 
   void _initialize_intrinsics();
   void _initialize_extrinsics();
   void _setup_problem();
   void _filter_views();
 
+  std::vector<real_t> get_all_reproj_errors();
+  std::map<int, std::vector<real_t>> get_reproj_errors();
+
   int recover_calib_covar(matx_t &calib_covar);
   void solve();
-  void solve_incremental();
   void show_results();
   int save_results(const std::string &save_path);
 };

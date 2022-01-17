@@ -282,6 +282,7 @@ struct calib_vi_t {
   // Optimization
   ceres::Problem::Options prob_options;
   ceres::Problem *problem = nullptr;
+  ceres::LossFunction *loss = nullptr;
   PoseLocalParameterization pose_plus;
   std::deque<calib_vi_view_t> calib_views;
 

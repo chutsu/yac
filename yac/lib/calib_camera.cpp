@@ -694,6 +694,24 @@ void calib_camera_t::add_view(const aprilgrid_t &grid,
                                                             grid);
 }
 
+void calib_camera_t::remove_view(const timestamp_t ts,
+                                 ceres::Problem *problem) {
+  // Remove view
+  for (auto &[cam_idx, cam_views] : calib_views) {
+    auto &view = cam_views[ts];
+    for (auto &res_id : view->res_ids) {
+      problem->RemoveResidualBlock(res_id);
+    }
+    cam_views.erase(ts);
+  }
+
+  // Remove pose
+  auto pose_ptr = poses[ts];
+  problem->RemoveParameterBlock(pose_ptr->param.data());
+  poses.erase(ts);
+  delete pose_ptr;
+}
+
 void calib_camera_t::_initialize_intrinsics() {
   for (int cam_idx = 0; cam_idx < nb_cams(); cam_idx++) {
     printf("initializing cam%d intrinsics ...\n", cam_idx);
@@ -722,10 +740,7 @@ void calib_camera_t::_initialize_extrinsics() {
 
 void calib_camera_t::_setup_problem() {
   for (const auto &ts : timestamps) {
-    for (const auto &kv : cam_data[ts]) {
-      const auto cam_idx = kv.first;
-      auto grid = kv.second;
-
+    for (const auto &[cam_idx, grid] : cam_data[ts]) {
       // Check if AprilGrid was detected
       if (grid.detected == false) {
         continue;
@@ -745,8 +760,54 @@ void calib_camera_t::_setup_problem() {
                cam_params[cam_idx],
                cam_exts[cam_idx],
                poses[ts]);
+    } // Iterate camera data
+
+    // Check number of views before performing NBV
+    if (enable_nbv && calib_views[0].size() < 5) {
+      continue;
     }
-  }
+
+    // Solve with new view
+    ceres::Solver::Options options;
+    options.minimizer_progress_to_stdout = false;
+    options.max_num_iterations = 10;
+    ceres::Solver::Summary summary;
+    ceres::Solve(options, problem, &summary);
+
+    // Filter last view
+    for (auto &[cam_idx, cam_views] : calib_views) {
+      UNUSED(cam_idx);
+      cam_views[ts]->filter_view(outlier_threshold);
+    }
+
+    // Optimize again
+    ceres::Solve(options, problem, &summary);
+
+    // Check information
+    matx_t calib_covar;
+    int retval = recover_calib_covar(calib_covar);
+    if (retval != 0) {
+      continue;
+    }
+
+    // Calculate information gain
+    const auto reproj_errors_all = get_all_reproj_errors();
+    const real_t calib_info_kp1 = info_entropy(calib_covar);
+    const real_t info_gain = 0.5 * (calib_info_kp1 - calib_info_k);
+    printf("nb_views: %ld  ", calib_views[0].size());
+    printf("info_k: %.2f  ", calib_info_k);
+    printf("info_kp1: %.2f  ", calib_info_kp1);
+    printf("info_gain: %.2f  ", info_gain);
+    printf("rms_reproj_error: %.2f", rmse(reproj_errors_all));
+    printf("\n");
+
+    if (info_gain < info_gain_threshold) {
+      remove_view(ts, problem);
+    } else {
+      calib_info_k = calib_info_kp1;
+    }
+
+  } // Iterate timestamps
 }
 
 void calib_camera_t::_filter_views() {
@@ -759,6 +820,32 @@ void calib_camera_t::_filter_views() {
       nb_outliers += view->filter_view(outlier_threshold);
     }
   }
+}
+
+std::vector<real_t> calib_camera_t::get_all_reproj_errors() {
+  std::vector<real_t> reproj_errors_all;
+
+  for (auto &[cam_idx, cam_views] : calib_views) {
+    for (auto &[ts, view] : cam_views) {
+      UNUSED(ts);
+      extend(reproj_errors_all, view->get_reproj_errors());
+    }
+  }
+
+  return reproj_errors_all;
+}
+
+std::map<int, std::vector<real_t>> calib_camera_t::get_reproj_errors() {
+  std::map<int, std::vector<real_t>> reproj_errors;
+
+  for (auto &[cam_idx, cam_views] : calib_views) {
+    for (auto &[ts, view] : cam_views) {
+      UNUSED(ts);
+      extend(reproj_errors[cam_idx], view->get_reproj_errors());
+    }
+  }
+
+  return reproj_errors;
 }
 
 int calib_camera_t::recover_calib_covar(matx_t &calib_covar) {
@@ -874,28 +961,14 @@ void calib_camera_t::solve() {
   show_results();
 }
 
-void calib_camera_t::solve_incremental() {
-  // Setup
-  _initialize_intrinsics();
-  _initialize_extrinsics();
-}
-
 void calib_camera_t::show_results() {
   // Show results
   printf("Optimization results:\n");
   printf("---------------------\n");
 
   // Stats - Reprojection Errors
-  std::vector<real_t> reproj_errors_all;
-  std::map<int, std::vector<real_t>> reproj_errors_cams;
-  for (auto &[cam_idx, cam_views] : calib_views) {
-    for (auto &[ts, view] : cam_views) {
-      UNUSED(ts);
-      const auto view_reproj_errors = view->get_reproj_errors();
-      extend(reproj_errors_all, view_reproj_errors);
-      extend(reproj_errors_cams[cam_idx], view_reproj_errors);
-    }
-  }
+  const auto reproj_errors = get_reproj_errors();
+  const auto reproj_errors_all = get_all_reproj_errors();
   // -- Print total reprojection error
   printf("Total reprojection error:\n");
   printf("  rmse:   %.4f # px\n", rmse(reproj_errors_all));
@@ -904,7 +977,7 @@ void calib_camera_t::show_results() {
   printf("  stddev: %.4f # px\n", stddev(reproj_errors_all));
   printf("\n");
   // -- Print camera reprojection error
-  for (const auto &[cam_idx, cam_errors] : reproj_errors_cams) {
+  for (const auto &[cam_idx, cam_errors] : reproj_errors) {
     printf("cam[%d] reprojection error:\n", cam_idx);
     printf("  rmse:   %.4f # px\n", rmse(cam_errors));
     printf("  mean:   %.4f # px\n", mean(cam_errors));
@@ -940,16 +1013,8 @@ int calib_camera_t::save_results(const std::string &save_path) {
   }
 
   // Get reprojection errors
-  std::vector<real_t> reproj_errors_all;
-  std::map<int, std::vector<real_t>> reproj_errors_cams;
-  for (auto &[cam_idx, cam_views] : calib_views) {
-    for (auto &[ts, view] : cam_views) {
-      UNUSED(ts);
-      const auto view_reproj_errors = view->get_reproj_errors();
-      extend(reproj_errors_all, view_reproj_errors);
-      extend(reproj_errors_cams[cam_idx], view_reproj_errors);
-    }
-  }
+  const auto reproj_errors = get_reproj_errors();
+  const auto reproj_errors_all = get_all_reproj_errors();
 
   // Calibration metrics
   fprintf(outfile, "calib_metrics:\n");
@@ -959,13 +1024,13 @@ int calib_camera_t::save_results(const std::string &save_path) {
   fprintf(outfile, "    median: %f # [px]\n", median(reproj_errors_all));
   fprintf(outfile, "    stddev: %f # [px]\n", stddev(reproj_errors_all));
   fprintf(outfile, "\n");
-  for (const auto &[cam_idx, errors] : reproj_errors_cams) {
+  for (const auto &[cam_idx, cam_errors] : reproj_errors) {
     const auto cam_str = "cam" + std::to_string(cam_idx);
     fprintf(outfile, "  %s_reproj_error:\n", cam_str.c_str());
-    fprintf(outfile, "    rmse:   %f # [px]\n", rmse(errors));
-    fprintf(outfile, "    mean:   %f # [px]\n", mean(errors));
-    fprintf(outfile, "    median: %f # [px]\n", median(errors));
-    fprintf(outfile, "    stddev: %f # [px]\n", stddev(errors));
+    fprintf(outfile, "    rmse:   %f # [px]\n", rmse(cam_errors));
+    fprintf(outfile, "    mean:   %f # [px]\n", mean(cam_errors));
+    fprintf(outfile, "    median: %f # [px]\n", median(cam_errors));
+    fprintf(outfile, "    stddev: %f # [px]\n", stddev(cam_errors));
     fprintf(outfile, "\n");
   }
   fprintf(outfile, "\n");

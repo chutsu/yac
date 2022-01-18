@@ -135,7 +135,7 @@ inline aprilgrids_t load_aprilgrids(const std::string &dir_path) {
 
 /* AprilGrid Detector */
 struct aprilgrid_detector_t {
-  /// Grid properties
+  // Grid properties
   bool configured = true;
   int tag_rows = 0;
   int tag_cols = 0;
@@ -149,10 +149,6 @@ struct aprilgrid_detector_t {
   apriltag_family_t *tf = tag36h11_create();
   apriltag_detector_t *det_v3 = apriltag_detector_create();
 
-  // Blur threshold
-  double blur_threshold = 0.0;
-  // double blur_threshold = 1200.0;
-
   aprilgrid_detector_t(const int tag_rows_,
                        const int tag_cols_,
                        const double tag_size_,
@@ -161,17 +157,15 @@ struct aprilgrid_detector_t {
 
   void filter_tags(const cv::Mat &image,
                    std::vector<AprilTags::TagDetection> &tags,
-                   const bool verbose = false);
-  static double blur_score(const cv::Mat &image, const vec2_t &kp);
-  static std::vector<double> blur_scores(const cv::Mat &image,
-                                         const aprilgrid_t &grid);
+                   const bool verbose = false) const;
   void filter_measurements(const cv::Mat &image,
                            std::vector<int> &tag_ids,
                            std::vector<int> &corner_indicies,
-                           vec2s_t &keypoints);
+                           vec2s_t &keypoints) const;
+
   aprilgrid_t detect(const timestamp_t ts,
                      const cv::Mat &image,
-                     const bool use_v3 = false);
+                     const bool use_v3 = false) const;
 };
 
 } // namespace yac

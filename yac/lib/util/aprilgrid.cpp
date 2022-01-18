@@ -630,7 +630,7 @@ aprilgrid_detector_t::~aprilgrid_detector_t() {
 void aprilgrid_detector_t::filter_tags(
     const cv::Mat &image,
     std::vector<AprilTags::TagDetection> &tags,
-    const bool verbose) {
+    const bool verbose) const {
   const double min_border_dist = 4.0;
   const double max_subpix_disp = sqrt(1.5);
 
@@ -659,13 +659,13 @@ void aprilgrid_detector_t::filter_tags(
       std::vector<cv::Point2f> corners_before;
       std::vector<cv::Point2f> corners_after;
 
+      // clang-format off
       std::vector<cv::Point2f> corners;
-      corners.emplace_back(iter->p[0].first,
-                           iter->p[0].second); // Bottom left
-      corners.emplace_back(iter->p[1].first,
-                           iter->p[1].second);                   // Bottom right
+      corners.emplace_back(iter->p[0].first, iter->p[0].second); // Bottom left
+      corners.emplace_back(iter->p[1].first, iter->p[1].second); // Bottom right
       corners.emplace_back(iter->p[2].first, iter->p[2].second); // Top right
       corners.emplace_back(iter->p[3].first, iter->p[3].second); // Top left
+      // clang-format on
 
       corners_before.push_back(corners[0]);
       corners_before.push_back(corners[1]);
@@ -691,7 +691,6 @@ void aprilgrid_detector_t::filter_tags(
         const auto dx = p_before.x - p_after.x;
         const auto dy = p_before.y - p_after.y;
         const auto dist = sqrt(dx * dx + dy * dy);
-        // printf("dist: %f\n", dist);
         if (dist >= max_subpix_disp) {
           remove = true;
         }
@@ -728,46 +727,11 @@ void aprilgrid_detector_t::filter_tags(
   }
 }
 
-double aprilgrid_detector_t::blur_score(const cv::Mat &image,
-                                        const vec2_t &kp) {
-  // Laplacian blurr score
-  const double x = kp(0);
-  const double y = kp(1);
-  const double patch_width = 5.0;
-  const double patch_height = 5.0;
-  const double roi_x = round(x) - (patch_width / 2.0);
-  const double roi_y = round(y) - (patch_height / 2.0);
-  const double roi_width = patch_width;
-  const double roi_height = patch_height;
-  // -- Patch around the corner
-  const cv::Rect roi(roi_x, roi_y, roi_width, roi_height);
-  const cv::Mat patch = image(roi);
-  // -- Form laplacian image patch
-  cv::Mat patch_laplacian;
-  cv::Laplacian(patch, patch_laplacian, CV_64F);
-  // -- Calculate variance
-  cv::Scalar mean;
-  cv::Scalar stddev;
-  cv::meanStdDev(patch_laplacian, mean, stddev, cv::Mat());
-  const double var = stddev.val[0] * stddev.val[0];
-
-  return var;
-}
-
-std::vector<double> aprilgrid_detector_t::blur_scores(const cv::Mat &image,
-                                                      const aprilgrid_t &grid) {
-  std::vector<double> patch_vars;
-  for (auto &kp : grid.keypoints()) {
-    patch_vars.push_back(blur_score(image, kp));
-  }
-  return patch_vars;
-}
-
 void aprilgrid_detector_t::filter_measurements(
     const cv::Mat &image,
     std::vector<int> &tag_ids,
     std::vector<int> &corner_indicies,
-    vec2s_t &keypoints) {
+    vec2s_t &keypoints) const {
   const double max_subpix_disp = sqrt(1.5);
   const size_t nb_measurements = tag_ids.size();
 
@@ -796,11 +760,7 @@ void aprilgrid_detector_t::filter_measurements(
     const auto dy = p_before.y - p_after.y;
     const auto dist = sqrt(dx * dx + dy * dy);
 
-    // Laplacian blurr score
-    const vec2_t kp{p_after.x, p_after.y};
-    // const double var = blur_score(image, kp);
-
-    if (dist < max_subpix_disp /*  && var > blur_threshold */) {
+    if (dist < max_subpix_disp) {
       filtered_tag_ids.push_back(tag_ids[i]);
       filtered_corner_indicies.push_back(corner_indicies[i]);
       filtered_keypoints.emplace_back(p_after.x, p_after.y);
@@ -812,13 +772,21 @@ void aprilgrid_detector_t::filter_measurements(
   keypoints = filtered_keypoints;
 }
 
+/* Compare AprilTag */
+static bool apriltag_cmp(const AprilTags::TagDetection &a,
+                         const AprilTags::TagDetection &b) {
+  return (a.id < b.id);
+}
+
 aprilgrid_t aprilgrid_detector_t::detect(const timestamp_t ts,
                                          const cv::Mat &image,
-                                         const bool use_v3) {
+                                         const bool use_v3) const {
+  // Setup
   aprilgrid_t grid{ts, tag_rows, tag_cols, tag_size, tag_spacing};
-
-  // Convert image to gray-scale
   const cv::Mat image_gray = rgb2gray(image);
+  const double min_border_dist = 4.0;
+  const float img_rows = image_gray.rows;
+  const float img_cols = image_gray.cols;
 
   if (use_v3) {
     // Use AprilTags3
@@ -845,43 +813,33 @@ aprilgrid_t aprilgrid_detector_t::detect(const timestamp_t ts,
 
   } else {
     // Use AprilTags by Michael Kaess
-    // -- Extract tags
     std::vector<AprilTags::TagDetection> tags = det.extractTags(image_gray);
-    // -- Sort by tag_id (inorder)
-    std::sort(tags.begin(),
-              tags.end(),
-              [](const AprilTags::TagDetection &a,
-                 const AprilTags::TagDetection &b) { return (a.id < b.id); });
-    // -- Setup data
-    const double min_border_dist = 4.0;
-    const float img_rows = image_gray.rows;
-    const float img_cols = image_gray.cols;
-
+    std::sort(tags.begin(), tags.end(), apriltag_cmp);
+    // -- Get measurement data
     std::vector<int> tag_ids;
     std::vector<int> corner_indicies;
     vec2s_t keypoints;
-
     for (const auto &tag : tags) {
-      if (tag.good) {
-        for (int i = 0; i < 4; i++) {
-          bool remove = false;
-          remove |= tag.p[i].first < min_border_dist;
-          remove |= tag.p[i].first > img_cols - min_border_dist;
-          remove |= tag.p[i].second < min_border_dist;
-          remove |= tag.p[i].second > img_rows - min_border_dist;
-          if (remove) {
-            continue;
-          }
+      if (tag.good == false) {
+        continue;
+      }
 
-          tag_ids.push_back(tag.id);
-          corner_indicies.push_back(i);
-          keypoints.emplace_back(tag.p[i].first, tag.p[i].second);
+      for (int i = 0; i < 4; i++) {
+        bool remove = false;
+        remove |= tag.p[i].first < min_border_dist;
+        remove |= tag.p[i].first > img_cols - min_border_dist;
+        remove |= tag.p[i].second < min_border_dist;
+        remove |= tag.p[i].second > img_rows - min_border_dist;
+        if (remove) {
+          continue;
         }
+        tag_ids.push_back(tag.id);
+        corner_indicies.push_back(i);
+        keypoints.emplace_back(tag.p[i].first, tag.p[i].second);
       }
     }
     // -- Check if too few measurements
-    int nb_measurements = tag_ids.size();
-    if (nb_measurements < (4 * 4)) {
+    if (tags.size() < 4) {
       return grid;
     }
     // -- Filter tags

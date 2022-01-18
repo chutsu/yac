@@ -407,221 +407,21 @@ int test_aprilgrid_detect() {
   aprilgrid_t grid = detector.detect(0, image);
 
   cv::imwrite("/tmp/grid.png", grid.draw(image));
-
   MU_CHECK(grid.nb_detections > 0);
-  MU_CHECK(grid.nb_detections > 0);
+  grid.imshow("viz", image);
+  cv::waitKey(0);
 
-  return 0;
-}
-
-cv::Mat obtainIregularROI(cv::Mat &origImag,
-                          cv::Point2f topLeft,
-                          cv::Point2f topRight,
-                          cv::Point2f botLeft,
-                          cv::Point2f botRight) {
-  cv::Mat black(origImag.rows,
-                origImag.cols,
-                origImag.type(),
-                cv::Scalar::all(0));
-  cv::Mat mask(origImag.rows, origImag.cols, CV_8UC1, cv::Scalar(0));
-
-  std::vector<std::vector<cv::Point>> co_ordinates;
-  co_ordinates.push_back(std::vector<cv::Point>());
-  co_ordinates[0].push_back(topLeft);
-  co_ordinates[0].push_back(botLeft);
-  co_ordinates[0].push_back(botRight);
-  co_ordinates[0].push_back(topRight);
-
-  cv::drawContours(mask, co_ordinates, 0, cv::Scalar(255), CV_FILLED, 8);
-  origImag.copyTo(black, mask);
-
-  return black;
-}
-
-// int test_aprilgrid_detect2() {
-//   auto detector = aprilgrid_detector_t(6, 6, 0.088, 0.3);
-//   const cv::Mat image = cv::imread(TEST_IMAGE);
-//   const vec4_t K{458.654, 457.296, 367.215, 248.375};
-//   const vec4_t D{-0.28340811, 0.07395907, 0.00019359, 1.76187114e-05};
-//   euroc_calib_t calib_data("/data/euroc/calib/cam_april");
-//
-//   const int cam_res[2] = {752, 480};
-//   pinhole_radtan4_t cam{cam_res, K, D};
-//
-//   long int nb_detections = 0;
-//   for (const auto &image_path : calib_data.cam0_data.image_paths) {
-//     auto image = rgb2gray(cv::imread(image_path));
-//     const auto grid = detector.detect(0, image);
-//
-//     if (grid.detected) {
-//       mat4_t T_CF;
-//       grid.estimate(cam, T_CF);
-//
-//       vec3_t r_FF0 = grid.object_point(0, 0);
-//       vec3_t r_FF1 = grid.object_point(5, 1);
-//       vec3_t r_FF2 = grid.object_point(35, 2);
-//       vec3_t r_FF3 = grid.object_point(30, 3);
-//
-//       vec3_t r_CF0 = tf_point(T_CF, r_FF0);
-//       vec3_t r_CF1 = tf_point(T_CF, r_FF1);
-//       vec3_t r_CF2 = tf_point(T_CF, r_FF2);
-//       vec3_t r_CF3 = tf_point(T_CF, r_FF3);
-//
-//       vec2_t z0;
-//       vec2_t z1;
-//       vec2_t z2;
-//       vec2_t z3;
-//       cam.project(r_CF0, z0);
-//       cam.project(r_CF1, z1);
-//       cam.project(r_CF2, z2);
-//       cam.project(r_CF3, z3);
-//
-//       int padding = 0;
-//       double yaw = rad2deg(quat2euler(tf_quat(T_CF))(2));
-//       printf("yaw: %f\n", yaw);
-//       if (yaw > -90.0 && yaw < 90.0) {
-//         padding = 10.0;
-//       } else {
-//         padding = -10.0;
-//       }
-//
-//       z0.x() = (z0.x() < 0) ? 0 : z0.x() - padding;
-//       z0.x() = (z0.x() > image.cols) ? image.cols : z0.x();
-//       z0.y() = (z0.y() < 0) ? 0 : z0.y() + padding;
-//       z0.y() = (z0.y() > image.rows) ? image.rows: z0.y();
-//
-//       z1.x() = (z1.x() < 0) ? 0 : z1.x() + padding;
-//       z1.x() = (z1.x() > image.cols) ? image.cols : z1.x();
-//       z1.y() = (z1.y() < 0) ? 0 : z1.y() + padding;
-//       z1.y() = (z1.y() > image.rows) ? image.rows: z1.y();
-//
-//       z2.x() = (z2.x() < 0) ? 0 : z2.x() + padding;
-//       z2.x() = (z2.x() > image.cols) ? image.cols : z2.x();
-//       z2.y() = (z2.y() < 0) ? 0 : z2.y() - padding;
-//       z2.y() = (z2.y() > image.rows) ? image.rows: z2.y();
-//
-//       z3.x() = (z3.x() < 0) ? 0 : z3.x() - padding;
-//       z3.x() = (z3.x() > image.cols) ? image.cols : z3.x();
-//       z3.y() = (z3.y() < 0) ? 0 : z3.y() - padding;
-//       z3.y() = (z3.y() > image.rows) ? image.rows: z3.y();
-//
-//       cv::Point2f top_left;
-//       cv::Point2f top_right;
-//       cv::Point2f bot_left;
-//       cv::Point2f bot_right;
-//       bot_left = cv::Point2f(z0.x(), z0.y());
-//       bot_right = cv::Point2f(z1.x(), z1.y());
-//       top_right = cv::Point2f(z2.x(), z2.y());
-//       top_left = cv::Point2f(z3.x(), z3.y());
-//
-//
-//       cv::Mat image_roi = obtainIregularROI(image, top_left, top_right,
-//       bot_left, bot_right);
-//
-//       cv::Mat image_laplacian;
-//       cv::Laplacian(image_roi, image_laplacian, CV_64F);
-//
-//       cv::Scalar mean;
-//       cv::Scalar stddev;
-//       cv::meanStdDev(image_laplacian, mean, stddev);
-//       double var = stddev.val[0] * stddev.val[0];
-//       printf("variance: %f\n", var);
-//
-//       cv::imshow("Image", image);
-//       cv::imshow("AprilGrid detection", image_roi);
-//       cv::waitKey(0);
-//
-//       // grid.imshow("AprilGrid detection", image);
-//     }
-//
-//     nb_detections += grid.nb_detections;
-//   }
-//   printf("total nb detections: %ld\n", nb_detections);
-//
-//   return 0;
-// }
-
-int test_aprilgrid_detect3() {
-  auto detector = aprilgrid_detector_t(6, 6, 0.088, 0.3);
-
-  std::vector<std::string> cam0_images;
-  std::vector<std::string> cam1_images;
-  list_dir("/data/grid_detection/data/cam0", cam0_images);
-  list_dir("/data/grid_detection/data/cam1", cam1_images);
-
-  std::sort(cam0_images.begin(), cam0_images.end());
-  std::sort(cam1_images.begin(), cam1_images.end());
-
-  for (std::string image_path : cam0_images) {
-    auto timestamp = strip_end(image_path, ".png");
-    const auto image =
-        cv::imread("/data/grid_detection/data/cam0/" + image_path);
-    printf("processing [%s]\n", image_path.c_str());
-
-    auto grid = detector.detect(std::stoull(timestamp), image);
-    if (grid.nb_detections == 0) {
-      continue;
-    }
-
-    std::string csv_path =
-        "/data/grid_detection/yac_cam0_grids/" + timestamp + ".csv";
-    FILE *csv = fopen(csv_path.c_str(), "w");
-    fprintf(csv, "kp_x,kp_y,pt_x,pt_y\n");
-
-    std::vector<int> tag_ids;
-    std::vector<int> corner_indicies;
-    vec2s_t keypoints;
-    vec3s_t object_points;
-    grid.get_measurements(tag_ids, corner_indicies, keypoints, object_points);
-
-    for (size_t i = 0; i < tag_ids.size(); i++) {
-      const vec2_t z = keypoints[i];
-      const vec3_t r_FFi = object_points[i];
-
-      fprintf(csv, "%f,%f", z(0), z(1));
-      fprintf(csv, ",");
-      fprintf(csv, "%f,%f\n", r_FFi(0), r_FFi(1));
-    }
-    fclose(csv);
-
-    // cv::imshow("Image", image);
-    // cv::waitKey(1);
-  }
-  exit(0);
-
-  // for (std::string image_path : cam1_images) {
-  //   auto timestamp = strip_end(image_path, ".png");
-  //   const auto image = cv::imread("/data/grid_detection/data/cam1/" +
-  //   image_path); printf("processing [%s]\n", image_path.c_str());
+  // const auto detector = aprilgrid_detector_t(6, 6, 0.088, 0.3);
+  // const std::string img_dir = "/data/euroc/cam_april/mav0/cam0/data";
+  // std::vector<std::string> img_paths;
+  // list_files(img_dir, img_paths);
   //
-  //   auto grid = detector.detect(std::stoull(timestamp), image);
-  //   if (grid.nb_detections == 0) {
-  //     continue;
-  //   }
-  //
-  //   std::string csv_path = "/data/grid_detection/yac_cam1_grids/" + timestamp
-  //   + ".csv"; FILE *csv = fopen(csv_path.c_str(), "w"); fprintf(csv,
-  //   "kp_x,kp_y,pt_x,pt_y\n");
-  //
-  //   std::vector<int> tag_ids;
-  //   std::vector<int> corner_indicies;
-  //   vec2s_t keypoints;
-  //   vec3s_t object_points;
-  //   grid.get_measurements(tag_ids, corner_indicies, keypoints,
-  //   object_points);
-  //
-  //   for (size_t i = 0; i < tag_ids.size(); i++) {
-  //     const vec2_t z = keypoints[i];
-  //     const vec3_t r_FFi = object_points[i];
-  //
-  //     fprintf(csv, "%f,%f", z(0), z(1));
-  //     fprintf(csv, ",");
-  //     fprintf(csv, "%f,%f\n", r_FFi(0), r_FFi(1));
-  //   }
-  //   fclose(csv);
-  //
-  //   // cv::imshow("Image", image);
-  //   // cv::waitKey(1);
+  // for (const auto img_fname : img_paths) {
+  //   const std::string img_path = img_dir + "/" + img_fname;
+  //   const auto img = cv::imread(img_path, cv::IMREAD_GRAYSCALE);
+  //   aprilgrid_t grid = detector.detect(0, img);
+  //   grid.imshow("viz", img);
+  //   cv::waitKey(1);
   // }
 
   return 0;
@@ -642,8 +442,6 @@ void test_suite() {
   MU_ADD_TEST(test_aprilgrid_save_and_load);
   MU_ADD_TEST(test_aprilgrid_print);
   MU_ADD_TEST(test_aprilgrid_detect);
-  // MU_ADD_TEST(test_aprilgrid_detect2);
-  // MU_ADD_TEST(test_aprilgrid_detect3);
 }
 
 } // namespace yac

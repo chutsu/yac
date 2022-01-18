@@ -1,5 +1,5 @@
-default: apriltag3 apriltags
-.PHONY: apriltag3 s apriltags suitesparse ceres
+default: apriltag3 apriltag
+.PHONY: apriltag3 apriltag suitesparse ceres
 
 clean:
 	@rm -rf bin
@@ -11,9 +11,9 @@ apriltag3:
 	@echo "Building apriltag3 ..."
 	@bash ./build_apriltag3.bash > build_apriltag3.log
 
-apriltags:
-	@echo "Building apriltags ..."
-	@bash ./build_apriltags.bash > build_apriltags.log
+apriltag:
+	@echo "Building apriltag ..."
+	@bash ./build_apriltag.bash > build_apriltag.log
 
 suitesparse:
 	@echo "Building SuiteSparse ..."

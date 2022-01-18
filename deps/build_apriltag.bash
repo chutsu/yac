@@ -4,7 +4,7 @@ BUILD_TYPE=Release
 INSTALL_PREFIX=${PWD}
 
 # Build
-cd src/apriltags
+cd src/apriltag
 rm -rf build
 mkdir -p build
 cd build

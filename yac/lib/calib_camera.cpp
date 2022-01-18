@@ -563,6 +563,12 @@ int calib_camera_t::nb_cams() const { return cam_params.size(); }
 aprilgrids_t calib_camera_t::get_cam_data(const int cam_idx) const {
   aprilgrids_t grids;
   for (const auto &ts : timestamps) {
+    if (cam_data.count(ts) == 0) {
+      continue;
+    }
+    if (cam_data.at(ts).count(cam_idx) == 0) {
+      continue;
+    }
     grids.push_back(cam_data.at(ts).at(cam_idx));
   }
   return grids;
@@ -698,6 +704,10 @@ void calib_camera_t::remove_view(const timestamp_t ts,
                                  ceres::Problem *problem) {
   // Remove view
   for (auto &[cam_idx, cam_views] : calib_views) {
+    if (cam_views.count(ts) == 0) {
+      continue;
+    }
+
     auto &view = cam_views[ts];
     for (auto &res_id : view->res_ids) {
       problem->RemoveResidualBlock(res_id);
@@ -739,7 +749,10 @@ void calib_camera_t::_initialize_extrinsics() {
 }
 
 void calib_camera_t::_setup_problem() {
+  size_t ts_idx = 0;
+
   for (const auto &ts : timestamps) {
+    bool new_view_added = false;
     for (const auto &[cam_idx, grid] : cam_data[ts]) {
       // Check if AprilGrid was detected
       if (grid.detected == false) {
@@ -760,7 +773,14 @@ void calib_camera_t::_setup_problem() {
                cam_params[cam_idx],
                cam_exts[cam_idx],
                poses[ts]);
+      new_view_added = true;
     } // Iterate camera data
+    ts_idx++;
+
+    // Check if new view has been added
+    if (new_view_added == false) {
+      continue;
+    }
 
     // Check number of views before performing NBV
     if (enable_nbv && calib_views[0].size() < 5) {
@@ -777,7 +797,9 @@ void calib_camera_t::_setup_problem() {
     // Filter last view
     for (auto &[cam_idx, cam_views] : calib_views) {
       UNUSED(cam_idx);
-      cam_views[ts]->filter_view(outlier_threshold);
+      if (cam_views[ts]) {
+        cam_views[ts]->filter_view(outlier_threshold);
+      }
     }
 
     // Optimize again
@@ -794,11 +816,10 @@ void calib_camera_t::_setup_problem() {
     const auto reproj_errors_all = get_all_reproj_errors();
     const real_t calib_info_kp1 = info_entropy(calib_covar);
     const real_t info_gain = 0.5 * (calib_info_kp1 - calib_info_k);
+    printf("[%.2f%%] ", ((real_t)ts_idx / (real_t)timestamps.size()) * 100.0);
     printf("nb_views: %ld  ", calib_views[0].size());
     printf("info_k: %.2f  ", calib_info_k);
-    printf("info_kp1: %.2f  ", calib_info_kp1);
-    printf("info_gain: %.2f  ", info_gain);
-    printf("rms_reproj_error: %.2f", rmse(reproj_errors_all));
+    printf("reproj_error: %.2f", rmse(reproj_errors_all));
     printf("\n");
 
     if (info_gain < info_gain_threshold) {
@@ -828,7 +849,9 @@ std::vector<real_t> calib_camera_t::get_all_reproj_errors() {
   for (auto &[cam_idx, cam_views] : calib_views) {
     for (auto &[ts, view] : cam_views) {
       UNUSED(ts);
-      extend(reproj_errors_all, view->get_reproj_errors());
+      if (view) {
+        extend(reproj_errors_all, view->get_reproj_errors());
+      }
     }
   }
 
@@ -841,7 +864,9 @@ std::map<int, std::vector<real_t>> calib_camera_t::get_reproj_errors() {
   for (auto &[cam_idx, cam_views] : calib_views) {
     for (auto &[ts, view] : cam_views) {
       UNUSED(ts);
-      extend(reproj_errors[cam_idx], view->get_reproj_errors());
+      if (view) {
+        extend(reproj_errors[cam_idx], view->get_reproj_errors());
+      }
     }
   }
 
@@ -941,9 +966,6 @@ void calib_camera_t::solve() {
   std::cout << std::endl;
   std::cout << summary.BriefReport() << std::endl;
   std::cout << std::endl;
-
-  matx_t calib_covar;
-  recover_calib_covar(calib_covar);
 
   // Filter views
   if (enable_outlier_rejection) {

@@ -158,9 +158,9 @@ void initialize_camera(const aprilgrids_t &grids,
 struct calib_camera_t {
   // Settings
   bool enable_outlier_rejection = true;
-  bool enable_nbv = true;
+  bool enable_nbv = false;
   real_t outlier_threshold = 4.0;
-  real_t info_gain_threshold = 0.3;
+  real_t info_gain_threshold = 0.5;
 
   // Problem
   ceres::Problem::Options prob_options;

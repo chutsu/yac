@@ -1,5 +1,4 @@
 #include "munit.hpp"
-#include "euroc_test_data.hpp"
 #include "calib_data.hpp"
 
 namespace yac {
@@ -28,9 +27,7 @@ int test_calib_target() {
   return 0;
 }
 
-void test_suite() {
-  MU_ADD_TEST(test_calib_target);
-}
+void test_suite() { MU_ADD_TEST(test_calib_target); }
 
 } // namespace yac
 

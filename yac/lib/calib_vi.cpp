@@ -65,11 +65,6 @@ fiducial_error_t::fiducial_error_t(const timestamp_t &ts,
       fiducial_{fiducial}, pose_{pose}, tag_id_{tag_id},
       corner_idx_{corner_idx}, r_FFi_{r_FFi}, z_{z}, T_WF_{T_WF}, covar_{covar},
       info_{covar.inverse()}, sqrt_info_{info_.llt().matrixU()} {
-  assert(ts_i != ts_j && ts_j > ts_i);
-  assert(cam_res[0] != 0 && cam_res[1] != 0);
-  assert(tag_id_ >= 0);
-  assert(corner_idx_ >= 0);
-
   set_num_residuals(2);
   auto block_sizes = mutable_parameter_block_sizes();
   block_sizes->push_back(fiducial_->param.size()); // T_WF

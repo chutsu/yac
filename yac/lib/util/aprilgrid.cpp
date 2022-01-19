@@ -781,10 +781,16 @@ static bool apriltag_cmp(const AprilTags::TagDetection &a,
 aprilgrid_t aprilgrid_detector_t::detect(const timestamp_t ts,
                                          const cv::Mat &image,
                                          const bool use_v3) const {
+  // Settings
+  const double min_border_dist = 4.0;
+  const double max_subpix_disp = sqrt(1.5);
+  const cv::Size win_size(2, 2);
+  const cv::Size zero_zone(-1, -1);
+  const cv::TermCriteria criteria(CV_TERMCRIT_EPS + CV_TERMCRIT_ITER, 30, 0.1);
+
   // Setup
   aprilgrid_t grid{ts, tag_rows, tag_cols, tag_size, tag_spacing};
   const cv::Mat image_gray = rgb2gray(image);
-  const double min_border_dist = 4.0;
   const float img_rows = image_gray.rows;
   const float img_cols = image_gray.cols;
 
@@ -814,36 +820,83 @@ aprilgrid_t aprilgrid_detector_t::detect(const timestamp_t ts,
   } else {
     // Use AprilTags by Michael Kaess
     std::vector<AprilTags::TagDetection> tags = det.extractTags(image_gray);
+    // -- Check if too few measurements
+    if (tags.size() < 4) {
+      return grid;
+    }
+    // -- Sort Tags by ID
     std::sort(tags.begin(), tags.end(), apriltag_cmp);
     // -- Get measurement data
     std::vector<int> tag_ids;
     std::vector<int> corner_indicies;
     vec2s_t keypoints;
-    for (const auto &tag : tags) {
+    for (auto &tag : tags) {
+      // Check if tag detection is good
       if (tag.good == false) {
         continue;
       }
 
+      // Check if tag id is out of range for this grid
+      if (tag.id >= (tag_rows * tag_cols)) {
+        continue;
+      }
+
+      // Check if too close to image bounds
+      bool bad_tag = false;
       for (int i = 0; i < 4; i++) {
-        bool remove = false;
-        remove |= tag.p[i].first < min_border_dist;
-        remove |= tag.p[i].first > img_cols - min_border_dist;
-        remove |= tag.p[i].second < min_border_dist;
-        remove |= tag.p[i].second > img_rows - min_border_dist;
-        if (remove) {
-          continue;
+        bad_tag |= tag.p[i].first < min_border_dist;
+        bad_tag |= tag.p[i].first > img_cols - min_border_dist;
+        bad_tag |= tag.p[i].second < min_border_dist;
+        bad_tag |= tag.p[i].second > img_rows - min_border_dist;
+        if (bad_tag) {
+          break;
         }
+      }
+      if (bad_tag) {
+        continue;
+      }
+
+      // Corner subpixel refinement
+      std::vector<cv::Point2f> corners_before;
+      std::vector<cv::Point2f> corners_after;
+      corners_before.emplace_back(tag.p[0].first, tag.p[0].second);
+      corners_before.emplace_back(tag.p[1].first, tag.p[1].second);
+      corners_before.emplace_back(tag.p[2].first, tag.p[2].second);
+      corners_before.emplace_back(tag.p[3].first, tag.p[3].second);
+      corners_after.emplace_back(tag.p[0].first, tag.p[0].second);
+      corners_after.emplace_back(tag.p[1].first, tag.p[1].second);
+      corners_after.emplace_back(tag.p[2].first, tag.p[2].second);
+      corners_after.emplace_back(tag.p[3].first, tag.p[3].second);
+      cv::cornerSubPix(image, corners_after, win_size, zero_zone, criteria);
+      // -- Check euclidean distance
+      for (size_t i = 0; i < 4; i++) {
+        // Subpixel distance
+        const auto &p_before = corners_before[i];
+        const auto &p_after = corners_after[i];
+        const auto dx = p_before.x - p_after.x;
+        const auto dy = p_before.y - p_after.y;
+        const auto dist = sqrt(dx * dx + dy * dy);
+        if (dist > max_subpix_disp) {
+          bad_tag = true;
+        }
+        tag.p[i].first = p_after.x;
+        tag.p[i].second = p_after.y;
+      }
+      if (bad_tag) {
+        continue;
+      }
+
+      // Add to results
+      for (int i = 0; i < 4; i++) {
         tag_ids.push_back(tag.id);
         corner_indicies.push_back(i);
         keypoints.emplace_back(tag.p[i].first, tag.p[i].second);
       }
     }
     // -- Check if too few measurements
-    if (tags.size() < 4) {
+    if (tag_ids.size() < (4 * 4)) {
       return grid;
     }
-    // -- Filter tags
-    filter_measurements(image_gray, tag_ids, corner_indicies, keypoints);
     // -- Add filtered tags to grid
     for (size_t i = 0; i < tag_ids.size(); i++) {
       grid.add(tag_ids[i], corner_indicies[i], keypoints[i]);

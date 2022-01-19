@@ -449,7 +449,9 @@ void initialize_camera(const aprilgrids_t &grids,
   prob_options.enable_fast_removal = true;
 
   // Problem
-  ceres::CauchyLoss loss = ceres::CauchyLoss(0.5);
+  std::unique_ptr<ceres::LossFunction> loss;
+  // std::unique_ptr<ceres::LossFunction> loss =
+  // std::make_unique<CauchyLoss>(0.5);
   ceres::Problem problem{prob_options};
   PoseLocalParameterization pose_plus;
 
@@ -467,7 +469,11 @@ void initialize_camera(const aprilgrids_t &grids,
   std::map<timestamp_t, pose_t> poses;
 
   // Build problem
-  calib_views_t calib_views{&problem, &loss, cam_geom, cam_params, &cam_exts};
+  calib_views_t calib_views{&problem,
+                            loss.get(),
+                            cam_geom,
+                            cam_params,
+                            &cam_exts};
 
   for (auto grid : grids) {
     const auto ts = grid.timestamp;
@@ -709,6 +715,10 @@ void calib_camera_t::remove_view(const timestamp_t ts,
     }
 
     auto &view = cam_views[ts];
+    if (view == nullptr) {
+      continue;
+    }
+
     for (auto &res_id : view->res_ids) {
       problem->RemoveResidualBlock(res_id);
     }
@@ -783,7 +793,7 @@ void calib_camera_t::_setup_problem() {
     }
 
     // Check number of views before performing NBV
-    if (enable_nbv && calib_views[0].size() < 5) {
+    if (enable_nbv == false || calib_views[0].size() < 5) {
       continue;
     }
 
@@ -797,6 +807,10 @@ void calib_camera_t::_setup_problem() {
     // Filter last view
     for (auto &[cam_idx, cam_views] : calib_views) {
       UNUSED(cam_idx);
+      if (cam_views.count(ts) == 0) {
+        continue;
+      }
+
       if (cam_views[ts]) {
         cam_views[ts]->filter_view(outlier_threshold);
       }
@@ -819,7 +833,8 @@ void calib_camera_t::_setup_problem() {
     printf("[%.2f%%] ", ((real_t)ts_idx / (real_t)timestamps.size()) * 100.0);
     printf("nb_views: %ld  ", calib_views[0].size());
     printf("info_k: %.2f  ", calib_info_k);
-    printf("reproj_error: %.2f", rmse(reproj_errors_all));
+    printf("reproj_error: %.2f  ", rmse(reproj_errors_all));
+    printf("shannon_entropy: %.4e  ", shannon_entropy(calib_covar));
     printf("\n");
 
     if (info_gain < info_gain_threshold) {

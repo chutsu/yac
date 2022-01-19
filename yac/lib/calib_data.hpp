@@ -6,6 +6,8 @@
 
 namespace yac {
 
+// CALIB UTILS /////////////////////////////////////////////////////////////////
+
 /** Camera Data **/
 using camera_data_t = std::map<timestamp_t, std::map<int, aprilgrid_t>>;
 

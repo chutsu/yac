@@ -2,6 +2,8 @@
 
 namespace yac {
 
+// CALIB UTILS /////////////////////////////////////////////////////////////////
+
 void lerp_body_poses(const aprilgrids_t &grids,
                      const timestamps_t &body_timestamps,
                      const mat4s_t &body_poses,

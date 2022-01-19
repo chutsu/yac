@@ -10,6 +10,7 @@ namespace yac {
 
 double info_entropy(const matx_t &covar);
 double info_gain(const matx_t &calib_covar, const double info_prev);
+double shannon_entropy(const matx_t &covar);
 void simulate_imu(const ctraj_t &traj,
                   const timestamp_t &ts_start,
                   const timestamp_t &ts_end,

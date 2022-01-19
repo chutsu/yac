@@ -13,6 +13,12 @@ double info_gain(const matx_t &calib_covar, const double info_prev) {
   return 0.5 * (info - info_prev);
 }
 
+double shannon_entropy(const matx_t &covar) {
+  assert(covar.rows() == covar.cols());
+  const auto k = pow(2.0 * M_PI * std::exp(1.0), covar.rows());
+  return 0.5 * std::log(k * covar.determinant());
+}
+
 void simulate_imu(const ctraj_t &traj,
                   const timestamp_t &ts_start,
                   const timestamp_t &ts_end,

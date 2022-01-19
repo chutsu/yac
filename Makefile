@@ -26,6 +26,11 @@ lib_debug: ${CATKIN_WS} ${YAC_PATH}  ## Build libyac in debug mode
 		. /opt/ros/melodic/setup.sh && \
 		catkin build yac -DCMAKE_BUILD_TYPE=RelWithDebInfo -j4
 
+lib_relwithdeb: ${CATKIN_WS} ${YAC_PATH}  ## Build libyac in release with debug mode
+	@cd ${CATKIN_WS} && \
+		. /opt/ros/melodic/setup.sh && \
+		catkin build yac -DCMAKE_BUILD_TYPE=RelWithDebInfo -j4
+
 lib: ${CATKIN_WS} ${YAC_PATH}  ## Build libyac in release mode
 	@cd ${CATKIN_WS} && \
 		. /opt/ros/melodic/setup.sh && \
@@ -35,6 +40,11 @@ debug: ${CATKIN_WS} ${YAC_PATH} ## Build libyac and yac_ros in debug mode
 	@cd ${CATKIN_WS} && \
 		. /opt/ros/melodic/setup.sh && \
 		catkin build yac yac_ros -DCMAKE_BUILD_TYPE=Debug -j4
+
+relwithdeb: ${CATKIN_WS} ${YAC_PATH} ## Build libyac and yac_ros in release with debug mode
+	@cd ${CATKIN_WS} && \
+		. /opt/ros/melodic/setup.sh && \
+		catkin build yac yac_ros -DCMAKE_BUILD_TYPE=RelWithDebInfo -j4
 
 release: ${CATKIN_WS} ${YAC_PATH} ## Build libyac and yac_ros in release mode
 	@cd ${CATKIN_WS} && \

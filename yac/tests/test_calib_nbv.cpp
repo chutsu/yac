@@ -418,126 +418,6 @@ int test_nbv_test_grid() {
   return 0;
 }
 
-// int test_nbv_find() {
-//   test_data_t test_data = setup_test_data();
-//
-//   // Calibration target
-//   calib_target_t target{"aprilgrid", 6, 6, 0.088, 0.3};
-//
-//   // Camera
-//   const id_t id = 0;
-//   const int cam_idx = 0;
-//   const int cam_res[2] = {752, 480};
-//   const std::string proj_model = "pinhole";
-//   const std::string dist_model = "radtan4";
-//   const double fx = pinhole_focal(cam_res[0], 98.0);
-//   const double fy = pinhole_focal(cam_res[1], 73.0);
-//   const double cx = cam_res[0] / 2.0;
-//   const double cy = cam_res[1] / 2.0;
-//   const vec4_t proj_params{fx, fy, cx, cy};
-//   const vec4_t dist_params{0.0, 0.0, 0.0, 0.0};
-//   camera_params_t cam_params{id,
-//                              cam_idx,
-//                              cam_res,
-//                              proj_model,
-//                              dist_model,
-//                              proj_params,
-//                              dist_params};
-//
-//   // Optimize
-//   aprilgrids_t grids0;
-//   for (const auto &grid : test_data.grids0) {
-//     if (grid.detected) {
-//       grids0.push_back(grid);
-//     }
-//     if (grids0.size() == 5) {
-//       break;
-//     }
-//   }
-//   calib_mono_data_t data{grids0, cam_params};
-//   calib_mono_solve<pinhole_radtan4_t>(data);
-//
-//   // Find NBV
-//   mat4_t T_FC;
-//   nbv_find<pinhole_radtan4_t>(target, data, T_FC);
-//   print_matrix("T_FC", T_FC);
-//
-//   return 0;
-// }
-//
-// int test_nbv_find2() {
-//   test_data_t test_data = setup_test_data();
-//
-//   // Calibration target
-//   calib_target_t target{"aprilgrid", 6, 6, 0.088, 0.3};
-//
-//   // Camera
-//   const int cam_res[2] = {752, 480};
-//   const std::string proj_model = "pinhole";
-//   const std::string dist_model = "radtan4";
-//   const double fx = pinhole_focal(cam_res[0], 98.0);
-//   const double fy = pinhole_focal(cam_res[1], 73.0);
-//   const double cx = cam_res[0] / 2.0;
-//   const double cy = cam_res[1] / 2.0;
-//   const vec4_t proj_params{fx, fy, cx, cy};
-//   const vec4_t dist_params{0.0, 0.0, 0.0, 0.0};
-//   camera_params_t
-//       cam0{0, 0, cam_res, proj_model, dist_model, proj_params, dist_params};
-//   camera_params_t
-//       cam1{1, 1, cam_res, proj_model, dist_model, proj_params, dist_params};
-//   extrinsics_t cam0_exts{2};
-//   extrinsics_t cam1_exts{3};
-//
-//   // Prep data
-//   aprilgrids_t grids0;
-//   aprilgrids_t grids1;
-//
-//   const size_t grids0_end = test_data.grids0.size();
-//   const size_t grids1_end = test_data.grids1.size();
-//   size_t grid0_idx = 0;
-//   size_t grid1_idx = 0;
-//   while (grid0_idx < grids0_end && grid1_idx < grids1_end) {
-//     auto grid0 = test_data.grids0[grid0_idx];
-//     auto grid1 = test_data.grids1[grid1_idx];
-//
-//     if (grid0.timestamp > grid1.timestamp) {
-//       grid1_idx++;
-//     } else if (grid0.timestamp < grid1.timestamp) {
-//       grid0_idx++;
-//     } else if (grid0.timestamp == grid1.timestamp) {
-//       if (grid0.detected && grid1.detected) {
-//         grids0.push_back(grid0);
-//         grids1.push_back(grid1);
-//       }
-//       if (grids0.size() == 10) {
-//         break;
-//       }
-//       grid0_idx++;
-//       grid1_idx++;
-//     }
-//   }
-//
-//   // Optimize
-//   calib_data_t data;
-//   data.add_calib_target(target);
-//   data.add_camera(cam0);
-//   data.add_camera(cam1);
-//   data.add_camera_extrinsics(0);
-//   data.add_camera_extrinsics(1);
-//   data.add_grids(0, grids0);
-//   data.add_grids(1, grids1);
-//   data.preprocess_data();
-//   data.check_data();
-//   calib_stereo_solve<pinhole_radtan4_t>(data);
-//
-//   // Find NBV
-//   mat4_t T_FC = I(4);
-//   nbv_find<pinhole_radtan4_t>(target, data, T_FC);
-//   print_matrix("T_FC", T_FC);
-//
-//   return 0;
-// }
-//
 // int test_simulate_cameras() {
 //   // Cameras
 //   auto cameras = setup_cameras();
@@ -816,8 +696,6 @@ void test_suite() {
   MU_ADD_TEST(test_calib_figure8_trajs);
   MU_ADD_TEST(test_nbv_draw);
   MU_ADD_TEST(test_nbv_test_grid);
-  // MU_ADD_TEST(test_nbv_find);
-  // MU_ADD_TEST(test_nbv_find2);
   // MU_ADD_TEST(test_simulate_cameras);
   // MU_ADD_TEST(test_simulate_imu);
   // MU_ADD_TEST(test_nbt_eval_traj);

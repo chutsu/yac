@@ -39,7 +39,8 @@ timeline_t setup_test_data() {
         // Setup
         const timestamp_t ts = cam_event->ts;
         const int cam_idx = cam_event->cam_idx;
-        const cv::Mat image = cv::imread(cam_event->img_path);
+        const auto imread_flag = cv::IMREAD_GRAYSCALE;
+        const cv::Mat image = cv::imread(cam_event->img_path, imread_flag);
         const std::string grid_fname = std::to_string(ts) + ".csv";
         const std::string grid_file = grid_paths[cam_idx] + "/" + grid_fname;
 
@@ -693,7 +694,7 @@ int test_calib_vi() {
     }
   }
   calib.solve();
-  calib.save_results("/tmp/calib_results.yaml");
+  calib.save_results("/tmp/calib_vi_results.yaml");
   calib.save_estimates("/tmp");
 
   return 0;

@@ -781,6 +781,11 @@ static bool apriltag_cmp(const AprilTags::TagDetection &a,
 aprilgrid_t aprilgrid_detector_t::detect(const timestamp_t ts,
                                          const cv::Mat &image,
                                          const bool use_v3) const {
+  // Pre-check
+  if (image.channels() != 1) {
+    FATAL("[aprilgrid_detector_t::detect()]: Image is not grayscale!");
+  }
+
   // Settings
   const double min_border_dist = 4.0;
   const double max_subpix_disp = sqrt(1.5);
@@ -790,17 +795,16 @@ aprilgrid_t aprilgrid_detector_t::detect(const timestamp_t ts,
 
   // Setup
   aprilgrid_t grid{ts, tag_rows, tag_cols, tag_size, tag_spacing};
-  const cv::Mat image_gray = rgb2gray(image);
-  const float img_rows = image_gray.rows;
-  const float img_cols = image_gray.cols;
+  const float img_rows = image.rows;
+  const float img_cols = image.cols;
 
   if (use_v3) {
     // Use AprilTags3
     // -- Make an image_u8_t header for the Mat data
-    image_u8_t im = {.width = image_gray.cols,
-                     .height = image_gray.rows,
-                     .stride = image_gray.cols,
-                     .buf = image_gray.data};
+    image_u8_t im = {.width = image.cols,
+                     .height = image.rows,
+                     .stride = image.cols,
+                     .buf = image.data};
 
     // -- Detector tags
     zarray_t *detections = apriltag_detector_detect(det_v3, &im);
@@ -819,7 +823,7 @@ aprilgrid_t aprilgrid_detector_t::detect(const timestamp_t ts,
 
   } else {
     // Use AprilTags by Michael Kaess
-    std::vector<AprilTags::TagDetection> tags = det.extractTags(image_gray);
+    std::vector<AprilTags::TagDetection> tags = det.extractTags(image);
     // -- Check if too few measurements
     if (tags.size() < 4) {
       return grid;

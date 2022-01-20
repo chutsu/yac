@@ -356,17 +356,15 @@ std::vector<real_t> calib_view_t::get_reproj_errors() const {
 
   // Calculate reprojection errors
   std::vector<real_t> reproj_errors;
-
   for (size_t i = 0; i < tag_ids.size(); i++) {
-    // const int tag_id = tag_ids[i];
-    // const int corner_idx = corner_idxs[i];
     const vec2_t z = kps[i];
     const vec3_t r_FFi = pts[i];
     const vec3_t r_CiFi = tf_point(T_CiF, r_FFi);
 
     vec2_t z_hat;
-    cam_geom->project(res, intrinsics, r_CiFi, z_hat);
-    reproj_errors.push_back((z - z_hat).norm());
+    if (cam_geom->project(res, intrinsics, r_CiFi, z_hat) == 0) {
+      reproj_errors.push_back((z - z_hat).norm());
+    }
   }
 
   return reproj_errors;
@@ -450,8 +448,6 @@ void initialize_camera(const aprilgrids_t &grids,
 
   // Problem
   std::unique_ptr<ceres::LossFunction> loss;
-  // std::unique_ptr<ceres::LossFunction> loss =
-  // std::make_unique<CauchyLoss>(0.5);
   ceres::Problem problem{prob_options};
   PoseLocalParameterization pose_plus;
 
@@ -536,7 +532,7 @@ calib_camera_t::calib_camera_t() {
   prob_options.loss_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
   prob_options.enable_fast_removal = true;
   problem = new ceres::Problem(prob_options);
-  loss = new ceres::HuberLoss(2.0);
+  // loss = new ceres::HuberLoss(2.0);
 }
 
 calib_camera_t::~calib_camera_t() {

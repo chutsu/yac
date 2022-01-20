@@ -393,7 +393,7 @@ start:
       const vec3_t p = sphere(rho, lon, lat);
       const vec3_t r_FJ = tf_point(calib_origin, p);
       const mat4_t T_FC0 = lookat(r_FJ, r_FFc);
-      const mat4_t T_FC1 = T_FC0 * T_C0C1;
+      // const mat4_t T_FC1 = T_FC0 * T_C0C1;
       const mat4_t T_WC0 = T_WF * T_FC0;
 
       if (check_fully_observable(target, cam0_geom, cam0, T_FC0) == false) {
@@ -405,15 +405,15 @@ start:
         }
         goto start;
       }
-      if (check_fully_observable(target, cam1_geom, cam1, T_FC1) == false) {
-        orbit_trajs.clear();
-        scale += 0.1;
-        retry--;
-        if (retry == 0) {
-          FATAL("Failed to generate orbit trajectory!");
-        }
-        goto start;
-      }
+      // if (check_fully_observable(target, cam1_geom, cam1, T_FC1) == false) {
+      //   orbit_trajs.clear();
+      //   scale += 0.1;
+      //   retry--;
+      //   if (retry == 0) {
+      //     FATAL("Failed to generate orbit trajectory!");
+      //   }
+      //   goto start;
+      // }
 
       positions.push_back(tf_trans(T_WC0));
       attitudes.emplace_back(tf_rot(T_WC0));
@@ -480,8 +480,8 @@ void calib_pan_trajs(const calib_target_t &target,
 
   double scale = 1.0;
   ctrajs_t pan_trajs;
-  //   int retry = 20;
-  // start:
+  int retry = 20;
+start:
   // Trajectory parameters
   const int nb_trajs = 4;
   const int nb_control_points = 5;
@@ -504,20 +504,20 @@ void calib_pan_trajs(const calib_target_t &target,
       // const mat4_t T_FC1 = T_FC0 * T_C0C1;
       const mat4_t T_WC0 = T_WF * T_FC0;
 
-      // if (check_fully_observable<T>(target, cam0, T_FC0) == false) {
+      if (check_fully_observable(target, cam0_geom, cam0, T_FC0) == false) {
+        pan_trajs.clear();
+        scale -= 0.05;
+        retry--;
+        if (retry == 0) {
+          FATAL("Failed to generate orbit trajectory!");
+        }
+        goto start;
+      }
+      // if (check_fully_observable(target, cam0_geom, cam1, T_FC1) == false) {
       //   pan_trajs.clear();
       //   scale -= 0.05;
       //   retry--;
-      //   if (retry == 0){
-      //     FATAL("Failed to generate orbit trajectory!");
-      //   }
-      //   goto start;
-      // }
-      // if (check_fully_observable<T>(target, cam1, T_FC1) == false) {
-      //   pan_trajs.clear();
-      //   scale -= 0.05;
-      //   retry--;
-      //   if (retry == 0){
+      //   if (retry == 0) {
       //     FATAL("Failed to generate orbit trajectory!");
       //   }
       //   goto start;
@@ -1152,42 +1152,6 @@ void simulate_imu(const ctraj_t &traj,
 //   calib.solve(false);
 //   return calib.recover_calib_covar(calib_covar);
 // }
-
-// struct nbv_test_grid_t {
-//   const int grid_rows = 5;
-//   const int grid_cols = 5;
-//   const double grid_depth = 1.5;
-//   const size_t nb_points = grid_rows * grid_cols;
-//   vec3s_t object_points;
-//   vec2s_t keypoints;
-//
-//   template <typename T>
-//   nbv_test_grid_t(const T &cam) {
-//     const int img_w = cam.resolution[0];
-//     const int img_h = cam.resolution[1];
-//     const double dx = img_w / (grid_cols + 1);
-//     const double dy = img_h / (grid_rows + 1);
-//     double kp_x = 0;
-//     double kp_y = 0;
-//
-//     for (int i = 1; i < (grid_cols + 1); i++) {
-//       kp_y += dy;
-//       for (int j = 1; j < (grid_rows + 1); j++) {
-//         kp_x += dx;
-//
-//         // Keypoint
-//         const vec2_t kp{kp_x, kp_y};
-//         keypoints.push_back(kp);
-//
-//         // Object point
-//         vec3_t ray;
-//         cam.back_project(kp, ray);
-//         object_points.push_back(ray * grid_depth);
-//       }
-//       kp_x = 0;
-//     }
-//   }
-// };
 
 // // Returns reprojection uncertainty stddev in pixels
 // template <typename T>

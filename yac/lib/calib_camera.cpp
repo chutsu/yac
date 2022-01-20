@@ -805,16 +805,7 @@ void calib_camera_t::_setup_problem() {
     ceres::Solve(options, problem, &summary);
 
     // Filter last view
-    for (auto &[cam_idx, cam_views] : calib_views) {
-      UNUSED(cam_idx);
-      if (cam_views.count(ts) == 0) {
-        continue;
-      }
-
-      if (cam_views[ts]) {
-        cam_views[ts]->filter_view(outlier_threshold);
-      }
-    }
+    _filter_view(ts);
 
     // Optimize again
     ceres::Solve(options, problem, &summary);
@@ -854,6 +845,19 @@ void calib_camera_t::_filter_views() {
     for (auto &[ts, view] : cam_views) {
       UNUSED(ts);
       nb_outliers += view->filter_view(outlier_threshold);
+    }
+  }
+}
+
+void calib_camera_t::_filter_view(const timestamp_t ts) {
+  for (auto &[cam_idx, cam_views] : calib_views) {
+    UNUSED(cam_idx);
+    if (cam_views.count(ts) == 0) {
+      continue;
+    }
+
+    if (cam_views[ts]) {
+      cam_views[ts]->filter_view(outlier_threshold);
     }
   }
 }

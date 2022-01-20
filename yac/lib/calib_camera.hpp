@@ -222,6 +222,7 @@ struct calib_camera_t {
   void _initialize_extrinsics();
   void _setup_problem();
   void _filter_views();
+  void _filter_view(const timestamp_t ts);
 
   std::vector<real_t> get_all_reproj_errors();
   std::map<int, std::vector<real_t>> get_reproj_errors();

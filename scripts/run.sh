@@ -20,8 +20,6 @@ set -e
 # RUN_CMD="rosrun yac test_util_aprilgrid --target test_aprilgrid_save_and_load"
 # RUN_CMD="rosrun yac test_util_aprilgrid --target test_aprilgrid_print"
 # RUN_CMD="rosrun yac test_util_aprilgrid --target test_aprilgrid_detect"
-# RUN_CMD="rosrun yac test_util_aprilgrid --target test_aprilgrid_detect2"
-# RUN_CMD="rosrun yac test_util_aprilgrid --target test_aprilgrid_detect3"
 # RUN_CMD="rosrun yac test_util_config"
 # RUN_CMD="rosrun yac test_util_cv"
 # RUN_CMD="rosrun yac test_util_data"
@@ -45,9 +43,10 @@ set -e
 # RUN_CMD="rosrun yac test_calib_vi --target test_calib_vi"
 
 # YAC - NBV
+# RUN_CMD="rosrun yac test_calib_nbv"
 # RUN_CMD="rosrun yac test_calib_nbv --target test_calib_target_origin"
 # RUN_CMD="rosrun yac test_calib_nbv --target test_calib_init_poses"
-# RUN_CMD="rosrun yac test_calib_nbv --target test_calib_nbv_poses"
+RUN_CMD="rosrun yac test_calib_nbv --target test_calib_nbv_poses"
 # RUN_CMD="rosrun yac test_calib_nbv --target test_calib_orbit_trajs"
 # RUN_CMD="rosrun yac test_calib_nbv --target test_calib_pan_trajs"
 # RUN_CMD="rosrun yac test_calib_nbv --target test_nbv_draw"
@@ -67,6 +66,14 @@ set -e
 # RUN_CMD="roslaunch yac_ros calib_mocap.launch"
 # RUN_CMD="roslaunch yac_ros calib_mono_nbv.launch"
 
+# tmux send-keys -t dev -R "\
+# cd ~/projects/yac \
+# && make relwithdeb \
+# && source ~/catkin_ws/devel/setup.bash \
+# && ${RUN_CMD}
+# " C-m C-m
+# exit
+
 # cd scripts/octave
 # octave-cli nbt.m
 # # octave-cli plot_calib_poses.m
@@ -77,14 +84,11 @@ set -e
 # octave-cli plot_nbt_sim_imu.m
 # octave-cli plot_nbt_trajs.m
 # python3 scripts/analyze_detections.py
+# python3 scripts/sandbox.py
 
-tmux send-keys -t dev -R "\
-cd ~/projects/yac \
-&& make lib_debug \
-&& source ~/catkin_ws/devel/setup.bash \
-&& ${RUN_CMD}
-" C-m C-m
-exit
+# python3 scripts/plot_frames.py
+# python3 scripts/plot_poses.py
+
 
 # make
 # make lib_debug

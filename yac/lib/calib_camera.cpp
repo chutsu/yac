@@ -402,40 +402,10 @@ int calib_view_t::filter_view(const real_t outlier_threshold) {
   return nb_outliers;
 }
 
-// CALIB VIEWS /////////////////////////////////////////////////////////////////
-
-calib_views_t::calib_views_t(ceres::Problem *problem_,
-                             ceres::LossFunction *loss_,
-                             camera_geometry_t *cam_geom_,
-                             camera_params_t *cam_params_,
-                             pose_t *cam_exts_)
-    : problem{problem_}, loss{loss_}, cam_geom{cam_geom_},
-      cam_params{cam_params_}, cam_exts{cam_exts_} {}
-
-size_t calib_views_t::nb_views() const { return views.size(); }
-
-void calib_views_t::add_view(const aprilgrid_t &grid, pose_t *rel_pose) {
-  views.emplace_back(problem,
-                     loss,
-                     cam_geom,
-                     cam_params,
-                     cam_exts,
-                     rel_pose,
-                     grid);
-}
-
-std::vector<real_t> calib_views_t::get_reproj_errors() const {
-  std::vector<real_t> reproj_errors;
-  for (auto &view : views) {
-    auto r = view.get_reproj_errors();
-    reproj_errors.insert(reproj_errors.end(), r.begin(), r.end());
-  }
-  return reproj_errors;
-}
-
 // CALIBRATOR //////////////////////////////////////////////////////////////////
 
-void initialize_camera(const aprilgrids_t &grids,
+void initialize_camera(const calib_target_t &target,
+                       const aprilgrids_t &grids,
                        camera_geometry_t *cam_geom,
                        camera_params_t *cam_params,
                        const bool verbose) {
@@ -451,6 +421,9 @@ void initialize_camera(const aprilgrids_t &grids,
   ceres::Problem problem{prob_options};
   PoseLocalParameterization pose_plus;
 
+  // Features
+  std::map<int, std::map<int, feature_t>> calib_corners;
+
   // Camera
   const auto cam_res = cam_params->resolution;
   problem.AddParameterBlock(cam_params->data(), 8);
@@ -465,11 +438,7 @@ void initialize_camera(const aprilgrids_t &grids,
   std::map<timestamp_t, pose_t> poses;
 
   // Build problem
-  calib_views_t calib_views{&problem,
-                            loss.get(),
-                            cam_geom,
-                            cam_params,
-                            &cam_exts};
+  std::deque<calib_view_t> views;
 
   for (auto grid : grids) {
     const auto ts = grid.timestamp;
@@ -489,7 +458,13 @@ void initialize_camera(const aprilgrids_t &grids,
     problem.SetParameterization(poses[ts].data(), &pose_plus);
 
     // Add calibration view
-    calib_views.add_view(grid, &poses[ts]);
+    views.emplace_back(&problem,
+                       loss.get(),
+                       cam_geom,
+                       cam_params,
+                       &cam_exts,
+                       &poses[ts],
+                       grid);
   }
 
   // Solver options
@@ -501,19 +476,25 @@ void initialize_camera(const aprilgrids_t &grids,
   ceres::Solver::Summary summary;
   ceres::Solve(options, &problem, &summary);
   if (verbose) {
+    // Get reprojection errors
+    std::vector<real_t> reproj_errors;
+    for (auto &view : views) {
+      auto r = view.get_reproj_errors();
+      reproj_errors.insert(reproj_errors.end(), r.begin(), r.end());
+    }
+
     // Show optimization report
     std::cout << summary.BriefReport() << std::endl;
     std::cout << std::endl;
 
     // Show optimization results
-    const auto reproj_errors = calib_views.get_reproj_errors();
     printf("Optimization results\n");
     printf("------------------------------------------------------------\n");
     printf("reproj_errors: [%f, %f, %f] [px] (rmse, mean, median)\n",
            rmse(reproj_errors),
            mean(reproj_errors),
            median(reproj_errors));
-    printf("nb_views: %ld\n", calib_views.nb_views());
+    printf("nb_views: %ld\n", views.size());
     printf("nb_corners: %ld\n", reproj_errors.size());
     printf("\n");
     printf("cam%d:\n", cam_params->cam_index);
@@ -524,593 +505,594 @@ void initialize_camera(const aprilgrids_t &grids,
   }
 }
 
-// CALIB CAMERA ////////////////////////////////////////////////////////////////
-
-calib_camera_t::calib_camera_t() {
-  prob_options.local_parameterization_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
-  prob_options.cost_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
-  prob_options.loss_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
-  prob_options.enable_fast_removal = true;
-  problem = new ceres::Problem(prob_options);
-  // loss = new ceres::HuberLoss(2.0);
-}
-
-calib_camera_t::~calib_camera_t() {
-  for (auto &[cam_idx, param] : cam_params) {
-    UNUSED(cam_idx);
-    delete param;
-  }
-
-  for (auto &[cam_idx, exts] : cam_exts) {
-    UNUSED(cam_idx);
-    delete exts;
-  }
-
-  for (auto &[ts, pose] : poses) {
-    UNUSED(ts);
-    delete pose;
-  }
-
-  if (loss) {
-    delete loss;
-  }
-
-  if (problem) {
-    delete problem;
-  }
-}
-
-int calib_camera_t::nb_cams() const { return cam_params.size(); }
-
-aprilgrids_t calib_camera_t::get_cam_data(const int cam_idx) const {
-  aprilgrids_t grids;
-  for (const auto &ts : timestamps) {
-    if (cam_data.count(ts) == 0) {
-      continue;
-    }
-    if (cam_data.at(ts).count(cam_idx) == 0) {
-      continue;
-    }
-    grids.push_back(cam_data.at(ts).at(cam_idx));
-  }
-  return grids;
-}
-
-mat4_t calib_camera_t::get_camera_extrinsics(const int cam_idx) const {
-  return cam_exts.at(cam_idx)->tf();
-}
-
-void calib_camera_t::add_calib_target(const calib_target_t &target_) {
-  target = target_;
-}
-
-void calib_camera_t::add_camera_data(const int cam_idx,
-                                     const aprilgrids_t &grids) {
-  for (const auto &grid : grids) {
-    const auto ts = grid.timestamp;
-    timestamps.insert(ts);
-    cam_data[ts][cam_idx] = grid;
-  }
-}
-
-void calib_camera_t::add_camera(const int cam_idx,
-                                const int cam_res[2],
-                                const std::string &proj_model,
-                                const std::string &dist_model,
-                                const bool fixed) {
-  // Projection params
-  vecx_t proj_params;
-  if (proj_model == "pinhole") {
-    const double fx = pinhole_focal(cam_res[0], 90);
-    const double fy = pinhole_focal(cam_res[0], 90);
-    const double cx = cam_res[0] / 2.0;
-    const double cy = cam_res[1] / 2.0;
-    proj_params.resize(4);
-    proj_params << fx, fy, cx, cy;
-  } else {
-    FATAL("Unsupported [%s]!", proj_model.c_str());
-  }
-
-  // Distortion params
-  vecx_t dist_params;
-  if (dist_model == "radtan4" || dist_model == "equi4") {
-    dist_params = zeros(4, 1);
-  } else {
-    FATAL("Unsupported [%s]!", dist_model.c_str());
-  }
-
-  // Camera parameters
-  cam_params[cam_idx] = new camera_params_t{cam_idx,
-                                            cam_res,
-                                            proj_model,
-                                            dist_model,
-                                            proj_params,
-                                            dist_params,
-                                            fixed};
-
-  // Camera geometry
-  if (proj_model == "pinhole" && dist_model == "radtan4") {
-    cam_geoms[cam_idx] = &pinhole_radtan4;
-  } else if (proj_model == "pinhole" && dist_model == "equi4") {
-    cam_geoms[cam_idx] = &pinhole_equi4;
-  }
-
-  // Add parameter to problem
-  int params_size = proj_params.size() + dist_params.size();
-  problem->AddParameterBlock(cam_params[cam_idx]->data(), params_size);
-  if (fixed) {
-    problem->SetParameterBlockConstant(cam_params[cam_idx]->data());
-  }
-}
-
-void calib_camera_t::add_camera_extrinsics(const int cam_idx,
-                                           const mat4_t &ext,
-                                           const bool fixed) {
-  cam_exts[cam_idx] = new extrinsics_t{ext};
-  problem->AddParameterBlock(cam_exts[cam_idx]->data(), 7);
-  problem->SetParameterization(cam_exts[cam_idx]->data(), &pose_plus);
-  if (cam_idx == 0 || fixed) {
-    problem->SetParameterBlockConstant(cam_exts[cam_idx]->data());
-  }
-}
-
-void calib_camera_t::add_pose(const int cam_idx,
-                              const aprilgrid_t &grid,
-                              const bool fixed) {
-  // Setup
-  const auto ts = grid.timestamp;
-  if (poses.count(ts) > 0) {
-    FATAL("Implementation Error!");
-    return;
-  }
-
-  // Estimate relative pose T_C0F
-  const auto cam_geom = cam_geoms[cam_idx];
-  const auto param = cam_params[cam_idx]->param;
-  const auto res = cam_params[cam_idx]->resolution;
-  mat4_t T_CiF;
-  if (grid.estimate(cam_geom, res, param, T_CiF) != 0) {
-    FATAL("Failed to estimate relative pose!");
-  }
-
-  // Add relative pose T_C0F
-  const mat4_t T_C0Ci = get_camera_extrinsics(cam_idx);
-  const mat4_t T_C0F = T_C0Ci * T_CiF;
-  poses[ts] = new pose_t{ts, T_C0F};
-  problem->AddParameterBlock(poses[ts]->data(), 7);
-  problem->SetParameterization(poses[ts]->data(), &pose_plus);
-  if (fixed) {
-    problem->SetParameterBlockConstant(poses[ts]->data());
-  }
-}
-
-void calib_camera_t::add_view(const aprilgrid_t &grid,
-                              ceres::Problem *problem,
-                              ceres::LossFunction *loss,
-                              int cam_idx,
-                              camera_geometry_t *cam_geom,
-                              camera_params_t *cam_params,
-                              extrinsics_t *cam_exts,
-                              pose_t *rel_pose) {
-  const timestamp_t ts = grid.timestamp;
-  calib_views[cam_idx][ts] = std::make_unique<calib_view_t>(problem,
-                                                            loss,
-                                                            cam_geom,
-                                                            cam_params,
-                                                            cam_exts,
-                                                            rel_pose,
-                                                            grid);
-}
-
-void calib_camera_t::remove_view(const timestamp_t ts,
-                                 ceres::Problem *problem) {
-  // Remove view
-  for (auto &[cam_idx, cam_views] : calib_views) {
-    if (cam_views.count(ts) == 0) {
-      continue;
-    }
-
-    auto &view = cam_views[ts];
-    if (view == nullptr) {
-      continue;
-    }
-
-    for (auto &res_id : view->res_ids) {
-      problem->RemoveResidualBlock(res_id);
-    }
-    cam_views.erase(ts);
-  }
-
-  // Remove pose
-  auto pose_ptr = poses[ts];
-  problem->RemoveParameterBlock(pose_ptr->param.data());
-  poses.erase(ts);
-  delete pose_ptr;
-}
-
-void calib_camera_t::_initialize_intrinsics() {
-  for (int cam_idx = 0; cam_idx < nb_cams(); cam_idx++) {
-    printf("initializing cam%d intrinsics ...\n", cam_idx);
-    const aprilgrids_t grids = get_cam_data(cam_idx);
-    initialize_camera(grids, cam_geoms[cam_idx], cam_params[cam_idx]);
-  }
-}
-
-void calib_camera_t::_initialize_extrinsics() {
-  printf("initializing extrinsics ...\n");
-  add_camera_extrinsics(0);
-  if (nb_cams() == 1) {
-    return;
-  }
-
-  camchain_t camchain{cam_data, cam_geoms, cam_params};
-  for (int j = 1; j < nb_cams(); j++) {
-    mat4_t T_C0Cj;
-    if (camchain.find(0, j, T_C0Cj) != 0) {
-      FATAL("Failed to initialze T_C0C%d", j);
-    }
-
-    add_camera_extrinsics(j, T_C0Cj);
-  }
-}
-
-void calib_camera_t::_setup_problem() {
-  size_t ts_idx = 0;
-
-  for (const auto &ts : timestamps) {
-    bool new_view_added = false;
-    for (const auto &[cam_idx, grid] : cam_data[ts]) {
-      // Check if AprilGrid was detected
-      if (grid.detected == false) {
-        continue;
-      }
-
-      // Add pose
-      if (poses.count(ts) == 0) {
-        add_pose(cam_idx, grid);
-      }
-
-      // Add calibration view
-      add_view(grid,
-               problem,
-               loss,
-               cam_idx,
-               cam_geoms[cam_idx],
-               cam_params[cam_idx],
-               cam_exts[cam_idx],
-               poses[ts]);
-      new_view_added = true;
-    } // Iterate camera data
-    ts_idx++;
-
-    // Check if new view has been added
-    if (new_view_added == false) {
-      continue;
-    }
-
-    // Check number of views before performing NBV
-    if (enable_nbv == false || calib_views[0].size() < 5) {
-      continue;
-    }
-
-    // Solve with new view
-    ceres::Solver::Options options;
-    options.minimizer_progress_to_stdout = false;
-    options.max_num_iterations = 10;
-    ceres::Solver::Summary summary;
-    ceres::Solve(options, problem, &summary);
-
-    // Filter last view
-    _filter_view(ts);
-
-    // Optimize again
-    ceres::Solve(options, problem, &summary);
-
-    // Check information
-    matx_t calib_covar;
-    int retval = recover_calib_covar(calib_covar);
-    if (retval != 0) {
-      continue;
-    }
-
-    // Calculate information gain
-    const auto reproj_errors_all = get_all_reproj_errors();
-    const real_t calib_info_kp1 = info_entropy(calib_covar);
-    const real_t info_gain = 0.5 * (calib_info_kp1 - calib_info_k);
-    printf("[%.2f%%] ", ((real_t)ts_idx / (real_t)timestamps.size()) * 100.0);
-    printf("nb_views: %ld  ", calib_views[0].size());
-    printf("info_k: %.2f  ", calib_info_k);
-    printf("reproj_error: %.2f  ", rmse(reproj_errors_all));
-    printf("shannon_entropy: %.4e  ", shannon_entropy(calib_covar));
-    printf("\n");
-
-    if (info_gain < info_gain_threshold) {
-      remove_view(ts, problem);
-    } else {
-      calib_info_k = calib_info_kp1;
-    }
-
-  } // Iterate timestamps
-}
-
-void calib_camera_t::_filter_views() {
-  int nb_outliers = 0;
-  for (auto &[cam_idx, cam_views] : calib_views) {
-    UNUSED(cam_idx);
-
-    for (auto &[ts, view] : cam_views) {
-      UNUSED(ts);
-      nb_outliers += view->filter_view(outlier_threshold);
-    }
-  }
-}
-
-void calib_camera_t::_filter_view(const timestamp_t ts) {
-  for (auto &[cam_idx, cam_views] : calib_views) {
-    UNUSED(cam_idx);
-    if (cam_views.count(ts) == 0) {
-      continue;
-    }
-
-    if (cam_views[ts]) {
-      cam_views[ts]->filter_view(outlier_threshold);
-    }
-  }
-}
-
-std::vector<real_t> calib_camera_t::get_all_reproj_errors() {
-  std::vector<real_t> reproj_errors_all;
-
-  for (auto &[cam_idx, cam_views] : calib_views) {
-    for (auto &[ts, view] : cam_views) {
-      UNUSED(ts);
-      if (view) {
-        extend(reproj_errors_all, view->get_reproj_errors());
-      }
-    }
-  }
-
-  return reproj_errors_all;
-}
-
-std::map<int, std::vector<real_t>> calib_camera_t::get_reproj_errors() {
-  std::map<int, std::vector<real_t>> reproj_errors;
-
-  for (auto &[cam_idx, cam_views] : calib_views) {
-    for (auto &[ts, view] : cam_views) {
-      UNUSED(ts);
-      if (view) {
-        extend(reproj_errors[cam_idx], view->get_reproj_errors());
-      }
-    }
-  }
-
-  return reproj_errors;
-}
-
-int calib_camera_t::recover_calib_covar(matx_t &calib_covar) {
-  // Setup covariance blocks to estimate
-  std::vector<std::pair<const double *, const double *>> covar_blocks;
-  // -- Add camera parameter blocks
-  for (auto &[cam_idx, param] : cam_params) {
-    UNUSED(cam_idx);
-    covar_blocks.push_back({param->param.data(), param->param.data()});
-  }
-  // -- Add camera extrinsics blocks
-  for (auto &[cam_idx, param] : cam_exts) {
-    if (cam_idx == 0) {
-      continue;
-    }
-    UNUSED(cam_idx);
-    covar_blocks.push_back({param->param.data(), param->param.data()});
-  }
-
-  // Estimate covariance
-  ::ceres::Covariance::Options options;
-  ::ceres::Covariance covar_est(options);
-  if (covar_est.Compute(covar_blocks, problem) == false) {
-    LOG_ERROR("Failed to estimate covariance!");
-    LOG_ERROR("Maybe Hessian is not full rank?");
-    return -1;
-  }
-
-  // Extract covariances sub-blocks
-  std::map<int, Eigen::Matrix<double, 8, 8, Eigen::RowMajor>> covar_cam_params;
-  std::map<int, Eigen::Matrix<double, 6, 6, Eigen::RowMajor>> covar_cam_exts;
-  for (auto &[cam_idx, param] : cam_params) {
-    UNUSED(cam_idx);
-    auto param_ptr = param->param.data();
-    auto covar_ptr = covar_cam_params[cam_idx].data();
-    if (!covar_est.GetCovarianceBlock(param_ptr, param_ptr, covar_ptr)) {
-      LOG_ERROR("Failed to estimate cam%d parameter covariance!", cam_idx);
-      return -1;
-    }
-  }
-  for (auto &[cam_idx, param] : cam_exts) {
-    if (cam_idx == 0) {
-      continue;
-    }
-    auto param_ptr = param->param.data();
-    auto covar_ptr = covar_cam_exts[cam_idx].data();
-    if (!covar_est.GetCovarianceBlockInTangentSpace(param_ptr,
-                                                    param_ptr,
-                                                    covar_ptr)) {
-      LOG_ERROR("Failed to estimate cam%d extrinsics covariance!", cam_idx);
-      return -1;
-    }
-  }
-
-  // Form covariance matrix block
-  const int calib_covar_size = (nb_cams() * 8) + ((nb_cams() - 1) * 6);
-  calib_covar = zeros(calib_covar_size, calib_covar_size);
-  for (auto &[cam_idx, covar] : covar_cam_params) {
-    const auto idx = cam_idx * 8;
-    calib_covar.block(idx, idx, 8, 8) = covar;
-  }
-  for (auto &[cam_idx, covar] : covar_cam_exts) {
-    if (cam_idx == 0) {
-      continue;
-    }
-    const auto idx = nb_cams() * 8 + ((cam_idx - 1) * 6);
-    calib_covar.block(idx, idx, 6, 6) = covar;
-  }
-
-  // Check if calib_covar is full-rank?
-  if (rank(calib_covar) != calib_covar.rows()) {
-    LOG_ERROR("calib_covar is not full rank!");
-    return -1;
-  }
-
-  return 0;
-}
-
-void calib_camera_t::solve() {
-  // Setup
-  _initialize_intrinsics();
-  _initialize_extrinsics();
-  _setup_problem();
-
-  // Solver options
-  ceres::Solver::Options options;
-  options.minimizer_progress_to_stdout = true;
-  options.max_num_iterations = 100;
-
-  // Solve
-  ceres::Solver::Summary summary;
-  ceres::Solve(options, problem, &summary);
-  std::cout << std::endl;
-  std::cout << summary.BriefReport() << std::endl;
-  std::cout << std::endl;
-
-  // Filter views
-  if (enable_outlier_rejection) {
-    _filter_views();
-
-    // Solve again - second pass
-    ceres::Solver::Summary summary;
-    ceres::Solve(options, problem, &summary);
-    std::cout << std::endl;
-    std::cout << summary.BriefReport() << std::endl;
-    std::cout << std::endl;
-  }
-
-  // Show results
-  show_results();
-}
-
-void calib_camera_t::show_results() {
-  // Show results
-  printf("Optimization results:\n");
-  printf("---------------------\n");
-
-  // Stats - Reprojection Errors
-  const auto reproj_errors = get_reproj_errors();
-  const auto reproj_errors_all = get_all_reproj_errors();
-  // -- Print total reprojection error
-  printf("Total reprojection error:\n");
-  printf("  rmse:   %.4f # px\n", rmse(reproj_errors_all));
-  printf("  mean:   %.4f # px\n", mean(reproj_errors_all));
-  printf("  median: %.4f # px\n", median(reproj_errors_all));
-  printf("  stddev: %.4f # px\n", stddev(reproj_errors_all));
-  printf("\n");
-  // -- Print camera reprojection error
-  for (const auto &[cam_idx, cam_errors] : reproj_errors) {
-    printf("cam[%d] reprojection error:\n", cam_idx);
-    printf("  rmse:   %.4f # px\n", rmse(cam_errors));
-    printf("  mean:   %.4f # px\n", mean(cam_errors));
-    printf("  median: %.4f # px\n", median(cam_errors));
-    printf("  stddev: %.4f # px\n", stddev(cam_errors));
-    printf("\n");
-  }
-  printf("\n");
-
-  // Cameras
-  for (int cam_idx = 0; cam_idx < nb_cams(); cam_idx++) {
-    printf("cam%d:\n", cam_idx);
-    print_vector("  proj_params", cam_params[cam_idx]->proj_params());
-    print_vector("  dist_params", cam_params[cam_idx]->dist_params());
-    printf("\n");
-  }
-
-  // Camera Extrinsics
-  for (int cam_idx = 1; cam_idx < nb_cams(); cam_idx++) {
-    const auto key = "T_C0C" + std::to_string(cam_idx);
-    const mat4_t T_C0Ci = get_camera_extrinsics(cam_idx);
-    print_matrix(key, T_C0Ci, "  ");
-  }
-}
-
-int calib_camera_t::save_results(const std::string &save_path) {
-  LOG_INFO(KGRN "Saved results to [%s]" KNRM, save_path.c_str());
-
-  // Open results file
-  FILE *outfile = fopen(save_path.c_str(), "w");
-  if (outfile == NULL) {
-    return -1;
-  }
-
-  // Get reprojection errors
-  const auto reproj_errors = get_reproj_errors();
-  const auto reproj_errors_all = get_all_reproj_errors();
-
-  // Calibration metrics
-  fprintf(outfile, "calib_metrics:\n");
-  fprintf(outfile, "  total_reproj_error:\n");
-  fprintf(outfile, "    rmse:   %f # [px]\n", rmse(reproj_errors_all));
-  fprintf(outfile, "    mean:   %f # [px]\n", mean(reproj_errors_all));
-  fprintf(outfile, "    median: %f # [px]\n", median(reproj_errors_all));
-  fprintf(outfile, "    stddev: %f # [px]\n", stddev(reproj_errors_all));
-  fprintf(outfile, "\n");
-  for (const auto &[cam_idx, cam_errors] : reproj_errors) {
-    const auto cam_str = "cam" + std::to_string(cam_idx);
-    fprintf(outfile, "  %s_reproj_error:\n", cam_str.c_str());
-    fprintf(outfile, "    rmse:   %f # [px]\n", rmse(cam_errors));
-    fprintf(outfile, "    mean:   %f # [px]\n", mean(cam_errors));
-    fprintf(outfile, "    median: %f # [px]\n", median(cam_errors));
-    fprintf(outfile, "    stddev: %f # [px]\n", stddev(cam_errors));
-    fprintf(outfile, "\n");
-  }
-  fprintf(outfile, "\n");
-
-  // Camera parameters
-  for (auto &kv : cam_params) {
-    const auto cam_idx = kv.first;
-    const auto cam = cam_params.at(cam_idx);
-    const int *cam_res = cam->resolution;
-    const char *proj_model = cam->proj_model.c_str();
-    const char *dist_model = cam->dist_model.c_str();
-    const std::string proj_params = vec2str(cam->proj_params(), 4);
-    const std::string dist_params = vec2str(cam->dist_params(), 4);
-
-    fprintf(outfile, "cam%d:\n", cam_idx);
-    fprintf(outfile, "  resolution: [%d, %d]\n", cam_res[0], cam_res[1]);
-    fprintf(outfile, "  proj_model: \"%s\"\n", proj_model);
-    fprintf(outfile, "  dist_model: \"%s\"\n", dist_model);
-    fprintf(outfile, "  proj_params: %s\n", proj_params.c_str());
-    fprintf(outfile, "  dist_params: %s\n", dist_params.c_str());
-    fprintf(outfile, "\n");
-  }
-  fprintf(outfile, "\n");
-
-  // Camera-Camera extrinsics
-  const mat4_t T_BC0 = get_camera_extrinsics(0);
-  const mat4_t T_C0B = T_BC0.inverse();
-  if (nb_cams() >= 2) {
-    for (int i = 1; i < nb_cams(); i++) {
-      const mat4_t T_BCi = get_camera_extrinsics(i);
-      const mat4_t T_C0Ci = T_C0B * T_BCi;
-      const mat4_t T_CiC0 = T_C0Ci.inverse();
-      fprintf(outfile, "T_cam0_cam%d:\n", i);
-      fprintf(outfile, "  rows: 4\n");
-      fprintf(outfile, "  cols: 4\n");
-      fprintf(outfile, "  data: [\n");
-      fprintf(outfile, "%s\n", mat2str(T_C0Ci, "    ").c_str());
-      fprintf(outfile, "  ]\n");
-      fprintf(outfile, "\n");
-    }
-  }
-
-  return -1;
-}
+// // CALIB CAMERA
+// ////////////////////////////////////////////////////////////////
+//
+// calib_camera_t::calib_camera_t() {
+//   prob_options.local_parameterization_ownership =
+//   ceres::DO_NOT_TAKE_OWNERSHIP; prob_options.cost_function_ownership =
+//   ceres::DO_NOT_TAKE_OWNERSHIP; prob_options.loss_function_ownership =
+//   ceres::DO_NOT_TAKE_OWNERSHIP; prob_options.enable_fast_removal = true;
+//   problem = new ceres::Problem(prob_options);
+//   // loss = new ceres::HuberLoss(2.0);
+// }
+//
+// calib_camera_t::~calib_camera_t() {
+//   for (auto &[cam_idx, param] : cam_params) {
+//     UNUSED(cam_idx);
+//     delete param;
+//   }
+//
+//   for (auto &[cam_idx, exts] : cam_exts) {
+//     UNUSED(cam_idx);
+//     delete exts;
+//   }
+//
+//   for (auto &[ts, pose] : poses) {
+//     UNUSED(ts);
+//     delete pose;
+//   }
+//
+//   if (loss) {
+//     delete loss;
+//   }
+//
+//   if (problem) {
+//     delete problem;
+//   }
+// }
+//
+// int calib_camera_t::nb_cams() const { return cam_params.size(); }
+//
+// aprilgrids_t calib_camera_t::get_cam_data(const int cam_idx) const {
+//   aprilgrids_t grids;
+//   for (const auto &ts : timestamps) {
+//     if (cam_data.count(ts) == 0) {
+//       continue;
+//     }
+//     if (cam_data.at(ts).count(cam_idx) == 0) {
+//       continue;
+//     }
+//     grids.push_back(cam_data.at(ts).at(cam_idx));
+//   }
+//   return grids;
+// }
+//
+// mat4_t calib_camera_t::get_camera_extrinsics(const int cam_idx) const {
+//   return cam_exts.at(cam_idx)->tf();
+// }
+//
+// void calib_camera_t::add_calib_target(const calib_target_t &target_) {
+//   target = target_;
+// }
+//
+// void calib_camera_t::add_camera_data(const int cam_idx,
+//                                      const aprilgrids_t &grids) {
+//   for (const auto &grid : grids) {
+//     const auto ts = grid.timestamp;
+//     timestamps.insert(ts);
+//     cam_data[ts][cam_idx] = grid;
+//   }
+// }
+//
+// void calib_camera_t::add_camera(const int cam_idx,
+//                                 const int cam_res[2],
+//                                 const std::string &proj_model,
+//                                 const std::string &dist_model,
+//                                 const bool fixed) {
+//   // Projection params
+//   vecx_t proj_params;
+//   if (proj_model == "pinhole") {
+//     const double fx = pinhole_focal(cam_res[0], 90);
+//     const double fy = pinhole_focal(cam_res[0], 90);
+//     const double cx = cam_res[0] / 2.0;
+//     const double cy = cam_res[1] / 2.0;
+//     proj_params.resize(4);
+//     proj_params << fx, fy, cx, cy;
+//   } else {
+//     FATAL("Unsupported [%s]!", proj_model.c_str());
+//   }
+//
+//   // Distortion params
+//   vecx_t dist_params;
+//   if (dist_model == "radtan4" || dist_model == "equi4") {
+//     dist_params = zeros(4, 1);
+//   } else {
+//     FATAL("Unsupported [%s]!", dist_model.c_str());
+//   }
+//
+//   // Camera parameters
+//   cam_params[cam_idx] = new camera_params_t{cam_idx,
+//                                             cam_res,
+//                                             proj_model,
+//                                             dist_model,
+//                                             proj_params,
+//                                             dist_params,
+//                                             fixed};
+//
+//   // Camera geometry
+//   if (proj_model == "pinhole" && dist_model == "radtan4") {
+//     cam_geoms[cam_idx] = &pinhole_radtan4;
+//   } else if (proj_model == "pinhole" && dist_model == "equi4") {
+//     cam_geoms[cam_idx] = &pinhole_equi4;
+//   }
+//
+//   // Add parameter to problem
+//   int params_size = proj_params.size() + dist_params.size();
+//   problem->AddParameterBlock(cam_params[cam_idx]->data(), params_size);
+//   if (fixed) {
+//     problem->SetParameterBlockConstant(cam_params[cam_idx]->data());
+//   }
+// }
+//
+// void calib_camera_t::add_camera_extrinsics(const int cam_idx,
+//                                            const mat4_t &ext,
+//                                            const bool fixed) {
+//   cam_exts[cam_idx] = new extrinsics_t{ext};
+//   problem->AddParameterBlock(cam_exts[cam_idx]->data(), 7);
+//   problem->SetParameterization(cam_exts[cam_idx]->data(), &pose_plus);
+//   if (cam_idx == 0 || fixed) {
+//     problem->SetParameterBlockConstant(cam_exts[cam_idx]->data());
+//   }
+// }
+//
+// void calib_camera_t::add_pose(const int cam_idx,
+//                               const aprilgrid_t &grid,
+//                               const bool fixed) {
+//   // Setup
+//   const auto ts = grid.timestamp;
+//   if (poses.count(ts) > 0) {
+//     FATAL("Implementation Error!");
+//     return;
+//   }
+//
+//   // Estimate relative pose T_C0F
+//   const auto cam_geom = cam_geoms[cam_idx];
+//   const auto param = cam_params[cam_idx]->param;
+//   const auto res = cam_params[cam_idx]->resolution;
+//   mat4_t T_CiF;
+//   if (grid.estimate(cam_geom, res, param, T_CiF) != 0) {
+//     FATAL("Failed to estimate relative pose!");
+//   }
+//
+//   // Add relative pose T_C0F
+//   const mat4_t T_C0Ci = get_camera_extrinsics(cam_idx);
+//   const mat4_t T_C0F = T_C0Ci * T_CiF;
+//   poses[ts] = new pose_t{ts, T_C0F};
+//   problem->AddParameterBlock(poses[ts]->data(), 7);
+//   problem->SetParameterization(poses[ts]->data(), &pose_plus);
+//   if (fixed) {
+//     problem->SetParameterBlockConstant(poses[ts]->data());
+//   }
+// }
+//
+// void calib_camera_t::add_view(const aprilgrid_t &grid,
+//                               ceres::Problem *problem,
+//                               ceres::LossFunction *loss,
+//                               int cam_idx,
+//                               camera_geometry_t *cam_geom,
+//                               camera_params_t *cam_params,
+//                               extrinsics_t *cam_exts,
+//                               pose_t *rel_pose) {
+//   const timestamp_t ts = grid.timestamp;
+//   calib_views[cam_idx][ts] = std::make_unique<calib_view_t>(problem,
+//                                                             loss,
+//                                                             cam_geom,
+//                                                             cam_params,
+//                                                             cam_exts,
+//                                                             rel_pose,
+//                                                             grid);
+// }
+//
+// void calib_camera_t::remove_view(const timestamp_t ts,
+//                                  ceres::Problem *problem) {
+//   // Remove view
+//   for (auto &[cam_idx, cam_views] : calib_views) {
+//     if (cam_views.count(ts) == 0) {
+//       continue;
+//     }
+//
+//     auto &view = cam_views[ts];
+//     if (view == nullptr) {
+//       continue;
+//     }
+//
+//     for (auto &res_id : view->res_ids) {
+//       problem->RemoveResidualBlock(res_id);
+//     }
+//     cam_views.erase(ts);
+//   }
+//
+//   // Remove pose
+//   auto pose_ptr = poses[ts];
+//   problem->RemoveParameterBlock(pose_ptr->param.data());
+//   poses.erase(ts);
+//   delete pose_ptr;
+// }
+//
+// void calib_camera_t::_initialize_intrinsics() {
+//   for (int cam_idx = 0; cam_idx < nb_cams(); cam_idx++) {
+//     printf("initializing cam%d intrinsics ...\n", cam_idx);
+//     const aprilgrids_t grids = get_cam_data(cam_idx);
+//     initialize_camera(grids, cam_geoms[cam_idx], cam_params[cam_idx]);
+//   }
+// }
+//
+// void calib_camera_t::_initialize_extrinsics() {
+//   printf("initializing extrinsics ...\n");
+//   add_camera_extrinsics(0);
+//   if (nb_cams() == 1) {
+//     return;
+//   }
+//
+//   camchain_t camchain{cam_data, cam_geoms, cam_params};
+//   for (int j = 1; j < nb_cams(); j++) {
+//     mat4_t T_C0Cj;
+//     if (camchain.find(0, j, T_C0Cj) != 0) {
+//       FATAL("Failed to initialze T_C0C%d", j);
+//     }
+//
+//     add_camera_extrinsics(j, T_C0Cj);
+//   }
+// }
+//
+// void calib_camera_t::_setup_problem() {
+//   size_t ts_idx = 0;
+//
+//   for (const auto &ts : timestamps) {
+//     bool new_view_added = false;
+//     for (const auto &[cam_idx, grid] : cam_data[ts]) {
+//       // Check if AprilGrid was detected
+//       if (grid.detected == false) {
+//         continue;
+//       }
+//
+//       // Add pose
+//       if (poses.count(ts) == 0) {
+//         add_pose(cam_idx, grid);
+//       }
+//
+//       // Add calibration view
+//       add_view(grid,
+//                problem,
+//                loss,
+//                cam_idx,
+//                cam_geoms[cam_idx],
+//                cam_params[cam_idx],
+//                cam_exts[cam_idx],
+//                poses[ts]);
+//       new_view_added = true;
+//     } // Iterate camera data
+//     ts_idx++;
+//
+//     // Check if new view has been added
+//     if (new_view_added == false) {
+//       continue;
+//     }
+//
+//     // Check number of views before performing NBV
+//     if (enable_nbv == false || calib_views[0].size() < 5) {
+//       continue;
+//     }
+//
+//     // Solve with new view
+//     ceres::Solver::Options options;
+//     options.minimizer_progress_to_stdout = false;
+//     options.max_num_iterations = 10;
+//     ceres::Solver::Summary summary;
+//     ceres::Solve(options, problem, &summary);
+//
+//     // Filter last view
+//     _filter_view(ts);
+//
+//     // Optimize again
+//     ceres::Solve(options, problem, &summary);
+//
+//     // Check information
+//     matx_t calib_covar;
+//     int retval = recover_calib_covar(calib_covar);
+//     if (retval != 0) {
+//       continue;
+//     }
+//
+//     // Calculate information gain
+//     const auto reproj_errors_all = get_all_reproj_errors();
+//     const real_t calib_info_kp1 = info_entropy(calib_covar);
+//     const real_t info_gain = 0.5 * (calib_info_kp1 - calib_info_k);
+//     printf("[%.2f%%] ", ((real_t)ts_idx / (real_t)timestamps.size()) *
+//     100.0); printf("nb_views: %ld  ", calib_views[0].size()); printf("info_k:
+//     %.2f  ", calib_info_k); printf("reproj_error: %.2f  ",
+//     rmse(reproj_errors_all)); printf("shannon_entropy: %.4e  ",
+//     shannon_entropy(calib_covar)); printf("\n");
+//
+//     if (info_gain < info_gain_threshold) {
+//       remove_view(ts, problem);
+//     } else {
+//       calib_info_k = calib_info_kp1;
+//     }
+//
+//   } // Iterate timestamps
+// }
+//
+// void calib_camera_t::_filter_views() {
+//   int nb_outliers = 0;
+//   for (auto &[cam_idx, cam_views] : calib_views) {
+//     UNUSED(cam_idx);
+//
+//     for (auto &[ts, view] : cam_views) {
+//       UNUSED(ts);
+//       nb_outliers += view->filter_view(outlier_threshold);
+//     }
+//   }
+// }
+//
+// void calib_camera_t::_filter_view(const timestamp_t ts) {
+//   for (auto &[cam_idx, cam_views] : calib_views) {
+//     UNUSED(cam_idx);
+//     if (cam_views.count(ts) == 0) {
+//       continue;
+//     }
+//
+//     if (cam_views[ts]) {
+//       cam_views[ts]->filter_view(outlier_threshold);
+//     }
+//   }
+// }
+//
+// std::vector<real_t> calib_camera_t::get_all_reproj_errors() {
+//   std::vector<real_t> reproj_errors_all;
+//
+//   for (auto &[cam_idx, cam_views] : calib_views) {
+//     for (auto &[ts, view] : cam_views) {
+//       UNUSED(ts);
+//       if (view) {
+//         extend(reproj_errors_all, view->get_reproj_errors());
+//       }
+//     }
+//   }
+//
+//   return reproj_errors_all;
+// }
+//
+// std::map<int, std::vector<real_t>> calib_camera_t::get_reproj_errors() {
+//   std::map<int, std::vector<real_t>> reproj_errors;
+//
+//   for (auto &[cam_idx, cam_views] : calib_views) {
+//     for (auto &[ts, view] : cam_views) {
+//       UNUSED(ts);
+//       if (view) {
+//         extend(reproj_errors[cam_idx], view->get_reproj_errors());
+//       }
+//     }
+//   }
+//
+//   return reproj_errors;
+// }
+//
+// int calib_camera_t::recover_calib_covar(matx_t &calib_covar) {
+//   // Setup covariance blocks to estimate
+//   std::vector<std::pair<const double *, const double *>> covar_blocks;
+//   // -- Add camera parameter blocks
+//   for (auto &[cam_idx, param] : cam_params) {
+//     UNUSED(cam_idx);
+//     covar_blocks.push_back({param->param.data(), param->param.data()});
+//   }
+//   // -- Add camera extrinsics blocks
+//   for (auto &[cam_idx, param] : cam_exts) {
+//     if (cam_idx == 0) {
+//       continue;
+//     }
+//     UNUSED(cam_idx);
+//     covar_blocks.push_back({param->param.data(), param->param.data()});
+//   }
+//
+//   // Estimate covariance
+//   ::ceres::Covariance::Options options;
+//   ::ceres::Covariance covar_est(options);
+//   if (covar_est.Compute(covar_blocks, problem) == false) {
+//     LOG_ERROR("Failed to estimate covariance!");
+//     LOG_ERROR("Maybe Hessian is not full rank?");
+//     return -1;
+//   }
+//
+//   // Extract covariances sub-blocks
+//   std::map<int, Eigen::Matrix<double, 8, 8, Eigen::RowMajor>>
+//   covar_cam_params; std::map<int, Eigen::Matrix<double, 6, 6,
+//   Eigen::RowMajor>> covar_cam_exts; for (auto &[cam_idx, param] : cam_params)
+//   {
+//     UNUSED(cam_idx);
+//     auto param_ptr = param->param.data();
+//     auto covar_ptr = covar_cam_params[cam_idx].data();
+//     if (!covar_est.GetCovarianceBlock(param_ptr, param_ptr, covar_ptr)) {
+//       LOG_ERROR("Failed to estimate cam%d parameter covariance!", cam_idx);
+//       return -1;
+//     }
+//   }
+//   for (auto &[cam_idx, param] : cam_exts) {
+//     if (cam_idx == 0) {
+//       continue;
+//     }
+//     auto param_ptr = param->param.data();
+//     auto covar_ptr = covar_cam_exts[cam_idx].data();
+//     if (!covar_est.GetCovarianceBlockInTangentSpace(param_ptr,
+//                                                     param_ptr,
+//                                                     covar_ptr)) {
+//       LOG_ERROR("Failed to estimate cam%d extrinsics covariance!", cam_idx);
+//       return -1;
+//     }
+//   }
+//
+//   // Form covariance matrix block
+//   const int calib_covar_size = (nb_cams() * 8) + ((nb_cams() - 1) * 6);
+//   calib_covar = zeros(calib_covar_size, calib_covar_size);
+//   for (auto &[cam_idx, covar] : covar_cam_params) {
+//     const auto idx = cam_idx * 8;
+//     calib_covar.block(idx, idx, 8, 8) = covar;
+//   }
+//   for (auto &[cam_idx, covar] : covar_cam_exts) {
+//     if (cam_idx == 0) {
+//       continue;
+//     }
+//     const auto idx = nb_cams() * 8 + ((cam_idx - 1) * 6);
+//     calib_covar.block(idx, idx, 6, 6) = covar;
+//   }
+//
+//   // Check if calib_covar is full-rank?
+//   if (rank(calib_covar) != calib_covar.rows()) {
+//     LOG_ERROR("calib_covar is not full rank!");
+//     return -1;
+//   }
+//
+//   return 0;
+// }
+//
+// void calib_camera_t::solve() {
+//   // Setup
+//   _initialize_intrinsics();
+//   _initialize_extrinsics();
+//   _setup_problem();
+//
+//   // Solver options
+//   ceres::Solver::Options options;
+//   options.minimizer_progress_to_stdout = true;
+//   options.max_num_iterations = 100;
+//
+//   // Solve
+//   ceres::Solver::Summary summary;
+//   ceres::Solve(options, problem, &summary);
+//   std::cout << std::endl;
+//   std::cout << summary.BriefReport() << std::endl;
+//   std::cout << std::endl;
+//
+//   // Filter views
+//   if (enable_outlier_rejection) {
+//     _filter_views();
+//
+//     // Solve again - second pass
+//     ceres::Solver::Summary summary;
+//     ceres::Solve(options, problem, &summary);
+//     std::cout << std::endl;
+//     std::cout << summary.BriefReport() << std::endl;
+//     std::cout << std::endl;
+//   }
+//
+//   // Show results
+//   show_results();
+// }
+//
+// void calib_camera_t::show_results() {
+//   // Show results
+//   printf("Optimization results:\n");
+//   printf("---------------------\n");
+//
+//   // Stats - Reprojection Errors
+//   const auto reproj_errors = get_reproj_errors();
+//   const auto reproj_errors_all = get_all_reproj_errors();
+//   // -- Print total reprojection error
+//   printf("Total reprojection error:\n");
+//   printf("  rmse:   %.4f # px\n", rmse(reproj_errors_all));
+//   printf("  mean:   %.4f # px\n", mean(reproj_errors_all));
+//   printf("  median: %.4f # px\n", median(reproj_errors_all));
+//   printf("  stddev: %.4f # px\n", stddev(reproj_errors_all));
+//   printf("\n");
+//   // -- Print camera reprojection error
+//   for (const auto &[cam_idx, cam_errors] : reproj_errors) {
+//     printf("cam[%d] reprojection error:\n", cam_idx);
+//     printf("  rmse:   %.4f # px\n", rmse(cam_errors));
+//     printf("  mean:   %.4f # px\n", mean(cam_errors));
+//     printf("  median: %.4f # px\n", median(cam_errors));
+//     printf("  stddev: %.4f # px\n", stddev(cam_errors));
+//     printf("\n");
+//   }
+//   printf("\n");
+//
+//   // Cameras
+//   for (int cam_idx = 0; cam_idx < nb_cams(); cam_idx++) {
+//     printf("cam%d:\n", cam_idx);
+//     print_vector("  proj_params", cam_params[cam_idx]->proj_params());
+//     print_vector("  dist_params", cam_params[cam_idx]->dist_params());
+//     printf("\n");
+//   }
+//
+//   // Camera Extrinsics
+//   for (int cam_idx = 1; cam_idx < nb_cams(); cam_idx++) {
+//     const auto key = "T_C0C" + std::to_string(cam_idx);
+//     const mat4_t T_C0Ci = get_camera_extrinsics(cam_idx);
+//     print_matrix(key, T_C0Ci, "  ");
+//   }
+// }
+//
+// int calib_camera_t::save_results(const std::string &save_path) {
+//   LOG_INFO(KGRN "Saved results to [%s]" KNRM, save_path.c_str());
+//
+//   // Open results file
+//   FILE *outfile = fopen(save_path.c_str(), "w");
+//   if (outfile == NULL) {
+//     return -1;
+//   }
+//
+//   // Get reprojection errors
+//   const auto reproj_errors = get_reproj_errors();
+//   const auto reproj_errors_all = get_all_reproj_errors();
+//
+//   // Calibration metrics
+//   fprintf(outfile, "calib_metrics:\n");
+//   fprintf(outfile, "  total_reproj_error:\n");
+//   fprintf(outfile, "    rmse:   %f # [px]\n", rmse(reproj_errors_all));
+//   fprintf(outfile, "    mean:   %f # [px]\n", mean(reproj_errors_all));
+//   fprintf(outfile, "    median: %f # [px]\n", median(reproj_errors_all));
+//   fprintf(outfile, "    stddev: %f # [px]\n", stddev(reproj_errors_all));
+//   fprintf(outfile, "\n");
+//   for (const auto &[cam_idx, cam_errors] : reproj_errors) {
+//     const auto cam_str = "cam" + std::to_string(cam_idx);
+//     fprintf(outfile, "  %s_reproj_error:\n", cam_str.c_str());
+//     fprintf(outfile, "    rmse:   %f # [px]\n", rmse(cam_errors));
+//     fprintf(outfile, "    mean:   %f # [px]\n", mean(cam_errors));
+//     fprintf(outfile, "    median: %f # [px]\n", median(cam_errors));
+//     fprintf(outfile, "    stddev: %f # [px]\n", stddev(cam_errors));
+//     fprintf(outfile, "\n");
+//   }
+//   fprintf(outfile, "\n");
+//
+//   // Camera parameters
+//   for (auto &kv : cam_params) {
+//     const auto cam_idx = kv.first;
+//     const auto cam = cam_params.at(cam_idx);
+//     const int *cam_res = cam->resolution;
+//     const char *proj_model = cam->proj_model.c_str();
+//     const char *dist_model = cam->dist_model.c_str();
+//     const std::string proj_params = vec2str(cam->proj_params(), 4);
+//     const std::string dist_params = vec2str(cam->dist_params(), 4);
+//
+//     fprintf(outfile, "cam%d:\n", cam_idx);
+//     fprintf(outfile, "  resolution: [%d, %d]\n", cam_res[0], cam_res[1]);
+//     fprintf(outfile, "  proj_model: \"%s\"\n", proj_model);
+//     fprintf(outfile, "  dist_model: \"%s\"\n", dist_model);
+//     fprintf(outfile, "  proj_params: %s\n", proj_params.c_str());
+//     fprintf(outfile, "  dist_params: %s\n", dist_params.c_str());
+//     fprintf(outfile, "\n");
+//   }
+//   fprintf(outfile, "\n");
+//
+//   // Camera-Camera extrinsics
+//   const mat4_t T_BC0 = get_camera_extrinsics(0);
+//   const mat4_t T_C0B = T_BC0.inverse();
+//   if (nb_cams() >= 2) {
+//     for (int i = 1; i < nb_cams(); i++) {
+//       const mat4_t T_BCi = get_camera_extrinsics(i);
+//       const mat4_t T_C0Ci = T_C0B * T_BCi;
+//       const mat4_t T_CiC0 = T_C0Ci.inverse();
+//       fprintf(outfile, "T_cam0_cam%d:\n", i);
+//       fprintf(outfile, "  rows: 4\n");
+//       fprintf(outfile, "  cols: 4\n");
+//       fprintf(outfile, "  data: [\n");
+//       fprintf(outfile, "%s\n", mat2str(T_C0Ci, "    ").c_str());
+//       fprintf(outfile, "  ]\n");
+//       fprintf(outfile, "\n");
+//     }
+//   }
+//
+//   return -1;
+// }
 
 } //  namespace yac

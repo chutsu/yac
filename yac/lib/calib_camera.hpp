@@ -61,6 +61,12 @@ struct reproj_error_t : public ceres::CostFunction {
   const mat2_t info;
   const mat2_t sqrt_info;
 
+  // For debugging
+  mutable matx_t J0_min;
+  mutable matx_t J1_min;
+  mutable matx_t J2_min;
+  mutable matx_t J3_min;
+
   /** Constructor */
   reproj_error_t(const camera_geometry_t *cam_geom_,
                  const camera_params_t *cam_params_,

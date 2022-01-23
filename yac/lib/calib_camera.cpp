@@ -176,6 +176,11 @@ reproj_error_t::reproj_error_t(const camera_geometry_t *cam_geom_,
   block_sizes->push_back(7); // Camera-fiducial relative pose
   block_sizes->push_back(3); // Fiducial corner parameter
   block_sizes->push_back(8); // Camera parameters
+
+  J0_min = zeros(2, 6);
+  J1_min = zeros(2, 6);
+  J2_min = zeros(2, 3);
+  J3_min = zeros(2, 8);
 }
 
 int reproj_error_t::get_residual(vec2_t &r) const {
@@ -254,12 +259,11 @@ bool reproj_error_t::Evaluate(double const *const *params,
         const vec3_t p_CiFi = tf_point(T_CiC0 * T_C0F, p_FFi);
 
         // clang-format off
-        mat_t<2, 6, row_major_t> J_min;
-        J_min.block(0, 0, 2, 3) = -1 * Jh_weighted * C_CiC0;
-        J_min.block(0, 3, 2, 3) = -1 * Jh_weighted * C_CiC0 * -skew(C_C0Ci * p_CiFi);
+        J0_min.block(0, 0, 2, 3) = -1 * Jh_weighted * C_CiC0;
+        J0_min.block(0, 3, 2, 3) = -1 * Jh_weighted * C_CiC0 * -skew(C_C0Ci * p_CiFi);
         // clang-format on
 
-        J = J_min * lift_pose_jacobian(T_C0Ci);
+        J = J0_min * lift_pose_jacobian(T_C0Ci);
       }
     }
 
@@ -271,12 +275,9 @@ bool reproj_error_t::Evaluate(double const *const *params,
       if (valid) {
         const mat3_t C_CiC0 = tf_rot(T_CiC0);
         const mat3_t C_C0F = tf_rot(T_C0F);
-
-        mat_t<2, 6, row_major_t> J_min;
-        J_min.block(0, 0, 2, 3) = Jh_weighted * C_CiC0;
-        J_min.block(0, 3, 2, 3) = Jh_weighted * C_CiC0 * -skew(C_C0F * p_FFi);
-
-        J = J_min * lift_pose_jacobian(T_C0F);
+        J1_min.block(0, 0, 2, 3) = Jh_weighted * C_CiC0;
+        J1_min.block(0, 3, 2, 3) = Jh_weighted * C_CiC0 * -skew(C_C0F * p_FFi);
+        J = J1_min * lift_pose_jacobian(T_C0F);
       }
     }
 
@@ -284,9 +285,12 @@ bool reproj_error_t::Evaluate(double const *const *params,
     if (jacobians[2]) {
       Eigen::Map<mat_t<2, 3, row_major_t>> J(jacobians[2]);
       J.setZero();
-      // if (valid) {
-      //   J.block(0, 0, 2, 8) = -1 * sqrt_info * J_cam;
-      // }
+      if (valid) {
+        const mat4_t T_CiF = T_CiC0 * T_C0F;
+        const mat3_t C_CiF = tf_rot(T_CiF);
+        J2_min = Jh_weighted * C_CiF;
+        J.block(0, 0, 2, 3) = J2_min;
+      }
     }
 
     // Jacobians w.r.t cam params
@@ -295,7 +299,8 @@ bool reproj_error_t::Evaluate(double const *const *params,
       J.setZero();
       if (valid) {
         const matx_t J_cam = cam_geom->params_jacobian(param, p_CiFi);
-        J.block(0, 0, 2, 8) = -1 * sqrt_info * J_cam;
+        J3_min = -1 * sqrt_info * J_cam;
+        J = J3_min;
       }
     }
   }

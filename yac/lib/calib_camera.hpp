@@ -135,84 +135,86 @@ void initialize_camera(const calib_target_t &calib_target,
                        camera_params_t *cam_params,
                        const bool verbose = false);
 
-// /** Camera Calibrator **/
-// struct calib_camera_t {
-//   // Settings
-//   bool enable_outlier_rejection = true;
-//   bool enable_nbv = true;
-//   real_t outlier_threshold = 4.0;
-//   real_t info_gain_threshold = 0.5;
-//
-//   // Problem
-//   ceres::Problem::Options prob_options;
-//   ceres::Problem *problem = nullptr;
-//   ceres::LossFunction *loss = nullptr;
-//   PoseLocalParameterization pose_plus;
-//
-//   // State variables
-//   std::map<int, camera_params_t *> cam_params;
-//   std::map<int, extrinsics_t *> cam_exts;
-//   std::map<timestamp_t, pose_t *> poses;
-//
-//   // Data
-//   std::map<int, camera_geometry_t *> cam_geoms;
-//   calib_target_t target;
-//   std::set<timestamp_t> timestamps;
-//   camera_data_t cam_data;
-//   real_t calib_info_k = 0;
-//
-//   // Calib views
-//   std::map<int, std::map<timestamp_t, std::unique_ptr<calib_view_t>>>
-//       calib_views;
-//
-//   // Camera geometries
-//   pinhole_radtan4_t pinhole_radtan4;
-//   pinhole_equi4_t pinhole_equi4;
-//
-//   // Constructor / Destructor
-//   calib_camera_t();
-//   ~calib_camera_t();
-//
-//   int nb_cams() const;
-//   aprilgrids_t get_cam_data(const int cam_idx) const;
-//   mat4_t get_camera_extrinsics(const int cam_idx) const;
-//   void add_calib_target(const calib_target_t &target_);
-//   void add_camera_data(const int cam_idx, const aprilgrids_t &grids);
-//   void add_camera(const int cam_idx,
-//                   const int cam_res[2],
-//                   const std::string &proj_model,
-//                   const std::string &dist_model,
-//                   const bool fixed = false);
-//   void add_camera_extrinsics(const int cam_idx,
-//                              const mat4_t &ext = I(4),
-//                              const bool fixed = false);
-//   void add_pose(const int cam_idx,
-//                 const aprilgrid_t &grid,
-//                 const bool fixed = false);
-//   void add_view(const aprilgrid_t &grid,
-//                 ceres::Problem *problem,
-//                 ceres::LossFunction *loss,
-//                 int cam_idx,
-//                 camera_geometry_t *cam_geom,
-//                 camera_params_t *cam_params,
-//                 extrinsics_t *cam_exts,
-//                 pose_t *rel_pose);
-//   void remove_view(const timestamp_t ts, ceres::Problem *problem);
-//
-//   void _initialize_intrinsics();
-//   void _initialize_extrinsics();
-//   void _setup_problem();
-//   void _filter_views();
-//   void _filter_view(const timestamp_t ts);
-//
-//   std::vector<real_t> get_all_reproj_errors();
-//   std::map<int, std::vector<real_t>> get_reproj_errors();
-//
-//   int recover_calib_covar(matx_t &calib_covar);
-//   void solve();
-//   void show_results();
-//   int save_results(const std::string &save_path);
-// };
+/** Camera Calibrator **/
+struct calib_camera_t {
+  // Settings
+  bool enable_outlier_rejection = true;
+  bool enable_nbv = true;
+  real_t outlier_threshold = 4.0;
+  real_t info_gain_threshold = 0.5;
+  int min_nbv_views = 20;
+
+  // Data
+  calib_target_t calib_target;
+  std::map<int, camera_geometry_t *> cam_geoms;
+  std::set<timestamp_t> timestamps;
+  camera_data_t cam_data;
+  real_t calib_info_k = 0;
+
+  // Calib views
+  std::map<int, std::map<timestamp_t, std::unique_ptr<calib_view_t>>>
+      calib_views;
+
+  // Problem
+  ceres::Problem::Options prob_options;
+  ceres::Problem *problem = nullptr;
+  ceres::LossFunction *loss = nullptr;
+  PoseLocalParameterization pose_plus;
+
+  // State variables
+  fiducial_corners_t corners{calib_target};
+  std::map<int, camera_params_t *> cam_params;
+  std::map<int, extrinsics_t *> cam_exts;
+  std::map<timestamp_t, pose_t *> poses;
+
+  // Camera geometries
+  pinhole_radtan4_t pinhole_radtan4;
+  pinhole_equi4_t pinhole_equi4;
+
+  // Constructor / Destructor
+  calib_camera_t() = delete;
+  calib_camera_t(const calib_target_t &calib_target_);
+  ~calib_camera_t();
+
+  int nb_cams() const;
+  aprilgrids_t get_cam_data(const int cam_idx) const;
+  mat4_t get_camera_extrinsics(const int cam_idx) const;
+  void add_camera_data(const int cam_idx, const aprilgrids_t &grids);
+  void add_camera(const int cam_idx,
+                  const int cam_res[2],
+                  const std::string &proj_model,
+                  const std::string &dist_model,
+                  const bool fixed = false);
+  void add_camera_extrinsics(const int cam_idx,
+                             const mat4_t &ext = I(4),
+                             const bool fixed = false);
+  void add_pose(const int cam_idx,
+                const aprilgrid_t &grid,
+                const bool fixed = false);
+  void add_view(const aprilgrid_t &grid,
+                ceres::Problem *problem,
+                ceres::LossFunction *loss,
+                int cam_idx,
+                camera_geometry_t *cam_geom,
+                camera_params_t *cam_params,
+                extrinsics_t *cam_exts,
+                pose_t *rel_pose);
+  void remove_view(const timestamp_t ts, ceres::Problem *problem);
+
+  void _initialize_intrinsics();
+  void _initialize_extrinsics();
+  void _setup_problem();
+  void _filter_views();
+  void _filter_view(const timestamp_t ts);
+
+  std::vector<real_t> get_all_reproj_errors();
+  std::map<int, std::vector<real_t>> get_reproj_errors();
+
+  int recover_calib_covar(matx_t &calib_covar);
+  void solve();
+  void show_results();
+  int save_results(const std::string &save_path);
+};
 
 } //  namespace yac
 #endif // YAC_CALIB_CAMERA_HPP

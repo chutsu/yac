@@ -66,29 +66,17 @@ RUN_CMD="rosrun yac test_calib_nbv --target test_calib_nbv_poses"
 # RUN_CMD="roslaunch yac_ros calib_mocap.launch"
 # RUN_CMD="roslaunch yac_ros calib_mono_nbv.launch"
 
-# tmux send-keys -t dev -R "\
-# cd ~/projects/yac \
-# && make relwithdeb \
-# && source ~/catkin_ws/devel/setup.bash \
-# && ${RUN_CMD}
-# " C-m C-m
-# exit
-
-# cd scripts/octave
-# octave-cli nbt.m
-# # octave-cli plot_calib_poses.m
-# octave-cli plot_biases.m
-# octave-cli plot_calib_vi.m
-# octave-cli plot_calib_vi_sim.m
-# octave-cli plot_calib_vi_init_poses.m
-# octave-cli plot_nbt_sim_imu.m
-# octave-cli plot_nbt_trajs.m
-# python3 scripts/analyze_detections.py
-# python3 scripts/sandbox.py
+tmux send-keys -t dev -R "\
+cd ~/projects/yac \
+&& make relwithdeb \
+&& source ~/catkin_ws/devel/setup.bash \
+&& ${RUN_CMD}
+" C-m C-m
+exit
 
 # python3 scripts/plot_frames.py
 # python3 scripts/plot_poses.py
-
+# python3 scripts/sandbox.py
 
 # make
 # make lib_debug

@@ -221,6 +221,59 @@ mat4_t fiducial_t::estimate() {
 #endif
 }
 
+/**************************** fidcuial_corner_t *******************************/
+
+fiducial_corner_t::fiducial_corner_t(const int tag_id_,
+                                     const int corner_idx_,
+                                     const vec3_t &p_FFi_,
+                                     const bool fixed_)
+    : tag_id{tag_id_},
+      corner_idx{corner_idx_}, param_t{"fiducial_corner_t", 0, 3, 3, fixed_} {
+  param = p_FFi_;
+}
+
+fiducial_corners_t::fiducial_corners_t(const calib_target_t &target_)
+    : target{target_} {
+  // Initialize fiducial corners
+  const int tag_rows = target.tag_rows;
+  const int tag_cols = target.tag_cols;
+  const double tag_size = target.tag_size;
+  const double tag_spacing = target.tag_spacing;
+  const int nb_tags = tag_rows * tag_cols;
+
+  for (int tag_id = 0; tag_id < nb_tags; tag_id++) {
+    // Calculate the AprilGrid index using tag id
+    const int i = int(tag_id / tag_cols);
+    const int j = int(tag_id % tag_cols);
+
+    // Caculate the x and y of the tag origin (bottom left corner of tag)
+    // relative to grid origin (bottom left corner of entire grid)
+    const double x = j * (tag_size + tag_size * tag_spacing);
+    const double y = i * (tag_size + tag_size * tag_spacing);
+
+    // Calculate the x and y of each corner
+    const vec3_t p0{x, y, 0.0};
+    const vec3_t p1{x + tag_size, y, 0.0};
+    const vec3_t p2{x + tag_size, y + tag_size, 0.0};
+    const vec3_t p3{x, y + tag_size, 0.0};
+    data[tag_id][0] = fiducial_corner_t{tag_id, 0, p0}; // Bottom left
+    data[tag_id][1] = fiducial_corner_t{tag_id, 1, p1}; // Bottom right
+    data[tag_id][2] = fiducial_corner_t{tag_id, 2, p2}; // Top right
+    data[tag_id][3] = fiducial_corner_t{tag_id, 3, p3}; // Top left
+  }
+}
+
+fiducial_corner_t *fiducial_corners_t::get_corner(const int tag_id,
+                                                  const int corner_idx) {
+  if (data.count(tag_id) == 0) {
+    FATAL("tag_id: [%d] does not exist!", tag_id);
+  }
+  if (data[tag_id].count(corner_idx) == 0) {
+    FATAL("tag_id: [%d], corner_idx: [%d] does not exist!", tag_id, corner_idx);
+  }
+  return &data[tag_id][corner_idx];
+}
+
 /****************************** extrinsics_t **********************************/
 
 extrinsics_t::extrinsics_t(const mat4_t &T, const bool fixed_)
@@ -271,8 +324,8 @@ int focal_init(const aprilgrid_t &grid, const int axis, double &focal) {
   // -------------------------------------------------------------------------
   // Form vanishing point lines horizontally or vertically using the aprilgrid
   // detected points.  Fit a circle for each of these lines. By fitting a
-  // circle to these lines we obtain circle cx, cy and radius. And from that we
-  // can find the intersection of these circles / lines to obtain vanishing
+  // circle to these lines we obtain circle cx, cy and radius. And from that
+  // we can find the intersection of these circles / lines to obtain vanishing
   // points.
   std::vector<vec2_t> centers;
   std::vector<double> radiuses;
@@ -408,7 +461,8 @@ camera_params_t camera_params_t::init(const int cam_index_,
                          fixed_};
 }
 
-/****************************** sb_params_t ***********************************/
+/****************************** sb_params_t
+ * ***********************************/
 
 sb_params_t::sb_params_t(const timestamp_t &ts_,
                          const vec3_t &v_,
@@ -426,7 +480,8 @@ sb_params_t::sb_params_t(const timestamp_t &ts_,
   param = sb_;
 }
 
-/***************************** time_delay_t ***********************************/
+/***************************** time_delay_t
+ * ***********************************/
 
 time_delay_t::time_delay_t(const double td_, const bool fixed_)
     : param_t{"time_delay_t", 1, 1, fixed_} {

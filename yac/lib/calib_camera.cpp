@@ -164,20 +164,18 @@ reproj_error_t::reproj_error_t(const camera_geometry_t *cam_geom_,
                                const camera_params_t *cam_params_,
                                const pose_t *T_BCi_,
                                const pose_t *T_C0F_,
-                               const int tag_id_,
-                               const int corner_idx_,
-                               const vec3_t &r_FFi_,
+                               const fiducial_corner_t *p_FFi_,
                                const vec2_t &z_,
                                const mat2_t &covar_)
-    : cam_geom{cam_geom_},
-      cam_params{cam_params_}, T_BCi{T_BCi_}, T_C0F{T_C0F_}, tag_id{tag_id_},
-      corner_idx{corner_idx_}, r_FFi{r_FFi_}, z{z_}, covar{covar_},
-      info{covar.inverse()}, sqrt_info{info.llt().matrixL().transpose()} {
+    : cam_geom{cam_geom_}, cam_params{cam_params_}, T_BCi{T_BCi_},
+      T_C0F{T_C0F_}, p_FFi{p_FFi_}, z{z_}, covar{covar_}, info{covar.inverse()},
+      sqrt_info{info.llt().matrixU()} {
   set_num_residuals(2);
   auto block_sizes = mutable_parameter_block_sizes();
-  block_sizes->push_back(7); // camera-fiducial relative pose
-  block_sizes->push_back(7); // camera-camera extrinsics
-  block_sizes->push_back(8); // camera parameters
+  block_sizes->push_back(7); // Camera-camera extrinsics
+  block_sizes->push_back(7); // Camera-fiducial relative pose
+  block_sizes->push_back(3); // Fiducial corner parameter
+  block_sizes->push_back(8); // Camera parameters
 }
 
 int reproj_error_t::get_residual(vec2_t &r) const {
@@ -187,16 +185,17 @@ int reproj_error_t::get_residual(vec2_t &r) const {
   // Map parameters out
   const mat4_t T_C0Ci_ = T_BCi->tf();
   const mat4_t T_C0F_ = T_C0F->tf();
+  const vec3_t p_FFi_ = p_FFi->param;
 
   // Transform and project point to image plane
   // -- Transform point from fiducial frame to camera-n
   const mat4_t T_CiC0_ = T_C0Ci_.inverse();
-  const vec3_t r_CiFi = tf_point(T_CiC0_ * T_C0F_, r_FFi);
+  const vec3_t p_CiFi = tf_point(T_CiC0_ * T_C0F_, p_FFi_);
   // -- Project point from camera frame to image plane
   auto res = cam_params->resolution;
   auto param = cam_params->param;
   vec2_t z_hat;
-  if (cam_geom->project(res, param, r_CiFi, z_hat) != 0) {
+  if (cam_geom->project(res, param, p_CiFi, z_hat) != 0) {
     return -1;
   }
   // -- Residual
@@ -218,19 +217,20 @@ bool reproj_error_t::Evaluate(double const *const *params,
                               double *residuals,
                               double **jacobians) const {
   // Map parameters out
-  const mat4_t T_C0F = tf(params[0]);
-  const mat4_t T_C0Ci = tf(params[1]);
-  Eigen::Map<const vecx_t> param(params[2], 8);
+  const mat4_t T_C0Ci = tf(params[0]);
+  const mat4_t T_C0F = tf(params[1]);
+  Eigen::Map<const vecx_t> p_FFi(params[2], 3);
+  Eigen::Map<const vecx_t> param(params[3], 8);
 
   // Transform and project point to image plane
   // -- Transform point from fiducial frame to camera-n
   const mat4_t T_CiC0 = T_C0Ci.inverse();
-  const vec3_t r_CiFi = tf_point(T_CiC0 * T_C0F, r_FFi);
+  const vec3_t p_CiFi = tf_point(T_CiC0 * T_C0F, p_FFi);
   // -- Project point from camera frame to image plane
   auto res = cam_params->resolution;
   vec2_t z_hat;
   bool valid = true;
-  if (cam_geom->project(res, param, r_CiFi, z_hat) != 0) {
+  if (cam_geom->project(res, param, p_CiFi, z_hat) != 0) {
     valid = false;
   }
 
@@ -239,13 +239,33 @@ bool reproj_error_t::Evaluate(double const *const *params,
   r = sqrt_info * (z - z_hat);
 
   // Jacobians
-  const matx_t Jh = cam_geom->project_jacobian(param, r_CiFi);
+  const matx_t Jh = cam_geom->project_jacobian(param, p_CiFi);
   const matx_t Jh_weighted = -1 * sqrt_info * Jh;
 
   if (jacobians) {
-    // Jacobians w.r.t T_C0F
+    // Jacobians w.r.t T_C0Ci
     if (jacobians[0]) {
       Eigen::Map<mat_t<2, 7, row_major_t>> J(jacobians[0]);
+      J.setZero();
+
+      if (valid) {
+        const mat3_t C_CiC0 = tf_rot(T_CiC0);
+        const mat3_t C_C0Ci = C_CiC0.transpose();
+        const vec3_t p_CiFi = tf_point(T_CiC0 * T_C0F, p_FFi);
+
+        // clang-format off
+        mat_t<2, 6, row_major_t> J_min;
+        J_min.block(0, 0, 2, 3) = -1 * Jh_weighted * C_CiC0;
+        J_min.block(0, 3, 2, 3) = -1 * Jh_weighted * C_CiC0 * -skew(C_C0Ci * p_CiFi);
+        // clang-format on
+
+        J = J_min * lift_pose_jacobian(T_C0Ci);
+      }
+    }
+
+    // Jacobians w.r.t T_C0F
+    if (jacobians[1]) {
+      Eigen::Map<mat_t<2, 7, row_major_t>> J(jacobians[1]);
       J.setZero();
 
       if (valid) {
@@ -254,38 +274,27 @@ bool reproj_error_t::Evaluate(double const *const *params,
 
         mat_t<2, 6, row_major_t> J_min;
         J_min.block(0, 0, 2, 3) = Jh_weighted * C_CiC0;
-        J_min.block(0, 3, 2, 3) = Jh_weighted * C_CiC0 * -skew(C_C0F * r_FFi);
+        J_min.block(0, 3, 2, 3) = Jh_weighted * C_CiC0 * -skew(C_C0F * p_FFi);
 
         J = J_min * lift_pose_jacobian(T_C0F);
       }
     }
 
-    // Jacobians w.r.t T_C0Ci
-    if (jacobians[1]) {
-      Eigen::Map<mat_t<2, 7, row_major_t>> J(jacobians[1]);
+    // Jacobians w.r.t fiducial corner
+    if (jacobians[2]) {
+      Eigen::Map<mat_t<2, 3, row_major_t>> J(jacobians[2]);
       J.setZero();
-
-      if (valid) {
-        const mat3_t C_CiC0 = tf_rot(T_CiC0);
-        const mat3_t C_C0Ci = C_CiC0.transpose();
-        const vec3_t r_CiFi = tf_point(T_CiC0 * T_C0F, r_FFi);
-
-        // clang-format off
-        mat_t<2, 6, row_major_t> J_min;
-        J_min.block(0, 0, 2, 3) = -1 * Jh_weighted * C_CiC0;
-        J_min.block(0, 3, 2, 3) = -1 * Jh_weighted * C_CiC0 * -skew(C_C0Ci * r_CiFi);
-        // clang-format on
-
-        J = J_min * lift_pose_jacobian(T_C0Ci);
-      }
+      // if (valid) {
+      //   J.block(0, 0, 2, 8) = -1 * sqrt_info * J_cam;
+      // }
     }
 
     // Jacobians w.r.t cam params
-    if (jacobians[2]) {
-      Eigen::Map<mat_t<2, 8, row_major_t>> J(jacobians[2]);
+    if (jacobians[3]) {
+      Eigen::Map<mat_t<2, 8, row_major_t>> J(jacobians[3]);
       J.setZero();
       if (valid) {
-        const matx_t J_cam = cam_geom->params_jacobian(param, r_CiFi);
+        const matx_t J_cam = cam_geom->params_jacobian(param, p_CiFi);
         J.block(0, 0, 2, 8) = -1 * sqrt_info * J_cam;
       }
     }
@@ -298,14 +307,16 @@ bool reproj_error_t::Evaluate(double const *const *params,
 
 calib_view_t::calib_view_t(ceres::Problem *problem_,
                            ceres::LossFunction *loss_,
+                           fiducial_corners_t *corners_,
                            camera_geometry_t *cam_geom_,
                            camera_params_t *cam_params_,
                            pose_t *T_BCi_,
                            pose_t *T_C0F_,
                            const aprilgrid_t &grid_,
                            const mat2_t &covar_)
-    : problem{problem_}, loss{loss_}, grid{grid_}, cam_geom{cam_geom_},
-      cam_params{cam_params_}, T_BCi{T_BCi_}, T_C0F{T_C0F_}, covar{covar_} {
+    : problem{problem_}, loss{loss_}, corners{corners_}, cam_geom{cam_geom_},
+      cam_params{cam_params_}, T_BCi{T_BCi_}, T_C0F{T_C0F_}, grid{grid_},
+      covar{covar_} {
   // Get AprilGrid measurements
   std::vector<int> tag_ids;
   std::vector<int> corner_idxs;
@@ -318,20 +329,19 @@ calib_view_t::calib_view_t(ceres::Problem *problem_,
     const int tag_id = tag_ids[i];
     const int corner_idx = corner_idxs[i];
     const vec2_t z = kps[i];
-    const vec3_t r_FFi = pts[i];
+    auto p_FFi_ = corners_->get_corner(tag_id, corner_idx);
     auto res_fn = std::make_shared<reproj_error_t>(cam_geom,
                                                    cam_params,
                                                    T_BCi_,
                                                    T_C0F_,
-                                                   tag_id,
-                                                   corner_idx,
-                                                   r_FFi,
+                                                   p_FFi_,
                                                    z,
                                                    covar);
     auto res_id = problem->AddResidualBlock(res_fn.get(),
                                             loss,
-                                            T_C0F->data(),
-                                            T_BCi->data(),
+                                            T_BCi_->data(),
+                                            T_C0F_->data(),
+                                            p_FFi_->data(),
                                             cam_params->data());
     res_fns.push_back(res_fn);
     res_ids.push_back(res_id);
@@ -339,31 +349,13 @@ calib_view_t::calib_view_t(ceres::Problem *problem_,
 }
 
 std::vector<real_t> calib_view_t::get_reproj_errors() const {
-  // Estimate relative pose T_C0F
-  const auto intrinsics = cam_params->param;
-  const auto res = cam_params->resolution;
-  mat4_t T_CiF;
-  if (grid.estimate(cam_geom, res, intrinsics, T_CiF) != 0) {
-    FATAL("Failed to estimate relative pose!");
-  }
-
-  // Get AprilGrid measurements
-  std::vector<int> tag_ids;
-  std::vector<int> corner_idxs;
-  vec2s_t kps;
-  vec3s_t pts;
-  grid.get_measurements(tag_ids, corner_idxs, kps, pts);
-
   // Calculate reprojection errors
   std::vector<real_t> reproj_errors;
-  for (size_t i = 0; i < tag_ids.size(); i++) {
-    const vec2_t z = kps[i];
-    const vec3_t r_FFi = pts[i];
-    const vec3_t r_CiFi = tf_point(T_CiF, r_FFi);
 
-    vec2_t z_hat;
-    if (cam_geom->project(res, intrinsics, r_CiFi, z_hat) == 0) {
-      reproj_errors.push_back((z - z_hat).norm());
+  for (auto res_fn : res_fns) {
+    real_t e;
+    if (res_fn->get_reproj_error(e) == 0) {
+      reproj_errors.push_back(e);
     }
   }
 
@@ -404,7 +396,7 @@ int calib_view_t::filter_view(const real_t outlier_threshold) {
 
 // CALIBRATOR //////////////////////////////////////////////////////////////////
 
-void initialize_camera(const calib_target_t &target,
+void initialize_camera(const calib_target_t &calib_target,
                        const aprilgrids_t &grids,
                        camera_geometry_t *cam_geom,
                        camera_params_t *cam_params,
@@ -421,8 +413,16 @@ void initialize_camera(const calib_target_t &target,
   ceres::Problem problem{prob_options};
   PoseLocalParameterization pose_plus;
 
-  // Features
-  std::map<int, std::map<int, feature_t>> calib_corners;
+  // Fiducial corners
+  fiducial_corners_t corners{calib_target};
+  const int nb_tags = calib_target.tag_rows * calib_target.tag_cols;
+  for (int tag_id = 0; tag_id < nb_tags; tag_id++) {
+    for (int corner_idx = 0; corner_idx < 4; corner_idx++) {
+      auto corner = corners.get_corner(tag_id, corner_idx);
+      problem.AddParameterBlock(corner->data(), 3);
+      problem.SetParameterBlockConstant(corner->data());
+    }
+  }
 
   // Camera
   const auto cam_res = cam_params->resolution;
@@ -438,8 +438,7 @@ void initialize_camera(const calib_target_t &target,
   std::map<timestamp_t, pose_t> poses;
 
   // Build problem
-  std::deque<calib_view_t> views;
-
+  std::deque<calib_view_t> calib_views;
   for (auto grid : grids) {
     const auto ts = grid.timestamp;
     if (grid.detected == false) {
@@ -458,13 +457,14 @@ void initialize_camera(const calib_target_t &target,
     problem.SetParameterization(poses[ts].data(), &pose_plus);
 
     // Add calibration view
-    views.emplace_back(&problem,
-                       loss.get(),
-                       cam_geom,
-                       cam_params,
-                       &cam_exts,
-                       &poses[ts],
-                       grid);
+    calib_views.emplace_back(&problem,
+                             loss.get(),
+                             &corners,
+                             cam_geom,
+                             cam_params,
+                             &cam_exts,
+                             &poses[ts],
+                             grid);
   }
 
   // Solver options
@@ -478,7 +478,7 @@ void initialize_camera(const calib_target_t &target,
   if (verbose) {
     // Get reprojection errors
     std::vector<real_t> reproj_errors;
-    for (auto &view : views) {
+    for (auto &view : calib_views) {
       auto r = view.get_reproj_errors();
       reproj_errors.insert(reproj_errors.end(), r.begin(), r.end());
     }
@@ -494,7 +494,7 @@ void initialize_camera(const calib_target_t &target,
            rmse(reproj_errors),
            mean(reproj_errors),
            median(reproj_errors));
-    printf("nb_views: %ld\n", views.size());
+    printf("nb_views: %ld\n", calib_views.size());
     printf("nb_corners: %ld\n", reproj_errors.size());
     printf("\n");
     printf("cam%d:\n", cam_params->cam_index);

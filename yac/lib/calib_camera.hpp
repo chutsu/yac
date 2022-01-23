@@ -48,16 +48,12 @@ struct reproj_error_t : public ceres::CostFunction {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
   // Data
-  // -- Camera
+  // -- Parameters
   const camera_geometry_t *cam_geom = nullptr;
   const camera_params_t *cam_params = nullptr;
   const pose_t *T_BCi = nullptr;
   const pose_t *T_C0F = nullptr;
-  // const feature_t *feature = nullptr;
-  // -- Fiducial target
-  const int tag_id;
-  const int corner_idx;
-  const vec3_t r_FFi;
+  const fiducial_corner_t *p_FFi = nullptr;
   // -- Measurement
   const vec2_t z;
   // -- Covariance, information and square-root information
@@ -70,9 +66,7 @@ struct reproj_error_t : public ceres::CostFunction {
                  const camera_params_t *cam_params_,
                  const pose_t *T_BCi_,
                  const pose_t *T_C0F_,
-                 const int tag_id_,
-                 const int corner_idx_,
-                 const vec3_t &r_FFi_,
+                 const fiducial_corner_t *p_FFi_,
                  const vec2_t &z_,
                  const mat2_t &covar_);
 
@@ -97,18 +91,20 @@ struct calib_view_t {
   std::deque<std::shared_ptr<reproj_error_t>> res_fns;
   std::deque<ceres::ResidualBlockId> res_ids;
 
-  // Data
-  const aprilgrid_t grid;
-
   // Parameters
+  fiducial_corners_t *corners = nullptr;
   camera_geometry_t *cam_geom = nullptr;
   camera_params_t *cam_params = nullptr;
   pose_t *T_BCi = nullptr;
   pose_t *T_C0F = nullptr;
   mat2_t covar;
 
+  // Data
+  const aprilgrid_t grid;
+
   calib_view_t(ceres::Problem *problem_,
                ceres::LossFunction *loss_,
+               fiducial_corners_t *corners_,
                camera_geometry_t *cam_geom_,
                camera_params_t *cam_params_,
                pose_t *T_BCi_,
@@ -127,7 +123,7 @@ struct calib_view_t {
  * Initialize camera intrinsics using AprilGrids `grids` observed by the camera,
  * the camera geometry `cam_geom`, and camera parameters `cam_params`.
  */
-void initialize_camera(const calib_target_t &target,
+void initialize_camera(const calib_target_t &calib_target,
                        const aprilgrids_t &grids,
                        camera_geometry_t *cam_geom,
                        camera_params_t *cam_params,

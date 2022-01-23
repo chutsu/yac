@@ -207,23 +207,34 @@ int test_blake_zisserman_loss() {
 // }
 
 int test_calib_view() {
+  ceres::Problem problem;
+  ceres::CauchyLoss loss(1.0);
+
+  calib_target_t calib_target;
+  fiducial_corners_t corners{calib_target};
+
   const int img_w = 752;
   const int img_h = 480;
   const int res[2] = {img_w, img_h};
   const std::string proj_model = "pinhole";
   const std::string dist_model = "radtan4";
+  pinhole_radtan4_t cam_geom;
   camera_params_t cam0 = camera_params_t::init(0, res, proj_model, dist_model);
 
-  ceres::Problem problem;
-  ceres::CauchyLoss loss(1.0);
   auto grid = cam_grids[0][0];
   const mat4_t T_C0F = I(4);
   const mat4_t T_C0Ci = I(4);
   pose_t extrinsics{0, T_C0Ci};
   pose_t rel_pose{0, T_C0F};
-  pinhole_radtan4_t cam_geom;
 
-  calib_view_t(&problem, &loss, &cam_geom, &cam0, &extrinsics, &rel_pose, grid);
+  calib_view_t(&problem,
+               &loss,
+               &corners,
+               &cam_geom,
+               &cam0,
+               &extrinsics,
+               &rel_pose,
+               grid);
 
   return 0;
 }

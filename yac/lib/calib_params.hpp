@@ -2,6 +2,7 @@
 #define YAC_CALIB_PARAMS_HPP
 
 #include "util/util.hpp"
+#include "calib_data.hpp"
 
 namespace yac {
 
@@ -77,8 +78,8 @@ struct pose_t : param_t {
 
 #if FIDUCIAL_PARAMS_SIZE == 2 || FIDUCIAL_PARAMS_SIZE == 3
 struct fiducial_t : param_t {
-public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
+
   fiducial_t(const mat4_t &T_WF_, const bool fixed_ = false);
 
   void plus(const vecx_t &dx) override;
@@ -93,14 +94,40 @@ private:
 
 #elif FIDUCIAL_PARAMS_SIZE == 7
 struct fiducial_t : pose_t {
-public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
+
   fiducial_t();
   fiducial_t(const mat4_t &T_WF_, const bool fixed_ = false);
 
   mat4_t estimate();
 };
 #endif
+
+/**************************** fidcuial_corner_t *******************************/
+
+struct fiducial_corner_t : param_t {
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
+
+  int tag_id;
+  int corner_idx;
+
+  fiducial_corner_t() = default;
+  fiducial_corner_t(const int tag_id_,
+                    const int corner_idx_,
+                    const vec3_t &p_FFi_,
+                    const bool fixed_ = false);
+};
+
+struct fiducial_corners_t {
+  const calib_target_t target;
+  std::map<int, std::map<int, fiducial_corner_t>> data;
+
+  fiducial_corners_t() = delete;
+  fiducial_corners_t(const calib_target_t &target_);
+  ~fiducial_corners_t() = default;
+
+  fiducial_corner_t *get_corner(const int tag_id, const int corner_idx);
+};
 
 /****************************** extrinsics_t **********************************/
 

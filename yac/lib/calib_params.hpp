@@ -39,6 +39,8 @@ struct param_t {
   virtual void perturb(const int i, const real_t step_size);
 };
 
+/********************************* pose_t *************************************/
+
 struct pose_t : param_t {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
   int fix = 0;
@@ -69,6 +71,8 @@ struct pose_t : param_t {
   virtual void perturb(const int i, const real_t step_size);
 };
 
+/******************************* fiducial_t ***********************************/
+
 #define FIDUCIAL_PARAMS_SIZE 2
 
 #if FIDUCIAL_PARAMS_SIZE == 2 || FIDUCIAL_PARAMS_SIZE == 3
@@ -98,36 +102,29 @@ public:
 };
 #endif
 
+/****************************** extrinsics_t **********************************/
+
 struct extrinsics_t : pose_t {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 
-  extrinsics_t(const mat4_t &T = I(4), const bool fixed_ = false)
-      : pose_t{0, T, fixed_} {
-    this->type = "extrinsics_t";
-  }
+  extrinsics_t(const mat4_t &T = I(4), const bool fixed_ = false);
+  extrinsics_t(const vec_t<7> &pose, const bool fixed_ = false);
 
-  extrinsics_t(const vec_t<7> &pose, const bool fixed_ = false)
-      : pose_t{0, pose, fixed_} {
-    this->type = "extrinsics_t";
-  }
-
-  mat4_t tf() { return pose_t::tf(); }
-  mat4_t tf() const { return pose_t::tf(); }
-  void plus(const vecx_t &dx) { pose_t::plus(dx); }
-  void perturb(const int i, const real_t step_size) {
-    pose_t::perturb(i, step_size);
-  }
+  mat4_t tf() const;
+  void plus(const vecx_t &dx);
+  void perturb(const int i, const real_t step_size);
 };
 
-struct landmark_t : param_t {
+/******************************** feature_t ***********************************/
+
+struct feature_t : param_t {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 
-  landmark_t() {}
-  landmark_t(const vec3_t &p_W_, const bool fixed_ = false)
-      : param_t{"landmark_t", 3, 3, fixed_} {
-    param = p_W_;
-  }
+  feature_t() = default;
+  feature_t(const vec3_t &p_W_, const bool fixed_ = false);
 };
+
+/***************************** camera_params_t ********************************/
 
 /**
  * Initialize focal lengths using aprilgrid. `axis` denotes the focal length
@@ -165,6 +162,8 @@ struct camera_params_t : param_t {
                               const bool fixed_ = false);
 };
 
+/******************************* sb_params_t **********************************/
+
 struct sb_params_t : param_t {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 
@@ -179,25 +178,12 @@ struct sb_params_t : param_t {
               const bool fixed_ = false);
 };
 
+/****************************** time_delay_t **********************************/
+
 struct time_delay_t : param_t {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
   time_delay_t(const double td_, const bool fixed_ = false);
 };
-
-// struct imu_params_t {
-//   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-//   mat4_t T_BS;         // Transformation from Body frame to IMU (sensor frame
-//   S). double a_max;        // Accelerometer saturation. [m/s^2] double g_max;
-//   // Gyroscope saturation. [rad/s] double sigma_g_c;    // Gyroscope noise
-//   density. double sigma_bg;     // Initial gyroscope bias. double sigma_a_c;
-//   // Accelerometer noise density. double sigma_ba;     // Initial
-//   accelerometer bias double sigma_gw_c;   // Gyroscope drift noise density.
-//   double sigma_aw_c;   // Accelerometer drift noise density.
-//   double tau;          // Reversion time constant of accerometer bias. [s]
-//   double g;            // Earth acceleration.
-//   vec3_t a0;           // Mean of the prior accelerometer bias.
-//   int rate;            // IMU rate in Hz.
-// };
 
 } // namespace yac
 #endif // YAC_CALIB_PARAMS_HPP

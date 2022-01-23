@@ -221,6 +221,33 @@ mat4_t fiducial_t::estimate() {
 #endif
 }
 
+/****************************** extrinsics_t **********************************/
+
+extrinsics_t::extrinsics_t(const mat4_t &T, const bool fixed_)
+    : pose_t{0, T, fixed_} {
+  this->type = "extrinsics_t";
+}
+
+extrinsics_t::extrinsics_t(const vec_t<7> &pose, const bool fixed_)
+    : pose_t{0, pose, fixed_} {
+  this->type = "extrinsics_t";
+}
+
+mat4_t extrinsics_t::tf() const { return pose_t::tf(); }
+
+void extrinsics_t::plus(const vecx_t &dx) { pose_t::plus(dx); }
+
+void extrinsics_t::perturb(const int i, const real_t step_size) {
+  pose_t::perturb(i, step_size);
+}
+
+/******************************** feature_t ***********************************/
+
+feature_t::feature_t(const vec3_t &p_W_, const bool fixed_)
+    : param_t{"feature_t", 3, 3, fixed_} {
+  param = p_W_;
+}
+
 /**************************** camera_params_t *********************************/
 
 int focal_init(const aprilgrid_t &grid, const int axis, double &focal) {

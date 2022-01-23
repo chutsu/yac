@@ -23,107 +23,110 @@ void vio_sim_data_t::add(const int sensor_id,
 }
 
 void vio_sim_data_t::save(const std::string &dir) {
-  if (create_dir(dir) == -1) {
-    FATAL("Failed to create dir [%s]!", dir.c_str());
-  }
-
-  auto features_csv_path = dir + "/features.csv";
-  auto cam0_obs_csv_path = dir + "/cam0_observations.csv";
-  auto cam0_kps_csv_path = dir + "/cam0_keypoints.csv";
-  auto cam0_pose_csv_path = dir + "/cam0_pose.csv";
-  auto imu_csv_path = dir + "/imu.csv";
-  auto imu_pose_csv_path = dir + "/imu_pose.csv";
-  auto imu_vel_csv_path = dir + "/imu_vel.csv";
-
-  FILE *features_csv = fopen(features_csv_path.c_str(), "w");
-  FILE *cam0_obs_csv = fopen(cam0_obs_csv_path.c_str(), "w");
-  FILE *cam0_kps_csv = fopen(cam0_kps_csv_path.c_str(), "w");
-  FILE *cam0_pose_csv = fopen(cam0_pose_csv_path.c_str(), "w");
-  FILE *imu_csv = fopen(imu_csv_path.c_str(), "w");
-  FILE *imu_pose_csv = fopen(imu_pose_csv_path.c_str(), "w");
-  FILE *imu_vel_csv = fopen(imu_vel_csv_path.c_str(), "w");
-
-  // Save features
-  for (const auto &f : features) {
-    fprintf(features_csv, "%f,%f,%f\n", f(0), f(1), f(2));
-  }
-  fclose(features_csv);
-
-  // Save observations
-  for (size_t k = 0; k < cam_ts.size(); k++) {
-    const auto ts = cam_ts[k];
-    fprintf(cam0_obs_csv, "%" PRIu64 ",", ts);
-    fprintf(cam0_obs_csv, "%zu,", observations[k].size());
-
-    for (size_t i = 0; i < observations[k].size(); i++) {
-      const auto obs = observations[k][i];
-      fprintf(cam0_obs_csv, "%zu", obs);
-      if ((i + 1) != observations[k].size()) {
-        fprintf(cam0_obs_csv, ",");
-      } else {
-        fprintf(cam0_obs_csv, "\n");
-      }
-    }
-  }
-  fclose(cam0_obs_csv);
-
-  // Save keypoints
-  for (size_t k = 0; k < cam_ts.size(); k++) {
-    const auto ts = cam_ts[k];
-    fprintf(cam0_kps_csv, "%" PRIu64 ",", ts);
-    fprintf(cam0_kps_csv, "%zu,", keypoints[k].size());
-
-    for (size_t i = 0; i < keypoints[k].size(); i++) {
-      const auto kp= keypoints[k][i];
-      fprintf(cam0_kps_csv, "%f,%f", kp(0), kp(1));
-      if ((i + 1) != keypoints[k].size()) {
-        fprintf(cam0_kps_csv, ",");
-      } else {
-        fprintf(cam0_kps_csv, "\n");
-      }
-    }
-  }
-  fclose(cam0_kps_csv);
-
-  // Save camera poses
-  for (size_t k = 0; k < cam_ts.size(); k++) {
-    const auto ts = cam_ts[k];
-    const auto q = cam_rot_gnd[k];
-    const auto r = cam_pos_gnd[k];
-    save_pose(cam0_pose_csv, ts, q, r);
-  }
-  fclose(cam0_pose_csv);
-
-  // Save imu data
-  for (size_t k = 0; k < imu_ts.size(); k++) {
-    const auto ts = imu_ts[k];
-    const auto a = imu_acc[k];
-    const auto w = imu_gyr[k];
-    fprintf(imu_csv, "%" PRIu64 ",", ts);
-    fprintf(imu_csv, "%f,%f,%f,", a(0), a(1), a(2));
-    fprintf(imu_csv, "%f,%f,%f\n", w(0), w(1), w(2));
-  }
-  fclose(imu_csv);
-
-  // Save imu poses
-  for (size_t k = 0; k < imu_ts.size(); k++) {
-    const auto ts = imu_ts[k];
-    const auto q = imu_rot[k];
-    const auto r = imu_pos[k];
-    fprintf(imu_pose_csv, "%" PRIu64 ",", ts);
-    fprintf(imu_pose_csv, "%f,%f,%f,%f,", q.w(), q.x(), q.y(), q.z());
-    fprintf(imu_pose_csv, "%f,%f,%f\n", r(0), r(1), r(2));
-  }
-  fclose(imu_pose_csv);
-
-  // Save imu velocities
-  for (size_t k = 0; k < imu_ts.size(); k++) {
-    const auto ts = imu_ts[k];
-    const auto vel = imu_vel[k];
-    fprintf(imu_vel_csv, "%" PRIu64 ",", ts);
-    fprintf(imu_vel_csv, "%f,%f,%f\n", vel(0), vel(1), vel(2));
-  }
-  fclose(imu_vel_csv);
+  // if (create_dir(dir) == -1) {
+  //   FATAL("Failed to create dir [%s]!", dir.c_str());
+  // }
+  //
+  // auto features_csv_path = dir + "/features.csv";
+  // auto cam0_obs_csv_path = dir + "/cam0_observations.csv";
+  // auto cam0_kps_csv_path = dir + "/cam0_keypoints.csv";
+  // auto cam0_pose_csv_path = dir + "/cam0_pose.csv";
+  // auto imu_csv_path = dir + "/imu.csv";
+  // auto imu_pose_csv_path = dir + "/imu_pose.csv";
+  // auto imu_vel_csv_path = dir + "/imu_vel.csv";
+  //
+  // FILE *features_csv = fopen(features_csv_path.c_str(), "w");
+  // FILE *cam0_obs_csv = fopen(cam0_obs_csv_path.c_str(), "w");
+  // FILE *cam0_kps_csv = fopen(cam0_kps_csv_path.c_str(), "w");
+  // FILE *cam0_pose_csv = fopen(cam0_pose_csv_path.c_str(), "w");
+  // FILE *imu_csv = fopen(imu_csv_path.c_str(), "w");
+  // FILE *imu_pose_csv = fopen(imu_pose_csv_path.c_str(), "w");
+  // FILE *imu_vel_csv = fopen(imu_vel_csv_path.c_str(), "w");
+  //
+  // // Save features
+  // for (const auto &f : features) {
+  //   fprintf(features_csv, "%f,%f,%f\n", f(0), f(1), f(2));
+  // }
+  // fclose(features_csv);
+  //
+  // // Save observations
+  // for (size_t k = 0; k < cam_ts.size(); k++) {
+  //   const auto ts = cam_ts[k];
+  //   fprintf(cam0_obs_csv, "%" PRIu64 ",", ts);
+  //   fprintf(cam0_obs_csv, "%zu,", observations[k].size());
+  //
+  //   for (size_t i = 0; i < observations[k].size(); i++) {
+  //     const auto obs = observations[k][i];
+  //     fprintf(cam0_obs_csv, "%zu", obs);
+  //     if ((i + 1) != observations[k].size()) {
+  //       fprintf(cam0_obs_csv, ",");
+  //     } else {
+  //       fprintf(cam0_obs_csv, "\n");
+  //     }
+  //   }
+  // }
+  // fclose(cam0_obs_csv);
+  //
+  // // Save keypoints
+  // for (size_t k = 0; k < cam_ts.size(); k++) {
+  //   const auto ts = cam_ts[k];
+  //   fprintf(cam0_kps_csv, "%" PRIu64 ",", ts);
+  //   fprintf(cam0_kps_csv, "%zu,", keypoints[k].size());
+  //
+  //   for (size_t i = 0; i < keypoints[k].size(); i++) {
+  //     const auto kp = keypoints[k][i];
+  //     fprintf(cam0_kps_csv, "%f,%f", kp(0), kp(1));
+  //     if ((i + 1) != keypoints[k].size()) {
+  //       fprintf(cam0_kps_csv, ",");
+  //     } else {
+  //       fprintf(cam0_kps_csv, "\n");
+  //     }
+  //   }
+  // }
+  // fclose(cam0_kps_csv);
+  //
+  // // Save camera poses
+  // mat4s_t cam_poses;
+  // for (size_t k = 0; k < cam_ts.size(); k++) {
+  //   const auto ts = cam_ts[k];
+  //   const auto q = cam_rot_gnd[k];
+  //   const auto r = cam_pos_gnd[k];
+  //   const mat4_t cam_pose = tf(q, r);
+  //   cam_poses.push_back(cam_pose);
+  //   save_pose(cam0_pose_csv, ts, cam_pose);
+  // }
+  // fclose(cam0_pose_csv);
+  //
+  // // Save imu data
+  // for (size_t k = 0; k < imu_ts.size(); k++) {
+  //   const auto ts = imu_ts[k];
+  //   const auto a = imu_acc[k];
+  //   const auto w = imu_gyr[k];
+  //   fprintf(imu_csv, "%" PRIu64 ",", ts);
+  //   fprintf(imu_csv, "%f,%f,%f,", a(0), a(1), a(2));
+  //   fprintf(imu_csv, "%f,%f,%f\n", w(0), w(1), w(2));
+  // }
+  // fclose(imu_csv);
+  //
+  // // Save imu poses
+  // for (size_t k = 0; k < imu_ts.size(); k++) {
+  //   const auto ts = imu_ts[k];
+  //   const auto q = imu_rot[k];
+  //   const auto r = imu_pos[k];
+  //   fprintf(imu_pose_csv, "%" PRIu64 ",", ts);
+  //   fprintf(imu_pose_csv, "%f,%f,%f,%f,", q.w(), q.x(), q.y(), q.z());
+  //   fprintf(imu_pose_csv, "%f,%f,%f\n", r(0), r(1), r(2));
+  // }
+  // fclose(imu_pose_csv);
+  //
+  // // Save imu velocities
+  // for (size_t k = 0; k < imu_ts.size(); k++) {
+  //   const auto ts = imu_ts[k];
+  //   const auto vel = imu_vel[k];
+  //   fprintf(imu_vel_csv, "%" PRIu64 ",", ts);
+  //   fprintf(imu_vel_csv, "%f,%f,%f\n", vel(0), vel(1), vel(2));
+  // }
+  // fclose(imu_vel_csv);
 }
 
 static vec3s_t create_3d_features(const real_t *x_bounds,
@@ -354,8 +357,8 @@ void sim_circle_trajectory(const real_t circle_r, vio_sim_data_t &sim_data) {
 
       // Update
       t += dt;
-      theta += w * dt;  // -ve to go from 180 to -180 in CW fashion
-      yaw += w * dt;    // -ve to go from 180 to -180 in CW fashion
+      theta += w * dt; // -ve to go from 180 to -180 in CW fashion
+      yaw += w * dt;   // -ve to go from 180 to -180 in CW fashion
     }
   }
 }

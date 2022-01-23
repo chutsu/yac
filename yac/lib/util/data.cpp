@@ -33,7 +33,7 @@ uint32_t uint32(const uint8_t *data, const size_t offset) {
 }
 
 char *malloc_string(const char *s) {
-  char *retval = (char *) malloc(sizeof(char) * strlen(s) + 1);
+  char *retval = (char *)malloc(sizeof(char) * strlen(s) + 1);
   strcpy(retval, s);
   return retval;
 }
@@ -117,7 +117,7 @@ char **csv_fields(const char *fp, int *nb_fields) {
 
   // Parse fields
   *nb_fields = csv_cols(fp);
-  char **fields = (char **) malloc(sizeof(char *) * *nb_fields);
+  char **fields = (char **)malloc(sizeof(char *) * *nb_fields);
   int field_idx = 0;
   char field_name[100] = {0};
 
@@ -155,9 +155,9 @@ real_t **csv_data(const char *fp, int *nb_rows, int *nb_cols) {
   }
 
   // Initialize memory for csv data
-  real_t **data = (real_t **) malloc(sizeof(real_t *) * *nb_rows);
+  real_t **data = (real_t **)malloc(sizeof(real_t *) * *nb_rows);
   for (int i = 0; i < *nb_cols; i++) {
-    data[i] = (real_t *) malloc(sizeof(real_t) * *nb_cols);
+    data[i] = (real_t *)malloc(sizeof(real_t) * *nb_cols);
   }
 
   // Load file
@@ -218,7 +218,7 @@ static int *parse_iarray_line(char *line) {
     if (c == ',' || c == '\n') {
       if (data == NULL) {
         size_t array_size = strtod(entry, NULL);
-        data = (int *) calloc(array_size + 1, sizeof(int));
+        data = (int *)calloc(array_size + 1, sizeof(int));
       }
       data[index] = strtod(entry, NULL);
       index++;
@@ -234,7 +234,7 @@ static int *parse_iarray_line(char *line) {
 int **load_iarrays(const char *csv_path, int *nb_arrays) {
   FILE *csv_file = fopen(csv_path, "r");
   *nb_arrays = csv_rows(csv_path);
-  int **array = (int **) calloc(*nb_arrays, sizeof(int *));
+  int **array = (int **)calloc(*nb_arrays, sizeof(int *));
 
   char line[1024] = {0};
   int frame_idx = 0;
@@ -265,7 +265,7 @@ static real_t *parse_darray_line(char *line) {
     if (c == ',' || c == '\n') {
       if (data == NULL) {
         size_t array_size = strtod(entry, NULL);
-        data = (real_t *) calloc(array_size, sizeof(real_t));
+        data = (real_t *)calloc(array_size, sizeof(real_t));
       }
       data[index] = strtod(entry, NULL);
       index++;
@@ -281,7 +281,7 @@ static real_t *parse_darray_line(char *line) {
 real_t **load_darrays(const char *csv_path, int *nb_arrays) {
   FILE *csv_file = fopen(csv_path, "r");
   *nb_arrays = csv_rows(csv_path);
-  real_t **array = (real_t **) calloc(*nb_arrays, sizeof(real_t *));
+  real_t **array = (real_t **)calloc(*nb_arrays, sizeof(real_t *));
 
   char line[1024] = {0};
   int frame_idx = 0;
@@ -447,8 +447,8 @@ void print_progress(const real_t percentage) {
       "||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||";
   const int PBWIDTH = 60;
 
-  int val = (int) (percentage * 100);
-  int lpad = (int) (percentage * PBWIDTH);
+  int val = (int)(percentage * 100);
+  int lpad = (int)(percentage * PBWIDTH);
   int rpad = PBWIDTH - lpad;
   printf("\r%3d%% [%.*s%*s]", val, lpad, PBSTR, rpad, "");
   fflush(stdout);
@@ -496,135 +496,43 @@ void save_features(const std::string &path, const vec3s_t &features) {
   fclose(csv);
 }
 
-void save_pose(FILE *csv_file,
-               const timestamp_t &ts,
-               const quat_t &rot,
-               const vec3_t &pos) {
-  fprintf(csv_file, "#ts,rx,ry,rz,qw,qx,qy,qz\n");
-  fprintf(csv_file, "%ld,", ts);
-  fprintf(csv_file, "%f,%f,%f,%f,", rot.w(), rot.x(), rot.y(), rot.z());
-  fprintf(csv_file, "%f,%f,%f\n", pos(0), pos(1), pos(2));
-}
-
-void save_pose(FILE *csv_file, const timestamp_t &ts, const vecx_t &pose) {
-  fprintf(csv_file, "#ts,rx,ry,rz,qw,qx,qy,qz\n");
-  fprintf(csv_file, "%ld,", ts);
-  fprintf(csv_file, "%f,%f,%f,%f,", pose(0), pose(1), pose(2), pose(3));
-  fprintf(csv_file, "%f,%f,%f\n", pose(4), pose(5), pose(6));
-}
-
-void save_poses(const std::string &path,
-                const timestamps_t &timestamps,
-                const quats_t &orientations,
-                const vec3s_t &positions) {
-  FILE *csv = fopen(path.c_str(), "w");
-  for (size_t i = 0; i < timestamps.size(); i++) {
-    const timestamp_t ts = timestamps[i];
-    const quat_t rot = orientations[i];
-    const vec3_t pos = positions[i];
-    save_pose(csv, ts, rot, pos);
-  }
-  fflush(csv);
-  fclose(csv);
-}
-
-void save_poses(const std::string &path, const mat4s_t &poses) {
-  FILE *csv = fopen(path.c_str(), "w");
-  for (const auto &pose : poses) {
-    const auto &q = tf_quat(pose);
-    const auto &r = tf_trans(pose);
-
-    fprintf(csv, "%f,", r(0));
-    fprintf(csv, "%f,", r(1));
-    fprintf(csv, "%f,", r(2));
-
-    fprintf(csv, "%f,", q.w());
-    fprintf(csv, "%f,", q.x());
-    fprintf(csv, "%f,", q.y());
-    fprintf(csv, "%f\n", q.z());
-  }
-  fflush(csv);
-  fclose(csv);
-}
-
-void save_poses(const std::string &path, const std::deque<mat4_t> &poses) {
-  FILE *csv = fopen(path.c_str(), "w");
-  for (const auto &pose : poses) {
-    const auto &q = tf_quat(pose);
-    const auto &r = tf_trans(pose);
-
-    fprintf(csv, "%f,", r(0));
-    fprintf(csv, "%f,", r(1));
-    fprintf(csv, "%f,", r(2));
-
-    fprintf(csv, "%f,", q.w());
-    fprintf(csv, "%f,", q.x());
-    fprintf(csv, "%f,", q.y());
-    fprintf(csv, "%f\n", q.z());
-  }
-  fflush(csv);
-  fclose(csv);
-}
-
 void save_poses(const std::string &path,
                 const timestamps_t &timestamps,
                 const mat4s_t &poses) {
   FILE *csv = fopen(path.c_str(), "w");
+  fprintf(csv, "#ts,rx,ry,rz,qx,qy,qz,qw\n");
+
   for (size_t k = 0; k < timestamps.size(); k++) {
     const auto ts = timestamps[k];
-    const auto &q = tf_quat(poses[k]);
     const auto &r = tf_trans(poses[k]);
-
+    const auto &q = tf_quat(poses[k]);
     fprintf(csv, "%ld,", ts);
-
-    fprintf(csv, "%f,", r(0));
-    fprintf(csv, "%f,", r(1));
-    fprintf(csv, "%f,", r(2));
-
-    fprintf(csv, "%f,", q.w());
+    fprintf(csv, "%f,", r.x());
+    fprintf(csv, "%f,", r.y());
+    fprintf(csv, "%f,", r.z());
     fprintf(csv, "%f,", q.x());
     fprintf(csv, "%f,", q.y());
-    fprintf(csv, "%f\n", q.z());
+    fprintf(csv, "%f,", q.z());
+    fprintf(csv, "%f\n", q.w());
   }
-  fflush(csv);
-  fclose(csv);
-}
-
-void save_pose(const std::string &path, const mat4_t &pose) {
-  FILE *csv = fopen(path.c_str(), "w");
-  const auto &q = tf_quat(pose);
-  const auto &r = tf_trans(pose);
-
-  fprintf(csv, "%f,", r(0));
-  fprintf(csv, "%f,", r(1));
-  fprintf(csv, "%f,", r(2));
-
-  fprintf(csv, "%f,", q.w());
-  fprintf(csv, "%f,", q.x());
-  fprintf(csv, "%f,", q.y());
-  fprintf(csv, "%f\n", q.z());
 
   fflush(csv);
   fclose(csv);
 }
 
-void save_pose(const std::string &path,
-               const timestamp_t &ts,
-               const mat4_t &pose) {
+void save_extrinsics(const std::string &path, const mat4_t &extrinsics) {
   FILE *csv = fopen(path.c_str(), "w");
-  const auto &q = tf_quat(pose);
-  const auto &r = tf_trans(pose);
+  fprintf(csv, "#rx,ry,rz,qx,qy,qz,qw\n");
 
-  fprintf(csv, "%ld,", ts);
-
-  fprintf(csv, "%f,", r(0));
-  fprintf(csv, "%f,", r(1));
-  fprintf(csv, "%f,", r(2));
-
-  fprintf(csv, "%f,", q.w());
+  const auto &q = tf_quat(extrinsics);
+  const auto &r = tf_trans(extrinsics);
+  fprintf(csv, "%f,", r.x());
+  fprintf(csv, "%f,", r.y());
+  fprintf(csv, "%f,", r.z());
   fprintf(csv, "%f,", q.x());
   fprintf(csv, "%f,", q.y());
-  fprintf(csv, "%f\n", q.z());
+  fprintf(csv, "%f,", q.z());
+  fprintf(csv, "%f\n", q.w());
 
   fflush(csv);
   fclose(csv);
@@ -667,9 +575,9 @@ mat4_t load_pose(const std::string &fpath) {
 
   // Create format string
   std::string str_format;
-  str_format = "%ld,";              // Timestamp[ns]
-  str_format += "%lf,%lf,%lf,";     // Position
-  str_format += "%lf,%lf,%lf,%lf";  // Quaternion
+  str_format = "%ld,";             // Timestamp[ns]
+  str_format += "%lf,%lf,%lf,";    // Position
+  str_format += "%lf,%lf,%lf,%lf"; // Quaternion
 
   // Parse file
   for (int i = 0; i < nb_rows; i++) {
@@ -710,9 +618,9 @@ void load_poses(const std::string &fpath,
 
   // Create format string
   std::string str_format;
-  str_format = "%ld,";              // Timestamp[ns]
-  str_format += "%lf,%lf,%lf,";     // Position
-  str_format += "%lf,%lf,%lf,%lf";  // Quaternion
+  str_format = "%ld,";             // Timestamp[ns]
+  str_format += "%lf,%lf,%lf,";    // Position
+  str_format += "%lf,%lf,%lf,%lf"; // Quaternion
 
   // Parse file
   for (int i = 0; i < nb_rows; i++) {

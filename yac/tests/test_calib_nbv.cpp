@@ -90,7 +90,11 @@ int test_calib_init_poses() {
 
   const mat4s_t poses = calib_init_poses(target, &cam_geom, cam_params);
   const std::string save_path = "/tmp/calib_poses.csv";
-  save_poses(save_path, poses);
+  timestamps_t timestamps;
+  for (size_t k = 0; k < poses.size(); k++) {
+    timestamps.push_back(0);
+  }
+  save_poses(save_path, timestamps, poses);
 
   return 0;
 }
@@ -117,7 +121,11 @@ int test_calib_nbv_poses() {
 
   const mat4s_t poses = calib_nbv_poses(target, &cam_geom, cam_params);
   const std::string save_path = "/tmp/calib_poses.csv";
-  save_poses(save_path, poses);
+  timestamps_t timestamps;
+  for (size_t k = 0; k < poses.size(); k++) {
+    timestamps.push_back(0);
+  }
+  save_poses(save_path, timestamps, poses);
 
   return 0;
 }
@@ -370,7 +378,11 @@ int test_nbv_draw() {
   const calib_target_t target{"aprilgrid", 6, 6, 0.088, 0.3};
   const mat4s_t poses = calib_init_poses(target, &cam_geom, cam_params);
   const std::string save_path = "/tmp/calib_poses.csv";
-  save_poses(save_path, poses);
+  timestamps_t timestamps;
+  for (size_t k = 0; k < poses.size(); k++) {
+    timestamps.push_back(0);
+  }
+  save_poses(save_path, timestamps, poses);
 
   for (const auto &T_FC : poses) {
     cv::Mat image(cam_res[1], cam_res[0], CV_8UC3, cv::Scalar(255, 255, 255));

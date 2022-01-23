@@ -338,37 +338,6 @@ void save_data(const std::string &save_path,
 void save_features(const std::string &path, const vec3s_t &features);
 
 /**
- * Save pose to `csv_file` incrementally.
- */
-void save_pose(FILE *csv_file,
-               const timestamp_t &ts,
-               const quat_t &rot,
-               const vec3_t &pos);
-
-/**
- * Save pose to `csv_file` incrementally.
- */
-void save_pose(FILE *csv_file, const timestamp_t &ts, const vecx_t &pose);
-
-/**
- * Save poses to csv file in `path`.
- */
-void save_poses(const std::string &path,
-                const timestamps_t &timestamps,
-                const quats_t &orientations,
-                const vec3s_t &positions);
-
-/**
- * Save poses to csv file in `path`.
- */
-void save_poses(const std::string &path, const mat4s_t &poses);
-
-/**
- * Save poses to csv file in `path`.
- */
-void save_poses(const std::string &path, const std::deque<mat4_t> &poses);
-
-/**
  * Save poses to csv file in `path`.
  */
 void save_poses(const std::string &path,
@@ -376,16 +345,9 @@ void save_poses(const std::string &path,
                 const mat4s_t &poses);
 
 /**
- * Save pose to csv file in `path`.
+ * Save extrinsics to csv file in `path`.
  */
-void save_pose(const std::string &path, const mat4_t &pose);
-
-/**
- * Save pose to csv file in `path`.
- */
-void save_pose(const std::string &path,
-               const timestamp_t &ts,
-               const mat4_t &pose);
+void save_extrinsics(const std::string &path, const mat4_t &ext);
 
 /**
  * Save IMU measurements

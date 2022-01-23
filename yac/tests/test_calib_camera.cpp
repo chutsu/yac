@@ -63,6 +63,32 @@ void test_setup() {
   printf("\n");
 }
 
+struct blake_zisserman_loss_t {
+  const double epsilon = 0.0;
+
+  blake_zisserman_loss_t(const size_t df,
+                         const double p_cut = 0.999,
+                         const double w_cut = 0.1) {
+    // // Calculate epsilon - parameter for Blake-Zisserman Loss
+    // const std::chi_squared_distribution<double> chi_dist(df);
+    // const double cdf = boost::math::quantile(chi_dist, p_cut);
+    // epsilon = (1 - w_cut) / w_cut * exp(-cdf);
+  }
+  ~blake_zisserman_loss_t() = default;
+
+  virtual void Evaluate(double s, double out[3]) const {
+    // out[0] = exp(-s) / (exp(-s) + epsilon);
+    // out[1] = -(exp(s) * epsilon) / pow((exp(s) * epsilon + 1.0), 2);
+    // out[2] = exp(-s) * (2.0 * exp(-2.0 * s) / pow(exp(-s) + epsilon, 3));
+  }
+};
+
+int test_blake_zisserman_loss() {
+  blake_zisserman_loss_t loss(2);
+  UNUSED(loss);
+  return 0;
+}
+
 // int test_reproj_error() {
 //   aprilgrid_t grid;
 //   for (size_t k = 0; k < cam_grids[0].size(); k++) {
@@ -235,6 +261,7 @@ int test_calib_camera() {
 
 void test_suite() {
   test_setup();
+  MU_ADD_TEST(test_blake_zisserman_loss);
   // MU_ADD_TEST(test_reproj_error);
   MU_ADD_TEST(test_calib_view);
   MU_ADD_TEST(test_initialize_camera);

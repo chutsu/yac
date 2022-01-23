@@ -301,30 +301,29 @@ mat4s_t calib_nbv_poses(const calib_target_t &target,
   const auto z_range = linspace(range_d[0], range_d[1], range_z_size);
 
   // Generate camera positions infront of the AprilGrid target in the fiducial
-  // frame, r_FC.
+  // frame, r_FCi.
   vec3s_t cam_positions;
   for (const auto &x : x_range) {
     for (const auto &y : y_range) {
       for (const auto &z : z_range) {
-        const vec3_t r_FC = vec3_t{x, y, z} + target_center;
-        cam_positions.push_back(r_FC);
+        const vec3_t r_FCi = vec3_t{x, y, z} + target_center;
+        cam_positions.push_back(r_FCi);
       }
     }
   }
 
   // For each position create a camera pose that "looks at" the fiducial
-  // center in the fiducial frame, T_FC.
+  // center in the fiducial frame, T_FCi.
   mat4s_t poses;
   for (const auto &cam_pos : cam_positions) {
-    mat4_t T_FC = lookat(cam_pos, target_center);
-
+    const mat4_t T_FCi = lookat(cam_pos, target_center);
     const auto roll = deg2rad(randf(-5.0, 5.0));
     const auto pitch = deg2rad(randf(-5.0, 5.0));
     const auto yaw = deg2rad(randf(-5.0, 5.0));
     const vec3_t rpy{roll, pitch, yaw};
     const mat3_t dC = euler321(rpy);
     const mat4_t dT = tf(dC, zeros(3, 1));
-    poses.push_back(T_FC * dT);
+    poses.push_back(T_FCi * dT);
   }
 
   return poses;

@@ -98,4 +98,84 @@ void calib_target_t::print() const {
   printf("tag_spacing: %f\n", tag_spacing);
 }
 
+// CALIBRATION DETECTION //////////////////////////////////////////////////////
+
+std::map<int, aprilgrids_t>
+calib_data_preprocess(const calib_target_t &calib_target,
+                      const std::map<int, std::string> cam_paths,
+                      const std::string &grids_path,
+                      const bool imshow) {
+  // AprilGrid detector
+  const int tag_rows = calib_target.tag_rows;
+  const int tag_cols = calib_target.tag_cols;
+  const double tag_size = calib_target.tag_size;
+  const double tag_spacing = calib_target.tag_spacing;
+  const aprilgrid_detector_t detector{tag_rows,
+                                      tag_cols,
+                                      tag_size,
+                                      tag_spacing};
+
+  // Detect aprilgrids
+  std::map<int, aprilgrids_t> cam_grids;
+  for (const auto &[cam_idx, cam_path] : cam_paths) {
+    // Cam grid path
+    const std::string cam_str = "cam" + std::to_string(cam_idx);
+    std::string cam_grid_path = grids_path;
+    cam_grid_path += (grids_path.back() == '/') ? "" : "/";
+    cam_grid_path += cam_str;
+
+    // Create grids path
+    if (system(("mkdir -p " + cam_grid_path).c_str()) != 0) {
+      FATAL("Failed to create dir [%s]", cam_grid_path.c_str());
+    }
+
+    // Get image files
+    std::vector<std::string> img_paths;
+    list_files(cam_path, img_paths);
+
+    // Loop through image files
+    for (const auto img_fname : img_paths) {
+      printf(".");
+      fflush(stdout);
+
+      const std::string img_path = cam_path + "/" + img_fname;
+      const std::string ts_str = img_fname.substr(0, 19);
+      if (std::all_of(ts_str.begin(), ts_str.end(), ::isdigit) == false) {
+        LOG_WARN("Unexpected image file: [%s]!", img_path.c_str());
+        continue;
+      }
+      const timestamp_t ts = std::stoull(ts_str);
+      const std::string grid_fname = ts_str + ".csv";
+      const std::string grid_path = cam_grid_path + "/" + grid_fname;
+      const auto image = cv::imread(img_path, cv::IMREAD_GRAYSCALE);
+
+      // Load or detect apriltag
+      aprilgrid_t grid;
+      if (file_exists(grid_path)) {
+        grid.load(grid_path);
+        if (grid.detected == false) {
+          grid.timestamp = ts;
+          grid.tag_rows = detector.tag_rows;
+          grid.tag_cols = detector.tag_cols;
+          grid.tag_size = detector.tag_size;
+          grid.tag_spacing = detector.tag_spacing;
+        }
+      } else {
+        grid = detector.detect(ts, image);
+        grid.save(grid_path);
+      }
+
+      // Imshow
+      if (imshow) {
+        grid.imshow("viz", image);
+        cv::waitKey(1);
+      }
+
+      cam_grids[cam_idx].push_back(grid);
+    }
+  }
+
+  return cam_grids;
+}
+
 } // namespace yac

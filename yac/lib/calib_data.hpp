@@ -46,5 +46,14 @@ struct calib_target_t {
   void print() const;
 };
 
+// CALIBRATION DETECTION //////////////////////////////////////////////////////
+
+/** Calibration data preprocess */
+std::map<int, aprilgrids_t>
+calib_data_preprocess(const calib_target_t &calib_target,
+                      const std::map<int, std::string> cam_paths,
+                      const std::string &grids_path,
+                      const bool imshow = false);
+
 } // namespace yac
 #endif // YAC_CALIB_DATA_HPP

@@ -274,30 +274,49 @@ int test_initialize_camera() {
 }
 
 int test_calib_camera() {
-  const calib_target_t calib_target{"aprilgrid", 6, 6, 0.088, 0.3};
-  const int cam_res[2] = {752, 480};
+  // const calib_target_t calib_target{"aprilgrid", 6, 6, 0.088, 0.3};
+  // const int cam_res[2] = {752, 480};
+  // const std::string proj_model = "pinhole";
+  // const std::string dist_model = "radtan4";
+
+  // calib_camera_t calib{calib_target};
+  // calib.add_camera_data(0, cam_grids[0]);
+  // calib.add_camera_data(1, cam_grids[1]);
+  // calib.add_camera(0, cam_res, proj_model, dist_model);
+  // calib.add_camera(1, cam_res, proj_model, dist_model);
+  // calib.solve();
+  // calib.save_results("/tmp/calib-results.yaml");
+  // calib.save_stats("/tmp/calib-stats.csv");
+  return 0;
+}
+
+int test_calib_camera2() {
+  const calib_target_t calib_target{"aprilgrid", 6, 6, 0.0772, 0.3};
+  const int cam_res[2] = {640, 480};
   const std::string proj_model = "pinhole";
   const std::string dist_model = "radtan4";
 
+  const std::map<int, std::string> cam_paths = {{0, "/tmp/cam0/data"}};
+  const std::string save_path = "/tmp/cam0/grid0";
+  const auto grids = calib_data_preprocess(calib_target, cam_paths, save_path);
+
   calib_camera_t calib{calib_target};
-  calib.add_camera_data(0, cam_grids[0]);
-  calib.add_camera_data(1, cam_grids[1]);
+  calib.add_camera_data(0, grids[0]);
   calib.add_camera(0, cam_res, proj_model, dist_model);
-  calib.add_camera(1, cam_res, proj_model, dist_model);
   calib.solve();
   calib.save_results("/tmp/calib-results.yaml");
-  calib.save_stats("/tmp/calib-stats.csv");
 
   return 0;
 }
 
 void test_suite() {
-  test_setup();
+  // test_setup();
   MU_ADD_TEST(test_blake_zisserman_loss);
   MU_ADD_TEST(test_reproj_error);
   MU_ADD_TEST(test_calib_view);
   MU_ADD_TEST(test_initialize_camera);
   MU_ADD_TEST(test_calib_camera);
+  MU_ADD_TEST(test_calib_camera2);
 }
 
 } // namespace yac

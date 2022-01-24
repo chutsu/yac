@@ -436,6 +436,7 @@ void initialize_camera(const calib_target_t &calib_target,
     for (int corner_idx = 0; corner_idx < 4; corner_idx++) {
       auto corner = corners.get_corner(tag_id, corner_idx);
       problem.AddParameterBlock(corner->data(), 3);
+      problem.SetParameterBlockConstant(corner->data());
     }
   }
 
@@ -486,6 +487,10 @@ void initialize_camera(const calib_target_t &calib_target,
   ceres::Solver::Options options;
   options.minimizer_progress_to_stdout = verbose;
   options.max_num_iterations = 30;
+  options.use_nonmonotonic_steps = true;
+  options.function_tolerance = 1e-10;
+  options.gradient_tolerance = 1e-10;
+  options.parameter_tolerance = 1e-10;
 
   // Solve
   ceres::Solver::Summary summary;
@@ -499,7 +504,8 @@ void initialize_camera(const calib_target_t &calib_target,
     }
 
     // Show optimization report
-    std::cout << summary.BriefReport() << std::endl;
+    // std::cout << summary.BriefReport() << std::endl;
+    std::cout << summary.FullReport() << std::endl;
     std::cout << std::endl;
 
     // Show optimization results
@@ -537,6 +543,7 @@ calib_camera_t::calib_camera_t(const calib_target_t &calib_target_)
     for (int corner_idx = 0; corner_idx < 4; corner_idx++) {
       auto corner = corners.get_corner(tag_id, corner_idx);
       problem->AddParameterBlock(corner->data(), 3);
+      problem->SetParameterBlockConstant(corner->data());
     }
   }
 }
@@ -802,15 +809,15 @@ void calib_camera_t::_setup_problem() {
     // Solve with new view
     ceres::Solver::Options options;
     options.minimizer_progress_to_stdout = false;
-    options.max_num_iterations = 10;
+    options.max_num_iterations = 50;
     ceres::Solver::Summary summary;
     ceres::Solve(options, problem, &summary);
 
-    // Filter last view
-    _filter_view(ts);
-
-    // Optimize again
-    ceres::Solve(options, problem, &summary);
+    // Filter last view and optimize again
+    if (enable_nbv_filter) {
+      _filter_view(ts);
+      ceres::Solve(options, problem, &summary);
+    }
 
     // Check information
     matx_t calib_covar;
@@ -839,19 +846,22 @@ void calib_camera_t::_setup_problem() {
   } // Iterate timestamps
 }
 
-void calib_camera_t::_filter_views() {
-  int nb_outliers = 0;
+int calib_camera_t::_filter_views() {
+  int removed = 0;
   for (auto &[cam_idx, cam_views] : calib_views) {
     UNUSED(cam_idx);
 
     for (auto &[ts, view] : cam_views) {
       UNUSED(ts);
-      nb_outliers += view->filter_view(outlier_threshold);
+      removed += view->filter_view(outlier_threshold);
     }
   }
+
+  return removed;
 }
 
-void calib_camera_t::_filter_view(const timestamp_t ts) {
+int calib_camera_t::_filter_view(const timestamp_t ts) {
+  int removed = 0;
   for (auto &[cam_idx, cam_views] : calib_views) {
     UNUSED(cam_idx);
     if (cam_views.count(ts) == 0) {
@@ -859,9 +869,11 @@ void calib_camera_t::_filter_view(const timestamp_t ts) {
     }
 
     if (cam_views[ts]) {
-      cam_views[ts]->filter_view(outlier_threshold);
+      removed += cam_views[ts]->filter_view(outlier_threshold);
     }
   }
+
+  return removed;
 }
 
 std::vector<real_t> calib_camera_t::get_all_reproj_errors() {
@@ -911,15 +923,6 @@ int calib_camera_t::recover_calib_covar(matx_t &calib_covar) {
     covar_blocks.push_back({param->param.data(), param->param.data()});
   }
 
-  // Fix fiducial corners
-  const int nb_tags = calib_target.tag_rows * calib_target.tag_cols;
-  for (int tag_id = 0; tag_id < nb_tags; tag_id++) {
-    for (int corner_idx = 0; corner_idx < 4; corner_idx++) {
-      auto corner = corners.get_corner(tag_id, corner_idx);
-      problem->SetParameterBlockConstant(corner->data());
-    }
-  }
-
   // Estimate covariance
   ::ceres::Covariance::Options options;
   ::ceres::Covariance covar_est(options);
@@ -927,14 +930,6 @@ int calib_camera_t::recover_calib_covar(matx_t &calib_covar) {
     LOG_ERROR("Failed to estimate covariance!");
     LOG_ERROR("Maybe Hessian is not full rank?");
     return -1;
-  }
-
-  // Un-fix fiducial corners
-  for (int tag_id = 0; tag_id < nb_tags; tag_id++) {
-    for (int corner_idx = 0; corner_idx < 4; corner_idx++) {
-      auto corner = corners.get_corner(tag_id, corner_idx);
-      problem->SetParameterBlockVariable(corner->data());
-    }
   }
 
   // Extract covariances sub-blocks
@@ -997,6 +992,10 @@ void calib_camera_t::solve() {
   ceres::Solver::Options options;
   options.minimizer_progress_to_stdout = true;
   options.max_num_iterations = 100;
+  options.use_nonmonotonic_steps = true;
+  options.function_tolerance = 1e-20;
+  options.gradient_tolerance = 1e-20;
+  options.parameter_tolerance = 1e-20;
 
   // Solve
   ceres::Solver::Summary summary;

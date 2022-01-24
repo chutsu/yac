@@ -145,11 +145,12 @@ void initialize_camera(const calib_target_t &calib_target,
 /** Camera Calibrator **/
 struct calib_camera_t {
   // Settings
+  bool enable_nbv = true;
+  bool enable_nbv_filter = false;
   bool enable_outlier_rejection = true;
-  bool enable_nbv = false;
-  real_t outlier_threshold = 4.0;
+  int min_nbv_views = 5;
+  real_t outlier_threshold = 3.0;
   real_t info_gain_threshold = 0.5;
-  int min_nbv_views = 20;
 
   // Data
   calib_target_t calib_target;
@@ -210,8 +211,8 @@ struct calib_camera_t {
   void _initialize_intrinsics();
   void _initialize_extrinsics();
   void _setup_problem();
-  void _filter_views();
-  void _filter_view(const timestamp_t ts);
+  int _filter_views();
+  int _filter_view(const timestamp_t ts);
 
   std::vector<real_t> get_all_reproj_errors();
   std::map<int, std::vector<real_t>> get_reproj_errors();

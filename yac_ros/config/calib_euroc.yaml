@@ -6,7 +6,6 @@ ros:
 settings:
   data_path: "/tmp/cam_april"
   results_fpath: "/tmp/cam_april/calib_results.yaml"
-  sigma_vision: 0.5
   imshow: true
 
 calib_target:
@@ -21,10 +20,8 @@ cam0:
   proj_model: "pinhole"
   dist_model: "radtan4"
   resolution: [752, 480]
-  rate: 20.0
 
 cam1:
   proj_model: "pinhole"
   dist_model: "radtan4"
   resolution: [752, 480]
-  rate: 20.0

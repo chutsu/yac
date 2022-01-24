@@ -224,5 +224,8 @@ struct calib_camera_t {
   int save_stats(const std::string &save_path);
 };
 
+/** Solve Camera Calibration Problem */
+int calib_camera_solve(const std::string &config_path);
+
 } //  namespace yac
 #endif // YAC_CALIB_CAMERA_HPP

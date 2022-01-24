@@ -3,66 +3,6 @@
 
 namespace yac {
 
-// Global variables
-std::map<int, aprilgrids_t> cam_grids;
-
-void test_setup() {
-  const calib_target_t target{"aprilgrid", 6, 6, 0.088, 0.3};
-  const aprilgrid_detector_t detector{6, 6, 0.088, 0.3};
-  const std::string data_path = "/data/euroc/cam_april";
-  std::map<int, std::string> grids_path = {
-      {0, data_path + "/grid0/cam0"},
-      {1, data_path + "/grid0/cam1"},
-  };
-
-  for (int cam_idx = 0; cam_idx < 2; cam_idx++) {
-    // Create grids path
-    if (system(("mkdir -p " + grids_path[cam_idx]).c_str()) != 0) {
-      FATAL("Failed to create dir [%s]", grids_path[cam_idx].c_str());
-    }
-
-    // Get image files
-    const std::string cam_str = "cam" + std::to_string(cam_idx);
-    const std::string img_dir = data_path + "/mav0/" + cam_str + "/data";
-    std::vector<std::string> img_paths;
-    list_files(img_dir, img_paths);
-
-    // Loop through image files
-    for (const auto img_fname : img_paths) {
-      printf(".");
-      fflush(stdout);
-
-      const std::string img_path = img_dir + "/" + img_fname;
-      const std::string ts_str = img_fname.substr(0, 19);
-      const timestamp_t ts = std::stoull(ts_str);
-      const std::string grid_fname = ts_str + ".csv";
-      const std::string grid_path = grids_path[cam_idx] + "/" + grid_fname;
-      const auto image = cv::imread(img_path, cv::IMREAD_GRAYSCALE);
-
-      // Load or detect apriltag
-      aprilgrid_t grid;
-      if (file_exists(grid_path)) {
-        grid.load(grid_path);
-        if (grid.detected == false) {
-          grid.timestamp = ts;
-          grid.tag_rows = detector.tag_rows;
-          grid.tag_cols = detector.tag_cols;
-          grid.tag_size = detector.tag_size;
-          grid.tag_spacing = detector.tag_spacing;
-        }
-      } else {
-        grid = detector.detect(ts, image);
-        grid.save(grid_path);
-      }
-      // grid.imshow("viz", image);
-      // cv::waitKey(1);
-
-      cam_grids[cam_idx].push_back(grid);
-    }
-  }
-  printf("\n");
-}
-
 struct blake_zisserman_loss_t {
   const double epsilon = 0.0;
 
@@ -90,6 +30,17 @@ int test_blake_zisserman_loss() {
 }
 
 int test_reproj_error() {
+  // Load data
+  const calib_target_t target;
+  const std::string data_path = "/data/euroc/cam_april";
+  const std::map<int, std::string> cam_paths = {
+      {0, data_path + "/mav0/cam0/data"},
+      {1, data_path + "/mav0/cam1/data"},
+  };
+  const std::string grids_path = "/data/euroc/cam_april/mav0/grids0";
+  auto cam_grids = calib_data_preprocess(target, cam_paths, grids_path);
+
+  // Get 1 detected aprilgrid
   aprilgrid_t grid;
   for (size_t k = 0; k < cam_grids[0].size(); k++) {
     if (cam_grids[0][k].detected) {
@@ -98,6 +49,7 @@ int test_reproj_error() {
     }
   }
 
+  // Form reprojection error
   std::vector<int> tag_ids;
   std::vector<int> corner_indicies;
   vec2s_t keypoints;
@@ -139,6 +91,7 @@ int test_reproj_error() {
                      keypoints[0],
                      I(2));
 
+  // Evaluate reprojection error to form baseline
   std::vector<double *> params = {
       cam_exts.param.data(),
       rel_pose.param.data(),
@@ -155,7 +108,6 @@ int test_reproj_error() {
                                      J2.data(),
                                      J3.data()};
 
-  // Baseline
   err.Evaluate(params.data(), r.data(), jacobians.data());
 
   // Check Jacobians
@@ -227,6 +179,17 @@ int test_reproj_error() {
 }
 
 int test_calib_view() {
+  // Load data
+  const calib_target_t target;
+  const std::string data_path = "/data/euroc/cam_april";
+  const std::map<int, std::string> cam_paths = {
+      {0, data_path + "/mav0/cam0/data"},
+      {1, data_path + "/mav0/cam1/data"},
+  };
+  const std::string grids_path = "/data/euroc/cam_april/mav0/grids0";
+  auto cam_grids = calib_data_preprocess(target, cam_paths, grids_path);
+
+  // Setup
   ceres::Problem problem;
   ceres::CauchyLoss loss(1.0);
 
@@ -260,7 +223,16 @@ int test_calib_view() {
 }
 
 int test_initialize_camera() {
+  // Load data
   const calib_target_t target;
+  const std::string data_path = "/data/euroc/cam_april";
+  const std::map<int, std::string> cam_paths = {
+      {0, data_path + "/mav0/cam0/data"},
+      {1, data_path + "/mav0/cam1/data"},
+  };
+  const std::string grids_path = "/data/euroc/cam_april/mav0/grids0";
+  auto cam_grids = calib_data_preprocess(target, cam_paths, grids_path);
+
   const int img_w = 752;
   const int img_h = 480;
   const int res[2] = {img_w, img_h};
@@ -274,19 +246,28 @@ int test_initialize_camera() {
 }
 
 int test_calib_camera() {
-  // const calib_target_t calib_target{"aprilgrid", 6, 6, 0.088, 0.3};
-  // const int cam_res[2] = {752, 480};
-  // const std::string proj_model = "pinhole";
-  // const std::string dist_model = "radtan4";
+  const calib_target_t calib_target{"aprilgrid", 6, 6, 0.088, 0.3};
+  const int cam_res[2] = {752, 480};
+  const std::string proj_model = "pinhole";
+  const std::string dist_model = "radtan4";
 
-  // calib_camera_t calib{calib_target};
-  // calib.add_camera_data(0, cam_grids[0]);
-  // calib.add_camera_data(1, cam_grids[1]);
-  // calib.add_camera(0, cam_res, proj_model, dist_model);
-  // calib.add_camera(1, cam_res, proj_model, dist_model);
-  // calib.solve();
-  // calib.save_results("/tmp/calib-results.yaml");
-  // calib.save_stats("/tmp/calib-stats.csv");
+  const std::string data_path = "/data/euroc/cam_april";
+  const std::map<int, std::string> cam_paths = {
+      {0, data_path + "/mav0/cam0/data"},
+      {1, data_path + "/mav0/cam1/data"},
+  };
+  const std::string grids_path = "/data/euroc/cam_april/mav0/grids0";
+  const auto grids = calib_data_preprocess(calib_target, cam_paths, grids_path);
+
+  calib_camera_t calib{calib_target};
+  calib.add_camera_data(0, grids.at(0));
+  calib.add_camera_data(1, grids.at(1));
+  calib.add_camera(0, cam_res, proj_model, dist_model);
+  calib.add_camera(1, cam_res, proj_model, dist_model);
+  calib.solve();
+  calib.save_results("/tmp/calib-results.yaml");
+  calib.save_stats("/tmp/calib-stats.csv");
+
   return 0;
 }
 
@@ -301,7 +282,7 @@ int test_calib_camera2() {
   const auto grids = calib_data_preprocess(calib_target, cam_paths, save_path);
 
   calib_camera_t calib{calib_target};
-  calib.add_camera_data(0, grids[0]);
+  calib.add_camera_data(0, grids.at(0));
   calib.add_camera(0, cam_res, proj_model, dist_model);
   calib.solve();
   calib.save_results("/tmp/calib-results.yaml");
@@ -310,7 +291,6 @@ int test_calib_camera2() {
 }
 
 void test_suite() {
-  // test_setup();
   MU_ADD_TEST(test_blake_zisserman_loss);
   MU_ADD_TEST(test_reproj_error);
   MU_ADD_TEST(test_calib_view);

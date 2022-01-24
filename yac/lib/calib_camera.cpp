@@ -535,7 +535,6 @@ calib_camera_t::calib_camera_t(const calib_target_t &calib_target_)
   prob_options.loss_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
   prob_options.enable_fast_removal = true;
   problem = new ceres::Problem(prob_options);
-  // loss = new ceres::HuberLoss(2.0);
 
   // Add fiducial corners to problem
   const int nb_tags = calib_target.tag_rows * calib_target.tag_cols;
@@ -1192,6 +1191,77 @@ int calib_camera_t::save_stats(const std::string &save_path) {
       }
     }
   }
+
+  return 0;
+}
+
+int calib_camera_solve(const std::string &config_path) {
+  // Load configuration
+  config_t config{config_path};
+  // -- Parse calibration target settings
+  calib_target_t target;
+  if (target.load(config_path, "calib_target") != 0) {
+    LOG_ERROR("Failed to parse calib_target in [%s]!", config_path.c_str());
+    return -1;
+  }
+  // -- Parse calibration settings
+  std::string data_path;
+  parse(config, "settings.data_path", data_path);
+  // -- Parse camera settings
+  std::map<int, std::vector<int>> cam_res;
+  std::map<int, std::string> cam_proj_models;
+  std::map<int, std::string> cam_dist_models;
+  std::map<int, std::string> cam_paths;
+  for (int cam_idx = 0; cam_idx < 100; cam_idx++) {
+    // Check if key exists
+    const std::string cam_str = "cam" + std::to_string(cam_idx);
+    if (yaml_has_key(config, cam_str) == 0) {
+      continue;
+    }
+
+    // Parse
+    std::vector<int> resolution;
+    std::string proj_model;
+    std::string dist_model;
+    parse(config, cam_str + ".resolution", resolution);
+    parse(config, cam_str + ".proj_model", proj_model);
+    parse(config, cam_str + ".dist_model", dist_model);
+    cam_res[cam_idx] = resolution;
+    cam_proj_models[cam_idx] = proj_model;
+    cam_dist_models[cam_idx] = dist_model;
+    cam_paths[cam_idx] = data_path + "/" + cam_str + "/data";
+  }
+  if (cam_res.size() == 0) {
+    LOG_ERROR("Failed to parse any camera parameters...");
+    return -1;
+  }
+
+  // Preprocess camera images
+  LOG_INFO("Preprocessing camera data ...");
+  const std::string grids_path = data_path + "/grids0";
+  const auto cam_grids = calib_data_preprocess(target, cam_paths, grids_path);
+  if (cam_grids.size() == 0) {
+    LOG_ERROR("Failed to load calib data!");
+    return -1;
+  }
+
+  // Setup calibrator
+  LOG_INFO("Setting up camera calibrator ...");
+  calib_camera_t calib{target};
+  for (auto &[cam_idx, _] : cam_res) {
+    LOG_INFO("Adding [cam%d] params and data", cam_idx);
+    calib.add_camera_data(cam_idx, cam_grids.at(cam_idx));
+    calib.add_camera(cam_idx,
+                     cam_res[cam_idx].data(),
+                     cam_proj_models[cam_idx],
+                     cam_dist_models[cam_idx]);
+  }
+
+  // Solve and save results
+  LOG_INFO("Solving ...");
+  calib.solve();
+  calib.save_results("/tmp/calib-results.yaml");
+  calib.save_stats("/tmp/calib-stats.csv");
 
   return 0;
 }

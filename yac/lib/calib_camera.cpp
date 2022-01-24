@@ -183,7 +183,7 @@ reproj_error_t::reproj_error_t(const camera_geometry_t *cam_geom_,
   J3_min = zeros(2, 8);
 }
 
-int reproj_error_t::get_residual(vec2_t &r) const {
+int reproj_error_t::get_residual(vec2_t &z_hat, vec2_t &r) const {
   assert(T_BCi != nullptr);
   assert(T_C0F != nullptr);
 
@@ -199,12 +199,23 @@ int reproj_error_t::get_residual(vec2_t &r) const {
   // -- Project point from camera frame to image plane
   auto res = cam_params->resolution;
   auto param = cam_params->param;
-  vec2_t z_hat;
   if (cam_geom->project(res, param, p_CiFi, z_hat) != 0) {
     return -1;
   }
   // -- Residual
   r = z - z_hat;
+
+  return 0;
+}
+
+int reproj_error_t::get_residual(vec2_t &r) const {
+  assert(T_BCi != nullptr);
+  assert(T_C0F != nullptr);
+
+  vec2_t z_hat = zeros(2, 1);
+  if (get_residual(z_hat, r) != 0) {
+    return -1;
+  }
 
   return 0;
 }
@@ -816,7 +827,7 @@ void calib_camera_t::_setup_problem() {
     printf("nb_views: %ld  ", calib_views[0].size());
     printf("info_k: %.2f ", calib_info_k);
     printf("reproj_error: %.2f ", rmse(reproj_errors_all));
-    printf("shannon_entropy: %.4e  ", shannon_entropy(calib_covar));
+    printf("shannon_entropy: %.2f  ", shannon_entropy(calib_covar));
     printf("\n");
 
     if (info_gain < info_gain_threshold) {
@@ -1084,6 +1095,14 @@ int calib_camera_t::save_results(const std::string &save_path) {
   }
   fprintf(outfile, "\n");
 
+  // Calibration target
+  fprintf(outfile, "calib_target:\n");
+  fprintf(outfile, "  tag_rows: %d\n", calib_target.tag_rows);
+  fprintf(outfile, "  tag_cols: %d\n", calib_target.tag_cols);
+  fprintf(outfile, "  tag_size: %f\n", calib_target.tag_size);
+  fprintf(outfile, "  tag_spacing: %f\n", calib_target.tag_spacing);
+  fprintf(outfile, "\n");
+
   // Camera parameters
   for (auto &kv : cam_params) {
     const auto cam_idx = kv.first;
@@ -1122,7 +1141,60 @@ int calib_camera_t::save_results(const std::string &save_path) {
     }
   }
 
-  return -1;
+  return 0;
+}
+
+int calib_camera_t::save_stats(const std::string &save_path) {
+  LOG_INFO(KGRN "Saved results to [%s]" KNRM, save_path.c_str());
+
+  // Open results file
+  FILE *outfile = fopen(save_path.c_str(), "w");
+  if (outfile == NULL) {
+    return -1;
+  }
+
+  // Header
+  fprintf(outfile, "cam_idx,");
+  fprintf(outfile, "ts,");
+  fprintf(outfile, "tag_id,");
+  fprintf(outfile, "corner_idx,");
+  fprintf(outfile, "z_x,");
+  fprintf(outfile, "z_y,");
+  fprintf(outfile, "z_hat_x,");
+  fprintf(outfile, "z_hat_y,");
+  fprintf(outfile, "rx,");
+  fprintf(outfile, "ry\n");
+
+  // Calib views
+  for (const auto &[cam_idx, cam_views] : calib_views) {
+    // Camera view
+    for (const auto &[ts, cam_view] : cam_views) {
+      // Data
+      for (const auto &res_fn : cam_view->res_fns) {
+        const auto corner = res_fn->p_FFi;
+        const vec2_t z = res_fn->z;
+        const int tag_id = corner->tag_id;
+        const int corner_idx = corner->corner_idx;
+
+        vec2_t z_hat = zeros(2, 1);
+        vec2_t r = zeros(2, 1);
+        if (res_fn->get_residual(z_hat, r) != 0) {
+          continue;
+        }
+
+        fprintf(outfile, "%d, ", cam_idx);
+        fprintf(outfile, "%ld, ", ts);
+        fprintf(outfile, "%d, ", tag_id);
+        fprintf(outfile, "%d, ", corner_idx);
+        fprintf(outfile, "%f, %f, ", z.x(), z.y());
+        fprintf(outfile, "%f, %f, ", z_hat.x(), z_hat.y());
+        fprintf(outfile, "%f, %f", r.x(), r.y());
+        fprintf(outfile, "\n");
+      }
+    }
+  }
+
+  return 0;
 }
 
 } //  namespace yac

@@ -285,7 +285,8 @@ int test_calib_camera() {
   calib.add_camera(0, cam_res, proj_model, dist_model);
   calib.add_camera(1, cam_res, proj_model, dist_model);
   calib.solve();
-  calib.save_results("/tmp/calib-cameras.yaml");
+  calib.save_results("/tmp/calib-results.yaml");
+  calib.save_stats("/tmp/calib-stats.csv");
 
   return 0;
 }

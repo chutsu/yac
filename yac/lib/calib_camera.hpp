@@ -77,6 +77,9 @@ struct reproj_error_t : public ceres::CostFunction {
                  const mat2_t &covar_);
 
   /** Get residual */
+  int get_residual(vec2_t &z_hat, vec2_t &r) const;
+
+  /** Get residual */
   int get_residual(vec2_t &r) const;
 
   /** Get reprojection error */
@@ -123,6 +126,10 @@ struct calib_view_t {
   int filter_view(const real_t outlier_threshold);
 };
 
+// Typedefs
+using calib_views_t = std::map<timestamp_t, std::unique_ptr<calib_view_t>>;
+using camera_calib_views_t = std::map<int, calib_views_t>;
+
 // CALIBRATOR //////////////////////////////////////////////////////////////////
 
 /**
@@ -139,7 +146,7 @@ void initialize_camera(const calib_target_t &calib_target,
 struct calib_camera_t {
   // Settings
   bool enable_outlier_rejection = true;
-  bool enable_nbv = true;
+  bool enable_nbv = false;
   real_t outlier_threshold = 4.0;
   real_t info_gain_threshold = 0.5;
   int min_nbv_views = 20;
@@ -152,8 +159,7 @@ struct calib_camera_t {
   real_t calib_info_k = 0;
 
   // Calib views
-  std::map<int, std::map<timestamp_t, std::unique_ptr<calib_view_t>>>
-      calib_views;
+  camera_calib_views_t calib_views;
 
   // Problem
   ceres::Problem::Options prob_options;
@@ -214,6 +220,7 @@ struct calib_camera_t {
   void solve();
   void show_results();
   int save_results(const std::string &save_path);
+  int save_stats(const std::string &save_path);
 };
 
 } //  namespace yac

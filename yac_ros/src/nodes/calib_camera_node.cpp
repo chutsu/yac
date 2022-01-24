@@ -72,13 +72,8 @@ void parse_camera_topics(const config_t &config,
 }
 
 int main(int argc, char *argv[]) {
-  // Get node name
-  std::string node_name = ros_node_name(argc, argv);
-  if (node_name == "") {
-    node_name = "calib_camera_node";
-  }
-
   // Setup ROS Node
+  std::string node_name = ros_node_name(argc, argv);
   if (ros::isInitialized() == false) {
     ros::init(argc, argv, node_name, ros::init_options::NoSigintHandler);
   }

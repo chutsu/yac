@@ -1,7 +1,0 @@
-<launch>
-  <arg name="config_file" default="$(find yac_ros)/config/calib_intel_d435i.yaml" />
-
-  <node pkg="yac_ros" type="calib_mono_nbv_node" name="calib_mono_nbv_node" required="true" output="screen">
-    <param name="config_file" value="$(arg config_file)" />
-  </node>
-</launch>

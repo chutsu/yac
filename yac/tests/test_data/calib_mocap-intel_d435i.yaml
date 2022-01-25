@@ -15,7 +15,7 @@ calib_target:
                             # Example: tagSize=2m, spacing=0.5m --> tagSpacing=0.25[-]
 
 cam0:
-  resolution: [640.0, 480.0]
+  resolution: [640, 480]
   proj_model: "pinhole"
   dist_model: "radtan4"
   rate: 30.0

@@ -4,108 +4,104 @@ namespace yac {
 
 // MOCAP MARKER - CAMERA RESIDUAL //////////////////////////////////////////////
 
-mocap_residual_t::mocap_residual_t(const camera_geometry_t *cam_geom,
-                                   const int cam_idx,
-                                   const int cam_res[2],
-                                   const vec3_t &r_FFi,
-                                   const vec2_t &z,
-                                   const mat2_t &covar)
-    : cam_geom_{cam_geom_}, cam_idx_{cam_idx}, cam_res_{cam_res[0], cam_res[1]},
-      r_FFi_{r_FFi}, z_{z}, covar_{covar}, info_{covar.inverse()},
-      sqrt_info_{info_.llt().matrixL().transpose()} {
-  set_num_residuals(2);
-  auto block_sizes = mutable_parameter_block_sizes();
-  block_sizes->push_back(7); // Fiducial pose
-  block_sizes->push_back(7); // Marker pose
-  block_sizes->push_back(7); // Marker-camera extrinsics
-}
-
-bool mocap_residual_t::Evaluate(double const *const *params,
-                                double *residuals,
-                                double **jacobians) const {
-  // Map optimization variables to Eigen
-  const mat4_t T_WF = tf(params[0]);
-  const mat4_t T_WM = tf(params[1]);
-  const mat4_t T_MC0 = tf(params[2]);
-  Eigen::Map<const vecx_t> cam_params(params[3], 8);
-
-  // Transform and project point to image plane
-  const mat4_t T_MW = T_WM.inverse();
-  const mat4_t T_C0M = T_MC0.inverse();
-  const vec3_t r_MFi = tf_point(T_MW * T_WF, r_FFi_);
-  const vec3_t r_C0Fi = tf_point(T_C0M * T_MW * T_WF, r_FFi_);
-  const vec2_t p{r_C0Fi(0) / r_C0Fi(2), r_C0Fi(1) / r_C0Fi(2)};
-  mat_t<2, 3> Jh;
-  matx_t J_params;
-  vec2_t z_hat;
-  bool valid = true;
-
-  if (cam_geom_->project(cam_res_, cam_params, r_C0Fi, z_hat) != 0) {
-    valid = false;
-  }
-
-  // Residual
-  const vec2_t r = sqrt_info_ * (z_ - z_hat);
-  residuals[0] = r(0);
-  residuals[1] = r(1);
-
-  // Jacobians
-  const matx_t J_cam_params = cam_geom_->params_jacobian(cam_params, r_C0Fi);
-  const matx_t Jh_weighted = sqrt_info_ * Jh;
-  const mat3_t C_C0W = tf_rot(T_C0M * T_MW);
-  const mat3_t C_MC0 = tf_rot(T_MC0);
-  const mat3_t C_C0M = C_MC0.transpose();
-
-  if (jacobians) {
-    // Jacobians w.r.t T_WF
-    if (jacobians[0]) {
-      const mat3_t C_WF = tf_rot(T_WF);
-
-      Eigen::Map<mat_t<2, 7, row_major_t>> J(jacobians[0]);
-      J.setZero();
-      J.block(0, 0, 2, 3) = -1 * Jh_weighted * C_C0W * I(3);
-      J.block(0, 3, 2, 3) = -1 * Jh_weighted * C_C0W * -skew(C_WF * r_FFi_);
-      if (valid == false) {
-        J.setZero();
-      }
-    }
-
-    // Jacobians w.r.t T_WM
-    if (jacobians[1]) {
-      const mat3_t C_WM = tf_rot(T_WM);
-
-      Eigen::Map<mat_t<2, 7, row_major_t>> J(jacobians[1]);
-      J.setZero();
-      J.block(0, 0, 2, 3) = -1 * Jh_weighted * -C_C0W * I(3);
-      J.block(0, 3, 2, 3) = -1 * Jh_weighted * -C_C0W * -skew(C_WM * r_MFi);
-      if (valid == false) {
-        J.setZero();
-      }
-    }
-
-    // Jacobians w.r.t T_MC0
-    if (jacobians[2]) {
-      Eigen::Map<mat_t<2, 7, row_major_t>> J(jacobians[2]);
-      J.setZero();
-      J.block(0, 0, 2, 3) = -1 * Jh_weighted * -C_C0M * I(3);
-      J.block(0, 3, 2, 3) = -1 * Jh_weighted * -C_C0M * -skew(C_MC0 * r_C0Fi);
-      if (valid == false) {
-        J.setZero();
-      }
-    }
-
-    // Jacobians w.r.t camera params
-    if (jacobians[3]) {
-      Eigen::Map<mat_t<2, 8, row_major_t>> J(jacobians[3]);
-      J = -1 * sqrt_info_ * J_params;
-      if (valid == false) {
-        J.setZero();
-      }
-    }
-  }
-
-  return true;
-}
+// mocap_residual_t::mocap_residual_t(const camera_geometry_t *cam_geom,
+//                                    const vec2_t &z,
+//                                    const mat2_t &covar)
+//     : cam_geom_{cam_geom_}, z_{z}, covar_{covar}, info_{covar.inverse()},
+//       sqrt_info_{info_.llt().matrixU()} {
+//   set_num_residuals(2);
+//   auto block_sizes = mutable_parameter_block_sizes();
+//   block_sizes->push_back(7); // Fiducial pose
+//   block_sizes->push_back(7); // Marker pose
+//   block_sizes->push_back(7); // Marker-camera extrinsics
+// }
+//
+// bool mocap_residual_t::Evaluate(double const *const *params,
+//                                 double *residuals,
+//                                 double **jacobians) const {
+//   // Map optimization variables to Eigen
+//   const mat4_t T_WF = tf(params[0]);
+//   const mat4_t T_WM = tf(params[1]);
+//   const mat4_t T_MC0 = tf(params[2]);
+//   Eigen::Map<const vecx_t> cam_params(params[3], 8);
+//
+//   // Transform and project point to image plane
+//   const mat4_t T_MW = T_WM.inverse();
+//   const mat4_t T_C0M = T_MC0.inverse();
+//   const vec3_t r_MFi = tf_point(T_MW * T_WF, r_FFi_);
+//   const vec3_t r_C0Fi = tf_point(T_C0M * T_MW * T_WF, r_FFi_);
+//   const vec2_t p{r_C0Fi(0) / r_C0Fi(2), r_C0Fi(1) / r_C0Fi(2)};
+//   mat_t<2, 3> Jh;
+//   matx_t J_params;
+//   vec2_t z_hat;
+//   bool valid = true;
+//
+//   if (cam_geom_->project(cam_res_, cam_params, r_C0Fi, z_hat) != 0) {
+//     valid = false;
+//   }
+//
+//   // Residual
+//   const vec2_t r = sqrt_info_ * (z_ - z_hat);
+//   residuals[0] = r(0);
+//   residuals[1] = r(1);
+//
+//   // Jacobians
+//   const matx_t J_cam_params = cam_geom_->params_jacobian(cam_params, r_C0Fi);
+//   const matx_t Jh_weighted = sqrt_info_ * Jh;
+//   const mat3_t C_C0W = tf_rot(T_C0M * T_MW);
+//   const mat3_t C_MC0 = tf_rot(T_MC0);
+//   const mat3_t C_C0M = C_MC0.transpose();
+//
+//   if (jacobians) {
+//     // Jacobians w.r.t T_WF
+//     if (jacobians[0]) {
+//       const mat3_t C_WF = tf_rot(T_WF);
+//
+//       Eigen::Map<mat_t<2, 7, row_major_t>> J(jacobians[0]);
+//       J.setZero();
+//       J.block(0, 0, 2, 3) = -1 * Jh_weighted * C_C0W * I(3);
+//       J.block(0, 3, 2, 3) = -1 * Jh_weighted * C_C0W * -skew(C_WF * r_FFi_);
+//       if (valid == false) {
+//         J.setZero();
+//       }
+//     }
+//
+//     // Jacobians w.r.t T_WM
+//     if (jacobians[1]) {
+//       const mat3_t C_WM = tf_rot(T_WM);
+//
+//       Eigen::Map<mat_t<2, 7, row_major_t>> J(jacobians[1]);
+//       J.setZero();
+//       J.block(0, 0, 2, 3) = -1 * Jh_weighted * -C_C0W * I(3);
+//       J.block(0, 3, 2, 3) = -1 * Jh_weighted * -C_C0W * -skew(C_WM * r_MFi);
+//       if (valid == false) {
+//         J.setZero();
+//       }
+//     }
+//
+//     // Jacobians w.r.t T_MC0
+//     if (jacobians[2]) {
+//       Eigen::Map<mat_t<2, 7, row_major_t>> J(jacobians[2]);
+//       J.setZero();
+//       J.block(0, 0, 2, 3) = -1 * Jh_weighted * -C_C0M * I(3);
+//       J.block(0, 3, 2, 3) = -1 * Jh_weighted * -C_C0M * -skew(C_MC0 *
+//       r_C0Fi); if (valid == false) {
+//         J.setZero();
+//       }
+//     }
+//
+//     // Jacobians w.r.t camera params
+//     if (jacobians[3]) {
+//       Eigen::Map<mat_t<2, 8, row_major_t>> J(jacobians[3]);
+//       J = -1 * sqrt_info_ * J_params;
+//       if (valid == false) {
+//         J.setZero();
+//       }
+//     }
+//   }
+//
+//   return true;
+// }
 
 // MOCAP MARKER - CAMERA CALIBRATION DATA //////////////////////////////////////
 

@@ -12,31 +12,28 @@ namespace yac {
 
 // MOCAP MARKER RESIDUAL ///////////////////////////////////////////////////////
 
-struct mocap_residual_t : public ceres::CostFunction {
-  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-
-  const camera_geometry_t *cam_geom_;
-  const int cam_idx_;
-  const int cam_res_[2] = {0, 0};
-  vec3_t r_FFi_{0.0, 0.0, 0.0};
-  vec2_t z_{0.0, 0.0};
-
-  const mat2_t covar_;
-  const mat2_t info_;
-  const mat2_t sqrt_info_;
-
-  mocap_residual_t(const camera_geometry_t *cam_geom,
-                   const int cam_idx,
-                   const int cam_res[2],
-                   const vec3_t &r_FFi,
-                   const vec2_t &z,
-                   const mat2_t &covar);
-  ~mocap_residual_t() = default;
-
-  bool Evaluate(double const *const *params,
-                double *residuals,
-                double **jacobians) const;
-};
+// struct mocap_residual_t : public ceres::CostFunction {
+//   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+//
+//   const camera_geometry_t *cam_geom_;
+//   const int cam_idx_;
+//   const int cam_res_[2] = {0, 0};
+//   vec3_t r_FFi_{0.0, 0.0, 0.0};
+//   vec2_t z_{0.0, 0.0};
+//
+//   const mat2_t covar_;
+//   const mat2_t info_;
+//   const mat2_t sqrt_info_;
+//
+//   mocap_residual_t(const camera_geometry_t *cam_geom,
+//                    const vec2_t &z,
+//                    const mat2_t &covar);
+//   ~mocap_residual_t() = default;
+//
+//   bool Evaluate(double const *const *params,
+//                 double *residuals,
+//                 double **jacobians) const;
+// };
 
 // MOCAP-CAMERA CALIBRATION DATA ///////////////////////////////////////////////
 

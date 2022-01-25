@@ -1208,7 +1208,7 @@ int calib_camera_solve(const std::string &config_path) {
   std::string data_path;
   parse(config, "settings.data_path", data_path);
   // -- Parse camera settings
-  std::map<int, std::vector<int>> cam_res;
+  std::map<int, veci2_t> cam_res;
   std::map<int, std::string> cam_proj_models;
   std::map<int, std::string> cam_dist_models;
   std::map<int, std::string> cam_paths;
@@ -1220,7 +1220,7 @@ int calib_camera_solve(const std::string &config_path) {
     }
 
     // Parse
-    std::vector<int> resolution;
+    veci2_t resolution;
     std::string proj_model;
     std::string dist_model;
     parse(config, cam_str + ".resolution", resolution);

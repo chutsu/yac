@@ -419,6 +419,35 @@ matx_t vecs2mat(const vec3s_t &vs);
 std::string vec2str(const vecx_t &v, const bool brackets = true);
 
 /**
+ * Vector to string
+ *
+ * @param[in] v Vector
+ * @param[in] brackets Brakcets around vector string
+ * @returns Vector as a string
+ */
+template <typename T>
+std::string vec2str(const std::vector<T> &v, const bool brackets = true) {
+  std::string str;
+
+  if (brackets) {
+    str += "[";
+  }
+
+  for (int i = 0; i < v.size(); i++) {
+    str += std::to_string(v.at(i));
+    if ((i + 1) != v.size()) {
+      str += ", ";
+    }
+  }
+
+  if (brackets) {
+    str += "]";
+  }
+
+  return str;
+}
+
+/**
  * Array to string
  *
  * @param[in] arr Array

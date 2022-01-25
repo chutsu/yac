@@ -178,18 +178,30 @@ size_t yaml_check_vector(const YAML::Node &node,
 
   // Get expected vector size
   size_t vector_size = 0;
-  if (std::is_same<real_t, vec2_t>::value) {
+  if (std::is_same<T, vec2_t>::value) {
     vector_size = 2;
-  } else if (std::is_same<real_t, vec3_t>::value) {
+  } else if (std::is_same<T, vec3_t>::value) {
     vector_size = 3;
-  } else if (std::is_same<real_t, vec4_t>::value) {
+  } else if (std::is_same<T, vec4_t>::value) {
     vector_size = 4;
-  } else if (std::is_same<real_t, vec5_t>::value) {
+  } else if (std::is_same<T, vec5_t>::value) {
     vector_size = 5;
-  } else if (std::is_same<real_t, vecx_t>::value) {
+  } else if (std::is_same<T, vecx_t>::value) {
+    vector_size = node.size();
+    return vector_size; // Don't bother, it could be anything
+  } else if (std::is_same<T, veci2_t>::value) {
+    vector_size = 2;
+  } else if (std::is_same<T, veci3_t>::value) {
+    vector_size = 3;
+  } else if (std::is_same<T, veci4_t>::value) {
+    vector_size = 4;
+  } else if (std::is_same<T, veci5_t>::value) {
+    vector_size = 5;
+  } else if (std::is_same<T, vecix_t>::value) {
     vector_size = node.size();
     return vector_size; // Don't bother, it could be anything
   } else {
+    LOG_ERROR("Failed to check vector [%s]!", key.c_str());
     FATAL("Unsupported vector type!");
   }
 

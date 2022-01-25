@@ -141,13 +141,13 @@ struct euroc_camera_t {
   std::string comment;
   mat4_t T_BS = I(4);
   double rate_hz = 0.0;
-  vec2_t resolution = zeros(2, 1);
+  veci2_t resolution;
   std::string camera_model;
   vec4_t intrinsics = zeros(4, 1);
   std::string distortion_model;
   vec4_t distortion_coefficients = zeros(4, 1);
 
-  euroc_camera_t() {}
+  euroc_camera_t() = default;
 
   euroc_camera_t(const std::string &data_dir_, bool is_calib_data = false)
       : data_dir{data_dir_} {
@@ -211,7 +211,7 @@ struct euroc_camera_t {
     ok = true;
   }
 
-  ~euroc_camera_t() {}
+  ~euroc_camera_t() = default;
 
   /**
    * EuRoC camera to output stream
@@ -223,11 +223,11 @@ struct euroc_camera_t {
     os << "comment: " << data.comment << std::endl;
     os << "T_BS:\n" << data.T_BS << std::endl;
     os << "rate_hz: " << data.rate_hz << std::endl;
-    os << "resolution: " << data.resolution.transpose() << std::endl;
+    os << "resolution: [" << data.resolution.x() << ", " << data.resolution.y() << "]" << std::endl;
     os << "camera_model: " << data.camera_model << std::endl;
-    os << "intrinsics: " << data.intrinsics.transpose() << std::endl;
+    os << "intrinsics: " << vec2str(data.intrinsics) << std::endl;
     os << "distortion_model: " << data.distortion_model << std::endl;
-    os << "distortion_coefficients: " << data.distortion_coefficients.transpose() << std::endl;
+    os << "distortion_coefficients: " << vec2str(data.distortion_coefficients) << std::endl;
     // clang-format on
 
     return os;
@@ -254,7 +254,7 @@ struct euroc_ground_truth_t {
   vec3s_t b_w_RS_S;
   vec3s_t b_a_RS_S;
 
-  euroc_ground_truth_t() {}
+  euroc_ground_truth_t() = default;
 
   euroc_ground_truth_t(const std::string &data_dir_) : data_dir{data_dir_} {
     // Open file for loading
@@ -323,7 +323,7 @@ struct euroc_ground_truth_t {
     ok = true;
   }
 
-  ~euroc_ground_truth_t() {}
+  ~euroc_ground_truth_t() = default;
 };
 
 /*****************************************************************************
@@ -355,7 +355,7 @@ struct euroc_data_t {
   std::map<timestamp_t, double> time;
   timeline_t timeline;
 
-  euroc_data_t() {}
+  euroc_data_t() = default;
 
   euroc_data_t(const std::string &data_path)
       : data_path{strip_end(data_path, "/")} {
@@ -414,7 +414,7 @@ struct euroc_data_t {
     ok = true;
   }
 
-  ~euroc_data_t() {}
+  ~euroc_data_t() = default;
 
   void reset() {
     ts_start = min_timestamp();
@@ -467,7 +467,7 @@ struct euroc_target_t {
   double tag_size = 0.0;
   double tag_spacing = 0.0;
 
-  euroc_target_t() {}
+  euroc_target_t() = default;
 
   euroc_target_t(const std::string &target_file) : file_path{target_file} {
     config_t config{target_file};
@@ -483,7 +483,7 @@ struct euroc_target_t {
     ok = true;
   }
 
-  ~euroc_target_t() {}
+  ~euroc_target_t() = default;
 
   friend std::ostream &operator<<(std::ostream &os,
                                   const euroc_target_t &target) {
@@ -555,7 +555,7 @@ struct euroc_calib_t {
     ok = true;
   }
 
-  ~euroc_calib_t() {}
+  ~euroc_calib_t() = default;
 
   timeline_t timeline() {
     // Create timeline

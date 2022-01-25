@@ -145,7 +145,7 @@ void initialize_camera(const calib_target_t &calib_target,
 /** Camera Calibrator **/
 struct calib_camera_t {
   // Settings
-  bool enable_nbv = true;
+  bool enable_nbv = false;
   bool enable_nbv_filter = false;
   bool enable_outlier_rejection = true;
   int min_nbv_views = 5;

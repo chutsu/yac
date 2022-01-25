@@ -15,7 +15,14 @@
 namespace yac {
 
 struct calib_nbv_t {
-  enum CALIB_STATE { INITIALIZE = 0, NBV = 1, BATCH = 2 };
+  // Calibration state
+  enum CALIB_STATE {
+    INITIALIZE_INTRINSICS = 0,
+    INITIALIZE_EXTRINSICS = 1,
+    NBV = 2,
+    BATCH = 3,
+  };
+  int state = INITIALIZE_INTRINSICS;
 
   // ROS
   const std::string node_name;
@@ -24,21 +31,23 @@ struct calib_nbv_t {
   std::map<int, std::string> mcam_topics;
   std::map<int, image_transport::Subscriber> mcam_subs;
 
-  // State
+  // Flags
   std::mutex calib_mutex;
-  int state = INITIALIZE;
   bool keep_running = true;
   bool cam_init = false;
   bool capture_event = false;
   bool nbv_event = false;
   bool batch_event = false;
-  struct termios term_config_orig;
+  // struct termios term_config_orig;
 
   // Calibration
   std::unique_ptr<calib_target_t> calib_target;
   std::unique_ptr<aprilgrid_detector_t> detector;
   std::unique_ptr<calib_camera_t> calib;
 
+  // Settings
+  int min_intrinsics_views = 5;
+  real_t min_intrinsics_view_diff = 20.0;
   mat4_t nbv_pose = I(4);
   aprilgrid_t *target_grid = nullptr;
   double nbv_reproj_error_threshold = 10.0;
@@ -48,10 +57,12 @@ struct calib_nbv_t {
 
   // Data
   std::map<int, std::pair<timestamp_t, cv::Mat>> img_buffer;
-  aprilgrids_t grids;
+  std::map<int, aprilgrids_t> cam_grids;
 
+  /* Constructor */
   calib_nbv_t() = delete;
 
+  /* Constructor */
   calib_nbv_t(const std::string &node_name_) : node_name{node_name_} {
     std::string config_file;
     ROS_PARAM(ros_nh, node_name + "/config_file", config_file);
@@ -61,8 +72,12 @@ struct calib_nbv_t {
     setup_ros_topics(config_file);
   }
 
+  /* Destructor */
   ~calib_nbv_t() = default;
 
+  /**
+   * Setup Calibration Target
+   */
   void setup_calib_target(const std::string &config_file) {
     config_t config{config_file};
     calib_target = std::make_unique<calib_target_t>();
@@ -71,6 +86,9 @@ struct calib_nbv_t {
     }
   }
 
+  /**
+   * Setup Camera Calibrator
+   */
   void setup_calibrator(const std::string &config_file) {
     // Load configuration
     config_t config{config_file};
@@ -112,6 +130,9 @@ struct calib_nbv_t {
     }
   }
 
+  /**
+   * Setup AprilGrid detector
+   */
   void setup_aprilgrid_detector() {
     detector =
         std::make_unique<aprilgrid_detector_t>(calib_target->tag_rows,
@@ -120,6 +141,9 @@ struct calib_nbv_t {
                                                calib_target->tag_spacing);
   }
 
+  /**
+   * Setup ROS Topics
+   */
   void setup_ros_topics(const std::string &config_file) {
     // Parse camera ros topics
     config_t config{config_file};
@@ -131,30 +155,20 @@ struct calib_nbv_t {
     // Subscribe
     for (const auto [cam_idx, topic] : mcam_topics) {
       LOG_INFO("Subscribing to cam%d @ [%s]", cam_idx, topic.c_str());
-      auto cb = std::bind(&calib_nbv_t::image_cb,
-                          this,
-                          std::placeholders::_1,
-                          cam_idx);
+      auto _1 = std::placeholders::_1;
+      auto cb = std::bind(&calib_nbv_t::image_callback, this, _1, cam_idx);
       mcam_subs[cam_idx] = img_trans.subscribe(topic, 1, cb);
     }
   }
 
+  /**
+   * Return number of cameras
+   */
   int nb_cams() { return calib->nb_cams(); }
 
-  void initialize_camera(const aprilgrid_t &grid) {
-    // if (cam_params.initialize({grid}) == false) {
-    //   LOG_WARN("Failed to initialize camera focal lengths, try again!");
-    //   frames.clear();
-    //   grids.clear();
-    //   return;
-    // }
-
-    // Setup initial calibration poses
-    // poses_init = calib_init_poses<CAMERA>(target, cam_params);
-    LOG_INFO("Camera initialized!");
-    cam_init = true;
-  }
-
+  /**
+   * Event Keyboard Handler
+   */
   void event_handler(int key) {
     if (key != EOF) {
       switch (key) {
@@ -174,6 +188,11 @@ struct calib_nbv_t {
     }
   }
 
+  /**
+   * Visualize detected AprilGrid
+   * @param[in] grid AprilGrid
+   * @param[in] image Camera frame
+   */
   void visualize(const aprilgrid_t &grid, const cv::Mat &image) {
     // Draw detected
     auto image_rgb = gray2rgb(image);
@@ -251,32 +270,147 @@ struct calib_nbv_t {
   //   return true;
   // }
 
-  void image_cb(const sensor_msgs::ImageConstPtr &msg, const int cam_idx) {
-    std::lock_guard<std::mutex> guard(calib_mutex);
-
+  /**
+   * Update image buffer
+   * @param[in] cam_idx Camera index
+   * @param[in] msg Image messsage
+   * @returns True or False if all camera images have arrived
+   */
+  bool update_image_buffer(const int cam_idx,
+                           const sensor_msgs::ImageConstPtr &msg) {
     // Convert message to image and add to image buffer
     const timestamp_t ts_k = msg->header.stamp.toNSec();
     img_buffer[cam_idx] = {ts_k, msg_convert(msg)};
 
     // Make sure timestamps in in image buffer all the same
-    bool synced = true;
+    bool ready = true;
     for (auto &[cam_idx, data] : img_buffer) {
       const auto img_ts = data.first;
       const auto &img = data.second;
       if (ts_k > img_ts) {
-        synced = false;
+        ready = false;
       }
     }
-    if (synced == false) {
+
+    return ready;
+  }
+
+  /**
+   * Initialize Intrinsics Mode
+   */
+  int mode_init_intrinsics() {
+    // Form calibration data
+    for (auto &[cam_idx, data] : img_buffer) {
+      // Check if have enough grids already
+      if (cam_grids[cam_idx].size() >= min_intrinsics_views) {
+        continue;
+      }
+
+      // Check if aprilgrid is detected and fully observable
+      const auto img_ts = data.first;
+      const auto &img = data.second;
+      const auto grid_k = detector->detect(img_ts, img);
+      if (grid_k.detected == false || grid_k.fully_observable() == false) {
+        continue;
+      }
+
+      // Check current grid against previous grid to see if the view has
+      // changed enought via reprojection error
+      if (cam_grids[cam_idx].size()) {
+        const auto &grid_km1 = cam_grids[cam_idx].back();
+        const vec2s_t kps_km1 = grid_km1.keypoints();
+        const vec2s_t kps_k = grid_k.keypoints();
+
+        std::vector<real_t> errors;
+        for (size_t i = 0; i < kps_km1.size(); i++) {
+          const vec2_t diff = kps_km1[i] - kps_k[i];
+          errors.push_back(diff.norm());
+        }
+
+        if (rmse(errors) < min_intrinsics_view_diff) {
+          continue;
+        }
+      }
+
+      // Add to calibration data
+      const auto views_left = min_intrinsics_views - cam_grids[cam_idx].size();
+      if (views_left) {
+        LOG_INFO("Adding cam%d data - still needs %ld views",
+                 cam_idx,
+                 views_left);
+        cam_grids[cam_idx].push_back(grid_k);
+      }
+    }
+
+    // Check if we have enough grids for all cameras
+    bool ready = true;
+    for (const auto [cam_idx, grids] : cam_grids) {
+      if (grids.size() < min_intrinsics_views) {
+        ready = false;
+      }
+    }
+    if (ready == false) {
+      return 0;
+    }
+
+    // Initialize camera intrinsics
+    for (const auto [cam_idx, grids] : cam_grids) {
+      // Calibrate camera intrinsics
+      calib_camera_t cam_calib{*calib_target.get()};
+      const auto cam_res = calib->get_camera_resolution(cam_idx);
+      const auto proj_model = calib->get_camera_projection_model(cam_idx);
+      const auto dist_model = calib->get_camera_distortion_model(cam_idx);
+      cam_calib.add_camera(cam_idx, cam_res.data(), proj_model, dist_model);
+      cam_calib.add_camera_data(cam_idx, grids);
+      cam_calib.solve();
+
+      // Update main calibrator with new camera intrinsics
+      calib.cam_params[cam_idx].param = cam_calib.get_camera_params(cam_idx);
+    }
+
+    // Transition to initializing extrinsics
+    state = INITIALIZE_EXTRINSICS;
+
+    return 0;
+  }
+
+  /**
+   * Initialize Extrinsics Mode
+   */
+  int mode_init_extrinsics() { return 0; }
+
+  /**
+   * Camera Image Callback
+   * @param[in] msg Image message
+   * @param[in] cam_idx Camera index
+   */
+  void image_callback(const sensor_msgs::ImageConstPtr &msg,
+                      const int cam_idx) {
+    // Update image buffer
+    std::lock_guard<std::mutex> guard(calib_mutex);
+    if (update_image_buffer(cam_idx, msg) == false) {
       return;
     }
 
     // Detect and visualize
+    const timestamp_t ts_k = msg->header.stamp.toNSec();
     const auto &frame_k = img_buffer[0].second;
     const auto grid = detector->detect(ts_k, frame_k);
     visualize(grid, frame_k);
     if (grid.detected == false) {
       return;
+    }
+
+    // Initialize
+    switch (state) {
+      case INITIALIZE_INTRINSICS:
+        mode_init_intrinsics();
+        break;
+      case INITIALIZE_EXTRINSICS:
+        break;
+      default:
+        FATAL("Implementation Error!");
+        break;
     }
   }
 
@@ -310,29 +444,6 @@ struct calib_nbv_t {
   //   target_grid = grid;
   // }
 
-  // void find_nbv() {
-  //   // calib_mono_data_t data{grids, cam_params};
-  //   // calib_mono_solve<CAMERA>(data);
-  //   // if (nbv_find<CAMERA>(target, data, nbv_pose) == -2) {
-  //   //   state = BATCH;
-  //   //   return;
-  //   // }
-  //   // create_target_grid<CAMERA>(nbv_pose);
-  // }
-
-  // void mode_init() {
-  //   if (cam_init && frames.size() == poses_init.size()) {
-  //     LOG_INFO("Collected enough init camera frames!");
-  //     LOG_INFO("Transitioning to NBV mode!");
-  //     // calib_mono_data_t data{grids, cam_params};
-  //     // calib_mono_solve<CAMERA>(data);
-  //
-  //     // Transition to NBV mode
-  //     find_nbv();
-  //     state = NBV;
-  //   }
-  // }
-
   // void mode_nbv() {
   //   if (nbv_event == false) {
   //     return;
@@ -345,24 +456,6 @@ struct calib_nbv_t {
   //   nbv_reproj_err = std::numeric_limits<double>::max();
   //   nbv_hold_tic = (struct timespec){0, 0};
   //   nbv_event = false;
-  // }
-
-  // void mode_batch() {
-  //   LOG_INFO("Final Optimization!");
-  //   std::vector<double> errs;
-  //
-  //   // calib_mono_data_t data{grids, cam_params};
-  //   // calib_mono_solve<CAMERA>(data);
-  //   // reproj_errors<CAMERA>(data, errs);
-  //
-  //   // const std::string results_fpath = "/tmp/calib-mono.csv";
-  //   // if (save_results(results_fpath, cam_params, rmse(errs), mean(errs)) !=
-  //   // 0)
-  //   // {
-  //   //   LOG_ERROR("Failed to save results to [%s]!", results_fpath.c_str());
-  //   // }
-  //
-  //   keep_running = false;
   // }
 
   void loop() {

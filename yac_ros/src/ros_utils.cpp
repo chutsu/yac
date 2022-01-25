@@ -199,13 +199,13 @@ std::ofstream pose_init_output_file(const std::string &output_path) {
 
   // Write data file header
   data_file << "timestamp [ns],";
-  data_file << "qw,";
+  data_file << "x,";
+  data_file << "y,";
+  data_file << "z,";
   data_file << "qx,";
   data_file << "qy,";
   data_file << "qz,";
-  data_file << "x,";
-  data_file << "y,";
-  data_file << "z" << std::endl;
+  data_file << "qw" << std::endl;
 
   return data_file;
 }
@@ -250,12 +250,12 @@ std::ofstream imu_init_output_file(const std::string &output_path) {
 
   // Write data file header
   data_file << "timestamp [ns],";
-  data_file << "w_RS_S_x [rad s^-1],";
-  data_file << "w_RS_S_y [rad s^-1],";
-  data_file << "w_RS_S_z [rad s^-1],";
   data_file << "a_RS_S_x [m s^-2],";
   data_file << "a_RS_S_y [m s^-2],";
-  data_file << "a_RS_S_z [m s^-2]" << std::endl;
+  data_file << "a_RS_S_z [m s^-2],";
+  data_file << "w_RS_S_x [rad s^-1],";
+  data_file << "w_RS_S_y [rad s^-1],";
+  data_file << "w_RS_S_z [rad s^-1]" << std::endl;
 
   return data_file;
 }
@@ -337,12 +337,12 @@ void load_imu_data(const std::string &csv_file,
     const int retval = fscanf(fp,
                               "%" SCNu64 ",%lf,%lf,%lf,%lf,%lf,%lf",
                               &ts,
-                              &w_x,
-                              &w_y,
-                              &w_z,
                               &a_x,
                               &a_y,
-                              &a_z);
+                              &a_z,
+                              &w_x,
+                              &w_y,
+                              &w_z);
     if (retval != 6) {
       LOG_ERROR("Failed to parse line [%d] in [%s]!", i, csv_file.c_str());
       return;
@@ -362,13 +362,13 @@ void pose_message_handler(const rosbag::MessageInstance &msg,
 
   // Save pose to data.csv
   pose_data << ts.toNSec() << ",";
-  pose_data << pose_msg->pose.orientation.w << ",";
+  pose_data << pose_msg->pose.position.x << ",";
+  pose_data << pose_msg->pose.position.y << ",";
+  pose_data << pose_msg->pose.position.z << ",";
   pose_data << pose_msg->pose.orientation.x << ",";
   pose_data << pose_msg->pose.orientation.y << ",";
   pose_data << pose_msg->pose.orientation.z << ",";
-  pose_data << pose_msg->pose.position.x << ",";
-  pose_data << pose_msg->pose.position.y << ",";
-  pose_data << pose_msg->pose.position.z << std::endl;
+  pose_data << pose_msg->pose.orientation.w << std::endl;
 }
 
 void image_message_handler(const rosbag::MessageInstance &msg,
@@ -415,14 +415,14 @@ void imu_message_handler(const rosbag::MessageInstance &msg,
   // Save imu measurement to file
   // -- Timestamp [ns]
   imu_data << ts.toNSec() << ",";
-  // -- Angular velocity [rad s^-1]
-  imu_data << gyro(0) << ",";
-  imu_data << gyro(1) << ",";
-  imu_data << gyro(2) << ",";
   // -- Accelerometer [m s^-2]
   imu_data << accel(0) << ",";
   imu_data << accel(1) << ",";
-  imu_data << accel(2) << std::endl;
+  imu_data << accel(2) << ",";
+  // -- Angular velocity [rad s^-1]
+  imu_data << gyro(0) << ",";
+  imu_data << gyro(1) << ",";
+  imu_data << gyro(2) << std::endl;
 }
 
 void accel_message_handler(const rosbag::MessageInstance &msg,

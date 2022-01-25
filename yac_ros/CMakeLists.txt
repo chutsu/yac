@@ -111,17 +111,17 @@ INSTALL(
 ADD_EXECUTABLE(calib_camera_node src/nodes/calib_camera_node.cpp)
 TARGET_LINK_LIBRARIES(calib_camera_node ${DEPS})
 
+# ADD_EXECUTABLE(calib_mocap_node src/nodes/calib_mocap_node.cpp)
+# TARGET_LINK_LIBRARIES(calib_mocap_node ${DEPS})
+
+# ADD_EXECUTABLE(calib_vi_smart_node src/nodes/calib_vi_smart_node.cpp)
+# TARGET_LINK_LIBRARIES(calib_vi_smart_node ${DEPS})
+
+ADD_EXECUTABLE(calib_nbv_node src/nodes/calib_nbv_node.cpp)
+TARGET_LINK_LIBRARIES(calib_nbv_node ${DEPS})
+
 ADD_EXECUTABLE(record_camera_node src/nodes/record_camera_node.cpp)
 TARGET_LINK_LIBRARIES(record_camera_node ${DEPS})
 
 ADD_EXECUTABLE(record_mocap_node src/nodes/record_mocap_node.cpp)
 TARGET_LINK_LIBRARIES(record_mocap_node ${DEPS})
-
-# ADD_EXECUTABLE(calib_mocap_node src/nodes/calib_mocap_node.cpp)
-# TARGET_LINK_LIBRARIES(calib_mocap_node ${DEPS})
-
-# ADD_EXECUTABLE(calib_camera_nbv_node src/nodes/calib_mono_nbv_node.cpp)
-# TARGET_LINK_LIBRARIES(calib_camera_nbv_node ${DEPS})
-
-# ADD_EXECUTABLE(calib_vi_smart_node src/nodes/calib_vi_smart_node.cpp)
-# TARGET_LINK_LIBRARIES(calib_vi_smart_node ${DEPS})

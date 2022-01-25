@@ -66,7 +66,7 @@ void process_rosbag(const std::string &rosbag_path,
 
   for (const auto &msg : bag_view) {
     // Print progress
-    print_progress((double) msg_idx / bag_view.size());
+    print_progress((double)msg_idx / bag_view.size());
     msg_idx++;
 
     // Process camera data
@@ -331,10 +331,10 @@ int main(int argc, char *argv[]) {
                  body0_topic,
                  target0_topic);
 
-  // Calibrate mocap marker to camera extrinsics
-  if (calib_mocap_solve(config_file) != 0) {
-    FATAL("Failed to calibrate camera!");
-  }
+  // // Calibrate mocap marker to camera extrinsics
+  // if (calib_mocap_solve(config_file) != 0) {
+  //   FATAL("Failed to calibrate camera!");
+  // }
 
   // // Process test ROS bag
   // process_rosbag(test_bag_path,

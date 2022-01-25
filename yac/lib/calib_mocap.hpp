@@ -6,6 +6,7 @@
 #include "util/util.hpp"
 #include "calib_data.hpp"
 #include "calib_params.hpp"
+#include "calib_camera.hpp"
 
 namespace yac {
 
@@ -46,7 +47,6 @@ struct calib_mocap_data_t {
   bool fix_fiducial_pose = false;
 
   // Settings
-  double sigma_vision = 1.0;
   bool imshow = true;
 
   // Paths
@@ -60,93 +60,61 @@ struct calib_mocap_data_t {
   // Data
   calib_target_t calib_target;
   aprilgrids_t grids;
-  camera_params_t cam0;
-  std::vector<pose_t> T_WM;
-  pose_t T_MC0;
-  pose_t T_WF;
-  mat2_t covar;
 
-  // Constructor
+  std::vector<int> resolution;
+  std::string proj_model;
+  std::string dist_model;
+  vecx_t proj_params;
+  vecx_t dist_params;
+
+  std::map<timestamp_t, mat4_t> T_WM;
+  mat4_t T_WF;
+  mat4_t T_MC0;
+  mat2_t covar = I(2);
+
   calib_mocap_data_t(const std::string &config_file);
+
+  camera_params_t get_camera_params() const;
+  extrinsics_t get_extrinsics() const;
+  pose_t get_fiducial_pose() const;
+  std::map<timestamp_t, pose_t> get_marker_poses() const;
 };
 
-static void process_aprilgrid(const camera_geometry_t *cam_geom,
-                              const size_t frame_idx,
-                              const mat2_t &covar,
-                              calib_mocap_data_t &data,
-                              ceres::Problem &problem,
-                              std::vector<ceres::ResidualBlockId> &block_ids) {
-  const int *cam_res = data.cam0.resolution;
-  const int cam_idx = data.cam0.cam_index;
-  const auto &grid = data.grids[frame_idx];
-
-  std::vector<int> tag_ids;
-  std::vector<int> corner_indicies;
-  vec2s_t keypoints;
-  vec3s_t object_points;
-  grid.get_measurements(tag_ids, corner_indicies, keypoints, object_points);
-
-  for (size_t i = 0; i < tag_ids.size(); i++) {
-    // const int tag_id = tag_ids[i];
-    // const int corner_idx = corner_indicies[i];
-    const vec2_t z = keypoints[i];
-    const vec3_t r_FFi = object_points[i];
-
-    auto cost_fn =
-        new mocap_residual_t{cam_geom, cam_idx, cam_res, r_FFi, z, covar};
-    auto block_id = problem.AddResidualBlock(cost_fn,
-                                             NULL,
-                                             data.T_WF.param.data(),
-                                             data.T_WM[frame_idx].param.data(),
-                                             data.T_MC0.param.data(),
-                                             data.cam0.param.data());
-    block_ids.push_back(block_id);
-  }
-}
-
-// template <typename CAMERA_TYPE>
-// static void show_results(const calib_mocap_data_t &data) {
-//   // Calibration metrics
-//   std::deque<pose_t> poses;
-//   const mat4_t T_WF = data.T_WF.tf();
-//   const mat4_t T_C0M = data.T_MC0.tf().inverse();
-//   for (size_t i = 0; i < data.grids.size(); i++) {
-//     const mat4_t T_MW = data.T_WM[i].tf().inverse();
-//     const mat4_t T_C0F = T_C0M * T_MW * T_WF;
-//     poses.emplace_back(0, 0, T_C0F);
+// static void process_aprilgrid(const camera_geometry_t *cam_geom,
+//                               const size_t frame_idx,
+//                               const mat2_t &covar,
+//                               calib_mocap_data_t &data,
+//                               ceres::Problem &problem,
+//                               std::vector<ceres::ResidualBlockId> &block_ids)
+//                               {
+//   const int *cam_res = data.cam0.resolution;
+//   const int cam_idx = data.cam0.cam_index;
+//   const auto &grid = data.grids[frame_idx];
+//
+//   std::vector<int> tag_ids;
+//   std::vector<int> corner_indicies;
+//   vec2s_t keypoints;
+//   vec3s_t object_points;
+//   grid.get_measurements(tag_ids, corner_indicies, keypoints, object_points);
+//
+//   for (size_t i = 0; i < tag_ids.size(); i++) {
+//     // const int tag_id = tag_ids[i];
+//     // const int corner_idx = corner_indicies[i];
+//     const vec2_t z = keypoints[i];
+//     const vec3_t r_FFi = object_points[i];
+//
+//     auto cost_fn =
+//         new mocap_residual_t{cam_geom, cam_idx, cam_res, r_FFi, z, covar};
+//     auto block_id = problem.AddResidualBlock(cost_fn,
+//                                              NULL,
+//                                              data.T_WF.param.data(),
+//                                              data.T_WM[frame_idx].param.data(),
+//                                              data.T_MC0.param.data(),
+//                                              data.cam0.param.data());
+//     block_ids.push_back(block_id);
 //   }
-//
-//   // Show results
-//   std::vector<double> errs;
-//   reproj_errors<CAMERA_TYPE>(data.grids, data.cam0, poses, errs);
-//
-//   printf("\n");
-//   printf("Optimization results:\n");
-//   printf("---------------------\n");
-//   printf("nb_points: %ld\n", errs.size());
-//   printf("reproj_error [px]: ");
-//   printf("[rmse: %f", rmse(errs));
-//   printf(" mean: %f", mean(errs));
-//   printf(" median: %f]\n", median(errs));
-//   printf("\n");
-//   print_vector("cam.proj_params", data.cam0.proj_params());
-//   print_vector("cam.dist_params", data.cam0.dist_params());
-//   printf("\n");
-//   print_matrix("T_WF", data.T_WF.tf());
-//   print_matrix("T_WM", data.T_WM[0].tf());
-//   print_matrix("T_MC0", data.T_MC0.tf());
-//
-//   const auto r_MC = tf_trans(data.T_MC0.tf());
-//   const auto q_MC = tf_quat(data.T_MC0.tf());
-//   printf("r_MC: %f, %f, %f\n", r_MC(0), r_MC(1), r_MC(2));
-//   printf("q_MC (x, y, z, w): %f, %f, %f, %f\n",
-//          q_MC.x(),
-//          q_MC.y(),
-//          q_MC.z(),
-//          q_MC.w());
 // }
-//
-// template <typename CAMERA_TYPE>
+
 // static void save_results(const calib_mocap_data_t &data,
 //                          const std::string &output_path) {
 //   printf("\x1B[92mSaving optimization results to [%s]\033[0m\n",
@@ -157,7 +125,6 @@ static void process_aprilgrid(const camera_geometry_t *cam_geom,
 //   const mat4_t T_MC0 = data.T_MC0.tf();
 //   // const mat4_t T_C0M = T_MC0.inverse();
 //
-//   // double err_min = *std::min_element(errs.begin(), errs.end());
 //   // double err_max = *std::max_element(errs.begin(), errs.end());
 //   // double err_median = median(errs);
 //
@@ -165,14 +132,13 @@ static void process_aprilgrid(const camera_geometry_t *cam_geom,
 //   {
 //     FILE *fp = fopen(output_path.c_str(), "w");
 //
-//     // // Calibration metrics
-//     // fprintf(fp, "calib_results:\n");
-//     // fprintf(fp, "  cam0.rms_reproj_error:    %f  # [px]\n", err_rmse);
-//     // fprintf(fp, "  cam0.mean_reproj_error:   %f  # [px]\n", err_mean);
-//     // fprintf(fp, "  cam0.median_reproj_error: %f  # [px]\n", err_median);
-//     // fprintf(fp, "  cam0.min_reproj_error:    %f  # [px]\n", err_min);
-//     // fprintf(fp, "  cam0.max_reproj_error:    %f  # [px]\n", err_max);
-//     // fprintf(fp, "\n");
+//     // Calibration metrics
+//     fprintf(fp, "calib_results:\n");
+//     fprintf(fp, "  rmse:   %f # [px]\n", rmse(reproj_errors));
+//     fprintf(fp, "  mean:   %f # [px]\n", mean(reproj_errors));
+//     fprintf(fp, "  median: %f # [px]\n", median(reproj_errors));
+//     fprintf(fp, "  stddev: %f # [px]\n", stddev(reproj_errors));
+//     fprintf(fp, "\n");
 //
 //     // Aprilgrid parameters
 //     fprintf(fp, "calib_target:\n");
@@ -184,23 +150,12 @@ static void process_aprilgrid(const camera_geometry_t *cam_geom,
 //     fprintf(fp, "\n");
 //
 //     // Camera parameters
-//     fprintf(fp, "cam0:\n");
-//     fprintf(fp, "  proj_model: \"%s\"\n", cam.proj_model.c_str());
-//     fprintf(fp, "  dist_model: \"%s\"\n", cam.dist_model.c_str());
-//     fprintf(fp, "  proj_params: ");
-//     fprintf(fp, "[");
-//     fprintf(fp, "%lf, ", cam.proj_params()(0));
-//     fprintf(fp, "%lf, ", cam.proj_params()(1));
-//     fprintf(fp, "%lf, ", cam.proj_params()(2));
-//     fprintf(fp, "%lf", cam.proj_params()(3));
-//     fprintf(fp, "]\n");
-//     fprintf(fp, "  dist_params: ");
-//     fprintf(fp, "[");
-//     fprintf(fp, "%lf, ", cam.dist_params()(0));
-//     fprintf(fp, "%lf, ", cam.dist_params()(1));
-//     fprintf(fp, "%lf, ", cam.dist_params()(2));
-//     fprintf(fp, "%lf", cam.dist_params()(3));
-//     fprintf(fp, "]\n");
+//     fprintf(fp, "cam%d:\n", cam_idx);
+//     fprintf(fp, "  resolution: [%d, %d]\n", cam_res[0], cam_res[1]);
+//     fprintf(fp, "  proj_model: \"%s\"\n", proj_model);
+//     fprintf(fp, "  dist_model: \"%s\"\n", dist_model);
+//     fprintf(fp, "  proj_params: %s\n", proj_params.c_str());
+//     fprintf(fp, "  dist_params: %s\n", dist_params.c_str());
 //     fprintf(fp, "\n");
 //
 //     // T_WF
@@ -208,26 +163,7 @@ static void process_aprilgrid(const camera_geometry_t *cam_geom,
 //     fprintf(fp, "  rows: 4\n");
 //     fprintf(fp, "  cols: 4\n");
 //     fprintf(fp, "  data: [\n");
-//     fprintf(fp, "    ");
-//     fprintf(fp, "%lf, ", T_WF(0, 0));
-//     fprintf(fp, "%lf, ", T_WF(0, 1));
-//     fprintf(fp, "%lf, ", T_WF(0, 2));
-//     fprintf(fp, "%lf,\n", T_WF(0, 3));
-//     fprintf(fp, "    ");
-//     fprintf(fp, "%lf, ", T_WF(1, 0));
-//     fprintf(fp, "%lf, ", T_WF(1, 1));
-//     fprintf(fp, "%lf, ", T_WF(1, 2));
-//     fprintf(fp, "%lf,\n", T_WF(1, 3));
-//     fprintf(fp, "    ");
-//     fprintf(fp, "%lf, ", T_WF(2, 0));
-//     fprintf(fp, "%lf, ", T_WF(2, 1));
-//     fprintf(fp, "%lf, ", T_WF(2, 2));
-//     fprintf(fp, "%lf,\n", T_WF(2, 3));
-//     fprintf(fp, "    ");
-//     fprintf(fp, "%lf, ", T_WF(3, 0));
-//     fprintf(fp, "%lf, ", T_WF(3, 1));
-//     fprintf(fp, "%lf, ", T_WF(3, 2));
-//     fprintf(fp, "%lf\n", T_WF(3, 3));
+//     fprintf(fp, "%s\n", mat2str(T_WF, "    ").c_str());
 //     fprintf(fp, "  ]\n");
 //     fprintf(fp, "\n");
 //
@@ -236,26 +172,7 @@ static void process_aprilgrid(const camera_geometry_t *cam_geom,
 //     fprintf(fp, "  rows: 4\n");
 //     fprintf(fp, "  cols: 4\n");
 //     fprintf(fp, "  data: [\n");
-//     fprintf(fp, "    ");
-//     fprintf(fp, "%lf, ", T_MC0(0, 0));
-//     fprintf(fp, "%lf, ", T_MC0(0, 1));
-//     fprintf(fp, "%lf, ", T_MC0(0, 2));
-//     fprintf(fp, "%lf,\n", T_MC0(0, 3));
-//     fprintf(fp, "    ");
-//     fprintf(fp, "%lf, ", T_MC0(1, 0));
-//     fprintf(fp, "%lf, ", T_MC0(1, 1));
-//     fprintf(fp, "%lf, ", T_MC0(1, 2));
-//     fprintf(fp, "%lf,\n", T_MC0(1, 3));
-//     fprintf(fp, "    ");
-//     fprintf(fp, "%lf, ", T_MC0(2, 0));
-//     fprintf(fp, "%lf, ", T_MC0(2, 1));
-//     fprintf(fp, "%lf, ", T_MC0(2, 2));
-//     fprintf(fp, "%lf,\n", T_MC0(2, 3));
-//     fprintf(fp, "    ");
-//     fprintf(fp, "%lf, ", T_MC0(3, 0));
-//     fprintf(fp, "%lf, ", T_MC0(3, 1));
-//     fprintf(fp, "%lf, ", T_MC0(3, 2));
-//     fprintf(fp, "%lf\n", T_MC0(3, 3));
+//     fprintf(fp, "%s\n", mat2str(T_MC0, "    ").c_str());
 //     fprintf(fp, "  ]\n");
 //     fprintf(fp, "\n");
 //     fclose(fp);
@@ -267,8 +184,8 @@ static void process_aprilgrid(const camera_geometry_t *cam_geom,
 //     for (const auto &pose : data.T_WM) {
 //       const quat_t q = tf_quat(pose.tf());
 //       const vec3_t r = tf_trans(pose.tf());
-//       fprintf(fp, "%lf,%lf,%lf,%lf,", q.w(), q.x(), q.y(), q.z());
-//       fprintf(fp, "%lf,%lf,%lf", r(0), r(1), r(2));
+//       fprintf(fp, "%lf,%lf,%lf,", r.x(), r.y(), r.z());
+//       fprintf(fp, "%lf,%lf,%lf,%lf", q.x(), q.y(), q.z(), q.w());
 //       fprintf(fp, "\n");
 //     }
 //     fclose(fp);
@@ -278,8 +195,8 @@ static void process_aprilgrid(const camera_geometry_t *cam_geom,
 //     FILE *fp = fopen("/tmp/T_WF.csv", "w");
 //     const quat_t q = tf_quat(data.T_WF.tf());
 //     const vec3_t r = tf_trans(data.T_WF.tf());
-//     fprintf(fp, "%lf,%lf,%lf,%lf,", q.w(), q.x(), q.y(), q.z());
-//     fprintf(fp, "%lf,%lf,%lf", r(0), r(1), r(2));
+//     fprintf(fp, "%lf,%lf,%lf,", r.x(), r.y(), r.z());
+//     fprintf(fp, "%lf,%lf,%lf,%lf", q.x(), q.y(), q.z(), q.w());
 //     fprintf(fp, "\n");
 //     fclose(fp);
 //   }
@@ -288,110 +205,15 @@ static void process_aprilgrid(const camera_geometry_t *cam_geom,
 //     FILE *fp = fopen("/tmp/T_MC0.csv", "w");
 //     const quat_t q = tf_quat(data.T_MC0.tf());
 //     const vec3_t r = tf_trans(data.T_MC0.tf());
-//     fprintf(fp, "%lf,%lf,%lf,%lf,", q.w(), q.x(), q.y(), q.z());
-//     fprintf(fp, "%lf,%lf,%lf", r(0), r(1), r(2));
+//     fprintf(fp, "%lf,%lf,%lf,", r.x(), r.y(), r.z());
+//     fprintf(fp, "%lf,%lf,%lf,%lf", q.x(), q.y(), q.z(), q.w());
 //     fprintf(fp, "\n");
 //     fclose(fp);
 //   }
 // }
 
-// /* Calibrate mocap marker to camera extrinsics */
-// int calib_mocap_solve(calib_mocap_data_t &data) {
-//   assert(data.grids.size() > 0);
-//   assert(data.T_WM.size() > 0);
-//   assert(data.T_WM.size() == data.grids.size());
-//
-//   // Setup optimization problem
-//   ceres::Problem::Options problem_opts;
-//   problem_opts.local_parameterization_ownership =
-//   ceres::DO_NOT_TAKE_OWNERSHIP; ceres::Problem problem(problem_opts);
-//   PoseLocalParameterization pose_parameterization;
-//
-//   // Process all aprilgrid data
-//   const mat2_t covar = I(2) * (1 / pow(1, 2));
-//   std::vector<ceres::ResidualBlockId> block_ids;
-//   for (size_t i = 0; i < data.grids.size(); i++) {
-//     // process_aprilgrid<CAMERA_TYPE>(i, covar, data, problem, block_ids);
-//
-//     // Set pose parameterization
-//     problem.SetParameterization(data.T_WM[i].param.data(),
-//                                 &pose_parameterization);
-//
-//     // Fixing the marker pose - assume mocap is calibrated and accurate
-//     if (data.fix_mocap_poses) {
-//       problem.SetParameterBlockConstant(data.T_WM[i].param.data());
-//     }
-//   }
-//
-//   // Set ficuial and marker-cam pose parameterization
-//   problem.SetParameterization(data.T_WF.param.data(),
-//   &pose_parameterization);
-//   problem.SetParameterization(data.T_MC0.param.data(),
-//   &pose_parameterization);
-//
-//   // Fix fiducial pose - assumes camera intrincs and PnP is good
-//   if (data.fix_fiducial_pose) {
-//     problem.SetParameterBlockConstant(data.T_WF.param.data());
-//   }
-//
-//   // Fix camera parameters
-//   if (data.fix_intrinsics) {
-//     problem.SetParameterBlockConstant(data.cam0.param.data());
-//     problem.SetParameterBlockConstant(data.cam0.param.data());
-//   }
-//
-//   // Set solver options
-//   ceres::Solver::Options options;
-//   options.minimizer_progress_to_stdout = true;
-//   options.max_num_iterations = 100;
-//   // options.check_gradients = true;
-//   options.num_threads = 1;
-//
-//   // Solve
-//   LOG_INFO("Calibrating mocap-marker to camera extrinsics ...");
-//   ceres::Solver::Summary summary;
-//   ceres::Solve(options, &problem, &summary);
-//   // std::cout << summary.FullReport() << std::endl;
-//   std::cout << summary.BriefReport() << std::endl;
-//   std::cout << std::endl;
-//
-//   // Reject outliers
-//   LOG_INFO("Rejecting outliers...");
-//   std::deque<pose_t> poses;
-//   for (int i = 0; i < (int)data.grids.size(); i++) {
-//     const mat4_t T_WF = data.T_WF.tf();
-//     const mat4_t T_C0M = data.T_MC0.tf().inverse();
-//     const mat4_t T_MW = data.T_WM[i].tf().inverse();
-//     const mat4_t T_C0F = T_C0M * T_MW * T_WF;
-//     poses.emplace_back(0, 0, T_C0F);
-//   }
-//   std::vector<double> errs;
-//   reproj_errors<CAMERA_TYPE>(data.grids, data.cam0, poses, errs);
-//
-//   const auto nb_res_before = problem.NumResidualBlocks();
-//   const auto threshold = 4.0 * stddev(errs);
-//   for (int i = 0; i < (int)errs.size(); i++) {
-//     if (errs[i] > threshold) {
-//       problem.RemoveResidualBlock(block_ids[i]);
-//     }
-//   }
-//   const auto nb_res_after = problem.NumResidualBlocks();
-//   const auto res_diff = nb_res_before - nb_res_after;
-//   LOG_INFO("Removed: %d residuals out of %d", res_diff, nb_res_before);
-//
-//   // Second pass
-//   LOG_INFO("Performing second pass ...");
-//   ceres::Solve(options, &problem, &summary);
-//   // std::cout << summary.FullReport() << std::endl;
-//   std::cout << summary.BriefReport() << std::endl;
-//   std::cout << std::endl;
-//
-//   // Show results
-//   show_results<CAMERA_TYPE>(data);
-//   // save_results<CAMERA_TYPE>(data, data.results_fpath);
-//
-//   return 0;
-// }
+/* Solve the camera-mocap_marker extrinsics */
+int calib_mocap_solve(const calib_mocap_data_t &data);
 
 /* Solve the camera-mocap_marker extrinsics */
 int calib_mocap_solve(const std::string &config_file);

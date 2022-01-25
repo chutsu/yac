@@ -173,8 +173,8 @@ calib_data_preprocess(const calib_target_t &calib_target,
 
       cam_grids[cam_idx].push_back(grid);
     }
-    printf("\n");
   }
+  printf("\n");
 
   return cam_grids;
 }

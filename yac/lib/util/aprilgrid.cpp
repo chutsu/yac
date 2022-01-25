@@ -608,6 +608,25 @@ std::ostream &operator<<(std::ostream &os, const aprilgrid_t &grid) {
   return os;
 }
 
+aprilgrids_t load_aprilgrids(const std::string &dir_path) {
+  std::vector<std::string> csv_files;
+  if (list_dir(dir_path, csv_files) != 0) {
+    FATAL("Failed to list dir [%s]!", dir_path.c_str());
+  }
+  sort(csv_files.begin(), csv_files.end());
+
+  aprilgrids_t grids;
+  for (const auto &grid_csv : csv_files) {
+    const auto csv_path = dir_path + "/" + grid_csv;
+    aprilgrid_t grid{csv_path};
+    if (grid.detected) {
+      grids.push_back(grid);
+    }
+  }
+
+  return grids;
+}
+
 aprilgrid_detector_t::aprilgrid_detector_t(const int tag_rows_,
                                            const int tag_cols_,
                                            const double tag_size_,

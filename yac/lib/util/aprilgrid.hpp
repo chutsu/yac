@@ -114,24 +114,7 @@ struct aprilgrid_t {
 using aprilgrids_t = std::vector<aprilgrid_t>;
 
 /* Load AprilGrids */
-inline aprilgrids_t load_aprilgrids(const std::string &dir_path) {
-  std::vector<std::string> csv_files;
-  if (list_dir(dir_path, csv_files) != 0) {
-    FATAL("Failed to list dir [%s]!", dir_path.c_str());
-  }
-  sort(csv_files.begin(), csv_files.end());
-
-  aprilgrids_t grids;
-  for (const auto &grid_csv : csv_files) {
-    const auto csv_path = dir_path + "/" + grid_csv;
-    aprilgrid_t grid{csv_path};
-    if (grid.detected) {
-      grids.push_back(grid);
-    }
-  }
-
-  return grids;
-}
+aprilgrids_t load_aprilgrids(const std::string &dir_path);
 
 /* AprilGrid Detector */
 struct aprilgrid_detector_t {

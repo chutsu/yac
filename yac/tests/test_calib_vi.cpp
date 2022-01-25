@@ -39,8 +39,8 @@ timeline_t setup_test_data() {
         // Setup
         const timestamp_t ts = cam_event->ts;
         const int cam_idx = cam_event->cam_idx;
-        const auto imread_flag = cv::IMREAD_GRAYSCALE;
-        const cv::Mat image = cv::imread(cam_event->img_path, imread_flag);
+        const auto flag = cv::IMREAD_GRAYSCALE;
+        const cv::Mat image = cv::imread(cam_event->img_path, flag);
         const std::string grid_fname = std::to_string(ts) + ".csv";
         const std::string grid_file = grid_paths[cam_idx] + "/" + grid_fname;
 
@@ -604,7 +604,9 @@ int test_calib_vi() {
   mat4_t T_BC0;
   mat4_t T_BC1;
   // -- Custom calibration values
-  config_t config{"/tmp/calib-cameras.yaml"};
+  config_t config{"/tmp/calib-results.yaml"};
+  veci2_t cam_res;
+  parse(config, "cam0.resolution", cam_res);
   parse(config, "cam0.proj_params", cam0_proj_params);
   parse(config, "cam0.dist_params", cam0_dist_params);
   parse(config, "cam1.proj_params", cam1_proj_params);

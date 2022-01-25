@@ -206,7 +206,7 @@ struct calib_camera_t {
                 camera_params_t *cam_params,
                 extrinsics_t *cam_exts,
                 pose_t *rel_pose);
-  void remove_view(const timestamp_t ts, ceres::Problem *problem);
+  void remove_view(const timestamp_t ts);
 
   void _initialize_intrinsics();
   void _initialize_extrinsics();

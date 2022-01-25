@@ -711,8 +711,7 @@ void calib_camera_t::add_view(const aprilgrid_t &grid,
                                                             grid);
 }
 
-void calib_camera_t::remove_view(const timestamp_t ts,
-                                 ceres::Problem *problem) {
+void calib_camera_t::remove_view(const timestamp_t ts) {
   // Remove view
   for (auto &[cam_idx, cam_views] : calib_views) {
     if (cam_views.count(ts) == 0) {
@@ -837,7 +836,7 @@ void calib_camera_t::_setup_problem() {
     printf("\n");
 
     if (info_gain < info_gain_threshold) {
-      remove_view(ts, problem);
+      remove_view(ts);
     } else {
       calib_info_k = calib_info_kp1;
     }

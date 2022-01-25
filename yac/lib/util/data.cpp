@@ -590,16 +590,16 @@ mat4_t load_pose(const std::string &fpath) {
     // Parse line
     timestamp_t ts = 0;
     double qw, qx, qy, qz = 0.0;
-    double px, py, pz = 0.0;
+    double rx, ry, rz = 0.0;
     int retval =
-        fscanf(fp, str_format.c_str(), &ts, &qw, &qx, &qy, &qz, &px, &py, &pz);
+        fscanf(fp, str_format.c_str(), &ts, &rx, &ry, &rz, &qx, &qy, &qz, &qw);
     if (retval != 8) {
       FATAL("Failed to parse line in [%s:%d]", fpath.c_str(), i);
     }
 
     // Just need 1 pose
+    vec3_t r{rx, ry, rz};
     quat_t q{qw, qx, qy, qz};
-    vec3_t r{px, py, pz};
     return tf(q, r);
   }
 
@@ -632,18 +632,18 @@ void load_poses(const std::string &fpath,
 
     // Parse line
     timestamp_t ts = 0;
+    double rx, ry, rz = 0.0;
     double qw, qx, qy, qz = 0.0;
-    double px, py, pz = 0.0;
     int retval =
-        fscanf(fp, str_format.c_str(), &ts, &qw, &qx, &qy, &qz, &px, &py, &pz);
+        fscanf(fp, str_format.c_str(), &ts, &rx, &ry, &rz, &qx, &qy, &qz, &qw);
     if (retval != 8) {
       FATAL("Failed to parse line in [%s:%d]", fpath.c_str(), i);
     }
 
     // Record
     timestamps.push_back(ts);
+    vec3_t r{rx, ry, rz};
     quat_t q{qw, qx, qy, qz};
-    vec3_t r{px, py, pz};
     poses.push_back(tf(q, r));
   }
 }

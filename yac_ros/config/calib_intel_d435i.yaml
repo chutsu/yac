@@ -1,3 +1,8 @@
+ros:
+  cam0_topic: "/rs/ir0/image"
+  cam1_topic: "/rs/ir1/image"
+  imu0_topic: "/rs/imu0/data"
+
 # settings:
 #   data_path: "/data/intel_d435i/calib_data"
 #   results_fpath: "/data/intel_d435i/calib_data/calib_results.yaml"

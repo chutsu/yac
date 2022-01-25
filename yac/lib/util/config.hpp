@@ -17,9 +17,9 @@ struct config_t {
   YAML::Node root;
   bool ok = false;
 
-  config_t();
+  config_t() = default;
   config_t(const std::string &file_path_);
-  ~config_t();
+  ~config_t() = default;
 };
 
 /**
@@ -116,6 +116,26 @@ int parse(const config_t &config,
 
 int parse(const config_t &config,
           const std::string &key,
+          veci2_t &vec,
+          const bool optional = false);
+
+int parse(const config_t &config,
+          const std::string &key,
+          veci3_t &vec,
+          const bool optional = false);
+
+int parse(const config_t &config,
+          const std::string &key,
+          veci4_t &vec,
+          const bool optional = false);
+
+int parse(const config_t &config,
+          const std::string &key,
+          vecix_t &vec,
+          const bool optional = false);
+
+int parse(const config_t &config,
+          const std::string &key,
           mat2_t &mat,
           const bool optional = false);
 
@@ -158,19 +178,19 @@ size_t yaml_check_vector(const YAML::Node &node,
 
   // Get expected vector size
   size_t vector_size = 0;
-  if (std::is_same<T, vec2_t>::value) {
+  if (std::is_same<real_t, vec2_t>::value) {
     vector_size = 2;
-  } else if (std::is_same<T, vec3_t>::value) {
+  } else if (std::is_same<real_t, vec3_t>::value) {
     vector_size = 3;
-  } else if (std::is_same<T, vec4_t>::value) {
+  } else if (std::is_same<real_t, vec4_t>::value) {
     vector_size = 4;
-  } else if (std::is_same<T, vec5_t>::value) {
+  } else if (std::is_same<real_t, vec5_t>::value) {
     vector_size = 5;
-  } else if (std::is_same<T, vecx_t>::value) {
+  } else if (std::is_same<real_t, vecx_t>::value) {
     vector_size = node.size();
     return vector_size; // Don't bother, it could be anything
   } else {
-    FATAL("Unsportted vector type!");
+    FATAL("Unsupported vector type!");
   }
 
   // Check number of values in the param
@@ -230,14 +250,19 @@ int parse(const config_t &config,
           const std::string &key,
           T &out,
           const bool optional) {
-  // Get node
-  YAML::Node node;
-  if (yaml_get_node(config, key, optional, node) != 0) {
-    return -1;
+  try {
+    // Get node
+    YAML::Node node;
+    if (yaml_get_node(config, key, optional, node) != 0) {
+      return -1;
+    }
+
+    // Parse
+    out = node.as<T>();
+  } catch (const std::exception &e) {
+    FATAL("Failed to parse [%s]: %s", key.c_str(), e.what());
   }
 
-  // Parse
-  out = node.as<T>();
   return 0;
 }
 
@@ -247,15 +272,19 @@ int parse(const config_t &config,
           std::vector<T> &out,
           const bool optional) {
   // Get node
-  YAML::Node node;
-  if (yaml_get_node(config, key, optional, node) != 0) {
-    return -1;
-  }
+  try {
+    YAML::Node node;
+    if (yaml_get_node(config, key, optional, node) != 0) {
+      return -1;
+    }
 
-  // Parse
-  std::vector<T> array;
-  for (auto n : node) {
-    out.push_back(n.as<T>());
+    // Parse
+    std::vector<T> array;
+    for (auto n : node) {
+      out.push_back(n.as<T>());
+    }
+  } catch (const std::exception &e) {
+    FATAL("Failed to parse [%s]: %s", key.c_str(), e.what());
   }
 
   return 0;

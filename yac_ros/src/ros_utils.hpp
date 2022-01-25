@@ -40,8 +40,15 @@
 
 namespace yac {
 
+/****************************************************************************
+ * CONFIG
+ ****************************************************************************/
+
+void parse_camera_topics(const config_t &config,
+                         std::map<int, std::string> &cam_topics);
+
 /*****************************************************************************
- *                                  MSG
+ * MSG
  ****************************************************************************/
 
 std_msgs::UInt8 msg_build(const uint8_t i);
@@ -80,7 +87,7 @@ yac::quat_t msg_convert(const geometry_msgs::Quaternion &msg);
 cv::Mat msg_convert(const sensor_msgs::ImageConstPtr &msg);
 
 /*****************************************************************************
- *                                  BAG
+ * BAG
  *****************************************************************************/
 
 bool check_ros_topics(const std::string &rosbag_path,
@@ -113,7 +120,7 @@ void gyro_message_handler(const rosbag::MessageInstance &msg,
                           vec3s_t &gyro_data);
 
 /*****************************************************************************
- *                                NODE
+ * NODE
  ****************************************************************************/
 
 #define ROS_PARAM(NH, X, Y)                                                    \

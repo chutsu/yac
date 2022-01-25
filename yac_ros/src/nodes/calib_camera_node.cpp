@@ -3,20 +3,6 @@
 
 using namespace yac;
 
-void parse_camera_topics(const config_t &config,
-                         std::map<int, std::string> &cam_topics) {
-  for (int i = 0; i < 100; i++) {
-    const std::string key = "ros.cam" + std::to_string(i) + "_topic";
-    if (yaml_has_key(config, key) == 0) {
-      return;
-    }
-
-    std::string topic;
-    parse(config, key, topic);
-    cam_topics[i] = topic;
-  }
-}
-
 void process_rosbag(const std::string &config_file) {
   // Parse config file
   config_t config{config_file};

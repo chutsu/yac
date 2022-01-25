@@ -3,7 +3,25 @@
 namespace yac {
 
 /****************************************************************************
- *                                MSG
+ * CONFIG
+ ****************************************************************************/
+
+void parse_camera_topics(const config_t &config,
+                         std::map<int, std::string> &cam_topics) {
+  for (int i = 0; i < 100; i++) {
+    const std::string key = "ros.cam" + std::to_string(i) + "_topic";
+    if (yaml_has_key(config, key) == 0) {
+      return;
+    }
+
+    std::string topic;
+    parse(config, key, topic);
+    cam_topics[i] = topic;
+  }
+}
+
+/****************************************************************************
+ * MSG
  ****************************************************************************/
 
 std_msgs::Bool msg_build(const bool b) {
@@ -152,7 +170,7 @@ cv::Mat msg_convert(const sensor_msgs::ImageConstPtr &msg) {
 }
 
 /*****************************************************************************
- *                                  BAG
+ * BAG
  ****************************************************************************/
 
 bool check_ros_topics(const std::string &rosbag_path,
@@ -474,7 +492,7 @@ void gyro_message_handler(const rosbag::MessageInstance &msg,
 }
 
 /*****************************************************************************
- *                                NODE
+ * NODE
  ****************************************************************************/
 
 std::string ros_node_name(int argc, char *argv[]) {

@@ -16,11 +16,8 @@ void draw_hcentered_text(const std::string &text,
   const int text_font = cv::FONT_HERSHEY_PLAIN;
   const cv::Scalar text_color{0, 255, 0};
   int baseline = 0;
-  auto text_size = cv::getTextSize(text,
-                                    text_font,
-                                    text_scale,
-                                    text_thickness,
-                                    &baseline);
+  auto text_size =
+      cv::getTextSize(text, text_font, text_scale, text_thickness, &baseline);
   int text_x = (img_w - text_size.width) / 2.0;
   // int text_y = (img_h + text_size.height) / 2.0;
   int text_y = text_ypos;
@@ -63,11 +60,8 @@ void draw_status_text(const std::string &text, cv::Mat &image) {
   const int text_thickness = 4;
   const cv::Scalar text_color{0, 255, 0};
   int baseline = 0;
-  auto text_size = cv::getTextSize(text,
-                                    text_font,
-                                    text_scale,
-                                    text_thickness,
-                                    &baseline);
+  auto text_size =
+      cv::getTextSize(text, text_font, text_scale, text_thickness, &baseline);
   int text_x = (img_w - text_size.width) / 2.0;
   int text_y = (img_h + text_size.height) / 2.0;
   const cv::Point text_pos{text_x, text_y}; // Bottom left of text string
@@ -85,7 +79,7 @@ void draw_status_text(const std::string &text, cv::Mat &image) {
   cv::rectangle(overlay, p0, p1, overlay_color, -1);
 
   // Draw overlay and text
-  cv::addWeighted(overlay, alpha, image, 1 - alpha,0, image);
+  cv::addWeighted(overlay, alpha, image, 1 - alpha, 0, image);
   cv::putText(image,
               text,
               text_pos,
@@ -125,6 +119,50 @@ void draw_detected(const aprilgrid_t &grid, cv::Mat &image) {
   for (const vec2_t &kp : grid.keypoints()) {
     cv::circle(image, cv::Point(kp(0), kp(1)), 1.0, corner_color, 2, 8);
   }
+}
+
+void draw_nbv(const mat4_t &T_FC0, cv::Mat &image) {
+  // // Draw NBV
+  // nbv_draw<CAMERA>(target, cam_params, T_FC0, image);
+  //
+  // // Show NBV Reproj Error
+  // {
+  //   // Create NBV Reproj Error str (1 decimal places)
+  //   std::ostringstream out;
+  //   out.precision(1);
+  //   out << std::fixed << nbv_reproj_err;
+  //   out.str();
+  //
+  //   const std::string text = "NBV Reproj Error: " + out.str() + " [px]";
+  //   cv::Scalar text_color;
+  //   if (nbv_reproj_err > 20) {
+  //     text_color = cv::Scalar(0, 0, 255);
+  //   } else {
+  //     text_color = cv::Scalar(0, 255, 0);
+  //   }
+  //
+  //   const cv::Point text_pos{10, 50};
+  //   const int text_font = cv::FONT_HERSHEY_PLAIN;
+  //   const float text_scale = 1.0;
+  //   const int text_thickness = 1;
+  //   cv::putText(image,
+  //               text,
+  //               text_pos,
+  //               text_font,
+  //               text_scale,
+  //               text_color,
+  //               text_thickness,
+  //               CV_AA);
+  // }
+
+  // // Show NBV status
+  // if (nbv_reproj_err < (nbv_reproj_error_threshold * 1.5)) {
+  //   std::string text = "Nearly There!";
+  //   if (nbv_reproj_err <= nbv_reproj_error_threshold) {
+  //     text = "HOLD IT!";
+  //   }
+  //   draw_status_text(text, image);
+  // }
 }
 
 bool tf_ok(const mat4_t &pose) {

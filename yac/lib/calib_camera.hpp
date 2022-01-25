@@ -185,7 +185,12 @@ struct calib_camera_t {
 
   int nb_cams() const;
   aprilgrids_t get_cam_data(const int cam_idx) const;
+  vecx_t get_camera_params(const int cam_idx) const;
+  veci2_t get_camera_resolution(const int cam_idx) const;
+  std::string get_camera_projection_model(const int cam_idx) const;
+  std::string get_camera_distortion_model(const int cam_idx) const;
   mat4_t get_camera_extrinsics(const int cam_idx) const;
+
   void add_camera_data(const int cam_idx, const aprilgrids_t &grids);
   void add_camera(const int cam_idx,
                   const int cam_res[2],

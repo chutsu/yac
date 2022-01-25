@@ -588,6 +588,25 @@ aprilgrids_t calib_camera_t::get_cam_data(const int cam_idx) const {
   return grids;
 }
 
+vecx_t calib_camera_t::get_camera_params(const int cam_idx) const {
+  return cam_params.at(cam_idx)->param;
+}
+
+veci2_t calib_camera_t::get_camera_resolution(const int cam_idx) const {
+  auto cam_res = cam_params.at(cam_idx)->resolution;
+  return veci2_t{cam_res[0], cam_res[1]};
+}
+
+std::string
+calib_camera_t::get_camera_projection_model(const int cam_idx) const {
+  return cam_params.at(cam_idx)->proj_model;
+}
+
+std::string
+calib_camera_t::get_camera_distortion_model(const int cam_idx) const {
+  return cam_params.at(cam_idx)->dist_model;
+}
+
 mat4_t calib_camera_t::get_camera_extrinsics(const int cam_idx) const {
   return cam_exts.at(cam_idx)->tf();
 }

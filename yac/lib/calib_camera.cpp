@@ -1030,8 +1030,8 @@ mat4_t calib_camera_t::find_nbv(const mat4s_t &nbv_poses) {
       auto grid = nbv_target_grid(calib_target,
                                   cam_geoms[cam_idx],
                                   cam_params[cam_idx],
+                                  nbv_ts,
                                   nbv_poses[i]);
-      grid.timestamp = nbv_ts;
 
       // Add view to problem
       add_view(grid,

@@ -21,7 +21,7 @@ double shannon_entropy(const matx_t &covar) {
 
 bool check_fully_observable(const calib_target_t &target,
                             const camera_geometry_t *cam_geom,
-                            const camera_params_t &cam_params,
+                            const camera_params_t *cam_params,
                             const mat4_t &T_FCi) {
   const int tag_rows = target.tag_rows;
   const int tag_cols = target.tag_cols;
@@ -29,8 +29,8 @@ bool check_fully_observable(const calib_target_t &target,
   const double tag_spacing = target.tag_spacing;
   aprilgrid_t grid{0, tag_rows, tag_cols, tag_size, tag_spacing};
 
-  const auto cam_res = cam_params.resolution;
-  const vecx_t &params = cam_params.param;
+  const auto cam_res = cam_params->resolution;
+  const vecx_t &params = cam_params->param;
   const mat4_t T_CiF = T_FCi.inverse();
   const int nb_tags = (grid.tag_rows * grid.tag_cols);
 
@@ -88,7 +88,7 @@ mat4_t calib_target_origin(const calib_target_t &target,
 /** Calculate target origin (O) w.r.t. fiducial (F) T_FO **/
 mat4_t calib_target_origin(const calib_target_t &target,
                            const camera_geometry_t *cam_geom,
-                           const camera_params_t &cam_params,
+                           const camera_params_t *cam_params,
                            const double target_scale) {
   // Calculate target center
   const double tag_rows = target.tag_rows;
@@ -106,10 +106,10 @@ mat4_t calib_target_origin(const calib_target_t &target,
   int retry = 5;
 start:
   // Calculate distance away from target center
-  const double image_width = cam_params.resolution[0];
+  const double image_width = cam_params->resolution[0];
   const double target_half_width = target_width / 2.0;
   const double target_half_resolution_x = image_width / 2.0;
-  const auto fx = cam_params.proj_params()[0];
+  const auto fx = cam_params->proj_params()[0];
   const auto z_FO = fx * target_half_width / (target_half_resolution_x * scale);
 
   // Form transform of calibration origin (O) wrt fiducial target (F) T_FO
@@ -136,7 +136,7 @@ start:
 
 mat4s_t calib_init_poses(const calib_target_t &target,
                          const camera_geometry_t *cam_geom,
-                         const camera_params_t &cam_params) {
+                         const camera_params_t *cam_params) {
   // Target
   const mat4_t T_FO = calib_target_origin(target, cam_geom, cam_params, 0.5);
   const vec3_t r_FO = tf_trans(T_FO);
@@ -181,6 +181,7 @@ mat4s_t calib_init_poses(const calib_target_t &target,
 aprilgrid_t nbv_target_grid(const calib_target_t &target,
                             const camera_geometry_t *cam_geom,
                             const camera_params_t *cam_params,
+                            const timestamp_t nbv_ts,
                             const mat4_t &nbv_pose) {
   const int tag_rows = target.tag_rows;
   const int tag_cols = target.tag_cols;
@@ -189,7 +190,7 @@ aprilgrid_t nbv_target_grid(const calib_target_t &target,
 
   const auto cam_res = cam_params->resolution;
   const vecx_t &params = cam_params->param;
-  aprilgrid_t grid{0, tag_rows, tag_cols, tag_size, tag_spacing};
+  aprilgrid_t grid{nbv_ts, tag_rows, tag_cols, tag_size, tag_spacing};
   const mat4_t T_CiF = nbv_pose.inverse();
   const int nb_tags = (grid.tag_rows * grid.tag_cols);
 
@@ -210,7 +211,7 @@ aprilgrid_t nbv_target_grid(const calib_target_t &target,
 
 vec2s_t nbv_draw(const calib_target_t &target,
                  const camera_geometry_t *cam_geom,
-                 const camera_params_t &cam_params,
+                 const camera_params_t *cam_param,
                  const mat4_t &T_FC,
                  cv::Mat &image) {
   const double tag_rows = target.tag_rows;
@@ -233,8 +234,8 @@ vec2s_t nbv_draw(const calib_target_t &target,
   const vec3_t r_CF2 = tf_point(T_CF, r_FF2);
   const vec3_t r_CF3 = tf_point(T_CF, r_FF3);
 
-  const auto cam_res = cam_params.resolution;
-  const vecx_t params = cam_params.param;
+  const auto cam_res = cam_param->resolution;
+  const vecx_t params = cam_param->param;
 
   vec2_t p0;
   vec2_t p1;
@@ -276,7 +277,7 @@ vec2s_t nbv_draw(const calib_target_t &target,
 
 mat4s_t calib_nbv_poses(const calib_target_t &target,
                         const camera_geometry_t *cam_geom,
-                        const camera_params_t &cam_params,
+                        const camera_params_t *cam_params,
                         const int range_x_size,
                         const int range_y_size,
                         const int range_z_size) {
@@ -329,329 +330,333 @@ mat4s_t calib_nbv_poses(const calib_target_t &target,
   return poses;
 }
 
-void calib_orbit_trajs(const calib_target_t &target,
-                       const camera_geometry_t *cam0_geom,
-                       const camera_params_t &cam0,
-                       const camera_geometry_t *cam1_geom,
-                       const camera_params_t &cam1,
-                       const mat4_t &T_BC0,
-                       const mat4_t &T_BC1,
-                       const mat4_t &T_WF,
-                       const mat4_t &T_FO,
-                       const timestamp_t &ts_start,
-                       const timestamp_t &ts_end,
-                       ctrajs_t &trajs) {
-  // Calculate target width and height
-  const double tag_rows = target.tag_rows;
-  const double tag_cols = target.tag_cols;
-  const double tag_spacing = target.tag_spacing;
-  const double tag_size = target.tag_size;
-  const double spacing_x = (tag_cols - 1) * tag_spacing * tag_size;
-  const double spacing_y = (tag_rows - 1) * tag_spacing * tag_size;
-  const double calib_width = tag_cols * tag_size + spacing_x;
-  const double calib_height = tag_rows * tag_size + spacing_y;
+// void calib_orbit_trajs(const calib_target_t &target,
+//                        const camera_geometry_t *cam0_geom,
+//                        const camera_params_t *cam0,
+//                        const camera_geometry_t *cam1_geom,
+//                        const camera_params_t *cam1,
+//                        const mat4_t &T_BC0,
+//                        const mat4_t &T_BC1,
+//                        const mat4_t &T_WF,
+//                        const mat4_t &T_FO,
+//                        const timestamp_t &ts_start,
+//                        const timestamp_t &ts_end,
+//                        ctrajs_t &trajs) {
+//   // Calculate target width and height
+//   const double tag_rows = target.tag_rows;
+//   const double tag_cols = target.tag_cols;
+//   const double tag_spacing = target.tag_spacing;
+//   const double tag_size = target.tag_size;
+//   const double spacing_x = (tag_cols - 1) * tag_spacing * tag_size;
+//   const double spacing_y = (tag_rows - 1) * tag_spacing * tag_size;
+//   const double calib_width = tag_cols * tag_size + spacing_x;
+//   const double calib_height = tag_rows * tag_size + spacing_y;
+//
+//   // Target center (Fc) w.r.t. Target origin (F)
+//   const vec3_t r_FFc{calib_width / 2.0, calib_height / 2.0, 0.0};
+//
+//   // Trajectory parameters
+//   double scale = 0.1;
+//   const double lat_min = deg2rad(0.0);
+//   const double lat_max = deg2rad(360.0);
+//   const double lon_min = deg2rad(0.0);
+//   const double lon_max = deg2rad(80.0);
+//
+//   int retry = 20;
+//   ctrajs_t orbit_trajs;
+// start:
+//   double rho = (calib_width * scale); // Sphere radius
+//
+//   // Adjust the calibration origin such that trajectories are valid
+//   mat4_t calib_origin = T_FO;
+//   calib_origin(2, 3) = rho;
+//   const mat4_t T_C0C1 = T_BC0.inverse() * T_BC1;
+//
+//   // Orbit trajectories. Imagine a half sphere coming out from the
+//   // calibration target center. The trajectory would go from the pole of the
+//   // sphere to the sides of the sphere. While following the trajectory in a
+//   // tangent manner the camera view focuses on the target center.
+//   const auto nb_trajs = 8;
+//   const auto dlat = lat_max / nb_trajs;
+//   auto lat = lat_min;
+//   for (int i = 0; i < nb_trajs; i++) {
+//     // if (i == 0 || (i % 2) == 0) {
+//     //   lat += dlat;
+//     //   continue;
+//     // }
+//
+//     vec3s_t positions;
+//     quats_t attitudes;
+//
+//     // Create sphere point and transform it into world frame
+//     for (const auto &lon : linspace(lon_min, lon_max, 10)) {
+//       const vec3_t p = sphere(rho, lon, lat);
+//       const vec3_t r_FJ = tf_point(calib_origin, p);
+//       const mat4_t T_FC0 = lookat(r_FJ, r_FFc);
+//       // const mat4_t T_FC1 = T_FC0 * T_C0C1;
+//       const mat4_t T_WC0 = T_WF * T_FC0;
+//
+//       if (check_fully_observable(target, cam0_geom, cam0, T_FC0) == false) {
+//         orbit_trajs.clear();
+//         scale += 0.1;
+//         retry--;
+//         if (retry == 0) {
+//           FATAL("Failed to generate orbit trajectory!");
+//         }
+//         goto start;
+//       }
+//       // if (check_fully_observable(target, cam1_geom, cam1, T_FC1) == false)
+//       {
+//       //   orbit_trajs.clear();
+//       //   scale += 0.1;
+//       //   retry--;
+//       //   if (retry == 0) {
+//       //     FATAL("Failed to generate orbit trajectory!");
+//       //   }
+//       //   goto start;
+//       // }
+//
+//       positions.push_back(tf_trans(T_WC0));
+//       attitudes.emplace_back(tf_rot(T_WC0));
+//     }
+//
+//     // Create return journey
+//     for (int i = (int)(positions.size() - 1); i >= 0; i--) {
+//       positions.push_back(positions[i]);
+//       attitudes.push_back(attitudes[i]);
+//     }
+//
+//     // Update
+//     const auto timestamps = linspace(ts_start, ts_end, positions.size());
+//     orbit_trajs.emplace_back(timestamps, positions, attitudes);
+//     lat += dlat;
+//   }
+//
+//   // Append to results
+//   for (const auto &traj : orbit_trajs) {
+//     trajs.emplace_back(traj.timestamps, traj.positions, traj.orientations);
+//   }
+// }
+//
+// void calib_pan_trajs(const calib_target_t &target,
+//                      const camera_geometry_t *cam0_geom,
+//                      const camera_params_t *cam0,
+//                      const camera_geometry_t *cam1_geom,
+//                      const camera_params_t *cam1,
+//                      const mat4_t &T_BC0,
+//                      const mat4_t &T_BC1,
+//                      const mat4_t &T_WF,
+//                      const mat4_t &T_FO,
+//                      const timestamp_t &ts_start,
+//                      const timestamp_t &ts_end,
+//                      ctrajs_t &trajs) {
+//   UNUSED(cam0);
+//   UNUSED(cam1);
+//   UNUSED(T_BC0);
+//   UNUSED(T_BC1);
+//
+//   // Tag width
+//   const double tag_rows = target.tag_rows;
+//   const double tag_cols = target.tag_cols;
+//   const double tag_spacing = target.tag_spacing;
+//   const double tag_size = target.tag_size;
+//   const double spacing_x = (tag_cols - 1) * tag_spacing * tag_size;
+//   const double spacing_y = (tag_rows - 1) * tag_spacing * tag_size;
+//   const double calib_width = tag_cols * tag_size + spacing_x;
+//   const double calib_height = tag_rows * tag_size + spacing_y;
+//
+//   // Target center (Fc) w.r.t. Target origin (F)
+//   const vec3_t r_FFc{calib_width / 2.0, calib_height / 2.0, 0.0};
+//
+//   // Calibration origin
+//   const mat4_t calib_origin = T_FO;
+//
+//   // Create rotation matrix that is z-forard (i.e. camera frame)
+//   // const vec3_t rpy_WC{-90.0, 0.0, -90.0};
+//   // const mat3_t C_WC = euler321(deg2rad(rpy_WC));
+//   // const mat4_t T_WO = T_WF * T_FO;
+//   // const mat4_t T_FW = T_WF.inverse();
+//   // const mat3_t C_FW = tf_rot(T_FW);
+//   // const mat3_t C_FC = C_FW * C_WC;
+//
+//   double scale = 1.0;
+//   ctrajs_t pan_trajs;
+//   int retry = 20;
+// start:
+//   // Trajectory parameters
+//   const int nb_trajs = 4;
+//   const int nb_control_points = 5;
+//   const double pan_length = calib_width * scale;
+//   const double theta_min = deg2rad(0.0);
+//   const double theta_max = deg2rad(270.0);
+//
+//   // Pan trajectories. Basically simple pan trajectories with the camera
+//   // looking forwards. No attitude changes.
+//   for (const auto &theta : linspace(theta_min, theta_max, nb_trajs)) {
+//     vec3s_t positions;
+//     quats_t attitudes;
+//
+//     for (const auto &r : linspace(0.0, pan_length, nb_control_points)) {
+//       const vec2_t x = circle(r, theta);
+//       const vec3_t p{x(0), x(1), 0.0};
+//
+//       const vec3_t r_FJ = tf_point(calib_origin, p);
+//       const mat4_t T_FC0 = lookat(r_FJ, r_FFc);
+//       // const mat4_t T_FC1 = T_FC0 * T_C0C1;
+//       const mat4_t T_WC0 = T_WF * T_FC0;
+//
+//       if (check_fully_observable(target, cam0_geom, cam0, T_FC0) == false) {
+//         pan_trajs.clear();
+//         scale -= 0.05;
+//         retry--;
+//         if (retry == 0) {
+//           FATAL("Failed to generate orbit trajectory!");
+//         }
+//         goto start;
+//       }
+//       // if (check_fully_observable(target, cam0_geom, cam1, T_FC1) == false)
+//       {
+//       //   pan_trajs.clear();
+//       //   scale -= 0.05;
+//       //   retry--;
+//       //   if (retry == 0) {
+//       //     FATAL("Failed to generate orbit trajectory!");
+//       //   }
+//       //   goto start;
+//       // }
+//
+//       positions.emplace_back(tf_trans(T_WC0));
+//       attitudes.emplace_back(tf_rot(T_WC0));
+//     }
+//
+//     // Add to trajectories
+//     const auto timestamps = linspace(ts_start, ts_end, nb_control_points);
+//     pan_trajs.emplace_back(timestamps, positions, attitudes);
+//   }
+//
+//   // Append to results
+//   for (const auto &traj : pan_trajs) {
+//     trajs.emplace_back(traj.timestamps, traj.positions, traj.orientations);
+//   }
+// }
+//
+// void calib_figure8_trajs(const calib_target_t &target,
+//                          const camera_geometry_t *cam0_geom,
+//                          const camera_params_t &cam0,
+//                          const camera_geometry_t *cam1_geom,
+//                          const camera_params_t &cam1,
+//                          const mat4_t &T_BC0,
+//                          const mat4_t &T_BC1,
+//                          const mat4_t &T_WF,
+//                          const mat4_t &T_FO,
+//                          const timestamp_t &ts_start,
+//                          const timestamp_t &ts_end,
+//                          ctrajs_t &trajs) {
+//   // Tag width
+//   const double tag_rows = target.tag_rows;
+//   const double tag_cols = target.tag_cols;
+//   const double tag_spacing = target.tag_spacing;
+//   const double tag_size = target.tag_size;
+//   const double spacing_x = (tag_cols - 1) * tag_spacing * tag_size;
+//   const double spacing_y = (tag_rows - 1) * tag_spacing * tag_size;
+//   const double calib_width = tag_cols * tag_size + spacing_x;
+//   const double calib_height = tag_rows * tag_size + spacing_y;
+//
+//   // Target center (Fc) w.r.t. Target origin (F)
+//   const vec3_t r_FFc{calib_width / 2.0, calib_height / 2.0, 0.0};
+//
+//   // Parameters for figure 8
+//   double a = calib_width / 3.4;
+//
+//   // Create trajectory control points
+//   const size_t nb_control_points = 100;
+//   vec3s_t positions;
+//   quats_t attitudes;
+//   // -- R.H.S
+//   for (const auto t : linspace(0.0, M_PI, nb_control_points / 2.0)) {
+//     const auto x = a * sin(t);
+//     const auto y = a * sin(t) * cos(t);
+//     const auto z = 0.0;
+//     const vec3_t r_OC{x, y, z}; // Position of camera relative to calib
+//     origin
+//
+//     const vec3_t r_FT = tf_point(T_FO, r_OC);
+//     const mat4_t T_FC0 = lookat(r_FT, r_FFc);
+//     const vec3_t r_WC0 = tf_trans(T_WF * T_FC0);
+//     const mat3_t C_WC0 = tf_rot(T_WF * T_FC0);
+//
+//     // Add control point to spline
+//     positions.emplace_back(r_WC0);
+//     attitudes.emplace_back(C_WC0);
+//   }
+//   // -- L.H.S
+//   for (const auto t : linspace(M_PI, 2 * M_PI, nb_control_points / 2.0)) {
+//     const auto x = a * sin(t);
+//     const auto y = a * sin(t) * cos(t);
+//     const auto z = 0.0;
+//     const vec3_t r_OC{x, y, z}; // Position of camera relative to calib
+//     origin
+//
+//     const vec3_t r_FT = tf_point(T_FO, r_OC);
+//     const mat4_t T_FC0 = lookat(r_FT, r_FFc);
+//     const vec3_t r_WC0 = tf_trans(T_WF * T_FC0);
+//     const mat3_t C_WC0 = tf_rot(T_WF * T_FC0);
+//
+//     // Add control point to spline
+//     positions.emplace_back(r_WC0);
+//     attitudes.emplace_back(C_WC0);
+//   }
+//   // -- Create spline
+//   const auto timestamps = linspace(ts_start, ts_end, nb_control_points);
+//   trajs.emplace_back(timestamps, positions, attitudes);
+// }
 
-  // Target center (Fc) w.r.t. Target origin (F)
-  const vec3_t r_FFc{calib_width / 2.0, calib_height / 2.0, 0.0};
+// aprilgrid_t calib_simulate(const calib_target_t &target,
+//                            const mat4_t &T_FC0,
+//                            const camera_geometry_t *cam_geom,
+//                            const camera_params_t *cam_param,
+//                            const mat4_t &T_C0Ci) {
+//   const auto cam_res = cam_param->resolution;
+//   const auto params = cam_param->param;
+//
+//   const int tag_rows = target.tag_rows;
+//   const int tag_cols = target.tag_cols;
+//   const double tag_size = target.tag_size;
+//   const double tag_spacing = target.tag_spacing;
+//   const mat4_t T_CiC0 = T_C0Ci.inverse();
+//
+//   aprilgrid_t grid(0, tag_rows, tag_cols, tag_size, tag_spacing);
+//   const mat4_t T_C0F = T_FC0.inverse();
+//
+//   for (int tag_id = 0; tag_id < (tag_rows * tag_cols); tag_id++) {
+//     for (int corner_idx = 0; corner_idx < 4; corner_idx++) {
+//       const vec3_t r_FFi = grid.object_point(tag_id, corner_idx);
+//       const vec3_t r_C0Fi = tf_point(T_C0F, r_FFi);
+//       const vec3_t r_CiFi = tf_point(T_CiC0, r_C0Fi);
+//
+//       vec2_t z_hat;
+//       if (cam_geom->project(cam_res, params, r_CiFi, z_hat) == 0) {
+//         grid.add(tag_id, corner_idx, z_hat);
+//       }
+//     }
+//   }
+//
+//   return grid;
+// }
 
-  // Trajectory parameters
-  double scale = 0.1;
-  const double lat_min = deg2rad(0.0);
-  const double lat_max = deg2rad(360.0);
-  const double lon_min = deg2rad(0.0);
-  const double lon_max = deg2rad(80.0);
-
-  int retry = 20;
-  ctrajs_t orbit_trajs;
-start:
-  double rho = (calib_width * scale); // Sphere radius
-
-  // Adjust the calibration origin such that trajectories are valid
-  mat4_t calib_origin = T_FO;
-  calib_origin(2, 3) = rho;
-  const mat4_t T_C0C1 = T_BC0.inverse() * T_BC1;
-
-  // Orbit trajectories. Imagine a half sphere coming out from the
-  // calibration target center. The trajectory would go from the pole of the
-  // sphere to the sides of the sphere. While following the trajectory in a
-  // tangent manner the camera view focuses on the target center.
-  const auto nb_trajs = 8;
-  const auto dlat = lat_max / nb_trajs;
-  auto lat = lat_min;
-  for (int i = 0; i < nb_trajs; i++) {
-    // if (i == 0 || (i % 2) == 0) {
-    //   lat += dlat;
-    //   continue;
-    // }
-
-    vec3s_t positions;
-    quats_t attitudes;
-
-    // Create sphere point and transform it into world frame
-    for (const auto &lon : linspace(lon_min, lon_max, 10)) {
-      const vec3_t p = sphere(rho, lon, lat);
-      const vec3_t r_FJ = tf_point(calib_origin, p);
-      const mat4_t T_FC0 = lookat(r_FJ, r_FFc);
-      // const mat4_t T_FC1 = T_FC0 * T_C0C1;
-      const mat4_t T_WC0 = T_WF * T_FC0;
-
-      if (check_fully_observable(target, cam0_geom, cam0, T_FC0) == false) {
-        orbit_trajs.clear();
-        scale += 0.1;
-        retry--;
-        if (retry == 0) {
-          FATAL("Failed to generate orbit trajectory!");
-        }
-        goto start;
-      }
-      // if (check_fully_observable(target, cam1_geom, cam1, T_FC1) == false) {
-      //   orbit_trajs.clear();
-      //   scale += 0.1;
-      //   retry--;
-      //   if (retry == 0) {
-      //     FATAL("Failed to generate orbit trajectory!");
-      //   }
-      //   goto start;
-      // }
-
-      positions.push_back(tf_trans(T_WC0));
-      attitudes.emplace_back(tf_rot(T_WC0));
-    }
-
-    // Create return journey
-    for (int i = (int)(positions.size() - 1); i >= 0; i--) {
-      positions.push_back(positions[i]);
-      attitudes.push_back(attitudes[i]);
-    }
-
-    // Update
-    const auto timestamps = linspace(ts_start, ts_end, positions.size());
-    orbit_trajs.emplace_back(timestamps, positions, attitudes);
-    lat += dlat;
-  }
-
-  // Append to results
-  for (const auto &traj : orbit_trajs) {
-    trajs.emplace_back(traj.timestamps, traj.positions, traj.orientations);
-  }
-}
-
-void calib_pan_trajs(const calib_target_t &target,
-                     const camera_geometry_t *cam0_geom,
-                     const camera_params_t &cam0,
-                     const camera_geometry_t *cam1_geom,
-                     const camera_params_t &cam1,
-                     const mat4_t &T_BC0,
-                     const mat4_t &T_BC1,
-                     const mat4_t &T_WF,
-                     const mat4_t &T_FO,
-                     const timestamp_t &ts_start,
-                     const timestamp_t &ts_end,
-                     ctrajs_t &trajs) {
-  UNUSED(cam0);
-  UNUSED(cam1);
-  UNUSED(T_BC0);
-  UNUSED(T_BC1);
-
-  // Tag width
-  const double tag_rows = target.tag_rows;
-  const double tag_cols = target.tag_cols;
-  const double tag_spacing = target.tag_spacing;
-  const double tag_size = target.tag_size;
-  const double spacing_x = (tag_cols - 1) * tag_spacing * tag_size;
-  const double spacing_y = (tag_rows - 1) * tag_spacing * tag_size;
-  const double calib_width = tag_cols * tag_size + spacing_x;
-  const double calib_height = tag_rows * tag_size + spacing_y;
-
-  // Target center (Fc) w.r.t. Target origin (F)
-  const vec3_t r_FFc{calib_width / 2.0, calib_height / 2.0, 0.0};
-
-  // Calibration origin
-  const mat4_t calib_origin = T_FO;
-
-  // Create rotation matrix that is z-forard (i.e. camera frame)
-  // const vec3_t rpy_WC{-90.0, 0.0, -90.0};
-  // const mat3_t C_WC = euler321(deg2rad(rpy_WC));
-  // const mat4_t T_WO = T_WF * T_FO;
-  // const mat4_t T_FW = T_WF.inverse();
-  // const mat3_t C_FW = tf_rot(T_FW);
-  // const mat3_t C_FC = C_FW * C_WC;
-
-  double scale = 1.0;
-  ctrajs_t pan_trajs;
-  int retry = 20;
-start:
-  // Trajectory parameters
-  const int nb_trajs = 4;
-  const int nb_control_points = 5;
-  const double pan_length = calib_width * scale;
-  const double theta_min = deg2rad(0.0);
-  const double theta_max = deg2rad(270.0);
-
-  // Pan trajectories. Basically simple pan trajectories with the camera
-  // looking forwards. No attitude changes.
-  for (const auto &theta : linspace(theta_min, theta_max, nb_trajs)) {
-    vec3s_t positions;
-    quats_t attitudes;
-
-    for (const auto &r : linspace(0.0, pan_length, nb_control_points)) {
-      const vec2_t x = circle(r, theta);
-      const vec3_t p{x(0), x(1), 0.0};
-
-      const vec3_t r_FJ = tf_point(calib_origin, p);
-      const mat4_t T_FC0 = lookat(r_FJ, r_FFc);
-      // const mat4_t T_FC1 = T_FC0 * T_C0C1;
-      const mat4_t T_WC0 = T_WF * T_FC0;
-
-      if (check_fully_observable(target, cam0_geom, cam0, T_FC0) == false) {
-        pan_trajs.clear();
-        scale -= 0.05;
-        retry--;
-        if (retry == 0) {
-          FATAL("Failed to generate orbit trajectory!");
-        }
-        goto start;
-      }
-      // if (check_fully_observable(target, cam0_geom, cam1, T_FC1) == false) {
-      //   pan_trajs.clear();
-      //   scale -= 0.05;
-      //   retry--;
-      //   if (retry == 0) {
-      //     FATAL("Failed to generate orbit trajectory!");
-      //   }
-      //   goto start;
-      // }
-
-      positions.emplace_back(tf_trans(T_WC0));
-      attitudes.emplace_back(tf_rot(T_WC0));
-    }
-
-    // Add to trajectories
-    const auto timestamps = linspace(ts_start, ts_end, nb_control_points);
-    pan_trajs.emplace_back(timestamps, positions, attitudes);
-  }
-
-  // Append to results
-  for (const auto &traj : pan_trajs) {
-    trajs.emplace_back(traj.timestamps, traj.positions, traj.orientations);
-  }
-}
-
-void calib_figure8_trajs(const calib_target_t &target,
-                         const camera_geometry_t *cam0_geom,
-                         const camera_params_t &cam0,
-                         const camera_geometry_t *cam1_geom,
-                         const camera_params_t &cam1,
-                         const mat4_t &T_BC0,
-                         const mat4_t &T_BC1,
-                         const mat4_t &T_WF,
-                         const mat4_t &T_FO,
-                         const timestamp_t &ts_start,
-                         const timestamp_t &ts_end,
-                         ctrajs_t &trajs) {
-  // Tag width
-  const double tag_rows = target.tag_rows;
-  const double tag_cols = target.tag_cols;
-  const double tag_spacing = target.tag_spacing;
-  const double tag_size = target.tag_size;
-  const double spacing_x = (tag_cols - 1) * tag_spacing * tag_size;
-  const double spacing_y = (tag_rows - 1) * tag_spacing * tag_size;
-  const double calib_width = tag_cols * tag_size + spacing_x;
-  const double calib_height = tag_rows * tag_size + spacing_y;
-
-  // Target center (Fc) w.r.t. Target origin (F)
-  const vec3_t r_FFc{calib_width / 2.0, calib_height / 2.0, 0.0};
-
-  // Parameters for figure 8
-  double a = calib_width / 3.4;
-
-  // Create trajectory control points
-  const size_t nb_control_points = 100;
-  vec3s_t positions;
-  quats_t attitudes;
-  // -- R.H.S
-  for (const auto t : linspace(0.0, M_PI, nb_control_points / 2.0)) {
-    const auto x = a * sin(t);
-    const auto y = a * sin(t) * cos(t);
-    const auto z = 0.0;
-    const vec3_t r_OC{x, y, z}; // Position of camera relative to calib origin
-
-    const vec3_t r_FT = tf_point(T_FO, r_OC);
-    const mat4_t T_FC0 = lookat(r_FT, r_FFc);
-    const vec3_t r_WC0 = tf_trans(T_WF * T_FC0);
-    const mat3_t C_WC0 = tf_rot(T_WF * T_FC0);
-
-    // Add control point to spline
-    positions.emplace_back(r_WC0);
-    attitudes.emplace_back(C_WC0);
-  }
-  // -- L.H.S
-  for (const auto t : linspace(M_PI, 2 * M_PI, nb_control_points / 2.0)) {
-    const auto x = a * sin(t);
-    const auto y = a * sin(t) * cos(t);
-    const auto z = 0.0;
-    const vec3_t r_OC{x, y, z}; // Position of camera relative to calib origin
-
-    const vec3_t r_FT = tf_point(T_FO, r_OC);
-    const mat4_t T_FC0 = lookat(r_FT, r_FFc);
-    const vec3_t r_WC0 = tf_trans(T_WF * T_FC0);
-    const mat3_t C_WC0 = tf_rot(T_WF * T_FC0);
-
-    // Add control point to spline
-    positions.emplace_back(r_WC0);
-    attitudes.emplace_back(C_WC0);
-  }
-  // -- Create spline
-  const auto timestamps = linspace(ts_start, ts_end, nb_control_points);
-  trajs.emplace_back(timestamps, positions, attitudes);
-}
-
-aprilgrid_t calib_simulate(const calib_target_t &target,
-                           const mat4_t &T_FC0,
-                           const camera_geometry_t *cam_geom,
-                           const camera_params_t &cam_params,
-                           const mat4_t &T_C0Ci) {
-  const auto cam_res = cam_params.resolution;
-  const auto params = cam_params.param;
-
-  const int tag_rows = target.tag_rows;
-  const int tag_cols = target.tag_cols;
-  const double tag_size = target.tag_size;
-  const double tag_spacing = target.tag_spacing;
-  const mat4_t T_CiC0 = T_C0Ci.inverse();
-
-  aprilgrid_t grid(0, tag_rows, tag_cols, tag_size, tag_spacing);
-  const mat4_t T_C0F = T_FC0.inverse();
-
-  for (int tag_id = 0; tag_id < (tag_rows * tag_cols); tag_id++) {
-    for (int corner_idx = 0; corner_idx < 4; corner_idx++) {
-      const vec3_t r_FFi = grid.object_point(tag_id, corner_idx);
-      const vec3_t r_C0Fi = tf_point(T_C0F, r_FFi);
-      const vec3_t r_CiFi = tf_point(T_CiC0, r_C0Fi);
-
-      vec2_t z_hat;
-      if (cam_geom->project(cam_res, params, r_CiFi, z_hat) == 0) {
-        grid.add(tag_id, corner_idx, z_hat);
-      }
-    }
-  }
-
-  return grid;
-}
-
-aprilgrids_t calib_simulate(const calib_target_t &target,
-                            const mat4s_t &rel_poses,
-                            const camera_geometry_t *cam_geom,
-                            const camera_params_t &cam_params,
-                            const mat4_t &T_C0Ci) {
-  aprilgrids_t grids;
-  for (const mat4_t &T_FC0 : rel_poses) {
-    grids.push_back(
-        calib_simulate(target, T_FC0, cam_geom, cam_params, T_C0Ci));
-  }
-
-  return grids;
-}
+// aprilgrids_t calib_simulate(const calib_target_t &target,
+//                             const mat4s_t &rel_poses,
+//                             const camera_geometry_t *cam_geom,
+//                             const camera_params_t *cam_param,
+//                             const mat4_t &T_C0Ci) {
+//   aprilgrids_t grids;
+//   for (const mat4_t &T_FC0 : rel_poses) {
+//     grids.push_back(calib_simulate(target, T_FC0, cam_geom, cam_param,
+//     T_C0Ci));
+//   }
+//
+//   return grids;
+// }
 
 // // Find next best pose for monocular camera
 // int nbv_find(const calib_target_t &target,
@@ -675,7 +680,7 @@ aprilgrids_t calib_simulate(const calib_target_t &target,
 //   double batch_info = entropy(covar);
 //
 //   // Evaluate different poses
-//   const auto cam_res = cam_params.resolution;
+//   const auto cam_res = cam_params->resolution;
 //   bool success = false;
 //   int best_index = -1;
 //   double best_info_gain = 0.0;
@@ -715,7 +720,7 @@ aprilgrids_t calib_simulate(const calib_target_t &target,
 //       auto res_id = problem.AddResidualBlock(cost_fn,
 //                                              NULL,
 //                                              pose.param.data(),
-//                                              cam_params.param.data());
+//                                              cam_params->param.data());
 //
 //       cost_fns.push_back(cost_fn);
 //       res_blocks.push_back(res_id);
@@ -870,124 +875,124 @@ aprilgrids_t calib_simulate(const calib_target_t &target,
 //   return success ? 0 : -2;
 // }
 
-void simulate_cameras(const ctraj_t &traj,
-                      const calib_target_t &target,
-                      const camera_geometry_t *cam0_geom,
-                      const camera_params_t &cam0,
-                      const camera_geometry_t *cam1_geom,
-                      const camera_params_t &cam1,
-                      const double cam_rate,
-                      const mat4_t &T_WF,
-                      const mat4_t &T_BC0,
-                      const mat4_t &T_BC1,
-                      const timestamp_t &ts_start,
-                      const timestamp_t &ts_end,
-                      aprilgrids_t &grids0,
-                      aprilgrids_t &grids1,
-                      mat4s_t &T_WC0_sim) {
-  // Simulate camera measurements with AprilGrids that will be observed
-  const mat4_t T_C0C1 = T_BC0.inverse() * T_BC1;
-  const timestamp_t cam_dt = sec2ts(1.0 / cam_rate);
-  timestamp_t ts_k = ts_start;
-
-  while (ts_k <= ts_end) {
-    // Calculate transform of fiducial (F) w.r.t. camera (C)
-    const mat4_t T_WC0 = ctraj_get_pose(traj, ts_k);
-    const mat4_t T_C0F = T_WC0.inverse() * T_WF;
-    const mat4_t T_FC0 = T_C0F.inverse(); // NBV pose
-
-    // Create an AprilGrid that represents what the camera would see if it
-    // was positioned at T_C0F
-    auto grid0 = calib_simulate(target, T_FC0, cam0_geom, cam0);
-    auto grid1 = calib_simulate(target, T_FC0, cam1_geom, cam1, T_C0C1);
-    grid0.timestamp = ts_k;
-    grid1.timestamp = ts_k;
-
-    grids0.push_back(grid0);
-    grids1.push_back(grid1);
-
-    T_WC0_sim.push_back(T_WC0);
-    ts_k += cam_dt;
-  }
-}
-
-void simulate_imu(const ctraj_t &traj,
-                  const timestamp_t &ts_start,
-                  const timestamp_t &ts_end,
-                  const mat4_t &T_BC0,
-                  const mat4_t &T_BS,
-                  const imu_params_t &imu_params,
-                  timestamps_t &imu_time,
-                  vec3s_t &imu_accel,
-                  vec3s_t &imu_gyro,
-                  mat4s_t &imu_poses,
-                  vec3s_t &imu_vels) {
-  // const mat4_t T_C0S = T_BC0.inverse() * T_BS;
-  // const mat3_t C_C0S = tf_rot(T_C0S);
-  // const vec3_t r_C0S = tf_trans(T_C0S);
-  const timestamp_t imu_dt = sec2ts(1.0 / imu_params.rate);
-  timestamp_t ts_k = ts_start;
-  std::default_random_engine rndeng;
-
-  sim_imu_t sim_imu;
-  sim_imu.rate = imu_params.rate;
-  // sim_imu.tau_a      = imu_params.tau;
-  // sim_imu.tau_g      = imu_params.tau;
-  // sim_imu.sigma_g_c  = imu_params.sigma_g_c;
-  // sim_imu.sigma_a_c  = imu_params.sigma_a_c;
-  // sim_imu.sigma_gw_c = imu_params.sigma_gw_c;
-  // sim_imu.sigma_aw_c = imu_params.sigma_aw_c;
-  sim_imu.sigma_g_c = 0.0;
-  sim_imu.sigma_a_c = 0.0;
-  sim_imu.sigma_gw_c = 0.0;
-  sim_imu.sigma_aw_c = 0.0;
-  sim_imu.g = imu_params.g;
-
-  while (ts_k <= ts_end) {
-    // Get camera pose, angular velocity and acceleration in camera frame
-    const mat4_t T_WC = ctraj_get_pose(traj, ts_k);
-    // const mat3_t C_WC = tf_rot(T_WC);
-    const vec3_t v_WC = ctraj_get_velocity(traj, ts_k);
-    const vec3_t a_WC = ctraj_get_acceleration(traj, ts_k);
-    const vec3_t w_WC = ctraj_get_angular_velocity(traj, ts_k);
-
-    // Convert camera frame to sensor frame
-    const mat4_t T_WS_W = T_WC;
-    const vec3_t w_WS_W = w_WC;
-    const vec3_t a_WS_W = a_WC;
-    const vec3_t v_WS_W = v_WC;
-    // const mat4_t T_WS_W = T_WC * T_C0S;
-    // const vec3_t v_WS_W = v_WC + C_WC * (w_WC.cross(r_C0S));
-    // const vec3_t w_WS_W = C_C0S.transpose() * w_WC;
-    // const vec3_t a_WS_W = a_WC * C_C0S;
-
-    vec3_t a_WS_S{0.0, 0.0, 0.0};
-    vec3_t w_WS_S{0.0, 0.0, 0.0};
-    sim_imu_measurement(sim_imu,
-                        rndeng,
-                        ts_k,
-                        T_WS_W,
-                        w_WS_W,
-                        a_WS_W,
-                        a_WS_S,
-                        w_WS_S);
-
-    // printf("ts: %ld\n", ts_k);
-    // print_matrix("T_WS_W", T_WS_W);
-    // print_vector("w_WS_W", w_WS_W);
-    // print_vector("a_WS_W", a_WS_W);
-    // print_vector("a_WS_S", a_WS_S);
-    // print_vector("w_WS_S", w_WS_S);
-
-    imu_time.push_back(ts_k);
-    imu_accel.push_back(a_WS_S);
-    imu_gyro.push_back(w_WS_S);
-    imu_poses.push_back(T_WS_W);
-    imu_vels.push_back(v_WS_W);
-
-    ts_k += imu_dt;
-  }
-}
+// void simulate_cameras(const ctraj_t &traj,
+//                       const calib_target_t &target,
+//                       const camera_geometry_t *cam0_geom,
+//                       const camera_params_t *cam0,
+//                       const camera_geometry_t *cam1_geom,
+//                       const camera_params_t *cam1,
+//                       const double cam_rate,
+//                       const mat4_t &T_WF,
+//                       const mat4_t &T_BC0,
+//                       const mat4_t &T_BC1,
+//                       const timestamp_t &ts_start,
+//                       const timestamp_t &ts_end,
+//                       aprilgrids_t &grids0,
+//                       aprilgrids_t &grids1,
+//                       mat4s_t &T_WC0_sim) {
+//   // Simulate camera measurements with AprilGrids that will be observed
+//   const mat4_t T_C0C1 = T_BC0.inverse() * T_BC1;
+//   const timestamp_t cam_dt = sec2ts(1.0 / cam_rate);
+//   timestamp_t ts_k = ts_start;
+//
+//   while (ts_k <= ts_end) {
+//     // Calculate transform of fiducial (F) w.r.t. camera (C)
+//     const mat4_t T_WC0 = ctraj_get_pose(traj, ts_k);
+//     const mat4_t T_C0F = T_WC0.inverse() * T_WF;
+//     const mat4_t T_FC0 = T_C0F.inverse(); // NBV pose
+//
+//     // Create an AprilGrid that represents what the camera would see if it
+//     // was positioned at T_C0F
+//     auto grid0 = calib_simulate(target, T_FC0, cam0_geom, cam0);
+//     auto grid1 = calib_simulate(target, T_FC0, cam1_geom, cam1, T_C0C1);
+//     grid0.timestamp = ts_k;
+//     grid1.timestamp = ts_k;
+//
+//     grids0.push_back(grid0);
+//     grids1.push_back(grid1);
+//
+//     T_WC0_sim.push_back(T_WC0);
+//     ts_k += cam_dt;
+//   }
+// }
+//
+// void simulate_imu(const ctraj_t &traj,
+//                   const timestamp_t &ts_start,
+//                   const timestamp_t &ts_end,
+//                   const mat4_t &T_BC0,
+//                   const mat4_t &T_BS,
+//                   const imu_params_t &imu_params,
+//                   timestamps_t &imu_time,
+//                   vec3s_t &imu_accel,
+//                   vec3s_t &imu_gyro,
+//                   mat4s_t &imu_poses,
+//                   vec3s_t &imu_vels) {
+//   // const mat4_t T_C0S = T_BC0.inverse() * T_BS;
+//   // const mat3_t C_C0S = tf_rot(T_C0S);
+//   // const vec3_t r_C0S = tf_trans(T_C0S);
+//   const timestamp_t imu_dt = sec2ts(1.0 / imu_params.rate);
+//   timestamp_t ts_k = ts_start;
+//   std::default_random_engine rndeng;
+//
+//   sim_imu_t sim_imu;
+//   sim_imu.rate = imu_params.rate;
+//   // sim_imu.tau_a      = imu_params.tau;
+//   // sim_imu.tau_g      = imu_params.tau;
+//   // sim_imu.sigma_g_c  = imu_params.sigma_g_c;
+//   // sim_imu.sigma_a_c  = imu_params.sigma_a_c;
+//   // sim_imu.sigma_gw_c = imu_params.sigma_gw_c;
+//   // sim_imu.sigma_aw_c = imu_params.sigma_aw_c;
+//   sim_imu.sigma_g_c = 0.0;
+//   sim_imu.sigma_a_c = 0.0;
+//   sim_imu.sigma_gw_c = 0.0;
+//   sim_imu.sigma_aw_c = 0.0;
+//   sim_imu.g = imu_params.g;
+//
+//   while (ts_k <= ts_end) {
+//     // Get camera pose, angular velocity and acceleration in camera frame
+//     const mat4_t T_WC = ctraj_get_pose(traj, ts_k);
+//     // const mat3_t C_WC = tf_rot(T_WC);
+//     const vec3_t v_WC = ctraj_get_velocity(traj, ts_k);
+//     const vec3_t a_WC = ctraj_get_acceleration(traj, ts_k);
+//     const vec3_t w_WC = ctraj_get_angular_velocity(traj, ts_k);
+//
+//     // Convert camera frame to sensor frame
+//     const mat4_t T_WS_W = T_WC;
+//     const vec3_t w_WS_W = w_WC;
+//     const vec3_t a_WS_W = a_WC;
+//     const vec3_t v_WS_W = v_WC;
+//     // const mat4_t T_WS_W = T_WC * T_C0S;
+//     // const vec3_t v_WS_W = v_WC + C_WC * (w_WC.cross(r_C0S));
+//     // const vec3_t w_WS_W = C_C0S.transpose() * w_WC;
+//     // const vec3_t a_WS_W = a_WC * C_C0S;
+//
+//     vec3_t a_WS_S{0.0, 0.0, 0.0};
+//     vec3_t w_WS_S{0.0, 0.0, 0.0};
+//     sim_imu_measurement(sim_imu,
+//                         rndeng,
+//                         ts_k,
+//                         T_WS_W,
+//                         w_WS_W,
+//                         a_WS_W,
+//                         a_WS_S,
+//                         w_WS_S);
+//
+//     // printf("ts: %ld\n", ts_k);
+//     // print_matrix("T_WS_W", T_WS_W);
+//     // print_vector("w_WS_W", w_WS_W);
+//     // print_vector("a_WS_W", a_WS_W);
+//     // print_vector("a_WS_S", a_WS_S);
+//     // print_vector("w_WS_S", w_WS_S);
+//
+//     imu_time.push_back(ts_k);
+//     imu_accel.push_back(a_WS_S);
+//     imu_gyro.push_back(w_WS_S);
+//     imu_poses.push_back(T_WS_W);
+//     imu_vels.push_back(v_WS_W);
+//
+//     ts_k += imu_dt;
+//   }
+// }
 
 // void nbt_create_timeline(const timestamps_t &imu_ts,
 //                          const vec3s_t &imu_gyr,

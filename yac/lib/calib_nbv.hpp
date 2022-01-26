@@ -65,9 +65,10 @@ mat4s_t calib_init_poses(const calib_target_t &target,
                          const camera_geometry_t *cam_geom,
                          const camera_params_t &cam_params);
 
-aprilgrid_t *nbv_target_grid(const calib_target_t &target,
-                             const camera_params_t &cam_params,
-                             const mat4_t &nbv_pose);
+aprilgrid_t nbv_target_grid(const calib_target_t &target,
+                            const camera_geometry_t *cam_geom,
+                            const camera_params_t *cam_params,
+                            const mat4_t &nbv_pose);
 
 vec2s_t nbv_draw(const calib_target_t &target,
                  const camera_geometry_t *cam_geom,

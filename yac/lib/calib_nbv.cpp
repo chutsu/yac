@@ -178,29 +178,29 @@ mat4s_t calib_init_poses(const calib_target_t &target,
   return poses;
 }
 
-aprilgrid_t *nbv_target_grid(const calib_target_t &target,
-                             const camera_geometry_t *cam_geom,
-                             const camera_params_t &cam_params,
-                             const mat4_t &nbv_pose) {
+aprilgrid_t nbv_target_grid(const calib_target_t &target,
+                            const camera_geometry_t *cam_geom,
+                            const camera_params_t *cam_params,
+                            const mat4_t &nbv_pose) {
   const int tag_rows = target.tag_rows;
   const int tag_cols = target.tag_cols;
   const double tag_size = target.tag_size;
   const double tag_spacing = target.tag_spacing;
 
-  const auto cam_res = cam_params.resolution;
-  const vecx_t &params = cam_params.param;
-  auto grid = new aprilgrid_t{0, tag_rows, tag_cols, tag_size, tag_spacing};
+  const auto cam_res = cam_params->resolution;
+  const vecx_t &params = cam_params->param;
+  aprilgrid_t grid{0, tag_rows, tag_cols, tag_size, tag_spacing};
   const mat4_t T_CiF = nbv_pose.inverse();
-  const int nb_tags = (grid->tag_rows * grid->tag_cols);
+  const int nb_tags = (grid.tag_rows * grid.tag_cols);
 
   for (int tag_id = 0; tag_id < nb_tags; tag_id++) {
     for (int corner_idx = 0; corner_idx < 4; corner_idx++) {
-      const vec3_t r_FFi = grid->object_point(tag_id, corner_idx);
+      const vec3_t r_FFi = grid.object_point(tag_id, corner_idx);
       const vec3_t r_CiFi = tf_point(T_CiF, r_FFi);
 
       vec2_t z_hat{0.0, 0.0};
       if (cam_geom->project(cam_res, params, r_CiFi, z_hat) != 0) {
-        grid->add(tag_id, corner_idx, z_hat);
+        grid.add(tag_id, corner_idx, z_hat);
       }
     }
   }

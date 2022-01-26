@@ -488,9 +488,9 @@ void initialize_camera(const calib_target_t &calib_target,
   options.minimizer_progress_to_stdout = verbose;
   options.max_num_iterations = 30;
   options.use_nonmonotonic_steps = true;
-  options.function_tolerance = 1e-10;
-  options.gradient_tolerance = 1e-10;
-  options.parameter_tolerance = 1e-10;
+  // options.function_tolerance = 1e-10;
+  // options.gradient_tolerance = 1e-10;
+  // options.parameter_tolerance = 1e-10;
 
   // Solve
   ceres::Solver::Summary summary;
@@ -588,6 +588,14 @@ aprilgrids_t calib_camera_t::get_cam_data(const int cam_idx) const {
   return grids;
 }
 
+std::vector<int> calib_camera_t::get_camera_indices() const {
+  std::vector<int> cam_idxs;
+  for (const auto &[cam_idx, _] : cam_params) {
+    cam_idxs.push_back(cam_idx);
+  }
+  return cam_idxs;
+}
+
 vecx_t calib_camera_t::get_camera_params(const int cam_idx) const {
   return cam_params.at(cam_idx)->param;
 }
@@ -673,7 +681,10 @@ void calib_camera_t::add_camera(const int cam_idx,
 void calib_camera_t::add_camera_extrinsics(const int cam_idx,
                                            const mat4_t &ext,
                                            const bool fixed) {
-  cam_exts[cam_idx] = new extrinsics_t{ext};
+  if (cam_exts.count(cam_idx) == 0) {
+    cam_exts[cam_idx] = new extrinsics_t{ext};
+  }
+
   problem->AddParameterBlock(cam_exts[cam_idx]->data(), 7);
   problem->SetParameterization(cam_exts[cam_idx]->data(), &pose_plus);
   if (cam_idx == 0 || fixed) {
@@ -999,6 +1010,58 @@ int calib_camera_t::recover_calib_covar(matx_t &calib_covar) {
   return 0;
 }
 
+mat4_t calib_camera_t::find_nbv(const mat4s_t &nbv_poses) {
+  // Pre-check
+  if (nbv_poses.size() == 0) {
+    FATAL("NBV poses empty!?");
+  }
+
+  // Find NBV
+  const timestamp_t last_ts = *timestamps.rbegin(); // std::set is orderd
+  const timestamp_t nbv_ts = last_ts + 1;
+  int best_idx = 0;
+  real_t best_entropy = 0;
+
+  for (size_t i = 0; i < nbv_poses.size(); i++) {
+    // Simulate NBV
+    pose_t nbv_pose{nbv_ts, nbv_poses[i]};
+    for (const auto cam_idx : get_camera_indices()) {
+      // Simulate calibration view
+      auto grid = nbv_target_grid(calib_target,
+                                  cam_geoms[cam_idx],
+                                  cam_params[cam_idx],
+                                  nbv_poses[i]);
+      grid.timestamp = nbv_ts;
+
+      // Add view to problem
+      add_view(grid,
+               problem,
+               loss,
+               cam_idx,
+               cam_geoms[cam_idx],
+               cam_params[cam_idx],
+               cam_exts[cam_idx],
+               &nbv_pose);
+    }
+
+    // Evaluate NBV
+    // -- Estimate calibration covariance
+    matx_t calib_covar;
+    if (recover_calib_covar(calib_covar) == 0) {
+      remove_view(nbv_ts);
+    }
+    remove_view(nbv_ts);
+    // -- Calculate entropy
+    const real_t entropy = info_entropy(calib_covar);
+    if (entropy > best_entropy) {
+      best_idx = i;
+      best_entropy = entropy;
+    }
+  }
+
+  return nbv_poses[best_idx];
+}
+
 void calib_camera_t::solve() {
   // Setup
   _initialize_intrinsics();
@@ -1007,19 +1070,20 @@ void calib_camera_t::solve() {
 
   // Solver options
   ceres::Solver::Options options;
-  options.minimizer_progress_to_stdout = true;
+  options.minimizer_progress_to_stdout = verbose;
   options.max_num_iterations = 100;
   options.use_nonmonotonic_steps = true;
-  options.function_tolerance = 1e-20;
-  options.gradient_tolerance = 1e-20;
-  options.parameter_tolerance = 1e-20;
+  // options.function_tolerance = 1e-20;
+  // options.gradient_tolerance = 1e-20;
+  // options.parameter_tolerance = 1e-20;
 
   // Solve
   ceres::Solver::Summary summary;
   ceres::Solve(options, problem, &summary);
-  std::cout << std::endl;
-  std::cout << summary.BriefReport() << std::endl;
-  std::cout << std::endl;
+  if (verbose) {
+    std::cout << summary.BriefReport() << std::endl;
+    std::cout << std::endl;
+  }
 
   // Filter views
   if (enable_outlier_rejection) {
@@ -1028,9 +1092,10 @@ void calib_camera_t::solve() {
     // Solve again - second pass
     ceres::Solver::Summary summary;
     ceres::Solve(options, problem, &summary);
-    std::cout << std::endl;
-    std::cout << summary.BriefReport() << std::endl;
-    std::cout << std::endl;
+    if (verbose) {
+      std::cout << summary.BriefReport() << std::endl;
+      std::cout << std::endl;
+    }
   }
 
   // Show results

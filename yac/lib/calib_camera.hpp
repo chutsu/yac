@@ -145,6 +145,7 @@ void initialize_camera(const calib_target_t &calib_target,
 /** Camera Calibrator **/
 struct calib_camera_t {
   // Settings
+  bool verbose = false;
   bool enable_nbv = false;
   bool enable_nbv_filter = false;
   bool enable_outlier_rejection = true;
@@ -185,6 +186,7 @@ struct calib_camera_t {
 
   int nb_cams() const;
   aprilgrids_t get_cam_data(const int cam_idx) const;
+  std::vector<int> get_camera_indices() const;
   vecx_t get_camera_params(const int cam_idx) const;
   veci2_t get_camera_resolution(const int cam_idx) const;
   std::string get_camera_projection_model(const int cam_idx) const;
@@ -223,6 +225,8 @@ struct calib_camera_t {
   std::map<int, std::vector<real_t>> get_reproj_errors();
 
   int recover_calib_covar(matx_t &calib_covar);
+  mat4_t find_nbv(const mat4s_t &nbv_poses);
+
   void solve();
   void show_results();
   int save_results(const std::string &save_path);

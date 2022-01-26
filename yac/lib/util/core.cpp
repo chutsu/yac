@@ -960,6 +960,15 @@ mat4_t tf(const quat_t &q, const vec3_t &r) {
   return tf(q.toRotationMatrix(), r);
 }
 
+vecx_t tf_vec(const mat4_t &T) {
+  const vec3_t r = tf_trans(T);
+  const quat_t q = tf_quat(T);
+  vecx_t vec;
+  vec.resize(7);
+  vec << r.x(), r.y(), r.z(), q.x(), q.y(), q.z(), q.w();
+  return vec;
+}
+
 mat4_t tf_perturb_rot(const mat4_t &T, real_t step_size, const int i) {
   const mat3_t C = tf_rot(T);
   const vec3_t r = tf_trans(T);

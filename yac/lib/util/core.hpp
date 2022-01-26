@@ -981,6 +981,11 @@ mat4_t tf(const mat3_t &C, const vec3_t &r);
 mat4_t tf(const quat_t &q, const vec3_t &r);
 
 /**
+ * Form a 7x1 pose vector
+ */
+vecx_t tf_vec(const mat4_t &T);
+
+/**
  * Extract rotation from transform
  */
 inline mat3_t tf_rot(const mat4_t &tf) { return tf.block<3, 3>(0, 0); }

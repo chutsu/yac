@@ -17,12 +17,11 @@ namespace yac {
 struct calib_nbv_t {
   // Calibration state
   enum CALIB_STATE {
-    INITIALIZE_INTRINSICS = 0,
-    INITIALIZE_EXTRINSICS = 1,
+    INITIALIZE = 0,
     NBV = 2,
     BATCH = 3,
   };
-  int state = INITIALIZE_INTRINSICS;
+  int state = INITIALIZE;
 
   // ROS
   const std::string node_name;
@@ -57,6 +56,7 @@ struct calib_nbv_t {
 
   // Data
   std::map<int, std::pair<timestamp_t, cv::Mat>> img_buffer;
+  std::map<int, aprilgrid_t> grid_buffer;
   std::map<int, aprilgrids_t> cam_grids;
 
   /* Constructor */
@@ -75,9 +75,7 @@ struct calib_nbv_t {
   /* Destructor */
   ~calib_nbv_t() = default;
 
-  /**
-   * Setup Calibration Target
-   */
+  /** Setup Calibration Target */
   void setup_calib_target(const std::string &config_file) {
     config_t config{config_file};
     calib_target = std::make_unique<calib_target_t>();
@@ -86,9 +84,7 @@ struct calib_nbv_t {
     }
   }
 
-  /**
-   * Setup Camera Calibrator
-   */
+  /** Setup Camera Calibrator */
   void setup_calibrator(const std::string &config_file) {
     // Load configuration
     config_t config{config_file};
@@ -127,12 +123,13 @@ struct calib_nbv_t {
                         cam_res[cam_idx].data(),
                         cam_proj_models[cam_idx],
                         cam_dist_models[cam_idx]);
+      calib->add_camera_extrinsics(cam_idx,
+                                   I(4),
+                                   (cam_idx == 0) ? true : false);
     }
   }
 
-  /**
-   * Setup AprilGrid detector
-   */
+  /** Setup AprilGrid detector */
   void setup_aprilgrid_detector() {
     detector =
         std::make_unique<aprilgrid_detector_t>(calib_target->tag_rows,
@@ -141,9 +138,7 @@ struct calib_nbv_t {
                                                calib_target->tag_spacing);
   }
 
-  /**
-   * Setup ROS Topics
-   */
+  /** Setup ROS Topics */
   void setup_ros_topics(const std::string &config_file) {
     // Parse camera ros topics
     config_t config{config_file};
@@ -161,114 +156,8 @@ struct calib_nbv_t {
     }
   }
 
-  /**
-   * Return number of cameras
-   */
+  /** Return Number of Cameras */
   int nb_cams() { return calib->nb_cams(); }
-
-  /**
-   * Event Keyboard Handler
-   */
-  void event_handler(int key) {
-    if (key != EOF) {
-      switch (key) {
-        case 113: // 'q' key
-          LOG_INFO("User requested program termination!");
-          LOG_INFO("Exiting ...");
-          keep_running = false;
-          break;
-        case 126: // Presentation clicker up / down key
-        case 99:  // 'c' key
-          capture_event = true;
-          break;
-        case 66: // 'b' key
-          batch_event = true;
-          break;
-      }
-    }
-  }
-
-  /**
-   * Visualize detected AprilGrid
-   * @param[in] grid AprilGrid
-   * @param[in] image Camera frame
-   */
-  void visualize(const aprilgrid_t &grid, const cv::Mat &image) {
-    // Draw detected
-    auto image_rgb = gray2rgb(image);
-    draw_detected(grid, image_rgb);
-
-    // // Draw NBV
-    // switch (state) {
-    //   case INITIALIZE:
-    //     if (poses_init.size()) {
-    //       const mat4_t T_FC0 = poses_init[frames.size()];
-    //       // draw_nbv(T_FC0, image_rgb);
-    //     }
-    //     break;
-    //
-    //   case NBV:
-    //     if (nbv_event == false) {
-    //       draw_nbv(nbv_pose, image_rgb);
-    //     } else {
-    //       draw_status_text("Finding NBV!", image_rgb);
-    //     }
-    //     break;
-    // }
-
-    // Show
-    cv::imshow("Visualize", image_rgb);
-    int event = cv::waitKey(1);
-    event_handler(event);
-  }
-
-  // bool nbv_reached(const aprilgrid_t &grid) {
-  //   // Check if target grid is created
-  //   if (target_grid == nullptr) {
-  //     return false;
-  //   }
-  //
-  //   // Get grid measurements
-  //   std::vector<int> tag_ids;
-  //   std::vector<int> corner_indicies;
-  //   vec2s_t keypoints;
-  //   vec3s_t object_points;
-  //   grid.get_measurements(tag_ids, corner_indicies, keypoints,
-  //   object_points);
-  //
-  //   // See if measured grid matches any NBV grid keypoints
-  //   std::vector<double> reproj_errors;
-  //   for (size_t i = 0; i < tag_ids.size(); i++) {
-  //     const int tag_id = tag_ids[i];
-  //     const int corner_idx = corner_indicies[i];
-  //     if (target_grid->has(tag_id, corner_idx) == false) {
-  //       continue;
-  //     }
-  //
-  //     const vec2_t z_measured = keypoints[i];
-  //     const vec2_t z_desired = target_grid->keypoint(tag_id, corner_idx);
-  //     reproj_errors.push_back((z_desired - z_measured).norm());
-  //   }
-  //
-  //   // Check if NBV is reached using reprojection errors
-  //   nbv_reproj_err = mean(reproj_errors);
-  //   if (nbv_reproj_err > nbv_reproj_error_threshold) {
-  //     nbv_hold_tic = (struct timespec){0, 0}; // Reset hold timer
-  //     return false;
-  //   }
-  //
-  //   // Start NBV hold timer
-  //   if (nbv_hold_tic.tv_sec == 0) {
-  //     nbv_hold_tic = tic();
-  //   }
-  //
-  //   // If hold threshold not met
-  //   if (toc(&nbv_hold_tic) < nbv_hold_threshold) {
-  //     return false;
-  //   }
-  //
-  //   return true;
-  // }
 
   /**
    * Update image buffer
@@ -295,10 +184,164 @@ struct calib_nbv_t {
     return ready;
   }
 
+  /** Detect AprilGrids */
+  void detect() {
+    grid_buffer.clear();
+
+    for (auto &[cam_idx, data] : img_buffer) {
+      const auto img_ts = data.first;
+      const auto &img = data.second;
+      const auto grid = detector->detect(img_ts, img);
+      if (grid.detected) {
+        grid_buffer[cam_idx] = grid;
+      }
+    }
+  }
+
+  /** Event Keyboard Handler */
+  void event_handler(int key) {
+    if (key != EOF) {
+      switch (key) {
+        case 113: // 'q' key
+          LOG_INFO("User requested program termination!");
+          LOG_INFO("Exiting ...");
+          keep_running = false;
+          break;
+        case 126: // Presentation clicker up / down key
+        case 99:  // 'c' key
+          capture_event = true;
+          break;
+        case 66: // 'b' key
+          batch_event = true;
+          break;
+      }
+    }
+  }
+
   /**
-   * Initialize Intrinsics Mode
+   * Visualize detected AprilGrid
    */
-  int mode_init_intrinsics() {
+  void visualize() {
+    // Form visualization image
+    cv::Mat viz;
+    for (auto [cam_idx, data] : img_buffer) {
+      // Convert image gray to rgb
+      auto img_gray = data.second;
+      auto img = gray2rgb(img_gray);
+
+      // Draw "detected" if AprilGrid was observed
+      if (grid_buffer.count(cam_idx)) {
+        draw_detected(grid_buffer[cam_idx], img);
+      }
+
+      // Draw NBV
+      // if (state == NBV) {
+      //   if (nbv_event == false) {
+      //     draw_nbv(nbv_pose, image_rgb);
+      //   } else {
+      //     draw_status_text("Finding NBV!", image_rgb);
+      //   }
+      // }
+
+      // Stack the images up
+      if (viz.empty()) {
+        viz = img;
+        continue;
+      }
+      cv::hconcat(viz, img, viz);
+    }
+
+    // Show
+    cv::imshow("Viz", viz);
+    int event = cv::waitKey(1);
+    event_handler(event);
+  }
+
+  /**
+   * Check if reached NBV
+   * @param[in] grid AprilGrid
+   */
+  bool nbv_reached(const aprilgrid_t &grid) {
+    // Check if target grid is created
+    if (target_grid == nullptr) {
+      return false;
+    }
+
+    // Get grid measurements
+    std::vector<int> tag_ids;
+    std::vector<int> corner_indicies;
+    vec2s_t keypoints;
+    vec3s_t object_points;
+    grid.get_measurements(tag_ids, corner_indicies, keypoints, object_points);
+
+    // See if measured grid matches any NBV grid keypoints
+    std::vector<double> reproj_errors;
+    for (size_t i = 0; i < tag_ids.size(); i++) {
+      const int tag_id = tag_ids[i];
+      const int corner_idx = corner_indicies[i];
+      if (target_grid->has(tag_id, corner_idx) == false) {
+        continue;
+      }
+
+      const vec2_t z_measured = keypoints[i];
+      const vec2_t z_desired = target_grid->keypoint(tag_id, corner_idx);
+      reproj_errors.push_back((z_desired - z_measured).norm());
+    }
+
+    // Check if NBV is reached using reprojection errors
+    nbv_reproj_err = mean(reproj_errors);
+    if (nbv_reproj_err > nbv_reproj_error_threshold) {
+      nbv_hold_tic = (struct timespec){0, 0}; // Reset hold timer
+      return false;
+    }
+
+    // Start NBV hold timer
+    if (nbv_hold_tic.tv_sec == 0) {
+      nbv_hold_tic = tic();
+    }
+
+    // If hold threshold not met
+    if (toc(&nbv_hold_tic) < nbv_hold_threshold) {
+      return false;
+    }
+
+    return true;
+  }
+
+  // void create_target_grid(const mat4_t &nbv_pose) {
+  //   const int tag_rows = target.tag_rows;
+  //   const int tag_cols = target.tag_cols;
+  //   const double tag_size = target.tag_size;
+  //   const double tag_spacing = target.tag_spacing;
+  //
+  //   const auto cam_res = cam_params.resolution;
+  //   const vecx_t proj_params = cam_params.proj_params();
+  //   const vecx_t dist_params = cam_params.dist_params();
+  //   const T camera{cam_res, proj_params, dist_params};
+  //
+  //   if (target_grid != nullptr) {
+  //     delete target_grid;
+  //   }
+  //   auto grid = new aprilgrid_t{0, tag_rows, tag_cols, tag_size,
+  //   tag_spacing}; const mat4_t T_CF = nbv_pose.inverse(); for (int tag_id =
+  //   0; tag_id < (tag_rows * tag_cols); tag_id++) {
+  //     for (int corner_idx = 0; corner_idx < 4; corner_idx++) {
+  //       const vec3_t r_FFi = grid->object_point(tag_id, corner_idx);
+  //       const vec3_t r_CFi = tf_point(T_CF, r_FFi);
+  //
+  //       vec2_t z_hat{0.0, 0.0};
+  //       if (camera.project(r_CFi, z_hat) == 0) {
+  //         grid->add(tag_id, corner_idx, z_hat);
+  //       }
+  //     }
+  //   }
+  //   target_grid = grid;
+  // }
+
+  /**
+   * Initialize Intrinsics + Extrinsics Mode
+   */
+  int mode_init() {
     // Form calibration data
     for (auto &[cam_idx, data] : img_buffer) {
       // Check if have enough grids already
@@ -307,9 +350,10 @@ struct calib_nbv_t {
       }
 
       // Check if aprilgrid is detected and fully observable
-      const auto img_ts = data.first;
-      const auto &img = data.second;
-      const auto grid_k = detector->detect(img_ts, img);
+      if (grid_buffer.count(cam_idx) == 0) {
+        continue;
+      }
+      const auto &grid_k = grid_buffer[cam_idx];
       if (grid_k.detected == false || grid_k.fully_observable() == false) {
         continue;
       }
@@ -353,31 +397,48 @@ struct calib_nbv_t {
       return 0;
     }
 
-    // Initialize camera intrinsics
+    // Initialize camera intrinsics + extrinsics
+    calib_camera_t cam_calib{*calib_target.get()};
+    cam_calib.verbose = false;
     for (const auto [cam_idx, grids] : cam_grids) {
-      // Calibrate camera intrinsics
-      calib_camera_t cam_calib{*calib_target.get()};
       const auto cam_res = calib->get_camera_resolution(cam_idx);
       const auto proj_model = calib->get_camera_projection_model(cam_idx);
       const auto dist_model = calib->get_camera_distortion_model(cam_idx);
       cam_calib.add_camera(cam_idx, cam_res.data(), proj_model, dist_model);
       cam_calib.add_camera_data(cam_idx, grids);
-      cam_calib.solve();
+    }
+    cam_calib.solve();
 
-      // Update main calibrator with new camera intrinsics
-      calib.cam_params[cam_idx].param = cam_calib.get_camera_params(cam_idx);
+    // Update main calibrator with new camera intrinsics
+    for (const auto [cam_idx, grids] : cam_grids) {
+      calib->cam_params[cam_idx]->param = cam_calib.get_camera_params(cam_idx);
+      calib->cam_exts[cam_idx]->param =
+          tf_vec(cam_calib.get_camera_extrinsics(cam_idx));
     }
 
-    // Transition to initializing extrinsics
-    state = INITIALIZE_EXTRINSICS;
+    // Transition to NBV mode
+    state = NBV;
+    nbv_event = true;
 
     return 0;
   }
 
   /**
-   * Initialize Extrinsics Mode
+   * NBV Mode
    */
-  int mode_init_extrinsics() { return 0; }
+  void mode_nbv() {
+    if (nbv_event == false) {
+      return;
+    }
+
+    // // LOG_INFO("Find NBV!");
+    // // find_nbv();
+
+    // Reset
+    nbv_reproj_err = std::numeric_limits<double>::max();
+    nbv_hold_tic = (struct timespec){0, 0};
+    nbv_event = false;
+  }
 
   /**
    * Camera Image Callback
@@ -393,20 +454,19 @@ struct calib_nbv_t {
     }
 
     // Detect and visualize
-    const timestamp_t ts_k = msg->header.stamp.toNSec();
-    const auto &frame_k = img_buffer[0].second;
-    const auto grid = detector->detect(ts_k, frame_k);
-    visualize(grid, frame_k);
-    if (grid.detected == false) {
+    detect();
+    visualize();
+    if (grid_buffer.size() == 0) {
       return;
     }
 
     // Initialize
     switch (state) {
-      case INITIALIZE_INTRINSICS:
-        mode_init_intrinsics();
+      case INITIALIZE:
+        mode_init();
         break;
-      case INITIALIZE_EXTRINSICS:
+      case NBV:
+        mode_nbv();
         break;
       default:
         FATAL("Implementation Error!");
@@ -414,56 +474,12 @@ struct calib_nbv_t {
     }
   }
 
-  // void create_target_grid(const mat4_t &nbv_pose) {
-  //   const int tag_rows = target.tag_rows;
-  //   const int tag_cols = target.tag_cols;
-  //   const double tag_size = target.tag_size;
-  //   const double tag_spacing = target.tag_spacing;
-  //
-  //   const auto cam_res = cam_params.resolution;
-  //   const vecx_t proj_params = cam_params.proj_params();
-  //   const vecx_t dist_params = cam_params.dist_params();
-  //   const T camera{cam_res, proj_params, dist_params};
-  //
-  //   if (target_grid != nullptr) {
-  //     delete target_grid;
-  //   }
-  //   auto grid = new aprilgrid_t{0, tag_rows, tag_cols, tag_size,
-  //   tag_spacing}; const mat4_t T_CF = nbv_pose.inverse(); for (int tag_id =
-  //   0; tag_id < (tag_rows * tag_cols); tag_id++) {
-  //     for (int corner_idx = 0; corner_idx < 4; corner_idx++) {
-  //       const vec3_t r_FFi = grid->object_point(tag_id, corner_idx);
-  //       const vec3_t r_CFi = tf_point(T_CF, r_FFi);
-  //
-  //       vec2_t z_hat{0.0, 0.0};
-  //       if (camera.project(r_CFi, z_hat) == 0) {
-  //         grid->add(tag_id, corner_idx, z_hat);
-  //       }
-  //     }
-  //   }
-  //   target_grid = grid;
-  // }
-
-  // void mode_nbv() {
-  //   if (nbv_event == false) {
-  //     return;
-  //   }
-  //
-  //   LOG_INFO("Find NBV!");
-  //   find_nbv();
-  //
-  //   // Reset
-  //   nbv_reproj_err = std::numeric_limits<double>::max();
-  //   nbv_hold_tic = (struct timespec){0, 0};
-  //   nbv_event = false;
-  // }
-
   void loop() {
     while (keep_running) {
       ros::spinOnce();
     }
   }
-};
+}; // namespace yac
 
 } // namespace yac
 

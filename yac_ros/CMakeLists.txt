@@ -25,7 +25,7 @@ FIND_PACKAGE(Eigen3 REQUIRED)
 INCLUDE_DIRECTORIES(${EIGEN3_INCLUDE_DIR})
 INCLUDE_DIRECTORIES("../deps/include")
 LINK_DIRECTORIES("../deps/lib")
-SET(YAC_DEPS yaml-cpp ceres apriltag3 apriltags ${OpenCV_LIBS})
+SET(YAC_DEPS yaml-cpp ceres apriltag3 apriltag ${OpenCV_LIBS})
 
 FIND_PACKAGE(OpenMP REQUIRED)
 IF(OPENMP_FOUND)

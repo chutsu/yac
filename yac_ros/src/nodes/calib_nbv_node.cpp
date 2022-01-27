@@ -33,10 +33,7 @@ struct calib_nbv_t {
   // Flags
   std::mutex calib_mutex;
   bool keep_running = true;
-  bool cam_init = false;
-  bool capture_event = false;
-  bool nbv_event = false;
-  bool batch_event = false;
+  bool find_nbv_event = false;
   // struct termios term_config_orig;
 
   // Calibration
@@ -206,13 +203,6 @@ struct calib_nbv_t {
           LOG_INFO("Exiting ...");
           keep_running = false;
           break;
-        case 126: // Presentation clicker up / down key
-        case 99:  // 'c' key
-          capture_event = true;
-          break;
-        case 66: // 'b' key
-          batch_event = true;
-          break;
       }
     }
   }
@@ -240,51 +230,10 @@ struct calib_nbv_t {
     }
   }
 
-  /** Visualize detected AprilGrid */
-  void visualize() {
-    // Form visualization image
-    cv::Mat viz;
-    if (state == INITIALIZE) {
-      // Visualize initialization mode
-      for (auto [cam_idx, data] : img_buffer) {
-        // Convert image gray to rgb
-        auto img_gray = data.second;
-        auto img = gray2rgb(img_gray);
-
-        // Draw "detected" if AprilGrid was observed
-        if (grid_buffer.count(cam_idx)) {
-          draw_detected(grid_buffer[cam_idx], img);
-        }
-
-        // Stack the images up
-        if (viz.empty()) {
-          viz = img;
-          continue;
-        }
-        cv::hconcat(viz, img, viz);
-      }
-
-    } else if (state == NBV) {
-      // Visualize NBV mode
-      viz = gray2rgb(img_buffer[nbv_cam_idx].second);
-      draw_camera_index(nbv_cam_idx, viz);
-      if (nbv_event == false) {
-        draw_nbv(viz);
-      } else {
-        draw_status_text("Finding NBV!", viz);
-      }
-    }
-
-    // Show
-    cv::imshow("Viz", viz);
-    int event = cv::waitKey(1);
-    event_handler(event);
-  }
-
   /** Check if reached NBV */
   bool nbv_reached() {
     // Pre-check
-    if (state != NBV || nbv_event || grid_buffer.size() == 0 ||
+    if (state != NBV || find_nbv_event || grid_buffer.size() == 0 ||
         grid_buffer.count(nbv_cam_idx) == 0) {
       return false;
     }
@@ -340,7 +289,7 @@ struct calib_nbv_t {
   int mode_init() {
     // Pre-check
     if (grid_buffer.size() == 0) {
-      return 0;
+      goto viz_init;
     }
 
     // Form calibration data
@@ -388,14 +337,10 @@ struct calib_nbv_t {
     }
 
     // Check if we have enough grids for all cameras
-    bool ready = true;
     for (const auto [cam_idx, grids] : cam_grids) {
       if (grids.size() < min_intrinsics_views) {
-        ready = false;
+        goto viz_init;
       }
-    }
-    if (ready == false) {
-      return 0;
     }
 
     // Initialize camera intrinsics + extrinsics
@@ -409,7 +354,30 @@ struct calib_nbv_t {
 
     // Transition to NBV mode
     state = NBV;
-    nbv_event = true;
+    find_nbv_event = true;
+
+  viz_init:
+    // Visualize Initialization mode
+    cv::Mat viz;
+    for (auto [cam_idx, data] : img_buffer) {
+      // Convert image gray to rgb
+      auto img_gray = data.second;
+      auto img = gray2rgb(img_gray);
+
+      // Draw "detected" if AprilGrid was observed
+      if (grid_buffer.count(cam_idx)) {
+        draw_detected(grid_buffer[cam_idx], img);
+      }
+
+      // Stack the images up
+      if (viz.empty()) {
+        viz = img;
+        continue;
+      }
+      cv::hconcat(viz, img, viz);
+    }
+    cv::imshow("Viz", viz);
+    event_handler(cv::waitKey(1));
 
     return 0;
   }
@@ -417,8 +385,8 @@ struct calib_nbv_t {
   /** NBV Mode */
   void mode_nbv() {
     // Pre-check
-    if (nbv_event == false && nbv_reached() == false) {
-      return;
+    if (find_nbv_event == false && nbv_reached() == false) {
+      goto viz_nbv;
     }
 
     // Create NBV poses based on current calibrations
@@ -430,26 +398,36 @@ struct calib_nbv_t {
     // Find NBV
     nbv_cam_idx = 0;
     nbv_idx = 0;
-    if (calib->find_nbv(nbv_poses, nbv_cam_idx, nbv_idx) != 0) {
-      LOG_ERROR("Failed to find NBV!");
-      return;
+    if (calib->find_nbv(nbv_poses, nbv_cam_idx, nbv_idx) == 0) {
+      // Form target grid
+      const mat4_t T_FC0 = nbv_poses.at(nbv_cam_idx).at(nbv_idx);
+      const mat4_t T_C0Ci = calib->cam_exts[nbv_cam_idx]->tf();
+      const mat4_t T_FCi = T_FC0 * T_C0Ci;
+      nbv_target = nbv_target_grid(calib_target,
+                                   calib->cam_geoms[nbv_cam_idx],
+                                   calib->cam_params[nbv_cam_idx],
+                                   0,
+                                   T_FCi);
+
+      // Reset NBV data
+      nbv_reproj_err = std::numeric_limits<double>::max();
+      nbv_hold_tic = (struct timespec){0, 0};
+      find_nbv_event = false;
+      printf("nbv_cam_idx: %d, nbv_idx: %d\n", nbv_cam_idx, nbv_idx);
     }
-    printf("nbv_cam_idx: %d, nbv_idx: %d\n", nbv_cam_idx, nbv_idx);
 
-    // Form target grid
-    const mat4_t T_FC0 = nbv_poses.at(nbv_cam_idx).at(nbv_idx);
-    const mat4_t T_C0Ci = calib->cam_exts[nbv_cam_idx]->tf();
-    const mat4_t T_FCi = T_FC0 * T_C0Ci;
-    nbv_target = nbv_target_grid(calib_target,
-                                 calib->cam_geoms[nbv_cam_idx],
-                                 calib->cam_params[nbv_cam_idx],
-                                 0,
-                                 T_FCi);
+  viz_nbv:
+    // Visualize NBV mode
+    cv::Mat viz = gray2rgb(img_buffer[nbv_cam_idx].second);
+    draw_camera_index(nbv_cam_idx, viz);
+    if (find_nbv_event == false) {
+      draw_nbv(viz);
+    } else {
+      draw_status_text("Finding NBV!", viz);
+    }
 
-    // Reset
-    nbv_reproj_err = std::numeric_limits<double>::max();
-    nbv_hold_tic = (struct timespec){0, 0};
-    nbv_event = false;
+    cv::imshow("Viz", viz);
+    event_handler(cv::waitKey(1));
   }
 
   /**
@@ -480,9 +458,6 @@ struct calib_nbv_t {
         FATAL("Implementation Error!");
         break;
     }
-
-    // Visualize
-    visualize();
   }
 
   void loop() {
@@ -490,7 +465,7 @@ struct calib_nbv_t {
       ros::spinOnce();
     }
   }
-};
+}; // namespace yac
 
 } // namespace yac
 

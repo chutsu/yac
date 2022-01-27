@@ -926,9 +926,11 @@ int calib_camera_t::find_nbv(const std::map<int, mat4s_t> &nbv_poses,
       // Add NBV pose
       const mat4_t T_FC0 = nbv_cam_poses.at(i);
       const mat4_t T_C0F = T_FC0.inverse();
-      poses[nbv_ts] = new pose_t{nbv_ts, T_C0F};
-      problem->AddParameterBlock(poses[nbv_ts]->data(), 7);
-      problem->SetParameterization(poses[nbv_ts]->data(), &pose_plus);
+      if (poses.count(nbv_ts) == 0) {
+        poses[nbv_ts] = new pose_t{nbv_ts, T_C0F};
+        problem->AddParameterBlock(poses[nbv_ts]->data(), 7);
+        problem->SetParameterization(poses[nbv_ts]->data(), &pose_plus);
+      }
 
       // Add NBV view
       for (const auto cam_idx : get_camera_indices()) {

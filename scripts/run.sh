@@ -33,6 +33,10 @@ set -e
 
 # YAC - CAMERA CALIBRATION
 # RUN_CMD="rosrun yac test_calib_camera"
+# RUN_CMD="rosrun yac test_calib_camera --target test_reproj_error"
+# RUN_CMD="rosrun yac test_calib_camera --target test_initialize_camera"
+RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_find_nbv"
+# RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera"
 
 # YAC - MOCAP CALIBRATION
 # RUN_CMD="rosrun yac test_calib_mocap"
@@ -46,10 +50,10 @@ set -e
 # RUN_CMD="rosrun yac test_calib_nbv"
 # RUN_CMD="rosrun yac test_calib_nbv --target test_calib_target_origin"
 # RUN_CMD="rosrun yac test_calib_nbv --target test_calib_init_poses"
-RUN_CMD="rosrun yac test_calib_nbv --target test_calib_nbv_poses"
+# RUN_CMD="rosrun yac test_calib_nbv --target test_calib_nbv_poses"
+# RUN_CMD="rosrun yac test_calib_nbv --target test_nbv_draw"
 # RUN_CMD="rosrun yac test_calib_nbv --target test_calib_orbit_trajs"
 # RUN_CMD="rosrun yac test_calib_nbv --target test_calib_pan_trajs"
-# RUN_CMD="rosrun yac test_calib_nbv --target test_nbv_draw"
 # RUN_CMD="rosrun yac test_calib_nbv --target test_nbv_test_grid"
 # RUN_CMD="rosrun yac test_calib_nbv --target test_nbv_find"
 # RUN_CMD="rosrun yac test_calib_nbv --target test_nbv_find2"
@@ -61,10 +65,13 @@ RUN_CMD="rosrun yac test_calib_nbv --target test_calib_nbv_poses"
 # RUN_CMD="rosrun yac test_marg_error --target test_marg_block"
 
 # YAC - ROS NODES
-# RUN_CMD="roslaunch yac_ros calib_capture.launch cam0_topic:=/rs/ir0/image"
-# RUN_CMD="roslaunch yac_ros calib_camera.launch"
+# RUN_CMD="roslaunch yac_ros record_camera.launch"
+# RUN_CMD="roslaunch yac_ros record_mocap.launch"
+# RUN_CMD="roslaunch yac_ros calib_camera.launch \
+#   config_file:=/home/chutsu/projects/yac/yac_ros/config/calib_euroc.yaml"
+# RUN_CMD="roslaunch yac_ros calib_intel_d435i.launch \
+#   config_file:=/home/chutsu/projects/yac/yac_ros/config/calib_intel_d435i.yaml"
 # RUN_CMD="roslaunch yac_ros calib_mocap.launch"
-# RUN_CMD="roslaunch yac_ros calib_mono_nbv.launch"
 
 tmux send-keys -t dev -R "\
 cd ~/projects/yac \
@@ -75,7 +82,8 @@ cd ~/projects/yac \
 exit
 
 # python3 scripts/plot_frames.py
-# python3 scripts/plot_poses.py
+python3 scripts/plot_poses.py
+# python3 scripts/plot_stats.py
 # python3 scripts/sandbox.py
 
 # make

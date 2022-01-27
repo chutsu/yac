@@ -60,6 +60,8 @@
 #include <opencv2/calib3d/calib3d.hpp>
 #include <opencv2/features2d/features2d.hpp>
 
+#include "progressbar.hpp"
+
 namespace yac {
 
 /******************************************************************************

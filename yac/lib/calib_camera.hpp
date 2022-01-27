@@ -184,7 +184,9 @@ struct calib_camera_t {
   calib_camera_t(const calib_target_t &calib_target_);
   ~calib_camera_t();
 
-  int nb_cams() const;
+  int nb_cameras() const;
+  int nb_views(const int cam_idx) const;
+  int nb_views() const;
   aprilgrids_t get_camera_data(const int cam_idx) const;
   std::vector<int> get_camera_indices() const;
   vecx_t get_camera_params(const int cam_idx) const;
@@ -217,7 +219,7 @@ struct calib_camera_t {
                 pose_t *rel_pose);
   void remove_view(const timestamp_t ts);
 
-  int recover_calib_covar(matx_t &calib_covar);
+  int recover_calib_covar(matx_t &calib_covar, bool verbose = false);
   int find_nbv(const std::map<int, mat4s_t> &nbv_poses,
                int &cam_idx,
                int &nbv_idx);

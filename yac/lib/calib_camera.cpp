@@ -572,7 +572,23 @@ calib_camera_t::~calib_camera_t() {
   }
 }
 
-int calib_camera_t::nb_cams() const { return cam_params.size(); }
+int calib_camera_t::nb_cameras() const { return cam_params.size(); }
+
+int calib_camera_t::nb_views(const int cam_idx) const {
+  if (calib_views.count(cam_idx) == 0) {
+    return 0;
+  }
+  return calib_views.at(cam_idx).size();
+}
+
+int calib_camera_t::nb_views() const {
+  int retval = 0;
+  for (const auto cam_idx : get_camera_indices()) {
+    retval = std::max(nb_views(cam_idx), retval);
+  }
+
+  return retval;
+}
 
 aprilgrids_t calib_camera_t::get_camera_data(const int cam_idx) const {
   aprilgrids_t grids;
@@ -796,7 +812,7 @@ void calib_camera_t::remove_view(const timestamp_t ts) {
   delete pose_ptr;
 }
 
-int calib_camera_t::recover_calib_covar(matx_t &calib_covar) {
+int calib_camera_t::recover_calib_covar(matx_t &calib_covar, bool verbose) {
   // Setup covariance blocks to estimate
   std::vector<std::pair<const double *, const double *>> covar_blocks;
   // -- Add camera parameter blocks
@@ -817,8 +833,10 @@ int calib_camera_t::recover_calib_covar(matx_t &calib_covar) {
   ::ceres::Covariance::Options options;
   ::ceres::Covariance covar_est(options);
   if (covar_est.Compute(covar_blocks, problem) == false) {
-    LOG_ERROR("Failed to estimate covariance!");
-    LOG_ERROR("Maybe Hessian is not full rank?");
+    if (verbose) {
+      LOG_ERROR("Failed to estimate covariance!");
+      LOG_ERROR("Maybe Hessian is not full rank?");
+    }
     return -1;
   }
 
@@ -830,7 +848,9 @@ int calib_camera_t::recover_calib_covar(matx_t &calib_covar) {
     auto param_ptr = param->param.data();
     auto covar_ptr = covar_cam_params[cam_idx].data();
     if (!covar_est.GetCovarianceBlock(param_ptr, param_ptr, covar_ptr)) {
-      LOG_ERROR("Failed to estimate cam%d parameter covariance!", cam_idx);
+      if (verbose) {
+        LOG_ERROR("Failed to estimate cam%d parameter covariance!", cam_idx);
+      }
       return -1;
     }
   }
@@ -843,13 +863,15 @@ int calib_camera_t::recover_calib_covar(matx_t &calib_covar) {
     if (!covar_est.GetCovarianceBlockInTangentSpace(param_ptr,
                                                     param_ptr,
                                                     covar_ptr)) {
-      LOG_ERROR("Failed to estimate cam%d extrinsics covariance!", cam_idx);
+      if (verbose) {
+        LOG_ERROR("Failed to estimate cam%d extrinsics covariance!", cam_idx);
+      }
       return -1;
     }
   }
 
   // Form covariance matrix block
-  const int calib_covar_size = (nb_cams() * 8) + ((nb_cams() - 1) * 6);
+  const int calib_covar_size = (nb_cameras() * 8) + ((nb_cameras() - 1) * 6);
   calib_covar = zeros(calib_covar_size, calib_covar_size);
   for (auto &[cam_idx, covar] : covar_cam_params) {
     const auto idx = cam_idx * 8;
@@ -859,13 +881,15 @@ int calib_camera_t::recover_calib_covar(matx_t &calib_covar) {
     if (cam_idx == 0) {
       continue;
     }
-    const auto idx = nb_cams() * 8 + ((cam_idx - 1) * 6);
+    const auto idx = nb_cameras() * 8 + ((cam_idx - 1) * 6);
     calib_covar.block(idx, idx, 6, 6) = covar;
   }
 
   // Check if calib_covar is full-rank?
   if (rank(calib_covar) != calib_covar.rows()) {
-    LOG_ERROR("calib_covar is not full rank!");
+    if (verbose) {
+      LOG_ERROR("calib_covar is not full rank!");
+    }
     return -1;
   }
 
@@ -879,6 +903,9 @@ int calib_camera_t::find_nbv(const std::map<int, mat4s_t> &nbv_poses,
   if (nbv_poses.size() == 0) {
     FATAL("NBV poses empty!?");
   }
+  if (nb_views() == 0) {
+    FATAL("Calibration problem is empty!?");
+  }
 
   // Find NBV
   const timestamp_t last_ts = *timestamps.rbegin(); // std::set is orderd
@@ -887,19 +914,31 @@ int calib_camera_t::find_nbv(const std::map<int, mat4s_t> &nbv_poses,
   int best_idx = 0;
   real_t best_entropy = 0;
 
+  int total_nbv_poses = 0;
+  for (const auto &[nbv_cam_idx, nbv_cam_poses] : nbv_poses) {
+    total_nbv_poses += nbv_cam_poses.size();
+  }
+  progressbar bar(total_nbv_poses);
+  printf("Finding NBV: ");
+
   for (const auto &[nbv_cam_idx, nbv_cam_poses] : nbv_poses) {
     for (size_t i = 0; i < nbv_cam_poses.size(); i++) {
       // Simulate current NBV
       const mat4_t T_FC0 = nbv_cam_poses.at(i);
       const mat4_t T_C0F = T_FC0.inverse();
-      pose_t rel_pose{nbv_ts, T_C0F};
 
+      // Add pose
+      poses[nbv_ts] = new pose_t{nbv_ts, T_C0F};
+      problem->AddParameterBlock(poses[nbv_ts]->data(), 7);
+      problem->SetParameterization(poses[nbv_ts]->data(), &pose_plus);
+
+      // Add NBV view
       for (const auto cam_idx : get_camera_indices()) {
         const auto &grid = nbv_target_grid(calib_target,
                                            cam_geoms[cam_idx],
                                            cam_params[cam_idx],
                                            nbv_ts,
-                                           rel_pose.tf());
+                                           T_C0F);
         add_view(grid,
                  problem,
                  loss,
@@ -907,14 +946,16 @@ int calib_camera_t::find_nbv(const std::map<int, mat4s_t> &nbv_poses,
                  cam_geoms[cam_idx],
                  cam_params[cam_idx],
                  cam_exts[cam_idx],
-                 &rel_pose);
+                 poses[nbv_ts]);
       }
 
       // Evaluate NBV
       // -- Estimate calibration covariance
+      bar.update();
       matx_t calib_covar;
-      if (recover_calib_covar(calib_covar) == 0) {
+      if (recover_calib_covar(calib_covar) != 0) {
         remove_view(nbv_ts);
+        continue;
       }
       remove_view(nbv_ts);
       // -- Calculate entropy
@@ -926,6 +967,7 @@ int calib_camera_t::find_nbv(const std::map<int, mat4s_t> &nbv_poses,
       }
     }
   }
+  printf("\n");
 
   // Return
   cam_idx = best_cam;
@@ -975,8 +1017,6 @@ int calib_camera_t::find_nbv(std::set<timestamp_t> &nbv_timestamps,
 
     // Check if new view has been added
     if (new_view_added == false) {
-      // AprilGrid was not detected by any camera in this timestamp
-      // Removing from future considerations
       continue;
     }
 
@@ -1017,7 +1057,7 @@ int calib_camera_t::find_nbv(std::set<timestamp_t> &nbv_timestamps,
 }
 
 void calib_camera_t::_initialize_intrinsics() {
-  for (int cam_idx = 0; cam_idx < nb_cams(); cam_idx++) {
+  for (int cam_idx = 0; cam_idx < nb_cameras(); cam_idx++) {
     LOG_INFO("Initializing cam%d intrinsics ...", cam_idx);
     const aprilgrids_t grids = get_camera_data(cam_idx);
     initialize_camera(calib_target,
@@ -1029,13 +1069,13 @@ void calib_camera_t::_initialize_intrinsics() {
 
 void calib_camera_t::_initialize_extrinsics() {
   add_camera_extrinsics(0);
-  if (nb_cams() == 1) {
+  if (nb_cameras() == 1) {
     return;
   }
 
   LOG_INFO("Initializing extrinsics ...");
   camchain_t camchain{cam_data, cam_geoms, cam_params};
-  for (int j = 1; j < nb_cams(); j++) {
+  for (int j = 1; j < nb_cameras(); j++) {
     mat4_t T_C0Cj;
     if (camchain.find(0, j, T_C0Cj) != 0) {
       FATAL("Failed to initialze T_C0C%d", j);
@@ -1396,7 +1436,7 @@ void calib_camera_t::show_results() {
   printf("\n");
 
   // Cameras
-  for (int cam_idx = 0; cam_idx < nb_cams(); cam_idx++) {
+  for (int cam_idx = 0; cam_idx < nb_cameras(); cam_idx++) {
     const int *cam_res = cam_params[cam_idx]->resolution;
     const char *proj_model = cam_params[cam_idx]->proj_model.c_str();
     const char *dist_model = cam_params[cam_idx]->dist_model.c_str();
@@ -1411,7 +1451,7 @@ void calib_camera_t::show_results() {
   }
 
   // Camera Extrinsics
-  for (int cam_idx = 1; cam_idx < nb_cams(); cam_idx++) {
+  for (int cam_idx = 1; cam_idx < nb_cameras(); cam_idx++) {
     const auto key = "T_C0C" + std::to_string(cam_idx);
     const mat4_t T_C0Ci = get_camera_extrinsics(cam_idx);
     print_matrix(key, T_C0Ci, "  ");
@@ -1481,8 +1521,8 @@ int calib_camera_t::save_results(const std::string &save_path) {
   // Camera-Camera extrinsics
   const mat4_t T_BC0 = get_camera_extrinsics(0);
   const mat4_t T_C0B = T_BC0.inverse();
-  if (nb_cams() >= 2) {
-    for (int i = 1; i < nb_cams(); i++) {
+  if (nb_cameras() >= 2) {
+    for (int i = 1; i < nb_cameras(); i++) {
       const mat4_t T_BCi = get_camera_extrinsics(i);
       const mat4_t T_C0Ci = T_C0B * T_BCi;
       const mat4_t T_CiC0 = T_C0Ci.inverse();

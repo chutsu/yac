@@ -40,24 +40,25 @@ struct calib_nbv_t {
   // struct termios term_config_orig;
 
   // Calibration
-  std::unique_ptr<calib_target_t> calib_target;
+  calib_target_t calib_target;
   std::unique_ptr<aprilgrid_detector_t> detector;
   std::unique_ptr<calib_camera_t> calib;
-
-  // Settings
-  int min_intrinsics_views = 5;
-  real_t min_intrinsics_view_diff = 20.0;
-  mat4_t nbv_pose = I(4);
-  aprilgrid_t *target_grid = nullptr;
-  double nbv_reproj_error_threshold = 10.0;
-  double nbv_hold_threshold = 1.0;
-  double nbv_reproj_err = std::numeric_limits<double>::max();
-  struct timespec nbv_hold_tic = (struct timespec){0, 0};
 
   // Data
   std::map<int, std::pair<timestamp_t, cv::Mat>> img_buffer;
   std::map<int, aprilgrid_t> grid_buffer;
   std::map<int, aprilgrids_t> cam_grids;
+
+  // NBV Data
+  aprilgrid_t nbv_target;
+  double nbv_reproj_err = std::numeric_limits<double>::max();
+  struct timespec nbv_hold_tic = (struct timespec){0, 0};
+
+  // NBV Settings
+  int min_intrinsics_views = 5;
+  real_t min_intrinsics_view_diff = 20.0;
+  double nbv_reproj_error_threshold = 10.0;
+  double nbv_hold_threshold = 1.0;
 
   /* Constructor */
   calib_nbv_t() = delete;
@@ -78,8 +79,7 @@ struct calib_nbv_t {
   /** Setup Calibration Target */
   void setup_calib_target(const std::string &config_file) {
     config_t config{config_file};
-    calib_target = std::make_unique<calib_target_t>();
-    if (calib_target->load(config_file, "calib_target") != 0) {
+    if (calib_target.load(config_file, "calib_target") != 0) {
       FATAL("Failed to parse calib_target in [%s]!", config_file.c_str());
     }
   }
@@ -116,7 +116,7 @@ struct calib_nbv_t {
 
     // Setup calibrator
     LOG_INFO("Setting up camera calibrator ...");
-    calib = std::make_unique<calib_camera_t>(*calib_target.get());
+    calib = std::make_unique<calib_camera_t>(calib_target);
     for (auto &[cam_idx, _] : cam_res) {
       LOG_INFO("Adding [cam%d] params", cam_idx);
       calib->add_camera(cam_idx,
@@ -131,11 +131,10 @@ struct calib_nbv_t {
 
   /** Setup AprilGrid detector */
   void setup_aprilgrid_detector() {
-    detector =
-        std::make_unique<aprilgrid_detector_t>(calib_target->tag_rows,
-                                               calib_target->tag_cols,
-                                               calib_target->tag_size,
-                                               calib_target->tag_spacing);
+    detector = std::make_unique<aprilgrid_detector_t>(calib_target.tag_rows,
+                                                      calib_target.tag_cols,
+                                                      calib_target.tag_size,
+                                                      calib_target.tag_spacing);
   }
 
   /** Setup ROS Topics */
@@ -218,6 +217,51 @@ struct calib_nbv_t {
     }
   }
 
+  /** Draw NBV */
+  void draw_nbv(const int cam_idx, cv::Mat &img) {
+    // Draw NBV
+    // nbv_draw(target, cam_params, T_FC0, image);
+
+    // Show NBV Reproj Error
+    if (cam_idx == 0) {
+      // Create NBV Reproj Error str (1 decimal places)
+      std::ostringstream out;
+      out.precision(1);
+      out << std::fixed << nbv_reproj_err;
+      out.str();
+
+      const std::string text = "NBV Reproj Error: " + out.str() + " [px]";
+      cv::Scalar text_color;
+      if (nbv_reproj_err > 20) {
+        text_color = cv::Scalar(0, 0, 255);
+      } else {
+        text_color = cv::Scalar(0, 255, 0);
+      }
+
+      const cv::Point text_pos{10, 50};
+      const int text_font = cv::FONT_HERSHEY_PLAIN;
+      const float text_scale = 1.0;
+      const int text_thickness = 1;
+      cv::putText(img,
+                  text,
+                  text_pos,
+                  text_font,
+                  text_scale,
+                  text_color,
+                  text_thickness,
+                  CV_AA);
+    }
+
+    // Show NBV status
+    if (nbv_reproj_err < (nbv_reproj_error_threshold * 1.5)) {
+      std::string text = "Nearly There!";
+      if (nbv_reproj_err <= nbv_reproj_error_threshold) {
+        text = "HOLD IT!";
+      }
+      draw_status_text(text, img);
+    }
+  }
+
   /**
    * Visualize detected AprilGrid
    */
@@ -235,13 +279,13 @@ struct calib_nbv_t {
       }
 
       // Draw NBV
-      // if (state == NBV) {
-      //   if (nbv_event == false) {
-      //     draw_nbv(nbv_pose, image_rgb);
-      //   } else {
-      //     draw_status_text("Finding NBV!", image_rgb);
-      //   }
-      // }
+      if (state == NBV) {
+        if (nbv_event == false) {
+          draw_nbv(cam_idx, img);
+        } else {
+          draw_status_text("Finding NBV!", img);
+        }
+      }
 
       // Stack the images up
       if (viz.empty()) {
@@ -262,11 +306,6 @@ struct calib_nbv_t {
    * @param[in] grid AprilGrid
    */
   bool nbv_reached(const aprilgrid_t &grid) {
-    // Check if target grid is created
-    if (target_grid == nullptr) {
-      return false;
-    }
-
     // Get grid measurements
     std::vector<int> tag_ids;
     std::vector<int> corner_indicies;
@@ -279,12 +318,12 @@ struct calib_nbv_t {
     for (size_t i = 0; i < tag_ids.size(); i++) {
       const int tag_id = tag_ids[i];
       const int corner_idx = corner_indicies[i];
-      if (target_grid->has(tag_id, corner_idx) == false) {
+      if (nbv_target.has(tag_id, corner_idx) == false) {
         continue;
       }
 
       const vec2_t z_measured = keypoints[i];
-      const vec2_t z_desired = target_grid->keypoint(tag_id, corner_idx);
+      const vec2_t z_desired = nbv_target.keypoint(tag_id, corner_idx);
       reproj_errors.push_back((z_desired - z_measured).norm());
     }
 
@@ -307,36 +346,6 @@ struct calib_nbv_t {
 
     return true;
   }
-
-  // void create_target_grid(const mat4_t &nbv_pose) {
-  //   const int tag_rows = target.tag_rows;
-  //   const int tag_cols = target.tag_cols;
-  //   const double tag_size = target.tag_size;
-  //   const double tag_spacing = target.tag_spacing;
-  //
-  //   const auto cam_res = cam_params.resolution;
-  //   const vecx_t proj_params = cam_params.proj_params();
-  //   const vecx_t dist_params = cam_params.dist_params();
-  //   const T camera{cam_res, proj_params, dist_params};
-  //
-  //   if (target_grid != nullptr) {
-  //     delete target_grid;
-  //   }
-  //   auto grid = new aprilgrid_t{0, tag_rows, tag_cols, tag_size,
-  //   tag_spacing}; const mat4_t T_CF = nbv_pose.inverse(); for (int tag_id =
-  //   0; tag_id < (tag_rows * tag_cols); tag_id++) {
-  //     for (int corner_idx = 0; corner_idx < 4; corner_idx++) {
-  //       const vec3_t r_FFi = grid->object_point(tag_id, corner_idx);
-  //       const vec3_t r_CFi = tf_point(T_CF, r_FFi);
-  //
-  //       vec2_t z_hat{0.0, 0.0};
-  //       if (camera.project(r_CFi, z_hat) == 0) {
-  //         grid->add(tag_id, corner_idx, z_hat);
-  //       }
-  //     }
-  //   }
-  //   target_grid = grid;
-  // }
 
   /**
    * Initialize Intrinsics + Extrinsics Mode
@@ -398,7 +407,7 @@ struct calib_nbv_t {
     }
 
     // Initialize camera intrinsics + extrinsics
-    calib_camera_t cam_calib{*calib_target.get()};
+    calib_camera_t cam_calib{calib_target};
     cam_calib.verbose = false;
     for (const auto [cam_idx, grids] : cam_grids) {
       const auto cam_res = calib->get_camera_resolution(cam_idx);
@@ -431,8 +440,25 @@ struct calib_nbv_t {
       return;
     }
 
-    // // LOG_INFO("Find NBV!");
-    // // find_nbv();
+    // LOG_INFO("Find NBV!");
+    const auto nbv_poses = calib_nbv_poses(calib_target,
+                                           calib->cam_geoms,
+                                           calib->cam_params,
+                                           calib->cam_exts);
+
+    int cam_idx;
+    int nbv_idx;
+    if (calib->find_nbv(nbv_poses, cam_idx, nbv_idx) != 0) {
+      LOG_ERROR("Failed to find NBV!");
+      return;
+    }
+
+    const mat4_t nbv_pose = nbv_poses.at(cam_idx).at(nbv_idx);
+    nbv_target = nbv_target_grid(calib_target,
+                                 calib->cam_geoms[cam_idx],
+                                 calib->cam_params[cam_idx],
+                                 0,
+                                 nbv_pose);
 
     // Reset
     nbv_reproj_err = std::numeric_limits<double>::max();

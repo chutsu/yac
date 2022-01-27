@@ -121,50 +121,6 @@ void draw_detected(const aprilgrid_t &grid, cv::Mat &image) {
   }
 }
 
-void draw_nbv(const mat4_t &T_FC0, cv::Mat &image) {
-  // // Draw NBV
-  // nbv_draw<CAMERA>(target, cam_params, T_FC0, image);
-  //
-  // // Show NBV Reproj Error
-  // {
-  //   // Create NBV Reproj Error str (1 decimal places)
-  //   std::ostringstream out;
-  //   out.precision(1);
-  //   out << std::fixed << nbv_reproj_err;
-  //   out.str();
-  //
-  //   const std::string text = "NBV Reproj Error: " + out.str() + " [px]";
-  //   cv::Scalar text_color;
-  //   if (nbv_reproj_err > 20) {
-  //     text_color = cv::Scalar(0, 0, 255);
-  //   } else {
-  //     text_color = cv::Scalar(0, 255, 0);
-  //   }
-  //
-  //   const cv::Point text_pos{10, 50};
-  //   const int text_font = cv::FONT_HERSHEY_PLAIN;
-  //   const float text_scale = 1.0;
-  //   const int text_thickness = 1;
-  //   cv::putText(image,
-  //               text,
-  //               text_pos,
-  //               text_font,
-  //               text_scale,
-  //               text_color,
-  //               text_thickness,
-  //               CV_AA);
-  // }
-
-  // // Show NBV status
-  // if (nbv_reproj_err < (nbv_reproj_error_threshold * 1.5)) {
-  //   std::string text = "Nearly There!";
-  //   if (nbv_reproj_err <= nbv_reproj_error_threshold) {
-  //     text = "HOLD IT!";
-  //   }
-  //   draw_status_text(text, image);
-  // }
-}
-
 bool tf_ok(const mat4_t &pose) {
   const auto r = tf_trans(pose);
   if (r.norm() > 100.0) {

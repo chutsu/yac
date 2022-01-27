@@ -146,8 +146,8 @@ void initialize_camera(const calib_target_t &calib_target,
 struct calib_camera_t {
   // Settings
   bool verbose = false;
-  bool enable_nbv = false;
-  bool enable_nbv_filter = false;
+  bool enable_nbv = true;
+  bool enable_nbv_filter = true;
   bool enable_outlier_rejection = true;
   int min_nbv_views = 5;
   real_t outlier_threshold = 3.0;
@@ -185,13 +185,15 @@ struct calib_camera_t {
   ~calib_camera_t();
 
   int nb_cams() const;
-  aprilgrids_t get_cam_data(const int cam_idx) const;
+  aprilgrids_t get_camera_data(const int cam_idx) const;
   std::vector<int> get_camera_indices() const;
   vecx_t get_camera_params(const int cam_idx) const;
   veci2_t get_camera_resolution(const int cam_idx) const;
   std::string get_camera_projection_model(const int cam_idx) const;
   std::string get_camera_distortion_model(const int cam_idx) const;
   mat4_t get_camera_extrinsics(const int cam_idx) const;
+  std::vector<real_t> get_all_reproj_errors();
+  std::map<int, std::vector<real_t>> get_reproj_errors();
 
   void add_camera_data(const int cam_idx, const aprilgrids_t &grids);
   void add_camera(const int cam_idx,
@@ -215,19 +217,21 @@ struct calib_camera_t {
                 pose_t *rel_pose);
   void remove_view(const timestamp_t ts);
 
-  void _initialize_intrinsics();
-  void _initialize_extrinsics();
-  void _setup_problem();
-  int _filter_views();
-  int _filter_view(const timestamp_t ts);
-
-  std::vector<real_t> get_all_reproj_errors();
-  std::map<int, std::vector<real_t>> get_reproj_errors();
-
   int recover_calib_covar(matx_t &calib_covar);
   int find_nbv(const std::map<int, mat4s_t> &nbv_poses,
                int &cam_idx,
                int &nbv_idx);
+  int find_nbv(std::set<timestamp_t> &nbv_timestamps,
+               real_t &best_entropy,
+               timestamp_t &best_nbv);
+
+  void _initialize_intrinsics();
+  void _initialize_extrinsics();
+  int _filter_views();
+  int _filter_view(const timestamp_t ts);
+  void _solve_batch();
+  void _solve_nbv();
+  void _solve_nbv2();
 
   void solve();
   void show_results();

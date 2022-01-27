@@ -171,7 +171,7 @@ mat4s_t calib_init_poses(const calib_target_t &target,
   // For each position create a camera pose that "looks at" the fiducial
   // center in the fiducial frame, T_FC.
   for (const auto &r_FC : cam_pos) {
-    mat4_t T_FC = lookat(r_FC, target_center);
+    const mat4_t T_FC = lookat(r_FC, target_center);
     poses.push_back(T_FC);
   }
 
@@ -192,7 +192,7 @@ mat4s_t calib_nbv_poses(const calib_target_t &target,
   const vec3_t target_center{target_width / 2.0, target_height / 2.0, 0.0};
 
   // Pose settings
-  const double xy_scale = 2.0;
+  const double xy_scale = 1.5;
   const double d_start = r_FO(2);
   const double d_end = d_start * 1.5;
   const double h_width = target_width / 2.0;
@@ -271,7 +271,7 @@ aprilgrid_t nbv_target_grid(const calib_target_t &target,
                             const camera_geometry_t *cam_geom,
                             const camera_params_t *cam_params,
                             const timestamp_t nbv_ts,
-                            const mat4_t &nbv_pose) {
+                            const mat4_t &T_FCi) {
   const int tag_rows = target.tag_rows;
   const int tag_cols = target.tag_cols;
   const double tag_size = target.tag_size;
@@ -280,7 +280,7 @@ aprilgrid_t nbv_target_grid(const calib_target_t &target,
   const auto cam_res = cam_params->resolution;
   const vecx_t &params = cam_params->param;
   aprilgrid_t grid{nbv_ts, tag_rows, tag_cols, tag_size, tag_spacing};
-  const mat4_t T_CiF = nbv_pose.inverse();
+  const mat4_t T_CiF = T_FCi.inverse();
   const int nb_tags = (grid.tag_rows * grid.tag_cols);
 
   for (int tag_id = 0; tag_id < nb_tags; tag_id++) {
@@ -289,7 +289,7 @@ aprilgrid_t nbv_target_grid(const calib_target_t &target,
       const vec3_t r_CiFi = tf_point(T_CiF, r_FFi);
 
       vec2_t z_hat{0.0, 0.0};
-      if (cam_geom->project(cam_res, params, r_CiFi, z_hat) != 0) {
+      if (cam_geom->project(cam_res, params, r_CiFi, z_hat) == 0) {
         grid.add(tag_id, corner_idx, z_hat);
       }
     }
@@ -345,12 +345,6 @@ vec2s_t nbv_draw(const calib_target_t &target,
   cv::line(image, pt1, pt2, color, thickness);
   cv::line(image, pt2, pt3, color, thickness);
   cv::line(image, pt3, pt0, color, thickness);
-
-  // const auto corner_color = cv::Scalar(0, 0, 255);
-  // cv::circle(image, pt0, 1.0, corner_color, 5, 8);
-  // cv::circle(image, pt1, 1.0, corner_color, 5, 8);
-  // cv::circle(image, pt2, 1.0, corner_color, 5, 8);
-  // cv::circle(image, pt3, 1.0, corner_color, 5, 8);
 
   const auto red = cv::Scalar(0, 0, 255);
   const auto green = cv::Scalar(0, 255, 0);

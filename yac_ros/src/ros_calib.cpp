@@ -48,6 +48,48 @@ void draw_hcentered_text(const std::string &text,
               CV_AA);
 }
 
+void draw_camera_index(const int cam_idx, cv::Mat &image) {
+  // Text properties
+  const std::string text = "cam" + std::to_string(cam_idx);
+  const int font = cv::FONT_HERSHEY_PLAIN;
+  const float scale = 1.0;
+  const int thickness = 1;
+  const cv::Scalar color{0, 255, 0};
+  int baseline = 0;
+  auto size = cv::getTextSize(text, font, scale, thickness, &baseline);
+  const cv::Point pos{10, 30}; // Bottom left of text string
+  cv::putText(image, text, pos, font, scale, color, thickness, CV_AA);
+}
+
+void draw_nbv_reproj_error(const real_t nbv_reproj_error, cv::Mat &image) {
+  // -- Create NBV Reproj Error str (1 decimal places)
+  std::ostringstream out;
+  out.precision(1);
+  out << std::fixed << nbv_reproj_error;
+  out.str();
+  // -- Change text color based on reprojection error
+  const std::string text = "NBV Reproj Error: " + out.str() + " [px]";
+  cv::Scalar text_color;
+  if (nbv_reproj_error > 20) {
+    text_color = cv::Scalar(0, 0, 255);
+  } else {
+    text_color = cv::Scalar(0, 255, 0);
+  }
+  // -- Draw text
+  const cv::Point text_pos{10, 50};
+  const int text_font = cv::FONT_HERSHEY_PLAIN;
+  const float text_scale = 1.0;
+  const int text_thickness = 1;
+  cv::putText(image,
+              text,
+              text_pos,
+              text_font,
+              text_scale,
+              text_color,
+              text_thickness,
+              CV_AA);
+}
+
 void draw_status_text(const std::string &text, cv::Mat &image) {
   // Create overlay image
   const int img_w = image.cols;

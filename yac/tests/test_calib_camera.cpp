@@ -241,7 +241,7 @@ int test_calib_camera_find_nbv() {
     if (grid.detected) {
       cam0_grids.push_back(grid);
     }
-    if (cam0_grids.size() >= 20) {
+    if (cam0_grids.size() >= 5) {
       break;
     }
   }
@@ -249,7 +249,7 @@ int test_calib_camera_find_nbv() {
     if (grid.detected) {
       cam1_grids.push_back(grid);
     }
-    if (cam1_grids.size() >= 20) {
+    if (cam1_grids.size() >= 5) {
       break;
     }
   }
@@ -273,6 +273,8 @@ int test_calib_camera_find_nbv() {
   int cam_idx = 0;
   int nbv_idx = 0;
   calib.find_nbv(nbv_poses, cam_idx, nbv_idx);
+  printf("cam_idx: %d\n", cam_idx);
+  printf("nbv_idx: %d\n", nbv_idx);
 
   return 0;
 }

@@ -19,6 +19,8 @@ void draw_hcentered_text(const std::string &text,
                          const int text_thickness,
                          const int text_ypos,
                          cv::Mat &image);
+void draw_camera_index(const int cam_idx, cv::Mat &image);
+void draw_nbv_reproj_error(const real_t nbv_reproj_error, cv::Mat &image);
 void draw_status_text(const std::string &text, cv::Mat &image);
 void draw_detected(const aprilgrid_t &grid, cv::Mat &image);
 void draw_nbv(const mat4_t &T_FC0, cv::Mat &image);

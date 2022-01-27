@@ -923,22 +923,22 @@ int calib_camera_t::find_nbv(const std::map<int, mat4s_t> &nbv_poses,
 
   for (const auto &[nbv_cam_idx, nbv_cam_poses] : nbv_poses) {
     for (size_t i = 0; i < nbv_cam_poses.size(); i++) {
-      // Simulate current NBV
+      // Add NBV pose
       const mat4_t T_FC0 = nbv_cam_poses.at(i);
       const mat4_t T_C0F = T_FC0.inverse();
-
-      // Add pose
       poses[nbv_ts] = new pose_t{nbv_ts, T_C0F};
       problem->AddParameterBlock(poses[nbv_ts]->data(), 7);
       problem->SetParameterization(poses[nbv_ts]->data(), &pose_plus);
 
       // Add NBV view
       for (const auto cam_idx : get_camera_indices()) {
+        const mat4_t T_C0Ci = cam_exts[cam_idx]->tf();
         const auto &grid = nbv_target_grid(calib_target,
                                            cam_geoms[cam_idx],
                                            cam_params[cam_idx],
                                            nbv_ts,
-                                           T_C0F);
+                                           T_FC0 * T_C0Ci);
+
         add_view(grid,
                  problem,
                  loss,
@@ -953,7 +953,7 @@ int calib_camera_t::find_nbv(const std::map<int, mat4s_t> &nbv_poses,
       // -- Estimate calibration covariance
       bar.update();
       matx_t calib_covar;
-      if (recover_calib_covar(calib_covar) != 0) {
+      if (recover_calib_covar(calib_covar, true) != 0) {
         remove_view(nbv_ts);
         continue;
       }

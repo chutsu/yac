@@ -50,13 +50,16 @@ struct calib_nbv_t {
   std::map<int, aprilgrids_t> cam_grids;
 
   // NBV Data
+  std::map<int, mat4s_t> nbv_poses;
+  int nbv_cam_idx = 0;
+  int nbv_idx = 0;
   aprilgrid_t nbv_target;
   double nbv_reproj_err = std::numeric_limits<double>::max();
   struct timespec nbv_hold_tic = (struct timespec){0, 0};
 
   // NBV Settings
-  int min_intrinsics_views = 5;
-  real_t min_intrinsics_view_diff = 20.0;
+  int min_intrinsics_views = 10;
+  real_t min_intrinsics_view_diff = 10.0;
   double nbv_reproj_error_threshold = 10.0;
   double nbv_hold_threshold = 1.0;
 
@@ -155,9 +158,6 @@ struct calib_nbv_t {
     }
   }
 
-  /** Return Number of Cameras */
-  int nb_cams() { return calib->nb_cams(); }
-
   /**
    * Update image buffer
    * @param[in] cam_idx Camera index
@@ -218,39 +218,17 @@ struct calib_nbv_t {
   }
 
   /** Draw NBV */
-  void draw_nbv(const int cam_idx, cv::Mat &img) {
+  void draw_nbv(cv::Mat &img) {
     // Draw NBV
-    // nbv_draw(target, cam_params, T_FC0, image);
+    const auto cam_geom = calib->cam_geoms[nbv_cam_idx];
+    const auto cam_params = calib->cam_params[nbv_cam_idx];
+    const mat4_t T_FC0 = nbv_poses.at(nbv_cam_idx).at(nbv_idx);
+    const mat4_t T_C0Ci = calib->cam_exts[nbv_cam_idx]->tf();
+    const mat4_t T_FCi = T_FC0 * T_C0Ci;
+    nbv_draw(calib_target, cam_geom, cam_params, T_FCi, img);
 
     // Show NBV Reproj Error
-    if (cam_idx == 0) {
-      // Create NBV Reproj Error str (1 decimal places)
-      std::ostringstream out;
-      out.precision(1);
-      out << std::fixed << nbv_reproj_err;
-      out.str();
-
-      const std::string text = "NBV Reproj Error: " + out.str() + " [px]";
-      cv::Scalar text_color;
-      if (nbv_reproj_err > 20) {
-        text_color = cv::Scalar(0, 0, 255);
-      } else {
-        text_color = cv::Scalar(0, 255, 0);
-      }
-
-      const cv::Point text_pos{10, 50};
-      const int text_font = cv::FONT_HERSHEY_PLAIN;
-      const float text_scale = 1.0;
-      const int text_thickness = 1;
-      cv::putText(img,
-                  text,
-                  text_pos,
-                  text_font,
-                  text_scale,
-                  text_color,
-                  text_thickness,
-                  CV_AA);
-    }
+    draw_nbv_reproj_error(nbv_reproj_err, img);
 
     // Show NBV status
     if (nbv_reproj_err < (nbv_reproj_error_threshold * 1.5)) {
@@ -262,37 +240,39 @@ struct calib_nbv_t {
     }
   }
 
-  /**
-   * Visualize detected AprilGrid
-   */
+  /** Visualize detected AprilGrid */
   void visualize() {
     // Form visualization image
     cv::Mat viz;
-    for (auto [cam_idx, data] : img_buffer) {
-      // Convert image gray to rgb
-      auto img_gray = data.second;
-      auto img = gray2rgb(img_gray);
+    if (state == INITIALIZE) {
+      // Visualize initialization mode
+      for (auto [cam_idx, data] : img_buffer) {
+        // Convert image gray to rgb
+        auto img_gray = data.second;
+        auto img = gray2rgb(img_gray);
 
-      // Draw "detected" if AprilGrid was observed
-      if (grid_buffer.count(cam_idx)) {
-        draw_detected(grid_buffer[cam_idx], img);
-      }
-
-      // Draw NBV
-      if (state == NBV) {
-        if (nbv_event == false) {
-          draw_nbv(cam_idx, img);
-        } else {
-          draw_status_text("Finding NBV!", img);
+        // Draw "detected" if AprilGrid was observed
+        if (grid_buffer.count(cam_idx)) {
+          draw_detected(grid_buffer[cam_idx], img);
         }
+
+        // Stack the images up
+        if (viz.empty()) {
+          viz = img;
+          continue;
+        }
+        cv::hconcat(viz, img, viz);
       }
 
-      // Stack the images up
-      if (viz.empty()) {
-        viz = img;
-        continue;
+    } else if (state == NBV) {
+      // Visualize NBV mode
+      viz = gray2rgb(img_buffer[nbv_cam_idx].second);
+      draw_camera_index(nbv_cam_idx, viz);
+      if (nbv_event == false) {
+        draw_nbv(viz);
+      } else {
+        draw_status_text("Finding NBV!", viz);
       }
-      cv::hconcat(viz, img, viz);
     }
 
     // Show
@@ -301,12 +281,16 @@ struct calib_nbv_t {
     event_handler(event);
   }
 
-  /**
-   * Check if reached NBV
-   * @param[in] grid AprilGrid
-   */
-  bool nbv_reached(const aprilgrid_t &grid) {
-    // Get grid measurements
+  /** Check if reached NBV */
+  bool nbv_reached() {
+    // Pre-check
+    if (state != NBV || nbv_event || grid_buffer.size() == 0 ||
+        grid_buffer.count(nbv_cam_idx) == 0) {
+      return false;
+    }
+
+    // Get current detected grid measurements
+    const aprilgrid_t &grid = grid_buffer[nbv_cam_idx];
     std::vector<int> tag_ids;
     std::vector<int> corner_indicies;
     vec2s_t keypoints;
@@ -344,13 +328,21 @@ struct calib_nbv_t {
       return false;
     }
 
+    // TODO: Add real NBV measurements to calibrator
+    // for (const auto &[cam_idx, grid] : grid_buffer) {
+    //
+    // }
+
     return true;
   }
 
-  /**
-   * Initialize Intrinsics + Extrinsics Mode
-   */
+  /** Initialize Intrinsics + Extrinsics Mode */
   int mode_init() {
+    // Pre-check
+    if (grid_buffer.size() == 0) {
+      return 0;
+    }
+
     // Form calibration data
     for (auto &[cam_idx, data] : img_buffer) {
       // Check if have enough grids already
@@ -407,23 +399,13 @@ struct calib_nbv_t {
     }
 
     // Initialize camera intrinsics + extrinsics
-    calib_camera_t cam_calib{calib_target};
-    cam_calib.verbose = false;
     for (const auto [cam_idx, grids] : cam_grids) {
-      const auto cam_res = calib->get_camera_resolution(cam_idx);
-      const auto proj_model = calib->get_camera_projection_model(cam_idx);
-      const auto dist_model = calib->get_camera_distortion_model(cam_idx);
-      cam_calib.add_camera(cam_idx, cam_res.data(), proj_model, dist_model);
-      cam_calib.add_camera_data(cam_idx, grids);
+      calib->add_camera_data(cam_idx, grids);
     }
-    cam_calib.solve();
-
-    // Update main calibrator with new camera intrinsics
-    for (const auto [cam_idx, grids] : cam_grids) {
-      calib->cam_params[cam_idx]->param = cam_calib.get_camera_params(cam_idx);
-      calib->cam_exts[cam_idx]->param =
-          tf_vec(cam_calib.get_camera_extrinsics(cam_idx));
-    }
+    calib->enable_nbv = false;
+    calib->enable_outlier_rejection = false;
+    calib->solve();
+    calib->enable_outlier_rejection = true;
 
     // Transition to NBV mode
     state = NBV;
@@ -432,33 +414,37 @@ struct calib_nbv_t {
     return 0;
   }
 
-  /**
-   * NBV Mode
-   */
+  /** NBV Mode */
   void mode_nbv() {
-    if (nbv_event == false) {
+    // Pre-check
+    if (nbv_event == false && nbv_reached() == false) {
       return;
     }
 
-    // LOG_INFO("Find NBV!");
-    const auto nbv_poses = calib_nbv_poses(calib_target,
-                                           calib->cam_geoms,
-                                           calib->cam_params,
-                                           calib->cam_exts);
+    // Create NBV poses based on current calibrations
+    nbv_poses = calib_nbv_poses(calib_target,
+                                calib->cam_geoms,
+                                calib->cam_params,
+                                calib->cam_exts);
 
-    int cam_idx;
-    int nbv_idx;
-    if (calib->find_nbv(nbv_poses, cam_idx, nbv_idx) != 0) {
+    // Find NBV
+    nbv_cam_idx = 0;
+    nbv_idx = 0;
+    if (calib->find_nbv(nbv_poses, nbv_cam_idx, nbv_idx) != 0) {
       LOG_ERROR("Failed to find NBV!");
       return;
     }
+    printf("nbv_cam_idx: %d, nbv_idx: %d\n", nbv_cam_idx, nbv_idx);
 
-    const mat4_t nbv_pose = nbv_poses.at(cam_idx).at(nbv_idx);
+    // Form target grid
+    const mat4_t T_FC0 = nbv_poses.at(nbv_cam_idx).at(nbv_idx);
+    const mat4_t T_C0Ci = calib->cam_exts[nbv_cam_idx]->tf();
+    const mat4_t T_FCi = T_FC0 * T_C0Ci;
     nbv_target = nbv_target_grid(calib_target,
-                                 calib->cam_geoms[cam_idx],
-                                 calib->cam_params[cam_idx],
+                                 calib->cam_geoms[nbv_cam_idx],
+                                 calib->cam_params[nbv_cam_idx],
                                  0,
-                                 nbv_pose);
+                                 T_FCi);
 
     // Reset
     nbv_reproj_err = std::numeric_limits<double>::max();
@@ -479,14 +465,10 @@ struct calib_nbv_t {
       return;
     }
 
-    // Detect and visualize
+    // Detect Calibration Target
     detect();
-    visualize();
-    if (grid_buffer.size() == 0) {
-      return;
-    }
 
-    // Initialize
+    // States
     switch (state) {
       case INITIALIZE:
         mode_init();
@@ -498,6 +480,9 @@ struct calib_nbv_t {
         FATAL("Implementation Error!");
         break;
     }
+
+    // Visualize
+    visualize();
   }
 
   void loop() {
@@ -505,7 +490,7 @@ struct calib_nbv_t {
       ros::spinOnce();
     }
   }
-}; // namespace yac
+};
 
 } // namespace yac
 

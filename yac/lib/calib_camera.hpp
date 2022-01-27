@@ -225,7 +225,9 @@ struct calib_camera_t {
   std::map<int, std::vector<real_t>> get_reproj_errors();
 
   int recover_calib_covar(matx_t &calib_covar);
-  mat4_t find_nbv(const mat4s_t &nbv_poses);
+  int find_nbv(const std::map<int, mat4s_t> &nbv_poses,
+               int &cam_idx,
+               int &nbv_idx);
 
   void solve();
   void show_results();

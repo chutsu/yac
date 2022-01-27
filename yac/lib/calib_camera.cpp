@@ -768,7 +768,7 @@ void calib_camera_t::remove_view(const timestamp_t ts) {
 
 void calib_camera_t::_initialize_intrinsics() {
   for (int cam_idx = 0; cam_idx < nb_cams(); cam_idx++) {
-    printf("initializing cam%d intrinsics ...\n", cam_idx);
+    LOG_INFO("Initializing cam%d intrinsics ...", cam_idx);
     const aprilgrids_t grids = get_cam_data(cam_idx);
     initialize_camera(calib_target,
                       grids,
@@ -778,12 +778,12 @@ void calib_camera_t::_initialize_intrinsics() {
 }
 
 void calib_camera_t::_initialize_extrinsics() {
-  printf("initializing extrinsics ...\n");
   add_camera_extrinsics(0);
   if (nb_cams() == 1) {
     return;
   }
 
+  LOG_INFO("Initializing extrinsics ...");
   camchain_t camchain{cam_data, cam_geoms, cam_params};
   for (int j = 1; j < nb_cams(); j++) {
     mat4_t T_C0Cj;
@@ -797,6 +797,11 @@ void calib_camera_t::_initialize_extrinsics() {
 
 void calib_camera_t::_setup_problem() {
   size_t ts_idx = 0;
+
+  progressbar bar(timestamps.size());
+  if (enable_nbv) {
+    printf("Solving full problem: ");
+  }
 
   for (const auto &ts : timestamps) {
     bool new_view_added = false;
@@ -858,12 +863,14 @@ void calib_camera_t::_setup_problem() {
     const auto reproj_errors_all = get_all_reproj_errors();
     const real_t calib_info_kp1 = info_entropy(calib_covar);
     const real_t info_gain = 0.5 * (calib_info_kp1 - calib_info_k);
-    printf("[%.2f%%] ", ((real_t)ts_idx / (real_t)timestamps.size()) * 100.0);
-    printf("nb_views: %ld  ", calib_views[0].size());
-    printf("info_k: %.2f ", calib_info_k);
-    printf("reproj_error: %.2f ", rmse(reproj_errors_all));
-    printf("shannon_entropy: %.2f  ", shannon_entropy(calib_covar));
-    printf("\n");
+    // clang-format off
+    // printf("[%.2f%%] ", ((real_t)ts_idx / (real_t)timestamps.size()) * 100.0);
+    // printf("nb_views: %ld  ", calib_views[0].size());
+    // printf("info_k: %.2f ", calib_info_k);
+    // printf("reproj_error: %.2f ", rmse(reproj_errors_all));
+    // printf("shannon_entropy: %.2f  ", shannon_entropy(calib_covar));
+    // printf("\n");
+    // clang-format on
 
     if (info_gain < info_gain_threshold) {
       remove_view(ts);
@@ -871,6 +878,7 @@ void calib_camera_t::_setup_problem() {
       calib_info_k = calib_info_kp1;
     }
 
+    bar.update();
   } // Iterate timestamps
 }
 
@@ -1010,7 +1018,9 @@ int calib_camera_t::recover_calib_covar(matx_t &calib_covar) {
   return 0;
 }
 
-mat4_t calib_camera_t::find_nbv(const mat4s_t &nbv_poses) {
+int calib_camera_t::find_nbv(const std::map<int, mat4s_t> &nbv_poses,
+                             int &cam_idx,
+                             int &nbv_idx) {
   // Pre-check
   if (nbv_poses.size() == 0) {
     FATAL("NBV poses empty!?");
@@ -1019,51 +1029,60 @@ mat4_t calib_camera_t::find_nbv(const mat4s_t &nbv_poses) {
   // Find NBV
   const timestamp_t last_ts = *timestamps.rbegin(); // std::set is orderd
   const timestamp_t nbv_ts = last_ts + 1;
+  int best_cam = 0;
   int best_idx = 0;
   real_t best_entropy = 0;
 
-  for (size_t i = 0; i < nbv_poses.size(); i++) {
-    // Simulate NBV
-    pose_t nbv_pose{nbv_ts, nbv_poses[i]};
-    for (const auto cam_idx : get_camera_indices()) {
-      // Simulate calibration view
-      auto grid = nbv_target_grid(calib_target,
-                                  cam_geoms[cam_idx],
-                                  cam_params[cam_idx],
-                                  nbv_ts,
-                                  nbv_poses[i]);
+  for (const auto &[nbv_cam_idx, nbv_cam_poses] : nbv_poses) {
+    for (size_t i = 0; i < nbv_cam_poses.size(); i++) {
+      // Simulate current NBV
+      const mat4_t T_FC0 = nbv_cam_poses.at(i);
+      const mat4_t T_C0F = T_FC0.inverse();
+      pose_t rel_pose{nbv_ts, T_C0F};
 
-      // Add view to problem
-      add_view(grid,
-               problem,
-               loss,
-               cam_idx,
-               cam_geoms[cam_idx],
-               cam_params[cam_idx],
-               cam_exts[cam_idx],
-               &nbv_pose);
-    }
+      for (const auto cam_idx : get_camera_indices()) {
+        const auto &grid = nbv_target_grid(calib_target,
+                                           cam_geoms[cam_idx],
+                                           cam_params[cam_idx],
+                                           nbv_ts,
+                                           rel_pose.tf());
+        add_view(grid,
+                 problem,
+                 loss,
+                 cam_idx,
+                 cam_geoms[cam_idx],
+                 cam_params[cam_idx],
+                 cam_exts[cam_idx],
+                 &rel_pose);
+      }
 
-    // Evaluate NBV
-    // -- Estimate calibration covariance
-    matx_t calib_covar;
-    if (recover_calib_covar(calib_covar) == 0) {
+      // Evaluate NBV
+      // -- Estimate calibration covariance
+      matx_t calib_covar;
+      if (recover_calib_covar(calib_covar) == 0) {
+        remove_view(nbv_ts);
+      }
       remove_view(nbv_ts);
-    }
-    remove_view(nbv_ts);
-    // -- Calculate entropy
-    const real_t entropy = info_entropy(calib_covar);
-    if (entropy > best_entropy) {
-      best_idx = i;
-      best_entropy = entropy;
+      // -- Calculate entropy
+      const real_t entropy = info_entropy(calib_covar);
+      if (entropy > best_entropy) {
+        best_cam = nbv_cam_idx;
+        best_idx = i;
+        best_entropy = entropy;
+      }
     }
   }
 
-  return nbv_poses[best_idx];
+  // Return
+  cam_idx = best_cam;
+  nbv_idx = best_idx;
+
+  return 0;
 }
 
 void calib_camera_t::solve() {
   // Setup
+  LOG_INFO("Solving camera calibration problem:");
   _initialize_intrinsics();
   _initialize_extrinsics();
   _setup_problem();
@@ -1087,9 +1106,11 @@ void calib_camera_t::solve() {
 
   // Filter views
   if (enable_outlier_rejection) {
+    LOG_INFO("Removing outliers\n");
     _filter_views();
 
     // Solve again - second pass
+    LOG_INFO("Solving again!\n");
     ceres::Solver::Summary summary;
     ceres::Solve(options, problem, &summary);
     if (verbose) {

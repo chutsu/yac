@@ -247,7 +247,7 @@ int test_aprilgrid_estimate() {
 
 int test_aprilgrid_intersect() {
   auto detector = aprilgrid_detector_t(6, 6, 0.088, 0.3);
-  const cv::Mat image = cv::imread(TEST_IMAGE);
+  const cv::Mat image = cv::imread(TEST_IMAGE, cv::IMREAD_GRAYSCALE);
   const vec4_t K{458.654, 457.296, 367.215, 248.375};
   const vec4_t D{-0.28340811, 0.07395907, 0.00019359, 1.76187114e-05};
   mat4_t T_C0F;
@@ -274,7 +274,7 @@ int test_aprilgrid_intersect() {
 
 int test_aprilgrid_intersect2() {
   auto detector = aprilgrid_detector_t(6, 6, 0.088, 0.3);
-  const cv::Mat image = cv::imread(TEST_IMAGE);
+  const cv::Mat image = cv::imread(TEST_IMAGE, cv::IMREAD_GRAYSCALE);
   const vec4_t K{458.654, 457.296, 367.215, 248.375};
   const vec4_t D{-0.28340811, 0.07395907, 0.00019359, 1.76187114e-05};
   auto grid0 = detector.detect(0, image);
@@ -308,7 +308,7 @@ int test_aprilgrid_intersect2() {
 
 int test_aprilgrid_sample() {
   auto detector = aprilgrid_detector_t(6, 6, 0.088, 0.3);
-  const cv::Mat image = cv::imread(TEST_IMAGE);
+  const cv::Mat image = cv::imread(TEST_IMAGE, cv::IMREAD_GRAYSCALE);
   const vec4_t K{458.654, 457.296, 367.215, 248.375};
   const vec4_t D{-0.28340811, 0.07395907, 0.00019359, 1.76187114e-05};
   mat4_t T_CF;
@@ -401,15 +401,15 @@ int test_aprilgrid_print() {
 
 int test_aprilgrid_detect() {
   auto detector = aprilgrid_detector_t(6, 6, 0.088, 0.3);
-  const cv::Mat image = cv::imread(TEST_IMAGE);
+  const cv::Mat image = cv::imread(TEST_IMAGE, cv::IMREAD_GRAYSCALE);
   const vec4_t K{458.654, 457.296, 367.215, 248.375};
   const vec4_t D{-0.28340811, 0.07395907, 0.00019359, 1.76187114e-05};
   aprilgrid_t grid = detector.detect(0, image);
 
   cv::imwrite("/tmp/grid.png", grid.draw(image));
   MU_CHECK(grid.nb_detections > 0);
-  grid.imshow("viz", image);
-  cv::waitKey(0);
+  // grid.imshow("viz", image);
+  // cv::waitKey(0);
 
   // const auto detector = aprilgrid_detector_t(6, 6, 0.088, 0.3);
   // const std::string img_dir = "/data/euroc/cam_april/mav0/cam0/data";

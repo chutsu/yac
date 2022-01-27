@@ -700,11 +700,13 @@ int test_nbv_test_grid() {
 // }
 
 void test_suite() {
+  // NBV
   MU_ADD_TEST(test_calib_target_origin);
   MU_ADD_TEST(test_calib_init_poses);
   MU_ADD_TEST(test_calib_nbv_poses);
   MU_ADD_TEST(test_nbv_draw);
   MU_ADD_TEST(test_nbv_test_grid);
+
   // MU_ADD_TEST(test_calib_orbit_trajs);
   // MU_ADD_TEST(test_calib_pan_trajs);
   // MU_ADD_TEST(test_calib_figure8_trajs);

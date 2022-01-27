@@ -178,6 +178,95 @@ mat4s_t calib_init_poses(const calib_target_t &target,
   return poses;
 }
 
+mat4s_t calib_nbv_poses(const calib_target_t &target,
+                        const camera_geometry_t *cam_geom,
+                        const camera_params_t *cam_params,
+                        const int range_x_size,
+                        const int range_y_size,
+                        const int range_z_size) {
+  // Target
+  const mat4_t T_FO = calib_target_origin(target, cam_geom, cam_params, 0.8);
+  const vec3_t r_FO = tf_trans(T_FO);
+  const double target_width = r_FO(0) * 2;
+  const double target_height = r_FO(1) * 2;
+  const vec3_t target_center{target_width / 2.0, target_height / 2.0, 0.0};
+
+  // Pose settings
+  const double xy_scale = 2.0;
+  const double d_start = r_FO(2);
+  const double d_end = d_start * 1.5;
+  const double h_width = target_width / 2.0;
+  const double h_height = target_height / 2.0;
+  const double range_w[2] = {-h_width * xy_scale, h_width * xy_scale};
+  const double range_h[2] = {-h_height * xy_scale, h_height * xy_scale};
+  const double range_d[2] = {d_start, d_end};
+  const auto x_range = linspace(range_w[0], range_w[1], range_x_size);
+  const auto y_range = linspace(range_h[0], range_h[1], range_y_size);
+  const auto z_range = linspace(range_d[0], range_d[1], range_z_size);
+
+  // Generate camera positions infront of the AprilGrid target in the fiducial
+  // frame, r_FCi.
+  vec3s_t cam_positions;
+  for (const auto &x : x_range) {
+    for (const auto &y : y_range) {
+      for (const auto &z : z_range) {
+        const vec3_t r_FCi = vec3_t{x, y, z} + target_center;
+        cam_positions.push_back(r_FCi);
+      }
+    }
+  }
+
+  // For each position create a camera pose that "looks at" the fiducial
+  // center in the fiducial frame, T_FCi.
+  mat4s_t poses;
+  for (const auto &cam_pos : cam_positions) {
+    const mat4_t T_FCi = lookat(cam_pos, target_center);
+    poses.push_back(T_FCi);
+    // const auto roll = deg2rad(randf(-5.0, 5.0));
+    // const auto pitch = deg2rad(randf(-5.0, 5.0));
+    // const auto yaw = deg2rad(randf(-5.0, 5.0));
+    // const vec3_t rpy{roll, pitch, yaw};
+    // const mat3_t dC = euler321(rpy);
+    // const mat4_t dT = tf(dC, zeros(3, 1));
+    // poses.push_back(T_FCi * dT);
+  }
+
+  return poses;
+}
+
+std::map<int, mat4s_t>
+calib_nbv_poses(const calib_target_t &target,
+                const std::map<int, camera_geometry_t *> &cam_geoms,
+                const std::map<int, camera_params_t *> &cam_params,
+                const std::map<int, extrinsics_t *> &cam_exts,
+                const int range_x_size,
+                const int range_y_size,
+                const int range_z_size) {
+  std::map<int, mat4s_t> nbv_poses;
+
+  for (const auto [cam_idx, _] : cam_geoms) {
+    UNUSED(_);
+    const auto geom = cam_geoms.at(cam_idx);
+    const auto cam = cam_params.at(cam_idx);
+    const auto ext = cam_exts.at(cam_idx);
+    const mat4_t T_C0Ci = ext->tf();
+    const mat4_t T_CiC0 = T_C0Ci.inverse();
+
+    const mat4s_t poses = calib_nbv_poses(target,
+                                          geom,
+                                          cam,
+                                          range_x_size,
+                                          range_y_size,
+                                          range_z_size);
+    for (const mat4_t T_FCi : poses) {
+      nbv_poses[cam_idx].push_back(T_FCi * T_CiC0);
+    }
+  }
+
+  // Note NBV poses are all relative to cam0
+  return nbv_poses;
+}
+
 aprilgrid_t nbv_target_grid(const calib_target_t &target,
                             const camera_geometry_t *cam_geom,
                             const camera_params_t *cam_params,
@@ -273,61 +362,6 @@ vec2s_t nbv_draw(const calib_target_t &target,
   cv::circle(image, pt3, 3.0, yellow, 5, 8); // top left
 
   return {p0, p1, p2, p3};
-}
-
-mat4s_t calib_nbv_poses(const calib_target_t &target,
-                        const camera_geometry_t *cam_geom,
-                        const camera_params_t *cam_params,
-                        const int range_x_size,
-                        const int range_y_size,
-                        const int range_z_size) {
-  // Target
-  const mat4_t T_FO = calib_target_origin(target, cam_geom, cam_params, 0.8);
-  const vec3_t r_FO = tf_trans(T_FO);
-  const double target_width = r_FO(0) * 2;
-  const double target_height = r_FO(1) * 2;
-  const vec3_t target_center{target_width / 2.0, target_height / 2.0, 0.0};
-
-  // Pose settings
-  const double xy_scale = 2.0;
-  const double d_start = r_FO(2);
-  const double d_end = d_start * 1.5;
-  const double h_width = target_width / 2.0;
-  const double h_height = target_height / 2.0;
-  const double range_w[2] = {-h_width * xy_scale, h_width * xy_scale};
-  const double range_h[2] = {-h_height * xy_scale, h_height * xy_scale};
-  const double range_d[2] = {d_start, d_end};
-  const auto x_range = linspace(range_w[0], range_w[1], range_x_size);
-  const auto y_range = linspace(range_h[0], range_h[1], range_y_size);
-  const auto z_range = linspace(range_d[0], range_d[1], range_z_size);
-
-  // Generate camera positions infront of the AprilGrid target in the fiducial
-  // frame, r_FCi.
-  vec3s_t cam_positions;
-  for (const auto &x : x_range) {
-    for (const auto &y : y_range) {
-      for (const auto &z : z_range) {
-        const vec3_t r_FCi = vec3_t{x, y, z} + target_center;
-        cam_positions.push_back(r_FCi);
-      }
-    }
-  }
-
-  // For each position create a camera pose that "looks at" the fiducial
-  // center in the fiducial frame, T_FCi.
-  mat4s_t poses;
-  for (const auto &cam_pos : cam_positions) {
-    const mat4_t T_FCi = lookat(cam_pos, target_center);
-    const auto roll = deg2rad(randf(-5.0, 5.0));
-    const auto pitch = deg2rad(randf(-5.0, 5.0));
-    const auto yaw = deg2rad(randf(-5.0, 5.0));
-    const vec3_t rpy{roll, pitch, yaw};
-    const mat3_t dC = euler321(rpy);
-    const mat4_t dT = tf(dC, zeros(3, 1));
-    poses.push_back(T_FCi * dT);
-  }
-
-  return poses;
 }
 
 // void calib_orbit_trajs(const calib_target_t &target,

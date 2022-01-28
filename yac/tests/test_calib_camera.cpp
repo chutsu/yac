@@ -294,6 +294,7 @@ int test_calib_camera() {
   const auto grids = calib_data_preprocess(calib_target, cam_paths, grids_path);
 
   calib_camera_t calib{calib_target};
+  calib.enable_nbv = false;
   calib.add_camera_data(0, grids.at(0));
   calib.add_camera_data(1, grids.at(1));
   calib.add_camera(0, cam_res, proj_model, dist_model);
@@ -305,24 +306,25 @@ int test_calib_camera() {
   return 0;
 }
 
-int test_calib_camera2() {
-  const calib_target_t calib_target{"aprilgrid", 6, 6, 0.0772, 0.3};
-  const int cam_res[2] = {640, 480};
-  const std::string proj_model = "pinhole";
-  const std::string dist_model = "radtan4";
-
-  const std::map<int, std::string> cam_paths = {{0, "/tmp/cam0/data"}};
-  const std::string save_path = "/tmp/cam0/grid0";
-  const auto grids = calib_data_preprocess(calib_target, cam_paths, save_path);
-
-  calib_camera_t calib{calib_target};
-  calib.add_camera_data(0, grids.at(0));
-  calib.add_camera(0, cam_res, proj_model, dist_model);
-  calib.solve();
-  calib.save_results("/tmp/calib-results.yaml");
-
-  return 0;
-}
+// int test_calib_camera2() {
+//   const calib_target_t calib_target{"aprilgrid", 6, 6, 0.0772, 0.3};
+//   const int cam_res[2] = {640, 480};
+//   const std::string proj_model = "pinhole";
+//   const std::string dist_model = "radtan4";
+//
+//   const std::map<int, std::string> cam_paths = {{0, "/tmp/cam0/data"}};
+//   const std::string save_path = "/tmp/cam0/grid0";
+//   const auto grids = calib_data_preprocess(calib_target, cam_paths,
+//   save_path);
+//
+//   calib_camera_t calib{calib_target};
+//   calib.add_camera_data(0, grids.at(0));
+//   calib.add_camera(0, cam_res, proj_model, dist_model);
+//   calib.solve();
+//   calib.save_results("/tmp/calib-results.yaml");
+//
+//   return 0;
+// }
 
 void test_suite() {
   MU_ADD_TEST(test_reproj_error);
@@ -330,7 +332,7 @@ void test_suite() {
   MU_ADD_TEST(test_initialize_camera);
   MU_ADD_TEST(test_calib_camera_find_nbv);
   MU_ADD_TEST(test_calib_camera);
-  MU_ADD_TEST(test_calib_camera2);
+  // MU_ADD_TEST(test_calib_camera2);
 }
 
 } // namespace yac

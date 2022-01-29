@@ -55,7 +55,7 @@ struct calib_nbv_t {
   struct timespec nbv_hold_tic = (struct timespec){0, 0};
 
   // NBV Settings
-  int min_intrinsics_views = 10;
+  int min_intrinsics_views = 5;
   real_t min_intrinsics_view_diff = 10.0;
   double nbv_reproj_error_threshold = 10.0;
   double nbv_hold_threshold = 1.0;
@@ -277,10 +277,34 @@ struct calib_nbv_t {
       return false;
     }
 
-    // TODO: Add real NBV measurements to calibrator
-    // for (const auto &[cam_idx, grid] : grid_buffer) {
-    //
-    // }
+    // NBV reached! Now add measurements to calibrator
+    for (const auto &[cam_idx, grid] : grid_buffer) {
+      // Double-check
+      if (grid.detected == false) {
+        continue;
+      }
+
+      // Add pose
+      auto ts = grid.timestamp;
+      if (calib->poses.count(ts) == 0) {
+        calib->add_pose(cam_idx, grid);
+      }
+
+      // Add calibration view
+      calib->add_view(grid,
+                      calib->problem,
+                      calib->loss,
+                      cam_idx,
+                      calib->cam_geoms[cam_idx],
+                      calib->cam_params[cam_idx],
+                      calib->cam_exts[cam_idx],
+                      calib->poses[ts]);
+
+      // Solve current calibration
+      calib->enable_nbv = false;
+      calib->enable_outlier_rejection = false;
+      calib->solve();
+    }
 
     return true;
   }
@@ -465,7 +489,7 @@ struct calib_nbv_t {
       ros::spinOnce();
     }
   }
-}; // namespace yac
+};
 
 } // namespace yac
 

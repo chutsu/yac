@@ -275,6 +275,7 @@ int test_calib_camera_find_nbv() {
   calib.find_nbv(nbv_poses, cam_idx, nbv_idx);
   printf("cam_idx: %d\n", cam_idx);
   printf("nbv_idx: %d\n", nbv_idx);
+  calib.solve();
 
   return 0;
 }

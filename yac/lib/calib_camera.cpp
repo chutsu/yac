@@ -907,6 +907,16 @@ int calib_camera_t::find_nbv(const std::map<int, mat4s_t> &nbv_poses,
     FATAL("Calibration problem is empty!?");
   }
 
+  // Current Entropy
+  real_t entropy_k = 0.0;
+  {
+    matx_t calib_covar;
+    if (recover_calib_covar(calib_covar, true) != 0) {
+      return -1;
+    }
+    entropy_k = info_entropy(calib_covar);
+  }
+
   // Find NBV
   const timestamp_t last_ts = *timestamps.rbegin(); // std::set is orderd
   const timestamp_t nbv_ts = last_ts + 1;
@@ -974,6 +984,14 @@ int calib_camera_t::find_nbv(const std::map<int, mat4s_t> &nbv_poses,
   // Return
   cam_idx = best_cam;
   nbv_idx = best_idx;
+
+  const auto info_gain = 0.5 * (best_entropy - entropy_k);
+  printf("best_entropy: %f\n", best_entropy);
+  printf("entropy_k: %f\n", entropy_k);
+  printf("info_gain: %f\n", info_gain);
+  if (info_gain < info_gain_threshold) {
+    return 1;
+  }
 
   return 0;
 }
@@ -1118,30 +1136,35 @@ int calib_camera_t::_filter_view(const timestamp_t ts) {
 }
 
 void calib_camera_t::_solve_batch() {
-  for (const auto &ts : timestamps) {
-    bool new_view_added = false;
-    for (const auto &[cam_idx, grid] : cam_data[ts]) {
-      // Check if AprilGrid was detected
-      if (grid.detected == false) {
-        continue;
-      }
+  // Setup batch problem
+  if (batch_problem_setup == false) {
+    for (const auto &ts : timestamps) {
+      bool new_view_added = false;
+      for (const auto &[cam_idx, grid] : cam_data[ts]) {
+        // Check if AprilGrid was detected
+        if (grid.detected == false) {
+          continue;
+        }
 
-      // Add pose
-      if (poses.count(ts) == 0) {
-        add_pose(cam_idx, grid);
-      }
+        // Add pose
+        if (poses.count(ts) == 0) {
+          add_pose(cam_idx, grid);
+        }
 
-      // Add calibration view
-      add_view(grid,
-               problem,
-               loss,
-               cam_idx,
-               cam_geoms[cam_idx],
-               cam_params[cam_idx],
-               cam_exts[cam_idx],
-               poses[ts]);
-      new_view_added = true;
+        // Add calibration view
+        add_view(grid,
+                 problem,
+                 loss,
+                 cam_idx,
+                 cam_geoms[cam_idx],
+                 cam_params[cam_idx],
+                 cam_exts[cam_idx],
+                 poses[ts]);
+        new_view_added = true;
+      }
     }
+
+    batch_problem_setup = true;
   }
 
   // Solver options
@@ -1381,8 +1404,13 @@ void calib_camera_t::_solve_nbv2() {
 void calib_camera_t::solve() {
   // Setup
   LOG_INFO("Solving camera calibration problem:");
-  _initialize_intrinsics();
-  _initialize_extrinsics();
+  if (initialized == false) {
+    _initialize_intrinsics();
+    _initialize_extrinsics();
+    initialized = true;
+  }
+
+  // Solve
   if (enable_nbv) {
     _solve_nbv2();
   } else {

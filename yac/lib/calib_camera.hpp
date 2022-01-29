@@ -144,11 +144,15 @@ void initialize_camera(const calib_target_t &calib_target,
 
 /** Camera Calibrator **/
 struct calib_camera_t {
+  // Flags
+  bool initialized = false;
+  bool batch_problem_setup = false;
+
   // Settings
-  bool verbose = false;
-  bool enable_nbv = true;
-  bool enable_nbv_filter = true;
-  bool enable_outlier_rejection = true;
+  bool verbose = true;
+  bool enable_nbv = false;
+  bool enable_nbv_filter = false;
+  bool enable_outlier_rejection = false;
   int min_nbv_views = 5;
   real_t outlier_threshold = 4.0;
   real_t info_gain_threshold = 0.3;

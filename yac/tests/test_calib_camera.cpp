@@ -3,16 +3,21 @@
 
 namespace yac {
 
-int test_reproj_error() {
-  // Load data
-  const calib_target_t target;
+std::map<int, aprilgrids_t> setup_test_data() {
+  // Calibration data
+  const calib_target_t calib_target;
   const std::string data_path = "/data/euroc/cam_april";
   const std::map<int, std::string> cam_paths = {
       {0, data_path + "/mav0/cam0/data"},
       {1, data_path + "/mav0/cam1/data"},
   };
-  const std::string grids_path = "/data/euroc/cam_april/mav0/grids0";
-  auto cam_grids = calib_data_preprocess(target, cam_paths, grids_path);
+  const std::string grids_path = "/data/euroc/cam_april/mav0/grid0";
+  return calib_data_preprocess(calib_target, cam_paths, grids_path);
+}
+
+int test_reproj_error() {
+  // Load data
+  auto cam_grids = setup_test_data();
 
   // Get 1 detected aprilgrid
   aprilgrid_t grid;
@@ -154,14 +159,7 @@ int test_reproj_error() {
 
 int test_calib_view() {
   // Load data
-  const calib_target_t target;
-  const std::string data_path = "/data/euroc/cam_april";
-  const std::map<int, std::string> cam_paths = {
-      {0, data_path + "/mav0/cam0/data"},
-      {1, data_path + "/mav0/cam1/data"},
-  };
-  const std::string grids_path = "/data/euroc/cam_april/mav0/grids0";
-  auto cam_grids = calib_data_preprocess(target, cam_paths, grids_path);
+  auto cam_grids = setup_test_data();
 
   // Setup
   ceres::Problem problem;
@@ -197,16 +195,8 @@ int test_calib_view() {
 }
 
 int test_initialize_camera() {
-  // Load data
-  const calib_target_t target;
-  const std::string data_path = "/data/euroc/cam_april";
-  const std::map<int, std::string> cam_paths = {
-      {0, data_path + "/mav0/cam0/data"},
-      {1, data_path + "/mav0/cam1/data"},
-  };
-  const std::string grids_path = "/data/euroc/cam_april/mav0/grids0";
-  auto cam_grids = calib_data_preprocess(target, cam_paths, grids_path);
-
+  const auto cam_grids = setup_test_data();
+  const calib_target_t calib_target;
   const int img_w = 752;
   const int img_h = 480;
   const int res[2] = {img_w, img_h};
@@ -214,8 +204,7 @@ int test_initialize_camera() {
   const std::string dist_model = "radtan4";
   camera_params_t cam0 = camera_params_t::init(0, res, proj_model, dist_model);
   pinhole_radtan4_t cam_geom;
-
-  initialize_camera(target, cam_grids[0], &cam_geom, &cam0, true);
+  initialize_camera(calib_target, cam_grids.at(0), &cam_geom, &cam0, true);
   return 0;
 }
 
@@ -227,13 +216,7 @@ int test_calib_camera_find_nbv() {
   const std::string dist_model = "radtan4";
 
   // Calibration data
-  const std::string data_path = "/data/euroc/cam_april";
-  const std::map<int, std::string> cam_paths = {
-      {0, data_path + "/mav0/cam0/data"},
-      {1, data_path + "/mav0/cam1/data"},
-  };
-  const std::string grids_path = "/data/euroc/cam_april/mav0/grids0";
-  const auto grids = calib_data_preprocess(calib_target, cam_paths, grids_path);
+  const auto grids = setup_test_data();
 
   aprilgrids_t cam0_grids;
   aprilgrids_t cam1_grids;
@@ -281,19 +264,14 @@ int test_calib_camera_find_nbv() {
 }
 
 int test_calib_camera() {
+  // Setup
   const calib_target_t calib_target{"aprilgrid", 6, 6, 0.088, 0.3};
   const int cam_res[2] = {752, 480};
   const std::string proj_model = "pinhole";
   const std::string dist_model = "radtan4";
+  const auto grids = setup_test_data();
 
-  const std::string data_path = "/data/euroc/cam_april";
-  const std::map<int, std::string> cam_paths = {
-      {0, data_path + "/mav0/cam0/data"},
-      {1, data_path + "/mav0/cam1/data"},
-  };
-  const std::string grids_path = "/data/euroc/cam_april/mav0/grids0";
-  const auto grids = calib_data_preprocess(calib_target, cam_paths, grids_path);
-
+  // Calibrate
   calib_camera_t calib{calib_target};
   calib.enable_nbv = false;
   calib.add_camera_data(0, grids.at(0));

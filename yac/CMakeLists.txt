@@ -112,5 +112,5 @@ TARGET_LINK_LIBRARIES(test_calib_nbv yac yac_util ${DEPS})
 ADD_EXECUTABLE(test_calib_vi tests/test_calib_vi.cpp)
 TARGET_LINK_LIBRARIES(test_calib_vi yac yac_util ${DEPS})
 
-# ADD_EXECUTABLE(test_marg_error tests/test_marg_error.cpp)
-# TARGET_LINK_LIBRARIES(test_marg_error yac yac_util ${DEPS})
+ADD_EXECUTABLE(test_marg_error tests/test_marg_error.cpp)
+TARGET_LINK_LIBRARIES(test_marg_error yac yac_util ${DEPS})

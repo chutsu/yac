@@ -3,8 +3,9 @@
 
 #include <ceres/ceres.h>
 
-#include "calib_params.hpp"
 #include "calib_data.hpp"
+#include "calib_params.hpp"
+#include "calib_errors.hpp"
 #include "calib_nbv.hpp"
 
 namespace yac {
@@ -41,56 +42,6 @@ struct camchain_t {
   void clear();
 };
 
-// REPROJECTION ERROR //////////////////////////////////////////////////////////
-
-/** Reprojection Error */
-struct reproj_error_t : public ceres::CostFunction {
-  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-
-  // Data
-  // -- Parameters
-  const camera_geometry_t *cam_geom = nullptr;
-  const camera_params_t *cam_params = nullptr;
-  const pose_t *T_BCi = nullptr;
-  const pose_t *T_C0F = nullptr;
-  const fiducial_corner_t *p_FFi = nullptr;
-  // -- Measurement
-  const vec2_t z;
-  // -- Covariance, information and square-root information
-  const mat2_t covar;
-  const mat2_t info;
-  const mat2_t sqrt_info;
-
-  // For debugging
-  mutable matx_t J0_min;
-  mutable matx_t J1_min;
-  mutable matx_t J2_min;
-  mutable matx_t J3_min;
-
-  /** Constructor */
-  reproj_error_t(const camera_geometry_t *cam_geom_,
-                 const camera_params_t *cam_params_,
-                 const pose_t *T_BCi_,
-                 const pose_t *T_C0F_,
-                 const fiducial_corner_t *p_FFi_,
-                 const vec2_t &z_,
-                 const mat2_t &covar_);
-
-  /** Get residual */
-  int get_residual(vec2_t &z_hat, vec2_t &r) const;
-
-  /** Get residual */
-  int get_residual(vec2_t &r) const;
-
-  /** Get reprojection error */
-  int get_reproj_error(real_t &error) const;
-
-  /** Evaluate */
-  bool Evaluate(double const *const *params,
-                double *residuals,
-                double **jacobians) const;
-};
-
 // CALIB VIEW //////////////////////////////////////////////////////////////////
 
 struct calib_view_t {
@@ -122,8 +73,10 @@ struct calib_view_t {
                const mat2_t &covar_ = I(2));
   ~calib_view_t() = default;
 
+  vec2s_t get_residuals() const;
   std::vector<real_t> get_reproj_errors() const;
-  int filter_view(const real_t outlier_threshold);
+  int filter_view(const real_t reproj_threshold);
+  int filter_view(const vec2_t &residual_threshold);
 };
 
 // Typedefs
@@ -147,22 +100,24 @@ struct calib_camera_t {
   // Flags
   bool initialized = false;
   bool batch_problem_setup = false;
+  bool filter_views_init = false;
 
   // Settings
   bool verbose = true;
-  bool enable_nbv = false;
-  bool enable_nbv_filter = false;
-  bool enable_outlier_rejection = false;
-  int min_nbv_views = 5;
+  bool enable_nbv = true;
+  bool enable_nbv_filter = true;
+  bool enable_outlier_rejection = true;
+  int min_nbv_views = 40;
   real_t outlier_threshold = 4.0;
-  real_t info_gain_threshold = 0.3;
+  real_t info_gain_threshold = 0.2;
 
   // Data
   calib_target_t calib_target;
   std::map<int, camera_geometry_t *> cam_geoms;
   std::set<timestamp_t> timestamps;
   camera_data_t cam_data;
-  real_t calib_info_k = 0;
+  real_t calib_entropy_k = 0;
+  int removed_outliers = 0;
 
   // Calib views
   camera_calib_views_t calib_views;
@@ -200,6 +155,7 @@ struct calib_camera_t {
   mat4_t get_camera_extrinsics(const int cam_idx) const;
   std::vector<real_t> get_all_reproj_errors();
   std::map<int, std::vector<real_t>> get_reproj_errors();
+  std::map<int, vec2s_t> get_residuals();
 
   void add_camera_data(const int cam_idx, const aprilgrids_t &grids);
   void add_camera(const int cam_idx,
@@ -222,6 +178,7 @@ struct calib_camera_t {
                 extrinsics_t *cam_exts,
                 pose_t *rel_pose);
   void remove_view(const timestamp_t ts);
+  void remove_all_views();
 
   int recover_calib_covar(matx_t &calib_covar, bool verbose = false);
   int find_nbv(const std::map<int, mat4s_t> &nbv_poses,
@@ -233,8 +190,9 @@ struct calib_camera_t {
 
   void _initialize_intrinsics();
   void _initialize_extrinsics();
-  int _filter_views();
   int _filter_view(const timestamp_t ts);
+  int _filter_all_views();
+  int eval_view(real_t &entropy);
   void _solve_batch();
   void _solve_nbv();
   void _solve_nbv2();

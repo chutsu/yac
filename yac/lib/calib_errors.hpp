@@ -1,12 +1,247 @@
-#ifndef YAC_MARG_ERROR_HPP
-#define YAC_MARG_ERROR_HPP
+#ifndef YAC_CALIB_ERRORS_HPP
+#define YAC_CALIB_ERRORS_HPP
 
+#include <mutex>
 #include <ceres/ceres.h>
 
 #include "util/util.hpp"
+#include "calib_data.hpp"
+#include "calib_params.hpp"
+#include "calib_data.hpp"
 #include "calib_params.hpp"
 
 namespace yac {
+
+struct calib_error_t : public ceres::CostFunction {
+  std::vector<param_t> params;
+  vecx_t residuals;
+  matxs_row_major_t jacobians;
+
+  calib_error_t() = default;
+  virtual ~calib_error_t() = default;
+  virtual bool eval();
+  virtual bool eval(vecx_t *residuals,
+                    matxs_row_major_t *jacobians = nullptr) const;
+};
+
+// POSE ERROR //////////////////////////////////////////////////////////////////
+
+struct pose_error_t : public ceres::SizedCostFunction<6, 7> {
+  pose_t pose_meas_;
+  matx_t covar_;
+  matx_t info_;
+  matx_t sqrt_info_;
+
+  pose_error_t(const pose_t &pose, const matx_t &covar);
+  ~pose_error_t() = default;
+
+  bool Evaluate(double const *const *params,
+                double *residuals,
+                double **jacobians) const;
+};
+
+// REPROJECTION ERROR //////////////////////////////////////////////////////////
+
+/** Reprojection Error */
+struct reproj_error_t : public ceres::CostFunction {
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
+  // Data
+  // -- Parameters
+  const camera_geometry_t *cam_geom = nullptr;
+  const camera_params_t *cam_params = nullptr;
+  const pose_t *T_BCi = nullptr;
+  const pose_t *T_C0F = nullptr;
+  const fiducial_corner_t *p_FFi = nullptr;
+  // -- Measurement
+  const vec2_t z;
+  // -- Covariance, information and square-root information
+  const mat2_t covar;
+  const mat2_t info;
+  const mat2_t sqrt_info;
+
+  // For debugging
+  mutable matx_t J0_min;
+  mutable matx_t J1_min;
+  mutable matx_t J2_min;
+  mutable matx_t J3_min;
+
+  /** Constructor */
+  reproj_error_t(const camera_geometry_t *cam_geom_,
+                 const camera_params_t *cam_params_,
+                 const pose_t *T_BCi_,
+                 const pose_t *T_C0F_,
+                 const fiducial_corner_t *p_FFi_,
+                 const vec2_t &z_,
+                 const mat2_t &covar_);
+
+  /** Get residual */
+  int get_residual(vec2_t &z_hat, vec2_t &r) const;
+
+  /** Get residual */
+  int get_residual(vec2_t &r) const;
+
+  /** Get reprojection error */
+  int get_reproj_error(real_t &error) const;
+
+  /** Evaluate */
+  bool Evaluate(double const *const *params,
+                double *residuals,
+                double **jacobians) const;
+};
+
+// FIDUCIAL ERROR //////////////////////////////////////////////////////////////
+
+struct fiducial_error_t : public ceres::CostFunction {
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
+
+  const timestamp_t ts_ = 0;
+
+  camera_geometry_t *cam_geom_;
+  camera_params_t *cam_params_;
+  extrinsics_t *cam_exts_;
+  extrinsics_t *imu_exts_;
+  fiducial_t *fiducial_;
+  pose_t *pose_;
+
+  const int tag_id_ = -1;
+  const int corner_idx_ = -1;
+  const vec3_t r_FFi_{0.0, 0.0, 0.0};
+  const vec2_t z_{0.0, 0.0};
+  const mat4_t T_WF_ = I(4);
+
+  const mat2_t covar_;
+  const mat2_t info_;
+  const mat2_t sqrt_info_;
+
+  fiducial_error_t(const timestamp_t &ts,
+                   camera_geometry_t *cam_geom,
+                   camera_params_t *cam_params,
+                   extrinsics_t *cam_exts,
+                   extrinsics_t *imu_exts,
+                   fiducial_t *fiducial,
+                   pose_t *pose,
+                   const int tag_id,
+                   const int corner_idx,
+                   const vec3_t &r_FFi,
+                   const vec2_t &z,
+                   const mat4_t &T_WF,
+                   const mat2_t &covar);
+  ~fiducial_error_t() = default;
+
+  int get_residual(vec2_t &r) const;
+  int get_reproj_error(real_t &error) const;
+  bool Evaluate(double const *const *params,
+                double *residuals,
+                double **jacobians) const;
+};
+
+// INERTIAL ERROR //////////////////////////////////////////////////////////////
+
+#define EST_TIMEDELAY 0
+
+/**
+ * Implements a nonlinear IMU factor.
+ */
+class ImuError : public ::ceres::SizedCostFunction<15, 7, 9, 7, 9> {
+public:
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
+  size_t state_id = 0;
+  timestamp_t imu_t0 = 0;
+  timestamp_t imu_t1 = 0;
+  size_t pose0_id = 0;
+  size_t pose1_id = 0;
+  size_t state0_id = 0;
+  size_t state1_id = 0;
+  size_t timedelay_id = 0;
+
+  mutable mat4_t T_WS_0_last_;
+  mutable mat4_t T_WS_1_last_;
+  mutable vec_t<9> sb0_last_;
+  mutable vec_t<9> sb1_last_;
+
+  ///< The number of residuals
+  typedef Eigen::Matrix<double, 15, 15> covariance_t;
+  typedef covariance_t information_t;
+  typedef Eigen::Matrix<double, 15, 15> jacobian_t;
+  typedef Eigen::Matrix<double, 15, 7> jacobian0_t;
+  typedef Eigen::Matrix<double, 15, 9> jacobian1_t;
+
+  ImuError() = default;
+  ImuError(const imu_data_t &imu_data,
+           const imu_params_t &imu_params,
+           const timestamp_t &t0,
+           const timestamp_t &t1);
+  virtual ~ImuError() = default;
+
+  static int propagation(const imu_data_t &imu_data,
+                         const imu_params_t &imu_params,
+                         mat4_t &T_WS,
+                         vec_t<9> &sb,
+                         const timestamp_t &t_start,
+                         const timestamp_t &t_end,
+                         covariance_t *covariance = 0,
+                         jacobian_t *jacobian = 0);
+
+  int redoPreintegration(const mat4_t & /*T_WS*/,
+                         const vec_t<9> &sb,
+                         timestamp_t time,
+                         timestamp_t end) const;
+
+  virtual bool Evaluate(double const *const *parameters,
+                        double *residuals,
+                        double **jacobians) const;
+
+  bool EvaluateWithMinimalJacobians(double const *const *params,
+                                    double *residuals,
+                                    double **jacobians,
+                                    double **jacobiansMinimal) const;
+
+  imu_params_t imu_params_;
+  imu_data_t imu_data_;
+  timestamp_t t0_;
+  timestamp_t t1_;
+
+protected:
+  // Preintegration stuff. the mutable is a TERRIBLE HACK, but what can I do.
+  ///< Protect access of intermediate results.
+  mutable std::mutex preintegrationMutex_;
+
+  // increments (initialise with identity)
+  mutable quat_t Delta_q_ = quat_t(1, 0, 0, 0);
+  mutable mat3_t C_integral_ = mat3_t::Zero();
+  mutable mat3_t C_doubleintegral_ = mat3_t::Zero();
+  mutable vec3_t acc_integral_ = vec3_t::Zero();
+  mutable vec3_t acc_doubleintegral_ = vec3_t::Zero();
+
+  // Cross matrix accumulatrion
+  mutable mat3_t cross_ = mat3_t::Zero();
+
+  // Sub-Jacobians
+  mutable mat3_t dalpha_db_g_ = mat3_t::Zero();
+  mutable mat3_t dv_db_g_ = mat3_t::Zero();
+  mutable mat3_t dp_db_g_ = mat3_t::Zero();
+
+  ///< The Jacobian of the increment (w/o biases).
+  mutable Eigen::Matrix<double, 15, 15> P_delta_ =
+      Eigen::Matrix<double, 15, 15>::Zero();
+
+  ///< Reference biases that are updated when called redoPreintegration.
+  mutable vec_t<9> sb_ref_;
+
+  ///< Keeps track of whether redoPreintegration() needs to be called.
+  mutable bool redo_ = true;
+
+  ///< Counts the number of preintegrations for statistics.
+  mutable int redoCounter_ = 0;
+
+  // information matrix and its square root form
+  mutable information_t information_;
+  mutable information_t squareRootInformation_;
+};
+
+// MARGINALIZATION ERROR ///////////////////////////////////////////////////////
 
 /* Residual Information */
 struct residual_info_t {
@@ -461,5 +696,5 @@ struct residual_info_t {
 //   }
 // };
 
-} // namespace yac
-#endif // YAC_MARG_ERROR_HPP
+} //  namespace yac
+#endif // YAC_CALIB_ERRORS_HPP

@@ -8,10 +8,10 @@ double info_entropy(const matx_t &covar) {
   return -1.0 * eigvals.log().sum() / std::log(2);
 }
 
-double info_gain(const matx_t &calib_covar, const double info_prev) {
-  const double info = info_entropy(calib_covar);
-  return 0.5 * (info - info_prev);
-}
+// double info_gain(const matx_t &calib_covar, const double info_prev) {
+//   const double info = info_entropy(calib_covar);
+//   return 0.5 * (info - info_prev);
+// }
 
 double shannon_entropy(const matx_t &covar) {
   assert(covar.rows() == covar.cols());

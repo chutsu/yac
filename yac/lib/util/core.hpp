@@ -80,72 +80,82 @@ namespace yac {
 #define real_t double
 #endif
 
+// -- TIMESTAMP ----------------------------------------------------------------
+
+typedef int64_t timestamp_t;
+typedef std::vector<timestamp_t> timestamps_t;
+
+// -- VECTOR ------------------------------------------------------------------
+
 #define dynamic_t Eigen::Dynamic
 #define col_major_t Eigen::ColMajor
 #define row_major_t Eigen::RowMajor
 
-typedef Eigen::Matrix<int, 2, 1> veci2_t;
-typedef Eigen::Matrix<int, 3, 1> veci3_t;
-typedef Eigen::Matrix<int, 4, 1> veci4_t;
-typedef Eigen::Matrix<int, 5, 1> veci5_t;
-typedef Eigen::Matrix<int, 6, 1> veci6_t;
-typedef Eigen::Matrix<int, Eigen::Dynamic, 1> vecix_t;
+using veci2_t = Eigen::Matrix<int, 2, 1>;
+using veci3_t = Eigen::Matrix<int, 3, 1>;
+using veci4_t = Eigen::Matrix<int, 4, 1>;
+using veci5_t = Eigen::Matrix<int, 5, 1>;
+using veci6_t = Eigen::Matrix<int, 6, 1>;
+using vecix_t = Eigen::Matrix<int, dynamic_t, 1>;
 
-typedef Eigen::Matrix<real_t, 2, 1> vec2_t;
-typedef Eigen::Matrix<real_t, 3, 1> vec3_t;
-typedef Eigen::Matrix<real_t, 4, 1> vec4_t;
-typedef Eigen::Matrix<real_t, 5, 1> vec5_t;
-typedef Eigen::Matrix<real_t, 6, 1> vec6_t;
-typedef Eigen::Matrix<real_t, Eigen::Dynamic, 1> vecx_t;
-typedef Eigen::Matrix<real_t, 2, 2> mat2_t;
-typedef Eigen::Matrix<real_t, 3, 3> mat3_t;
-typedef Eigen::Matrix<real_t, 4, 4> mat4_t;
-typedef Eigen::Matrix<real_t, Eigen::Dynamic, Eigen::Dynamic> matx_t;
-typedef Eigen::Matrix<real_t, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
-    matx_row_major_t;
-typedef Eigen::Matrix<real_t, 3, 4> mat34_t;
-typedef Eigen::Quaternion<real_t> quat_t;
-typedef Eigen::AngleAxis<real_t> angle_axis_t;
-typedef Eigen::Matrix<real_t, 1, Eigen::Dynamic> row_vector_t;
-typedef Eigen::Matrix<real_t, Eigen::Dynamic, 1> col_vector_t;
-typedef Eigen::Array<real_t, Eigen::Dynamic, 1> arrayx_t;
+using vec2_t = Eigen::Matrix<real_t, 2, 1>;
+using vec3_t = Eigen::Matrix<real_t, 3, 1>;
+using vec4_t = Eigen::Matrix<real_t, 4, 1>;
+using vec5_t = Eigen::Matrix<real_t, 5, 1>;
+using vec6_t = Eigen::Matrix<real_t, 6, 1>;
+using vecx_t = Eigen::Matrix<real_t, dynamic_t, 1>;
 
-typedef Eigen::SparseMatrix<real_t> sp_mat_t;
-typedef Eigen::SparseVector<real_t> sp_vec_t;
+using vec2s_t = std::vector<vec2_t, Eigen::aligned_allocator<vec2_t>>;
+using vec3s_t = std::vector<vec3_t, Eigen::aligned_allocator<vec3_t>>;
+using vec4s_t = std::vector<vec4_t, Eigen::aligned_allocator<vec4_t>>;
+using vec5s_t = std::vector<vec5_t, Eigen::aligned_allocator<vec5_t>>;
+using vec6s_t = std::vector<vec6_t, Eigen::aligned_allocator<vec6_t>>;
+using vecxs_t = std::vector<vecx_t>;
 
-typedef std::vector<vec2_t, Eigen::aligned_allocator<vec2_t>> vec2s_t;
-typedef std::vector<vec3_t, Eigen::aligned_allocator<vec3_t>> vec3s_t;
-typedef std::vector<vec4_t, Eigen::aligned_allocator<vec4_t>> vec4s_t;
-typedef std::vector<vec5_t, Eigen::aligned_allocator<vec5_t>> vec5s_t;
-typedef std::vector<vec6_t, Eigen::aligned_allocator<vec6_t>> vec6s_t;
-typedef std::vector<vecx_t> vecxs_t;
-typedef std::vector<mat2_t, Eigen::aligned_allocator<mat2_t>> mat2s_t;
-typedef std::vector<mat3_t, Eigen::aligned_allocator<mat3_t>> mat3s_t;
-typedef std::vector<mat4_t, Eigen::aligned_allocator<mat4_t>> mat4s_t;
-typedef std::vector<matx_t, Eigen::aligned_allocator<matx_t>> matxs_t;
-typedef std::vector<quat_t, Eigen::aligned_allocator<quat_t>> quats_t;
+using row_vector_t = Eigen::Matrix<real_t, 1, dynamic_t>;
+using col_vector_t = Eigen::Matrix<real_t, dynamic_t, 1>;
 
 template <int LENGTH, Eigen::StorageOptions STRIDE_TYPE = Eigen::ColMajor>
 using vec_t = Eigen::Matrix<real_t, LENGTH, 1, STRIDE_TYPE>;
 
-template <int ROWS,
-          int COLS,
-          Eigen::StorageOptions STRIDE_TYPE = Eigen::ColMajor>
+// -- MATRIX -------------------------------------------------------------------
+
+// clang-format off
+using mat2_t = Eigen::Matrix<real_t, 2, 2>;
+using mat3_t = Eigen::Matrix<real_t, 3, 3>;
+using mat4_t = Eigen::Matrix<real_t, 4, 4>;
+using matx_t = Eigen::Matrix<real_t, dynamic_t, dynamic_t>;
+using matx_row_major_t = Eigen::Matrix<real_t, dynamic_t, dynamic_t, row_major_t>;
+using mat34_t = Eigen::Matrix<real_t, 3, 4>;
+
+using mat2s_t = std::vector<mat2_t, Eigen::aligned_allocator<mat2_t>>;
+using mat3s_t = std::vector<mat3_t, Eigen::aligned_allocator<mat3_t>>;
+using mat4s_t = std::vector<mat4_t, Eigen::aligned_allocator<mat4_t>>;
+using matxs_t = std::vector<matx_t, Eigen::aligned_allocator<matx_t>>;
+using matxs_row_major_t = std::vector<matx_row_major_t, Eigen::aligned_allocator<matx_row_major_t>>;
+
+using mat_hash_t = std::unordered_map<long, std::unordered_map<long, real_t>>;
+using mat_indicies_t = std::vector<std::pair<long int, long int>>;
+
+template <int ROWS, int COLS, Eigen::StorageOptions STRIDE_TYPE = Eigen::ColMajor>
 using mat_t = Eigen::Matrix<real_t, ROWS, COLS, STRIDE_TYPE>;
 
-template <int ROWS,
-          int COLS,
-          Eigen::StorageOptions STRIDE_TYPE = Eigen::ColMajor>
+template <int ROWS, int COLS, Eigen::StorageOptions STRIDE_TYPE = Eigen::ColMajor>
 using map_mat_t = Eigen::Map<Eigen::Matrix<real_t, ROWS, COLS, STRIDE_TYPE>>;
 
 template <int ROWS>
 using map_vec_t = Eigen::Map<Eigen::Matrix<real_t, ROWS, 1>>;
+// clang-format on
 
-typedef std::unordered_map<long, std::unordered_map<long, real_t>> mat_hash_t;
-typedef std::vector<std::pair<long int, long int>> mat_indicies_t;
+// -- GEOMETRY -----------------------------------------------------------------
 
-typedef int64_t timestamp_t;
-typedef std::vector<timestamp_t> timestamps_t;
+using quat_t = Eigen::Quaternion<real_t>;
+using quats_t = std::vector<quat_t, Eigen::aligned_allocator<quat_t>>;
+using angle_axis_t = Eigen::AngleAxis<real_t>;
+using arrayx_t = Eigen::Array<real_t, dynamic_t, 1>;
+
+using sp_mat_t = Eigen::SparseMatrix<real_t>;
+using sp_vec_t = Eigen::SparseVector<real_t>;
 
 /******************************************************************************
  *                                MACROS
@@ -909,16 +919,28 @@ real_t median(const std::vector<real_t> &v);
 real_t mean(const std::vector<real_t> &x);
 
 /** Mean */
+vec2_t mean(const vec2s_t &x);
+
+/** Mean */
 vec3_t mean(const vec3s_t &x);
 
 /** Variance */
 real_t var(const std::vector<real_t> &x);
 
 /** Variance */
+vec2_t var(const vec2s_t &vecs);
+
+/** Variance */
 vec3_t var(const vec3s_t &vecs);
 
 /** Standard Deviation */
 real_t stddev(const std::vector<real_t> &x);
+
+/** Standard Deviation */
+vec2_t stddev(const vec2s_t &x);
+
+/** Standard Deviation */
+vec3_t stddev(const vec3s_t &x);
 
 /** Root Mean Squared Error.  */
 real_t rmse(const std::vector<real_t> &x);

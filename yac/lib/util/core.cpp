@@ -842,6 +842,17 @@ real_t mean(const std::vector<real_t> &x) {
   return sum / N;
 }
 
+vec2_t mean(const vec2s_t &x) {
+  vec2_t x_hat{0.0, 0.0};
+
+  for (const auto &v : x) {
+    x_hat += v;
+  }
+  x_hat *= 1.0f / x.size();
+
+  return x_hat;
+}
+
 vec3_t mean(const vec3s_t &x) {
   vec3_t x_hat{0.0, 0.0, 0.0};
 
@@ -865,6 +876,18 @@ real_t var(const std::vector<real_t> &x) {
   return sum / (N - 1.0);
 }
 
+vec2_t var(const vec2s_t &vecs) {
+  std::vector<double> x;
+  std::vector<double> y;
+
+  for (const vec2_t &v : vecs) {
+    x.push_back(v(0));
+    y.push_back(v(1));
+  }
+
+  return vec2_t{var(x), var(y)};
+}
+
 vec3_t var(const vec3s_t &vecs) {
   std::vector<double> x;
   std::vector<double> y;
@@ -880,6 +903,16 @@ vec3_t var(const vec3s_t &vecs) {
 }
 
 real_t stddev(const std::vector<real_t> &x) { return sqrt(var(x)); }
+
+vec2_t stddev(const vec2s_t &v) {
+  const vec2_t v_var = var(v);
+  return vec2_t{sqrt(v_var.x()), sqrt(v_var.y())};
+}
+
+vec3_t stddev(const vec3s_t &v) {
+  const vec3_t v_var = var(v);
+  return vec3_t{sqrt(v_var.x()), sqrt(v_var.y()), sqrt(v_var.z())};
+}
 
 real_t rmse(const std::vector<real_t> &residuals) {
   real_t sse = 0.0;
@@ -2085,7 +2118,8 @@ void sim_imu_measurement(sim_imu_t &imu,
 //                                const vec3_t w2,
 //                                const real_t theta1_offset,
 //                                const real_t theta2_offset)
-//     : tau_s{tau_s}, tau_d{tau_d}, Lambda1{Lambda1}, w1{w1}, Lambda2{Lambda2},
+//     : tau_s{tau_s}, tau_d{tau_d}, Lambda1{Lambda1}, w1{w1},
+//     Lambda2{Lambda2},
 //       w2{w2}, theta1_offset{theta1_offset}, theta2_offset{theta2_offset} {}
 //
 // gimbal_model_t::~gimbal_model_t() {}
@@ -2221,15 +2255,17 @@ void sim_imu_measurement(sim_imu_t &imu,
 //   model.attitude(0) = ph + (p + q * sin(ph) * tan(th) + r * cos(ph) *
 //   tan(th)) * dt; model.attitude(1) = th + (q * cos(ph) - r * sin(ph)) * dt;
 //   model.attitude(2) = ps + ((1 / cos(th)) * (q * sin(ph) + r * cos(ph))) *
-//   dt; model.angular_velocity(0) = p + (-((Iz - Iy) / Ix) * q * r - (kr * p /
-//   Ix) + (1 / Ix) * taup) * dt; model.angular_velocity(1) = q + (-((Ix - Iz) /
-//   Iy) * p * r - (kr * q / Iy) + (1 / Iy) * tauq) * dt;
-//   model.angular_velocity(2) = r + (-((Iy - Ix) / Iz) * p * q - (kr * r / Iz)
-//   + (1 / Iz) * taur) * dt; model.position(0) = x + vx * dt; model.position(1)
-//   = y + vy * dt; model.position(2) = z + vz * dt; model.linear_velocity(0) =
-//   vx + ((-kt * vx / m) + (1 / m) * (cos(ph) * sin(th) * cos(ps) + sin(ph) *
-//   sin(ps)) * tauf) * dt; model.linear_velocity(1) = vy + ((-kt * vy / m) + (1
-//   / m) * (cos(ph) * sin(th) * sin(ps) - sin(ph) * cos(ps)) * tauf) * dt;
+//   dt; model.angular_velocity(0) = p + (-((Iz - Iy) / Ix) * q * r - (kr * p
+//   / Ix) + (1 / Ix) * taup) * dt; model.angular_velocity(1) = q + (-((Ix -
+//   Iz) / Iy) * p * r - (kr * q / Iy) + (1 / Iy) * tauq) * dt;
+//   model.angular_velocity(2) = r + (-((Iy - Ix) / Iz) * p * q - (kr * r /
+//   Iz)
+//   + (1 / Iz) * taur) * dt; model.position(0) = x + vx * dt;
+//   model.position(1) = y + vy * dt; model.position(2) = z + vz * dt;
+//   model.linear_velocity(0) = vx + ((-kt * vx / m) + (1 / m) * (cos(ph) *
+//   sin(th) * cos(ps) + sin(ph) * sin(ps)) * tauf) * dt;
+//   model.linear_velocity(1) = vy + ((-kt * vy / m) + (1 / m) * (cos(ph) *
+//   sin(th) * sin(ps) - sin(ph) * cos(ps)) * tauf) * dt;
 //   model.linear_velocity(2) = vz + (-(kt * vz / m) + (1 / m) * (cos(ph) *
 //   cos(th)) * tauf - g) * dt;
 //   // clang-format on

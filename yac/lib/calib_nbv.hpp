@@ -45,7 +45,7 @@ struct nbv_test_grid_t {
 };
 
 double info_entropy(const matx_t &covar);
-double info_gain(const matx_t &calib_covar, const double info_prev);
+// double info_gain(const matx_t &calib_covar, const double info_prev);
 double shannon_entropy(const matx_t &covar);
 
 bool check_fully_observable(const calib_target_t &target,

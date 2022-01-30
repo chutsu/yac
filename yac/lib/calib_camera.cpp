@@ -158,167 +158,6 @@ void camchain_t::clear() {
   exts.clear();
 }
 
-// REPROJECTION ERROR //////////////////////////////////////////////////////////
-
-reproj_error_t::reproj_error_t(const camera_geometry_t *cam_geom_,
-                               const camera_params_t *cam_params_,
-                               const pose_t *T_BCi_,
-                               const pose_t *T_C0F_,
-                               const fiducial_corner_t *p_FFi_,
-                               const vec2_t &z_,
-                               const mat2_t &covar_)
-    : cam_geom{cam_geom_}, cam_params{cam_params_}, T_BCi{T_BCi_},
-      T_C0F{T_C0F_}, p_FFi{p_FFi_}, z{z_}, covar{covar_}, info{covar.inverse()},
-      sqrt_info{info.llt().matrixU()} {
-  set_num_residuals(2);
-  auto block_sizes = mutable_parameter_block_sizes();
-  block_sizes->push_back(7); // Camera-camera extrinsics
-  block_sizes->push_back(7); // Camera-fiducial relative pose
-  block_sizes->push_back(3); // Fiducial corner parameter
-  block_sizes->push_back(8); // Camera parameters
-
-  J0_min = zeros(2, 6);
-  J1_min = zeros(2, 6);
-  J2_min = zeros(2, 3);
-  J3_min = zeros(2, 8);
-}
-
-int reproj_error_t::get_residual(vec2_t &z_hat, vec2_t &r) const {
-  assert(T_BCi != nullptr);
-  assert(T_C0F != nullptr);
-
-  // Map parameters out
-  const mat4_t T_C0Ci_ = T_BCi->tf();
-  const mat4_t T_C0F_ = T_C0F->tf();
-  const vec3_t p_FFi_ = p_FFi->param;
-
-  // Transform and project point to image plane
-  // -- Transform point from fiducial frame to camera-n
-  const mat4_t T_CiC0_ = T_C0Ci_.inverse();
-  const vec3_t p_CiFi = tf_point(T_CiC0_ * T_C0F_, p_FFi_);
-  // -- Project point from camera frame to image plane
-  auto res = cam_params->resolution;
-  auto param = cam_params->param;
-  if (cam_geom->project(res, param, p_CiFi, z_hat) != 0) {
-    return -1;
-  }
-  // -- Residual
-  r = z - z_hat;
-
-  return 0;
-}
-
-int reproj_error_t::get_residual(vec2_t &r) const {
-  assert(T_BCi != nullptr);
-  assert(T_C0F != nullptr);
-
-  vec2_t z_hat = zeros(2, 1);
-  if (get_residual(z_hat, r) != 0) {
-    return -1;
-  }
-
-  return 0;
-}
-
-int reproj_error_t::get_reproj_error(real_t &error) const {
-  vec2_t r;
-  if (get_residual(r) != 0) {
-    return -1;
-  }
-  error = r.norm();
-  return 0;
-}
-
-bool reproj_error_t::Evaluate(double const *const *params,
-                              double *residuals,
-                              double **jacobians) const {
-  // Map parameters out
-  const mat4_t T_C0Ci = tf(params[0]);
-  const mat4_t T_C0F = tf(params[1]);
-  Eigen::Map<const vecx_t> p_FFi(params[2], 3);
-  Eigen::Map<const vecx_t> param(params[3], 8);
-
-  // Transform and project point to image plane
-  // -- Transform point from fiducial frame to camera-n
-  const mat4_t T_CiC0 = T_C0Ci.inverse();
-  const vec3_t p_CiFi = tf_point(T_CiC0 * T_C0F, p_FFi);
-  // -- Project point from camera frame to image plane
-  auto res = cam_params->resolution;
-  vec2_t z_hat;
-  bool valid = true;
-  if (cam_geom->project(res, param, p_CiFi, z_hat) != 0) {
-    valid = false;
-  }
-
-  // Residual
-  Eigen::Map<vec2_t> r(residuals);
-  r = sqrt_info * (z - z_hat);
-
-  // Jacobians
-  const matx_t Jh = cam_geom->project_jacobian(param, p_CiFi);
-  const matx_t Jh_weighted = -1 * sqrt_info * Jh;
-
-  if (jacobians) {
-    // Jacobians w.r.t T_C0Ci
-    if (jacobians[0]) {
-      Eigen::Map<mat_t<2, 7, row_major_t>> J(jacobians[0]);
-      J.setZero();
-
-      if (valid) {
-        const mat3_t C_CiC0 = tf_rot(T_CiC0);
-        const mat3_t C_C0Ci = C_CiC0.transpose();
-        const vec3_t p_CiFi = tf_point(T_CiC0 * T_C0F, p_FFi);
-
-        // clang-format off
-        J0_min.block(0, 0, 2, 3) = -1 * Jh_weighted * C_CiC0;
-        J0_min.block(0, 3, 2, 3) = -1 * Jh_weighted * C_CiC0 * -skew(C_C0Ci * p_CiFi);
-        // clang-format on
-
-        J = J0_min * lift_pose_jacobian(T_C0Ci);
-      }
-    }
-
-    // Jacobians w.r.t T_C0F
-    if (jacobians[1]) {
-      Eigen::Map<mat_t<2, 7, row_major_t>> J(jacobians[1]);
-      J.setZero();
-
-      if (valid) {
-        const mat3_t C_CiC0 = tf_rot(T_CiC0);
-        const mat3_t C_C0F = tf_rot(T_C0F);
-        J1_min.block(0, 0, 2, 3) = Jh_weighted * C_CiC0;
-        J1_min.block(0, 3, 2, 3) = Jh_weighted * C_CiC0 * -skew(C_C0F * p_FFi);
-        J = J1_min * lift_pose_jacobian(T_C0F);
-      }
-    }
-
-    // Jacobians w.r.t fiducial corner
-    if (jacobians[2]) {
-      Eigen::Map<mat_t<2, 3, row_major_t>> J(jacobians[2]);
-      J.setZero();
-      if (valid) {
-        const mat4_t T_CiF = T_CiC0 * T_C0F;
-        const mat3_t C_CiF = tf_rot(T_CiF);
-        J2_min = Jh_weighted * C_CiF;
-        J.block(0, 0, 2, 3) = J2_min;
-      }
-    }
-
-    // Jacobians w.r.t cam params
-    if (jacobians[3]) {
-      Eigen::Map<mat_t<2, 8, row_major_t>> J(jacobians[3]);
-      J.setZero();
-      if (valid) {
-        const matx_t J_cam = cam_geom->params_jacobian(param, p_CiFi);
-        J3_min = -1 * sqrt_info * J_cam;
-        J = J3_min;
-      }
-    }
-  }
-
-  return true;
-}
-
 // CALIB VIEW //////////////////////////////////////////////////////////////////
 
 calib_view_t::calib_view_t(ceres::Problem *problem_,
@@ -364,6 +203,19 @@ calib_view_t::calib_view_t(ceres::Problem *problem_,
   }
 }
 
+vec2s_t calib_view_t::get_residuals() const {
+  vec2s_t residuals;
+
+  for (auto res_fn : res_fns) {
+    vec2_t r;
+    if (res_fn->get_residual(r) == 0) {
+      residuals.push_back(r);
+    }
+  }
+
+  return residuals;
+}
+
 std::vector<real_t> calib_view_t::get_reproj_errors() const {
   // Calculate reprojection errors
   std::vector<real_t> reproj_errors;
@@ -378,12 +230,7 @@ std::vector<real_t> calib_view_t::get_reproj_errors() const {
   return reproj_errors;
 }
 
-int calib_view_t::filter_view(const real_t outlier_threshold) {
-  // Calculate threshold
-  const auto reproj_errors = get_reproj_errors();
-  const auto error_stddev = stddev(reproj_errors);
-  const auto threshold = outlier_threshold * error_stddev;
-
+int calib_view_t::filter_view(const real_t reproj_threshold) {
   // Filter
   int nb_inliers = 0;
   int nb_outliers = 0;
@@ -395,7 +242,36 @@ int calib_view_t::filter_view(const real_t outlier_threshold) {
     auto &res_id = *res_ids_it;
 
     real_t err = 0.0;
-    if (res->get_reproj_error(err) == 0 && err > threshold) {
+    if (res->get_reproj_error(err) == 0 && err > reproj_threshold) {
+      problem->RemoveResidualBlock(res_id);
+      res_fns_it = res_fns.erase(res_fns_it);
+      res_ids_it = res_ids.erase(res_ids_it);
+      nb_outliers++;
+    } else {
+      ++res_fns_it;
+      ++res_ids_it;
+      nb_inliers++;
+    }
+  }
+
+  return nb_outliers;
+}
+
+int calib_view_t::filter_view(const vec2_t &residual_threshold) {
+  // Filter
+  const real_t th_x = residual_threshold.x();
+  const real_t th_y = residual_threshold.y();
+  int nb_inliers = 0;
+  int nb_outliers = 0;
+  auto res_fns_it = res_fns.begin();
+  auto res_ids_it = res_ids.begin();
+
+  while (res_fns_it != res_fns.end()) {
+    auto &res = *res_fns_it;
+    auto &res_id = *res_ids_it;
+
+    vec2_t r{0.0, 0.0};
+    if (res->get_residual(r) == 0 && (r.x() > th_x || r.y() > th_y)) {
       problem->RemoveResidualBlock(res_id);
       res_fns_it = res_fns.erase(res_fns_it);
       res_ids_it = res_ids.erase(res_ids_it);
@@ -584,9 +460,8 @@ int calib_camera_t::nb_views(const int cam_idx) const {
 int calib_camera_t::nb_views() const {
   int retval = 0;
   for (const auto cam_idx : get_camera_indices()) {
-    retval = std::max(nb_views(cam_idx), retval);
+    retval += nb_views(cam_idx);
   }
-
   return retval;
 }
 
@@ -663,6 +538,25 @@ std::map<int, std::vector<real_t>> calib_camera_t::get_reproj_errors() {
   }
 
   return reproj_errors;
+}
+
+std::map<int, vec2s_t> calib_camera_t::get_residuals() {
+  std::map<int, vec2s_t> residuals;
+
+  for (auto &[cam_idx, cam_views] : calib_views) {
+    for (auto &[ts, view] : cam_views) {
+      UNUSED(ts);
+      if (view == nullptr) {
+        continue;
+      }
+
+      for (const auto r : view->get_residuals()) {
+        residuals[cam_idx].push_back(r);
+      }
+    }
+  }
+
+  return residuals;
 }
 
 void calib_camera_t::add_camera_data(const int cam_idx,
@@ -806,10 +700,18 @@ void calib_camera_t::remove_view(const timestamp_t ts) {
   }
 
   // Remove pose
-  auto pose_ptr = poses[ts];
-  problem->RemoveParameterBlock(pose_ptr->param.data());
-  poses.erase(ts);
-  delete pose_ptr;
+  if (poses.count(ts)) {
+    auto pose_ptr = poses[ts];
+    problem->RemoveParameterBlock(pose_ptr->param.data());
+    poses.erase(ts);
+    delete pose_ptr;
+  }
+}
+
+void calib_camera_t::remove_all_views() {
+  for (const auto ts : timestamps) {
+    remove_view(ts);
+  }
 }
 
 int calib_camera_t::recover_calib_covar(matx_t &calib_covar, bool verbose) {
@@ -971,8 +873,8 @@ int calib_camera_t::find_nbv(const std::map<int, mat4s_t> &nbv_poses,
       }
       remove_view(nbv_ts);
       // -- Calculate entropy
-      const real_t entropy = info_entropy(calib_covar);
-      if (entropy > best_entropy) {
+      const real_t entropy = shannon_entropy(calib_covar);
+      if (entropy < best_entropy) {
         best_cam = nbv_cam_idx;
         best_idx = i;
         best_entropy = entropy;
@@ -1061,8 +963,8 @@ int calib_camera_t::find_nbv(std::set<timestamp_t> &nbv_timestamps,
     }
 
     // Calculate entropy
-    const real_t entropy = info_entropy(calib_covar);
-    if (entropy > best_entropy) {
+    const real_t entropy = shannon_entropy(calib_covar);
+    if (entropy < best_entropy) {
       best_entropy = entropy;
       best_nbv_ts = nbv_ts;
     }
@@ -1105,22 +1007,19 @@ void calib_camera_t::_initialize_extrinsics() {
   }
 }
 
-int calib_camera_t::_filter_views() {
-  int removed = 0;
-  for (auto &[cam_idx, cam_views] : calib_views) {
-    UNUSED(cam_idx);
-
-    for (auto &[ts, view] : cam_views) {
-      UNUSED(ts);
-      removed += view->filter_view(outlier_threshold);
-    }
-  }
-
-  return removed;
-}
-
 int calib_camera_t::_filter_view(const timestamp_t ts) {
   int removed = 0;
+
+  // Calculate reprojection threshold on a per-camera basis
+  std::map<int, vec2_t> cam_thresholds;
+  std::map<int, vec2s_t> cam_residuals = get_residuals();
+  for (const auto cam_idx : get_camera_indices()) {
+    const vec2s_t cam_r = cam_residuals[cam_idx];
+    const vec2_t cam_stddev = stddev(cam_r);
+    cam_thresholds[cam_idx] = outlier_threshold * cam_stddev;
+  }
+
+  // Filter one view
   for (auto &[cam_idx, cam_views] : calib_views) {
     UNUSED(cam_idx);
     if (cam_views.count(ts) == 0) {
@@ -1128,11 +1027,57 @@ int calib_camera_t::_filter_view(const timestamp_t ts) {
     }
 
     if (cam_views[ts]) {
-      removed += cam_views[ts]->filter_view(outlier_threshold);
+      removed += cam_views[ts]->filter_view(cam_thresholds[cam_idx]);
     }
   }
 
   return removed;
+}
+
+int calib_camera_t::_filter_all_views() {
+  int removed = 0;
+
+  // Calculate reprojection threshold on a per-camera basis
+  std::map<int, vec2_t> cam_thresholds;
+  std::map<int, vec2s_t> cam_residuals = get_residuals();
+  for (const auto cam_idx : get_camera_indices()) {
+    const vec2s_t cam_r = cam_residuals[cam_idx];
+    const vec2_t cam_stddev = stddev(cam_r);
+    cam_thresholds[cam_idx] = outlier_threshold * cam_stddev;
+  }
+
+  // Filter views
+  for (auto &[cam_idx, cam_views] : calib_views) {
+    for (auto &[ts, view] : cam_views) {
+      UNUSED(ts);
+      removed += view->filter_view(cam_thresholds[cam_idx]);
+    }
+  }
+
+  return removed;
+}
+
+int calib_camera_t::eval_view(real_t &entropy) {
+  // Solve with new view
+  ceres::Solver::Options options;
+  options.minimizer_progress_to_stdout = false;
+  options.max_num_iterations = 50;
+  ceres::Solver::Summary summary;
+  ceres::Solve(options, problem, &summary);
+
+  // Estimate calibration covariance
+  matx_t calib_covar;
+  int retval = recover_calib_covar(calib_covar);
+  if (retval != 0) {
+    return -1;
+  }
+
+  // Calculate information gain
+  const auto reproj_errors_all = get_all_reproj_errors();
+  // entropy = info_entropy(calib_covar);
+  entropy = shannon_entropy(calib_covar);
+
+  return 0;
 }
 
 void calib_camera_t::_solve_batch() {
@@ -1188,6 +1133,11 @@ void calib_camera_t::_solve_batch() {
 void calib_camera_t::_solve_nbv() {
   size_t ts_idx = 0;
 
+  // Initialize
+  _solve_batch();
+  remove_all_views();
+
+  // NBV
   progressbar bar(timestamps.size());
   printf("Solving full problem: ");
 
@@ -1222,57 +1172,59 @@ void calib_camera_t::_solve_nbv() {
       continue;
     }
 
-    // Check number of views before performing NBV
-    if (calib_views[0].size() < min_nbv_views) {
+    // Evaluate view
+    real_t calib_entropy_kp1 = 0.0;
+    if (eval_view(calib_entropy_kp1) != 0) {
       continue;
     }
-
-    // Solve with new view
-    ceres::Solver::Options options;
-    options.minimizer_progress_to_stdout = false;
-    options.max_num_iterations = 50;
-    ceres::Solver::Summary summary;
-    ceres::Solve(options, problem, &summary);
+    real_t info_gain = 0.5 * (calib_entropy_k - calib_entropy_kp1);
 
     // Filter last view and optimize again
-    if (enable_nbv_filter) {
-      _filter_view(ts);
-      ceres::Solve(options, problem, &summary);
+    int removed = 0;
+    const auto first_camera = get_camera_indices()[0];
+    if (enable_nbv_filter && nb_views(first_camera) > min_nbv_views) {
+      if (filter_views_init == false) {
+        removed = _filter_all_views();
+        filter_views_init = true;
+
+      } else {
+        removed = _filter_view(ts);
+        if (eval_view(calib_entropy_kp1) != 0) {
+          continue;
+        }
+        info_gain = 0.5 * (calib_entropy_k - calib_entropy_kp1);
+      }
     }
 
-    // Check information
-    matx_t calib_covar;
-    int retval = recover_calib_covar(calib_covar);
-    if (retval != 0) {
-      continue;
-    }
-
-    // Calculate information gain
+    // Print stats
     const auto reproj_errors_all = get_all_reproj_errors();
-    const real_t calib_info_kp1 = info_entropy(calib_covar);
-    const real_t info_gain = 0.5 * (calib_info_kp1 - calib_info_k);
     // clang-format off
-    // printf("[%.2f%%] ", ((real_t)ts_idx / (real_t)timestamps.size()) * 100.0);
-    // printf("nb_views: %ld  ", calib_views[0].size());
-    // printf("info_k: %.2f ", calib_info_k);
-    // printf("reproj_error: %.2f ", rmse(reproj_errors_all));
-    // printf("shannon_entropy: %.2f  ", shannon_entropy(calib_covar));
-    // printf("\n");
+    printf("[%.2f%%] ", ((real_t)ts_idx / (real_t)timestamps.size()) * 100.0);
+    printf("nb_views: %d  ", nb_views(first_camera));
+    printf("reproj_error: %.2f ", rmse(reproj_errors_all));
+    printf("entropy: %.2f ", calib_entropy_k);
+    printf("info_gain: %.2f ", info_gain);
+    printf("removed %d outliers", removed);
+    printf("\n");
     // clang-format on
-
     if (info_gain < info_gain_threshold) {
       remove_view(ts);
     } else {
-      calib_info_k = calib_info_kp1;
+      calib_entropy_k = calib_entropy_kp1;
+      removed_outliers += removed;
     }
 
-    bar.update();
+    // bar.update();
   } // Iterate timestamps
 }
 
 void calib_camera_t::_solve_nbv2() {
   LOG_INFO("Solving Incremental NBV problem");
-  real_t entropy_k = 0.0;
+
+  // Setup
+  real_t calib_entropy_k = 0.0;
+  _solve_batch();
+  remove_all_views();
 
   // Form NBV timestamps where aprilgrids are actually detected
   std::set<timestamp_t> nbv_timestamps;
@@ -1286,6 +1238,7 @@ void calib_camera_t::_solve_nbv2() {
   }
 
   // Add min-views
+  LOG_INFO("Add minimal views ...");
   {
     auto it = nbv_timestamps.begin();
     while (it != nbv_timestamps.end()) {
@@ -1329,29 +1282,34 @@ void calib_camera_t::_solve_nbv2() {
       }
     }
 
+    // Filter all views
+    LOG_INFO("Filter initial views");
+    removed_outliers = _filter_all_views();
+    LOG_INFO("Removed %d outliers", removed_outliers);
+
     // Calculate entropy
     matx_t calib_covar;
     int retval = recover_calib_covar(calib_covar);
     if (retval != 0) {
       FATAL("Failed to estimate calibration covariance!");
     }
-    entropy_k = info_entropy(calib_covar);
+    calib_entropy_k = shannon_entropy(calib_covar);
   }
 
   // Find next best view
   while (nbv_timestamps.size()) {
     // Find next best view
-    real_t entropy_kp1 = 0.0;
+    real_t calib_entropy_kp1 = 0.0;
     timestamp_t nbv_ts = 0;
-    find_nbv(nbv_timestamps, entropy_kp1, nbv_ts);
+    find_nbv(nbv_timestamps, calib_entropy_kp1, nbv_ts);
 
     // Calculate information gain
-    const real_t info_gain = 0.5 * (entropy_kp1 - entropy_k);
+    real_t info_gain = 0.5 * (calib_entropy_k - calib_entropy_kp1);
     if (info_gain < info_gain_threshold) {
       LOG_INFO("NBV below info gain threshold!");
       break;
     } else {
-      entropy_k = entropy_kp1;
+      calib_entropy_k = calib_entropy_kp1;
     }
 
     // Add view
@@ -1372,22 +1330,11 @@ void calib_camera_t::_solve_nbv2() {
                poses[nbv_ts]);
     }
 
-    // Solve with new view
-    ceres::Solver::Options options;
-    options.minimizer_progress_to_stdout = false;
-    options.max_num_iterations = 10;
-    ceres::Solver::Summary summary;
-    ceres::Solve(options, problem, &summary);
-
-    // Filter last view and optimize again
-    if (enable_nbv_filter) {
-      _filter_view(nbv_ts);
-      ceres::Solve(options, problem, &summary);
-    }
-
     // Print stats
     const auto reproj_errors_all = get_all_reproj_errors();
-    printf("nbv [ts: %ld, entropy: %f]\n", nbv_ts, entropy_kp1);
+    printf("nbv [ts: %ld]\n", nbv_ts);
+    printf("entropy_k: %f\n", calib_entropy_k);
+    printf("entropy_kp1: %f\n", calib_entropy_kp1);
     printf("info_gain: %f\n", info_gain);
     printf("rms_reproj_error: %f\n", rmse(reproj_errors_all));
     for (const auto cam_idx : get_camera_indices()) {
@@ -1420,7 +1367,8 @@ void calib_camera_t::solve() {
   // Filter views
   if (enable_outlier_rejection) {
     LOG_INFO("Removing outliers");
-    _filter_views();
+    removed_outliers += _filter_all_views();
+    LOG_INFO("Removed %d outliers", removed_outliers);
 
     // Solve again - second pass
     LOG_INFO("Solving again!");

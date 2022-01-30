@@ -108,7 +108,7 @@ struct calib_camera_t {
   bool enable_nbv_filter = true;
   bool enable_outlier_rejection = true;
   int min_nbv_views = 40;
-  real_t outlier_threshold = 4.0;
+  real_t outlier_threshold = 3.0;
   real_t info_gain_threshold = 0.2;
 
   // Data
@@ -157,6 +157,7 @@ struct calib_camera_t {
   std::map<int, std::vector<real_t>> get_reproj_errors();
   std::map<int, vec2s_t> get_residuals();
 
+  void add_camera_data(const std::map<int, aprilgrids_t> &grids);
   void add_camera_data(const int cam_idx, const aprilgrids_t &grids);
   void add_camera(const int cam_idx,
                   const int cam_res[2],
@@ -201,6 +202,8 @@ struct calib_camera_t {
   void show_results();
   int save_results(const std::string &save_path);
   int save_stats(const std::string &save_path);
+
+  void validate(const std::map<int, aprilgrids_t> &cam_data);
 };
 
 /** Solve Camera Calibration Problem */

@@ -945,6 +945,12 @@ vec3_t stddev(const vec3s_t &x);
 /** Root Mean Squared Error.  */
 real_t rmse(const std::vector<real_t> &x);
 
+/** Root Mean Squared Error.  */
+vec2_t rmse(const vec2s_t &vecs);
+
+/** Root Mean Squared Error.  */
+vec3_t rmse(const vec3s_t &vecs);
+
 /**
  * Shannon Entropy of a given covariance matrix `covar`.
  */

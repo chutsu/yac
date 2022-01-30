@@ -559,6 +559,12 @@ std::map<int, vec2s_t> calib_camera_t::get_residuals() {
   return residuals;
 }
 
+void calib_camera_t::add_camera_data(const std::map<int, aprilgrids_t> &grids) {
+  for (const auto &[cam_idx, cam_grids] : grids) {
+    add_camera_data(cam_idx, cam_grids);
+  }
+}
+
 void calib_camera_t::add_camera_data(const int cam_idx,
                                      const aprilgrids_t &grids) {
   for (const auto &grid : grids) {
@@ -699,13 +705,13 @@ void calib_camera_t::remove_view(const timestamp_t ts) {
     cam_views.erase(ts);
   }
 
-  // Remove pose
-  if (poses.count(ts)) {
-    auto pose_ptr = poses[ts];
-    problem->RemoveParameterBlock(pose_ptr->param.data());
-    poses.erase(ts);
-    delete pose_ptr;
-  }
+  // // Remove pose
+  // if (poses.count(ts)) {
+  //   auto pose_ptr = poses[ts];
+  //   problem->RemoveParameterBlock(pose_ptr->param.data());
+  //   poses.erase(ts);
+  //   delete pose_ptr;
+  // }
 }
 
 void calib_camera_t::remove_all_views() {
@@ -1359,7 +1365,7 @@ void calib_camera_t::solve() {
 
   // Solve
   if (enable_nbv) {
-    _solve_nbv2();
+    _solve_nbv();
   } else {
     _solve_batch();
   }
@@ -1568,6 +1574,126 @@ int calib_camera_t::save_stats(const std::string &save_path) {
   }
 
   return 0;
+}
+
+void calib_camera_t::validate(const std::map<int, aprilgrids_t> &cam_data) {
+  // Lambda to average poses
+  auto find_mean_pose = [](const mat4s_t &poses) {
+    std::vector<real_t> rx;
+    std::vector<real_t> ry;
+    std::vector<real_t> rz;
+
+    std::vector<real_t> qw;
+    std::vector<real_t> qx;
+    std::vector<real_t> qy;
+    std::vector<real_t> qz;
+
+    for (const auto &pose : poses) {
+      const vec3_t r = tf_trans(pose);
+      const quat_t q = tf_quat(pose);
+
+      rx.push_back(r.x());
+      ry.push_back(r.y());
+      rz.push_back(r.z());
+
+      qw.push_back(q.w());
+      qx.push_back(q.x());
+      qy.push_back(q.y());
+      qz.push_back(q.z());
+    }
+
+    const real_t rx_hat = mean(rx);
+    const real_t ry_hat = mean(ry);
+    const real_t rz_hat = mean(rz);
+    const vec3_t r{rx_hat, ry_hat, rz_hat};
+
+    const real_t qw_hat = mean(qw);
+    const real_t qx_hat = mean(qx);
+    const real_t qy_hat = mean(qy);
+    const real_t qz_hat = mean(qz);
+    const quat_t q{qw_hat, qx_hat, qy_hat, qz_hat};
+
+    return tf(q, r);
+  };
+
+  // Estimate relaitve poses T_C0F
+  std::map<timestamp_t, mat4s_t> fiducial_poses;
+  for (const auto cam_idx : get_camera_indices()) {
+    const auto cam_geom = cam_geoms[cam_idx];
+    const auto cam_param = cam_params[cam_idx];
+    const auto cam_res = cam_param->resolution;
+    const auto T_C0Ci = cam_exts[cam_idx]->tf();
+
+    for (const auto &grid : cam_data.at(cam_idx)) {
+      // Make sure aprilgrid is detected
+      if (grid.detected == false) {
+        continue;
+      }
+
+      // Estimate relative pose
+      mat4_t T_CiF;
+      if (grid.estimate(cam_geom, cam_res, cam_param->param, T_CiF) != 0) {
+        continue;
+      }
+      fiducial_poses[grid.timestamp].push_back(T_C0Ci * T_CiF);
+    }
+  }
+
+  // Calculate reprojection error
+  std::map<int, std::vector<real_t>> cam_residuals;
+  for (const auto cam_idx : get_camera_indices()) {
+    const auto cam_geom = cam_geoms[cam_idx];
+    const auto cam_param = cam_params[cam_idx];
+    const auto cam_res = cam_param->resolution;
+    const auto T_CiC0 = cam_exts[cam_idx]->tf().inverse();
+
+    for (const auto &grid : cam_data.at(cam_idx)) {
+      // Make sure aprilgrid is detected
+      if (grid.detected == false) {
+        continue;
+      }
+
+      // Estimate relative pose
+      const timestamp_t ts = grid.timestamp;
+      const mat4_t T_C0F = find_mean_pose(fiducial_poses[ts]);
+      const mat4_t T_CiF = T_CiC0 * T_C0F;
+
+      // Get AprilGrid measurements
+      std::vector<int> tag_ids;
+      std::vector<int> corner_idxs;
+      vec2s_t kps;
+      vec3s_t pts;
+      grid.get_measurements(tag_ids, corner_idxs, kps, pts);
+
+      // Add reprojection errors
+      for (size_t i = 0; i < tag_ids.size(); i++) {
+        const int tag_id = tag_ids[i];
+        const int corner_idx = corner_idxs[i];
+        const vec2_t z = kps[i];
+        const vec3_t p_FFi = grid.object_point(tag_id, corner_idx);
+        const vec3_t p_CiFi = tf_point(T_CiF, p_FFi);
+
+        vec2_t z_hat;
+        if (cam_geom->project(cam_res, cam_param->param, p_CiFi, z_hat) != 0) {
+          continue;
+        }
+        cam_residuals[cam_idx].push_back((z - z_hat).norm());
+      }
+    }
+  }
+
+  // Print stats
+  printf("Validation Statistics:\n");
+  for (const auto &[cam_idx, cam_r] : cam_residuals) {
+    printf("cam%d reprojection_error:\n", cam_idx);
+    printf("  rmse: %.4f # px\n", rmse(cam_r));
+    printf("  mean: %.4f # px\n", mean(cam_r));
+    printf("  median: %.4f # px\n", median(cam_r));
+    printf("  stddev: %.4f # px\n", stddev(cam_r));
+    printf("\n");
+  }
+
+  return;
 }
 
 int calib_camera_solve(const std::string &config_path) {

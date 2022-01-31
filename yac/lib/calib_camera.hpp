@@ -107,13 +107,14 @@ struct calib_camera_t {
   bool enable_nbv = true;
   bool enable_nbv_filter = true;
   bool enable_outlier_rejection = true;
-  int min_nbv_views = 40;
-  real_t outlier_threshold = 3.0;
+  int min_nbv_views = 20;
+  real_t outlier_threshold = 4.0;
   real_t info_gain_threshold = 0.2;
 
   // Data
   calib_target_t calib_target;
   std::map<int, camera_geometry_t *> cam_geoms;
+  std::map<int, real_t> focal_length_init;
   std::set<timestamp_t> timestamps;
   camera_data_t cam_data;
   real_t calib_entropy_k = 0;
@@ -141,6 +142,7 @@ struct calib_camera_t {
   // Constructor / Destructor
   calib_camera_t() = delete;
   calib_camera_t(const calib_target_t &calib_target_);
+  calib_camera_t(const std::string &config_path);
   ~calib_camera_t();
 
   int nb_cameras() const;
@@ -163,13 +165,18 @@ struct calib_camera_t {
                   const int cam_res[2],
                   const std::string &proj_model,
                   const std::string &dist_model,
+                  const vecx_t &proj_params,
+                  const vecx_t &dist_params,
+                  const bool fixed = false);
+  void add_camera(const int cam_idx,
+                  const int cam_res[2],
+                  const std::string &proj_model,
+                  const std::string &dist_model,
                   const bool fixed = false);
   void add_camera_extrinsics(const int cam_idx,
                              const mat4_t &ext = I(4),
                              const bool fixed = false);
-  void add_pose(const int cam_idx,
-                const aprilgrid_t &grid,
-                const bool fixed = false);
+  void add_pose(const timestamp_t ts, const bool fixed = false);
   void add_view(const aprilgrid_t &grid,
                 ceres::Problem *problem,
                 ceres::LossFunction *loss,
@@ -185,7 +192,7 @@ struct calib_camera_t {
   int find_nbv(const std::map<int, mat4s_t> &nbv_poses,
                int &cam_idx,
                int &nbv_idx);
-  int find_nbv(std::set<timestamp_t> &nbv_timestamps,
+  int find_nbv(std::vector<timestamp_t> &nbv_timestamps,
                real_t &best_entropy,
                timestamp_t &best_nbv);
 
@@ -201,6 +208,7 @@ struct calib_camera_t {
   void solve();
   void show_results();
   int save_results(const std::string &save_path);
+  int save_estimates(const std::string &save_path);
   int save_stats(const std::string &save_path);
 
   void validate(const std::map<int, aprilgrids_t> &cam_data);

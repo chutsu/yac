@@ -320,8 +320,8 @@ int aprilgrid_t::save(const std::string &save_path) const {
         fprintf(fp, "%d,", tag_cols);
         fprintf(fp, "%f,", tag_size);
         fprintf(fp, "%f,", tag_spacing);
-        fprintf(fp, "%f,", kp(0));
-        fprintf(fp, "%f,", kp(1));
+        fprintf(fp, "%.10f,", kp.x());
+        fprintf(fp, "%.10f,", kp.y());
         fprintf(fp, "%f,", p(0));
         fprintf(fp, "%f,", p(1));
         fprintf(fp, "%f,", p(2));

@@ -217,6 +217,8 @@ int test_reproj_error() {
       cam_params.perturb(i, -step);
     }
 
+    // print_matrix("fdiff", fdiff);
+    // print_matrix("err.J3_min", err.J3_min);
     MU_CHECK(check_jacobian("J3", fdiff, err.J3_min, threshold, true) == 0);
   }
 

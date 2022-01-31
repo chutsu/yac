@@ -671,8 +671,8 @@ mat2_t radtan4_point_jacobian(const vec4_t &dist_params, const vec2_t &p) {
 }
 
 matx_t radtan4_params_jacobian(const vec4_t &dist_params, const vec2_t &p) {
-  const real_t x = p(0);
-  const real_t y = p(1);
+  const real_t x = p.x();
+  const real_t y = p.y();
 
   const real_t xy = x * y;
   const real_t x2 = x * x;
@@ -683,12 +683,12 @@ matx_t radtan4_params_jacobian(const vec4_t &dist_params, const vec2_t &p) {
   mat_t<2, 4> J_dist = zeros(2, 4);
   J_dist(0, 0) = x * r2;
   J_dist(0, 1) = x * r4;
-  J_dist(0, 2) = 2 * xy;
-  J_dist(0, 3) = 3 * x2 + y2;
+  J_dist(0, 2) = 2.0 * xy;
+  J_dist(0, 3) = r2 + 2.0 * x2;
 
   J_dist(1, 0) = y * r2;
   J_dist(1, 1) = y * r4;
-  J_dist(1, 2) = x2 + 3 * y2;
+  J_dist(1, 2) = r2 + 2.0 * y2;
   J_dist(1, 3) = 2 * xy;
 
   return J_dist;

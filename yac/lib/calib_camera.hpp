@@ -179,6 +179,9 @@ struct calib_camera_t {
                              const mat4_t &ext = I(4),
                              const bool fixed = false);
   void add_pose(const timestamp_t ts, const bool fixed = false);
+  void add_pose(const int cam_idx,
+                const aprilgrid_t &grid,
+                const bool fixed = false);
   void add_view(const aprilgrid_t &grid,
                 ceres::Problem *problem,
                 ceres::LossFunction *loss,

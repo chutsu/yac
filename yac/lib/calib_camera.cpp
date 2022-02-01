@@ -729,7 +729,8 @@ void calib_camera_t::add_pose(const timestamp_t ts, const bool fixed) {
   int best_cam_idx = 0;
   aprilgrid_t best_grid;
   for (const auto &[cam_idx, grid] : cam_data.at(ts)) {
-    if (grid.nb_detections > best_grid.nb_detections) {
+    if ((grid.nb_detections > best_grid.nb_detections) &&
+        cam_exts.count(cam_idx)) {
       best_cam_idx = cam_idx;
       best_grid = grid;
     }
@@ -754,6 +755,14 @@ void calib_camera_t::add_pose(const timestamp_t ts, const bool fixed) {
   if (fixed) {
     problem->SetParameterBlockConstant(poses[ts]->data());
   }
+}
+
+void calib_camera_t::add_pose(const int cam_idx,
+                              const aprilgrid_t &grid,
+                              const bool fixed) {
+  timestamps.insert(grid.timestamp);
+  cam_data[grid.timestamp][cam_idx] = grid;
+  add_pose(grid.timestamp, fixed);
 }
 
 void calib_camera_t::add_view(const aprilgrid_t &grid,
@@ -1209,15 +1218,19 @@ void calib_camera_t::_solve_batch() {
   ceres::Solver::Options options;
   options.minimizer_progress_to_stdout = verbose;
   options.max_num_iterations = 100;
-  options.function_tolerance = 1e-20;
-  options.gradient_tolerance = 1e-20;
-  options.parameter_tolerance = 1e-20;
+  // options.trust_region_strategy_type = ceres::DOGLEG;
+  // options.minimizer_type = ceres::LINE_SEARCH;
+  // options.function_tolerance = 1e-20;
+  // options.gradient_tolerance = 1e-20;
+  // options.parameter_tolerance = 1e-20;
+  // options.inner_iteration_tolerance = 1e-5;
 
   // Solve
   ceres::Solver::Summary summary;
   ceres::Solve(options, problem, &summary);
   if (verbose) {
-    std::cout << summary.BriefReport() << std::endl;
+    // std::cout << summary.BriefReport() << std::endl;
+    std::cout << summary.FullReport() << std::endl;
     std::cout << std::endl;
   }
 }
@@ -1713,6 +1726,15 @@ int calib_camera_t::save_stats(const std::string &save_path) {
 }
 
 void calib_camera_t::validate(const std::map<int, aprilgrids_t> &cam_data) {
+  // Pre-check
+  if (cam_exts.size() != cam_params.size()) {
+    FATAL("cam_exts.size() != cam_params.size()");
+  } else if (cam_params.size() == 0) {
+    FATAL("cam_params.size() == 0");
+  } else if (cam_exts.size() == 0) {
+    FATAL("cam_exts.size() == 0");
+  }
+
   // Lambda to average poses
   auto find_mean_pose = [](const mat4s_t &poses) {
     std::vector<real_t> rx;
@@ -1837,6 +1859,28 @@ void calib_camera_t::validate(const std::map<int, aprilgrids_t> &cam_data) {
     printf("  proj_params: %s\n", vec2str(cam_param->proj_params()).c_str());
     printf("  dist_params: %s\n", vec2str(cam_param->dist_params()).c_str());
     printf("\n");
+  }
+
+  // Camera-Camera extrinsics
+  const mat4_t T_BC0 = get_camera_extrinsics(0);
+  const mat4_t T_C0B = T_BC0.inverse();
+  if (nb_cameras() >= 2) {
+    for (const auto &[cam_idx, ext] : cam_exts) {
+      if (cam_idx == 0) {
+        continue;
+      }
+
+      const mat4_t T_BCi = ext->tf();
+      const mat4_t T_C0Ci = T_C0B * T_BCi;
+      const mat4_t T_CiC0 = T_C0Ci.inverse();
+      printf("T_cam0_cam%d:\n", cam_idx);
+      printf("  rows: 4\n");
+      printf("  cols: 4\n");
+      printf("  data: [\n");
+      printf("%s\n", mat2str(T_C0Ci, "    ").c_str());
+      printf("  ]\n");
+      printf("\n");
+    }
   }
 
   return;

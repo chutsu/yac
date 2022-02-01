@@ -302,7 +302,7 @@ struct calib_nbv_t {
 
       // Solve current calibration
       calib->enable_nbv = false;
-      calib->enable_outlier_rejection = false;
+      calib->enable_outlier_filter = false;
       calib->solve();
     }
 
@@ -372,9 +372,9 @@ struct calib_nbv_t {
       calib->add_camera_data(cam_idx, grids);
     }
     calib->enable_nbv = false;
-    calib->enable_outlier_rejection = false;
+    calib->enable_outlier_filter = false;
     calib->solve();
-    calib->enable_outlier_rejection = true;
+    calib->enable_outlier_filter = true;
 
     // Transition to NBV mode
     state = NBV;

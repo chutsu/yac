@@ -120,7 +120,7 @@ int test_calib_camera_find_nbv() {
   return 0;
 }
 
-int test_calib_camera() {
+int test_calib_camera_mono() {
   // Setup
   const calib_target_t calib_target{"aprilgrid", 6, 6, 0.088, 0.3};
   const int cam_res[2] = {752, 480};
@@ -130,41 +130,16 @@ int test_calib_camera() {
 
   // Calibrate
   calib_camera_t calib{calib_target};
-  calib.enable_nbv = true;
-  calib.enable_nbv_filter = false;
-  calib.enable_outlier_filter = true;
-  calib.add_camera_data(cam_grids);
+  calib.enable_nbv = false;
+  calib.add_camera_data(0, cam_grids.at(0));
   calib.add_camera(0, cam_res, proj_model, dist_model);
-  calib.add_camera(1, cam_res, proj_model, dist_model);
   calib.solve();
-  calib.save_results("/tmp/calib-results.yaml");
-  // calib.save_estimates("/tmp/relposes.csv");
-  // calib.save_stats("/tmp/calib-stats.csv");
+  // calib.save_results("/tmp/calib-results.yaml");
 
   return 0;
 }
 
-// int test_calib_camera2() {
-//   const calib_target_t calib_target{"aprilgrid", 6, 6, 0.0772, 0.3};
-//   const int cam_res[2] = {640, 480};
-//   const std::string proj_model = "pinhole";
-//   const std::string dist_model = "radtan4";
-//
-//   const std::map<int, std::string> cam_paths = {{0, "/tmp/cam0/data"}};
-//   const std::string save_path = "/tmp/cam0/grid0";
-//   const auto grids = calib_data_preprocess(calib_target, cam_paths,
-//   save_path);
-//
-//   calib_camera_t calib{calib_target};
-//   calib.add_camera_data(0, grids.at(0));
-//   calib.add_camera(0, cam_res, proj_model, dist_model);
-//   calib.solve();
-//   calib.save_results("/tmp/calib-results.yaml");
-//
-//   return 0;
-// }
-
-int test_calib_camera_validate() {
+int test_calib_camera_stereo() {
   // Setup
   const calib_target_t target{"aprilgrid", 6, 6, 0.088, 0.3};
   const int cam_res[2] = {752, 480};
@@ -172,25 +147,47 @@ int test_calib_camera_validate() {
   const std::string dist_model = "radtan4";
   const auto cam_grids = setup_test_data();
 
+  // Calibrate
+  calib_camera_t calib{target};
+
+  calib.enable_outlier_filter = false;
+  calib.outlier_threshold = 4.0;
+
+  calib.enable_nbv = false;
+  calib.enable_nbv_filter = true;
+  calib.min_nbv_views = 40;
+  calib.info_gain_threshold = 0.08;
+
+  calib.add_camera_data(cam_grids);
+  calib.add_camera(0, cam_res, proj_model, dist_model);
+  calib.add_camera(1, cam_res, proj_model, dist_model);
+  calib.solve();
+  calib.save_results("/tmp/calib-results.yaml");
+
   // Load test data for validation
   const std::string data_path = "/data/euroc/imu_april";
   std::map<int, std::string> cam_paths;
   cam_paths[0] = data_path + "/mav0/cam0/data";
   cam_paths[1] = data_path + "/mav0/cam1/data";
-  const std::string grids_path = "/data/euroc/cam_april/mav0/grid0";
+  const std::string grids_path = "/data/euroc/imu_april/mav0/grid0";
   const auto imu_grids = calib_data_preprocess(target, cam_paths, grids_path);
+  calib.validate(imu_grids);
 
+  return 0;
+}
+
+int test_calib_camera_validate() {
   // Calibrate
+  const calib_target_t target{"aprilgrid", 6, 6, 0.088, 0.3};
   calib_camera_t calib{target};
-  calib.enable_outlier_filter = true;
-  calib.enable_nbv = false;
-  calib.enable_nbv_filter = true;
-  calib.add_camera_data(cam_grids);
 
-  // vec4_t cam0_proj_params;
-  // vec4_t cam0_dist_params;
-  // vec4_t cam1_proj_params;
-  // vec4_t cam1_dist_params;
+  const int cam_res[2] = {752, 480};
+  const std::string proj_model = "pinhole";
+  const std::string dist_model = "radtan4";
+  vec4_t cam0_proj_params;
+  vec4_t cam0_dist_params;
+  vec4_t cam1_proj_params;
+  vec4_t cam1_dist_params;
 
   // EuRoc
   // clang-format off
@@ -203,47 +200,36 @@ int test_calib_camera_validate() {
   //           0.00231,  0.99990, -0.01409, -0.00016,
   //           0.00038,  0.01409,  0.99990,  0.00089,
   //           0.00000,  0.00000,  0.00000,  1.00000;
+  // calib.add_camera(0, cam_res, proj_model, dist_model, cam0_proj_params, cam0_dist_params);
+  // calib.add_camera(1, cam_res, proj_model, dist_model, cam1_proj_params, cam1_dist_params);
   // calib.add_camera_extrinsics(0, I(4), true);
-  // calib.add_camera_extrinsics(1, T_C1C0.inverse(), true);
+  // calib.add_camera_extrinsics(1, T_C0C1, true);
   // clang-format on
 
   // Kalibr
   // clang-format off
-  // cam0_proj_params << 458.9100509555829, 457.56455132296185, 367.0070551981907, 248.41458738348737;
-  // cam0_dist_params << -0.2857499507124168, 0.07588321191742696, 0.00025397687448367254, 3.780547330184374e-05;
-  // cam1_proj_params << 457.79590953556277, 456.3300866555826, 379.2101853461348, 255.3626846707417;
-  // cam1_dist_params << -0.28543696102317306, 0.07601141914226962, -4.042435645055041e-07, 2.1251482046669695e-05;
-  // mat4_t T_C1C0;
-  // T_C1C0 <<
-  // 0.9999963398188968, 0.0021921950531668542, 0.0015857583841900123, -0.11000903460150067,
-  // -0.0022138992743579032, 0.9999020868324647, 0.01381721383201927, 0.00042598376811829857,
-  // -0.0015553130897525734, -0.013820673967850404, 0.9999032803087816, -0.0005920475406685743,
-  // 0.0, 0.0, 0.0, 1.0;
-  // print_matrix("T_C0C1", T_C1C0.inverse());
-  // calib.add_camera_extrinsics(0, I(4), true);
-  // calib.add_camera_extrinsics(1, T_C1C0.inverse(), true);
+  cam0_proj_params << 458.9100509555829, 457.56455132296185, 367.0070551981907, 248.41458738348737;
+  cam0_dist_params << -0.2857499507124168, 0.07588321191742696, 0.00025397687448367254, 3.780547330184374e-05;
+  cam1_proj_params << 457.79590953556277, 456.3300866555826, 379.2101853461348, 255.3626846707417;
+  cam1_dist_params << -0.28543696102317306, 0.07601141914226962, -4.042435645055041e-07, 2.1251482046669695e-05;
+  mat4_t T_C1C0;
+  T_C1C0 << 0.9999963398188968, 0.0021921950531668542, 0.0015857583841900123, -0.11000903460150067,
+            -0.0022138992743579032, 0.9999020868324647, 0.01381721383201927, 0.00042598376811829857,
+            -0.0015553130897525734, -0.013820673967850404, 0.9999032803087816, -0.0005920475406685743,
+            0.0, 0.0, 0.0, 1.0;
+  calib.add_camera(0, cam_res, proj_model, dist_model, cam0_proj_params, cam0_dist_params);
+  calib.add_camera(1, cam_res, proj_model, dist_model, cam1_proj_params, cam1_dist_params);
+  calib.add_camera_extrinsics(0, I(4), true);
+  calib.add_camera_extrinsics(1, T_C1C0.inverse(), true);
   // clang-format on
 
-  // bool fix_intrinsics = false;
-  // calib.add_camera(0,
-  //                  cam_res,
-  //                  proj_model,
-  //                  dist_model,
-  //                  cam0_proj_params,
-  //                  cam0_dist_params,
-  //                  fix_intrinsics);
-  // calib.add_camera(1,
-  //                  cam_res,
-  //                  proj_model,
-  //                  dist_model,
-  //                  cam1_proj_params,
-  //                  cam1_dist_params,
-  //                  fix_intrinsics);
-
-  calib.add_camera(0, cam_res, proj_model, dist_model);
-  calib.add_camera(1, cam_res, proj_model, dist_model);
-  calib.solve();
-  calib.save_results("/tmp/calib-results.yaml");
+  // Load test data for validation
+  const std::string data_path = "/data/euroc/imu_april";
+  std::map<int, std::string> cam_paths;
+  cam_paths[0] = data_path + "/mav0/cam0/data";
+  cam_paths[1] = data_path + "/mav0/cam1/data";
+  const std::string grids_path = "/data/euroc/imu_april/mav0/grid0";
+  const auto imu_grids = calib_data_preprocess(target, cam_paths, grids_path);
   calib.validate(imu_grids);
 
   return 0;
@@ -276,12 +262,45 @@ int test_calib_camera_kalibr_data() {
     cam_grids[1].push_back(grid);
   }
 
+  vec4_t cam0_proj_params;
+  vec4_t cam0_dist_params;
+  vec4_t cam1_proj_params;
+  vec4_t cam1_dist_params;
+
+  cam0_proj_params << 460.28579839, 459.06697967, 368.29981211, 244.66090975;
+  cam0_dist_params << -0.27615787, 0.06777914, 0.00075657, -0.00029946;
+  cam1_proj_params << 458.93183782, 457.62112957, 378.78364596, 251.34132251;
+  cam1_dist_params << -0.27284724, 0.06488226, 0.00050597, -0.00020954;
+
+  // clang-format off
+  mat4_t T_C0C1;
+  T_C0C1 <<  0.99998276,  0.00248809, 0.00531827, -0.10994775,
+            -0.00256386,  0.99989464, 0.01428733,  0.00051399,
+            -0.00528217, -0.01430072, 0.99988379, -0.00024094,
+             0.        ,  0.        , 0.        ,  1.        ;
+  // clang-format on
+
   // Calibrate
   calib_camera_t calib{calib_target};
-  calib.enable_nbv = false;
-  calib.add_camera_data(cam_grids);
-  calib.add_camera(0, cam_res, proj_model, dist_model);
-  calib.add_camera(1, cam_res, proj_model, dist_model);
+  calib.enable_nbv = true;
+  calib.enable_outlier_filter = true;
+  calib.initialized = true;
+  calib.add_camera_data(0, cam_grids.at(0));
+  calib.add_camera_data(1, cam_grids.at(1));
+  calib.add_camera(0,
+                   cam_res,
+                   proj_model,
+                   dist_model,
+                   cam0_proj_params,
+                   cam0_dist_params);
+  calib.add_camera(1,
+                   cam_res,
+                   proj_model,
+                   dist_model,
+                   cam1_proj_params,
+                   cam1_dist_params);
+  calib.add_camera_extrinsics(0, I(4), true);
+  calib.add_camera_extrinsics(1, T_C0C1, false);
   calib.solve();
   calib.save_results("/tmp/calib-results.yaml");
 
@@ -300,8 +319,8 @@ void test_suite() {
   MU_ADD_TEST(test_calib_view);
   MU_ADD_TEST(test_initialize_camera);
   MU_ADD_TEST(test_calib_camera_find_nbv);
-  MU_ADD_TEST(test_calib_camera);
-  // MU_ADD_TEST(test_calib_camera2);
+  MU_ADD_TEST(test_calib_camera_mono);
+  MU_ADD_TEST(test_calib_camera_stereo);
   MU_ADD_TEST(test_calib_camera_validate);
   // MU_ADD_TEST(test_calib_camera_kalibr_data);
 }

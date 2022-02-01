@@ -221,25 +221,32 @@ matx_t vecs2mat(const vec3s_t &vs) {
   return retval;
 }
 
-std::string vec2str(const vecx_t &v, bool brackets) {
-  std::string str;
+std::string vec2str(const vecx_t &v,
+                    const bool brackets,
+                    const bool max_digits) {
+  std::ostringstream ss;
+
+  if (max_digits) {
+    typedef std::numeric_limits<real_t> numeric_limits;
+    ss << std::setprecision(numeric_limits::max_digits10);
+  }
 
   if (brackets) {
-    str += "[";
+    ss << "[";
   }
 
   for (int i = 0; i < v.size(); i++) {
-    str += std::to_string(v(i));
+    ss << v(i);
     if ((i + 1) != v.size()) {
-      str += ", ";
+      ss << ", ";
     }
   }
 
   if (brackets) {
-    str += "]";
+    ss << "]";
   }
 
-  return str;
+  return ss.str();
 }
 
 std::string arr2str(const real_t *arr, const size_t len, bool brackets) {
@@ -263,16 +270,18 @@ std::string arr2str(const real_t *arr, const size_t len, bool brackets) {
   return str;
 }
 
-std::string mat2str(const matx_t &m, const std::string &indent) {
+std::string mat2str(const matx_t &m,
+                    const std::string &indent,
+                    const bool max_digits) {
   std::string str;
 
   for (int i = 0; i < m.rows(); i++) {
     if ((i + 1) != m.rows()) {
       str += indent;
-      str += vec2str(m.row(i), false) + ",\n";
+      str += vec2str(m.row(i), false, max_digits) + ",\n";
     } else {
       str += indent;
-      str += vec2str(m.row(i), false);
+      str += vec2str(m.row(i), false, max_digits);
     }
   }
 

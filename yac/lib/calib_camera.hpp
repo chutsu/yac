@@ -104,11 +104,13 @@ struct calib_camera_t {
 
   // Settings
   bool verbose = true;
+
+  bool enable_outlier_filter = true;
+  real_t outlier_threshold = 3.0;
+
   bool enable_nbv = true;
   bool enable_nbv_filter = true;
-  bool enable_outlier_rejection = true;
   int min_nbv_views = 20;
-  real_t outlier_threshold = 3.0;
   real_t info_gain_threshold = 0.08;
 
   // Data

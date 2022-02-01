@@ -97,7 +97,7 @@ int test_calib_camera_find_nbv() {
   // Calibrator
   calib_camera_t calib{calib_target};
   calib.enable_nbv = false;
-  calib.enable_outlier_rejection = false;
+  calib.enable_outlier_filter = false;
   calib.add_camera(0, cam_res, proj_model, dist_model);
   calib.add_camera(1, cam_res, proj_model, dist_model);
   calib.add_camera_data(0, cam0_grids);
@@ -132,7 +132,7 @@ int test_calib_camera() {
   calib_camera_t calib{calib_target};
   calib.enable_nbv = true;
   calib.enable_nbv_filter = false;
-  calib.enable_outlier_rejection = true;
+  calib.enable_outlier_filter = true;
   calib.add_camera_data(cam_grids);
   calib.add_camera(0, cam_res, proj_model, dist_model);
   calib.add_camera(1, cam_res, proj_model, dist_model);
@@ -182,9 +182,9 @@ int test_calib_camera_validate() {
 
   // Calibrate
   calib_camera_t calib{target};
-  calib.enable_nbv = true;
+  calib.enable_outlier_filter = true;
+  calib.enable_nbv = false;
   calib.enable_nbv_filter = true;
-  calib.enable_outlier_rejection = true;
   calib.add_camera_data(cam_grids);
 
   // vec4_t cam0_proj_params;

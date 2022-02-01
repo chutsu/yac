@@ -426,37 +426,48 @@ matx_t vecs2mat(const vec3s_t &vs);
  *
  * @param[in] v Vector
  * @param[in] brackets Brakcets around vector string
+ * @param[in] max_digits Max digits
  * @returns Vector as a string
  */
-std::string vec2str(const vecx_t &v, const bool brackets = true);
+std::string vec2str(const vecx_t &v,
+                    const bool brackets = true,
+                    const bool max_digits = false);
 
 /**
  * Vector to string
  *
  * @param[in] v Vector
  * @param[in] brackets Brakcets around vector string
+ * @param[in] max_digits Max digits
  * @returns Vector as a string
  */
 template <typename T>
-std::string vec2str(const std::vector<T> &v, const bool brackets = true) {
-  std::string str;
+std::string vec2str(const std::vector<T> &v,
+                    const bool brackets = true,
+                    const bool max_digits = false) {
+  std::ostringstream ss;
+
+  if (max_digits) {
+    typedef std::numeric_limits<real_t> numeric_limits;
+    ss << std::setprecision(numeric_limits::max_digits10);
+  }
 
   if (brackets) {
-    str += "[";
+    ss << "[";
   }
 
   for (int i = 0; i < v.size(); i++) {
-    str += std::to_string(v.at(i));
+    ss << v.at(i);
     if ((i + 1) != v.size()) {
-      str += ", ";
+      ss << ", ";
     }
   }
 
   if (brackets) {
-    str += "]";
+    ss << "]";
   }
 
-  return str;
+  return ss.str();
 }
 
 /**
@@ -476,7 +487,9 @@ std::string arr2str(const real_t *arr, const size_t len, bool brackets = true);
  * @param[in] indent Indent string
  * @returns Array as a string
  */
-std::string mat2str(const matx_t &m, const std::string &indent = "  ");
+std::string mat2str(const matx_t &m,
+                    const std::string &indent = "  ",
+                    const bool max_digits = false);
 
 /**
  * Normalize vector x

@@ -1469,7 +1469,7 @@ void calib_camera_t::solve() {
   }
 
   // Filter views
-  if (enable_outlier_rejection) {
+  if (enable_outlier_filter) {
     LOG_INFO("Removing outliers");
     removed_outliers += _filter_all_views();
     LOG_INFO("Removed %d outliers", removed_outliers);
@@ -1570,6 +1570,18 @@ int calib_camera_t::save_results(const std::string &save_path) {
     fprintf(outfile, "    stddev: %f # [px]\n", stddev(cam_errors));
     fprintf(outfile, "\n");
   }
+
+  // Calibration settings
+  fprintf(outfile, "calib_settings:\n");
+  fprintf(outfile, "  verbose: %d\n", verbose);
+  fprintf(outfile, "  enable_outlier_filter: %d\n", enable_outlier_filter);
+  fprintf(outfile, "  outlier_threshold: %f\n", outlier_threshold);
+  if (enable_nbv) {
+    fprintf(outfile, "  enable_nbv: %d\n", enable_nbv);
+    fprintf(outfile, "  enable_nbv_filter: %d\n", enable_nbv_filter);
+    fprintf(outfile, "  min_nbv_views: %d\n", min_nbv_views);
+    fprintf(outfile, "  info_gain_threshold: %f\n", info_gain_threshold);
+  }
   fprintf(outfile, "\n");
 
   // Calibration target
@@ -1587,8 +1599,8 @@ int calib_camera_t::save_results(const std::string &save_path) {
     const int *cam_res = cam->resolution;
     const char *proj_model = cam->proj_model.c_str();
     const char *dist_model = cam->dist_model.c_str();
-    const std::string proj_params = vec2str(cam->proj_params(), 4);
-    const std::string dist_params = vec2str(cam->dist_params(), 4);
+    const std::string proj_params = vec2str(cam->proj_params(), true, true);
+    const std::string dist_params = vec2str(cam->dist_params(), true, true);
 
     fprintf(outfile, "cam%d:\n", cam_idx);
     fprintf(outfile, "  resolution: [%d, %d]\n", cam_res[0], cam_res[1]);
@@ -1598,7 +1610,6 @@ int calib_camera_t::save_results(const std::string &save_path) {
     fprintf(outfile, "  dist_params: %s\n", dist_params.c_str());
     fprintf(outfile, "\n");
   }
-  fprintf(outfile, "\n");
 
   // Camera-Camera extrinsics
   const mat4_t T_BC0 = get_camera_extrinsics(0);
@@ -1612,7 +1623,7 @@ int calib_camera_t::save_results(const std::string &save_path) {
       fprintf(outfile, "  rows: 4\n");
       fprintf(outfile, "  cols: 4\n");
       fprintf(outfile, "  data: [\n");
-      fprintf(outfile, "%s\n", mat2str(T_C0Ci, "    ").c_str());
+      fprintf(outfile, "%s\n", mat2str(T_C0Ci, "    ", true).c_str());
       fprintf(outfile, "  ]\n");
       fprintf(outfile, "\n");
     }

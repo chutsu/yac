@@ -113,7 +113,7 @@ int test_reproj_error() {
                              dist_model,
                              proj_params,
                              dist_params};
-  const pinhole_radtan4_t cam_geom;
+  pinhole_radtan4_t cam_geom;
 
   mat4_t T_CiF;
   if (grid.estimate(&cam_geom, cam_res, cam_params.param, T_CiF) != 0) {
@@ -136,91 +136,10 @@ int test_reproj_error() {
                      keypoints[0],
                      I(2));
 
-  // Evaluate reprojection error to form baseline
-  std::vector<double *> params = {
-      cam_exts.param.data(),
-      rel_pose.param.data(),
-      corner->param.data(),
-      cam_params.param.data(),
-  };
-  vec2_t r;
-  Eigen::Matrix<double, 2, 7, Eigen::RowMajor> J0;
-  Eigen::Matrix<double, 2, 7, Eigen::RowMajor> J1;
-  Eigen::Matrix<double, 2, 3, Eigen::RowMajor> J2;
-  Eigen::Matrix<double, 2, 8, Eigen::RowMajor> J3;
-  std::vector<double *> jacobians = {J0.data(),
-                                     J1.data(),
-                                     J2.data(),
-                                     J3.data()};
-
-  err.Evaluate(params.data(), r.data(), jacobians.data());
-
-  // Check Jacobians
-  double step = 1e-8;
-  double threshold = 1e-4;
-
-  // -- Test cam exts T_C0Ci jacobian
-  {
-    mat_t<2, 6> fdiff;
-
-    for (int i = 0; i < 6; i++) {
-      vec2_t r_fd;
-      cam_exts.perturb(i, step);
-      err.Evaluate(params.data(), r_fd.data(), nullptr);
-      fdiff.col(i) = (r_fd - r) / step;
-      cam_exts.perturb(i, -step);
-    }
-
-    MU_CHECK(check_jacobian("J0", fdiff, err.J0_min, threshold, true) == 0);
-  }
-
-  // -- Test relative pose T_C0F jacobian
-  {
-    mat_t<2, 6> fdiff;
-
-    for (int i = 0; i < 6; i++) {
-      vec2_t r_fd;
-      rel_pose.perturb(i, step);
-      err.Evaluate(params.data(), r_fd.data(), nullptr);
-      fdiff.col(i) = (r_fd - r) / step;
-      rel_pose.perturb(i, -step);
-    }
-
-    MU_CHECK(check_jacobian("J1", fdiff, err.J1_min, threshold, true) == 0);
-  }
-
-  // -- Test fiducial corner jacobian
-  {
-    mat_t<2, 3> fdiff;
-
-    auto corner = corners.get_corner(tag_ids[0], corner_indicies[0]);
-    for (int i = 0; i < 3; i++) {
-      vec2_t r_fd;
-      corner->perturb(i, step);
-      err.Evaluate(params.data(), r_fd.data(), nullptr);
-      fdiff.col(i) = (r_fd - r) / step;
-      corner->perturb(i, -step);
-    }
-
-    MU_CHECK(check_jacobian("J2", fdiff, err.J2_min, threshold, true) == 0);
-  }
-
-  // -- Test camera-parameters jacobian
-  {
-    mat_t<2, 8> fdiff;
-
-    for (int i = 0; i < 8; i++) {
-      vec2_t r_fd;
-      cam_params.perturb(i, step);
-      err.Evaluate(params.data(), r_fd.data(), nullptr);
-      fdiff.col(i) = (r_fd - r) / step;
-      cam_params.perturb(i, -step);
-    }
-
-    // print_matrix("fdiff", fdiff);
-    // print_matrix("err.J3_min", err.J3_min);
-    MU_CHECK(check_jacobian("J3", fdiff, err.J3_min, threshold, true) == 0);
-  }
+  MU_CHECK(err.check_jacs(0, "J_cam_exts"));
+  MU_CHECK(err.check_jacs(1, "J_rel_pose"));
+  MU_CHECK(err.check_jacs(2, "J_fiducial"));
+  MU_CHECK(err.check_jacs(3, "J_cam"));
 
   return 0;
 }
@@ -714,7 +633,7 @@ int test_residual_info() {
   const std::string cam_dist_model = "radtan4";
   const vec4_t proj_params{458.654, 457.296, 367.215, 248.375};
   const vec4_t dist_params{-0.28340811, 0.07395907, 0.00019359, 1.76187114e-05};
-  const pinhole_radtan4_t cam_geom;
+  pinhole_radtan4_t cam_geom;
   camera_params_t cam_params{cam_idx,
                              cam_res,
                              cam_proj_model,

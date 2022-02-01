@@ -2,6 +2,106 @@
 
 namespace yac {
 
+// CALIB ERROR /////////////////////////////////////////////////////////////////
+
+bool calib_error_t::eval() {
+  // Pre-allocate memory for residuals
+  residuals = zeros(num_residuals(), 1);
+
+  // Pre-allocate memory for jacobians
+  std::vector<matx_row_major_t> jacobians;
+  jacobians.resize(param_blocks.size());
+
+  std::vector<double *> param_ptrs;
+  std::vector<double *> jacobian_ptrs;
+  for (size_t i = 0; i < param_blocks.size(); i++) {
+    const auto &param = param_blocks[i];
+    param_ptrs.push_back(param->param.data());
+    jacobians[i].resize(residuals.size(), param->global_size);
+    jacobian_ptrs.push_back(jacobians[i].data());
+  }
+
+  // Evaluate cost function to obtain the jacobians and residuals
+  Evaluate(param_ptrs.data(), residuals.data(), jacobian_ptrs.data());
+
+  // Scale jacobians and residuals if using loss function
+  // following ceres-sovler in `internal/ceres/corrector.cc`
+  if (loss_fn) {
+    double residual_scaling = 0.0;
+    double alpha_sq_norm = 0.0;
+    double rho[3] = {0.0};
+
+    double sq_norm = residuals.squaredNorm();
+    loss_fn->Evaluate(sq_norm, rho);
+    double sqrt_rho1 = sqrt(rho[1]);
+
+    if ((sq_norm == 0.0) || (rho[2] <= 0.0)) {
+      residual_scaling = sqrt_rho1;
+      alpha_sq_norm = 0.0;
+    } else {
+      const double D = 1.0 + 2.0 * sq_norm * rho[2] / rho[1];
+      const double alpha = 1.0 - sqrt(D);
+      residual_scaling = sqrt_rho1 / (1 - alpha);
+      alpha_sq_norm = alpha / sq_norm;
+    }
+
+    for (size_t i = 0; i < param_blocks.size(); i++) {
+      // clang-format off
+      jacobians[i] = sqrt_rho1 * (
+        jacobians[i] - alpha_sq_norm * residuals *
+        (residuals.transpose() * jacobians[i])
+      );
+      // clang-format on
+    }
+
+    residuals *= residual_scaling;
+  }
+}
+
+bool calib_error_t::check_jacs(const int param_idx,
+                               const std::string &jac_name,
+                               const double step,
+                               const double tol) {
+  // Setup
+  param_t *param = param_blocks[param_idx];
+  const int residual_size = num_residuals();
+  const int local_size = param->local_size;
+  const int global_size = param->global_size;
+
+  // Params
+  std::vector<double *> param_ptrs;
+  for (size_t i = 0; i < param_blocks.size(); i++) {
+    param_ptrs.push_back(param_blocks[i]->data());
+  }
+
+  // Jacobians
+  double **jacobian_ptrs = new double *[param_blocks.size()];
+  std::vector<matx_row_major_t> jacobians;
+  jacobians.resize(param_blocks.size());
+  for (size_t i = 0; i < param_blocks.size(); i++) {
+    jacobians[i].resize(residual_size, param_blocks[i]->global_size);
+    jacobian_ptrs[i] = jacobians[i].data();
+  }
+
+  // Base-line
+  vecx_t r = zeros(residual_size);
+  Evaluate(param_ptrs.data(), r.data(), jacobian_ptrs);
+  free(jacobian_ptrs);
+
+  // Finite difference
+  matx_t fdiff = zeros(residual_size, local_size);
+  vecx_t r_fd = zeros(residual_size);
+  for (int i = 0; i < local_size; i++) {
+    param->perturb(i, step);
+    Evaluate(param_ptrs.data(), r_fd.data(), nullptr);
+    fdiff.col(i) = (r_fd - r) / step;
+    param->perturb(i, -step);
+  }
+
+  int retval = check_jacobian(jac_name, fdiff, J_min[param_idx], tol, true);
+  return (retval == 0) ? true : false;
+}
+
 // POSE ERROR //////////////////////////////////////////////////////////////////
 
 pose_error_t::pose_error_t(const pose_t &pose, const matx_t &covar)
@@ -47,27 +147,34 @@ bool pose_error_t::Evaluate(double const *const *params,
 
 // REPROJECTION ERROR //////////////////////////////////////////////////////////
 
-reproj_error_t::reproj_error_t(const camera_geometry_t *cam_geom_,
-                               const camera_params_t *cam_params_,
-                               const pose_t *T_BCi_,
-                               const pose_t *T_C0F_,
-                               const fiducial_corner_t *p_FFi_,
+reproj_error_t::reproj_error_t(camera_geometry_t *cam_geom_,
+                               camera_params_t *cam_params_,
+                               pose_t *T_BCi_,
+                               pose_t *T_C0F_,
+                               fiducial_corner_t *p_FFi_,
                                const vec2_t &z_,
                                const mat2_t &covar_)
     : cam_geom{cam_geom_}, cam_params{cam_params_}, T_BCi{T_BCi_},
-      T_C0F{T_C0F_}, p_FFi{p_FFi_}, z{z_}, covar{covar_}, info{covar.inverse()},
-      sqrt_info{info.llt().matrixU()} {
+      T_C0F{T_C0F_}, p_FFi{p_FFi_}, z{z_}, covar(covar_), info(covar.inverse()),
+      sqrt_info(info.llt().matrixU()) {
+  // Data
+  param_blocks.push_back(T_BCi_);
+  param_blocks.push_back(T_C0F_);
+  param_blocks.push_back(p_FFi_);
+  param_blocks.push_back(cam_params_);
+  residuals = zeros(2, 1);
+  J_min.push_back(zeros(2, 6));
+  J_min.push_back(zeros(2, 6));
+  J_min.push_back(zeros(2, 3));
+  J_min.push_back(zeros(2, 8));
+
+  // Ceres-Solver
   set_num_residuals(2);
   auto block_sizes = mutable_parameter_block_sizes();
   block_sizes->push_back(7); // Camera-camera extrinsics
   block_sizes->push_back(7); // Camera-fiducial relative pose
   block_sizes->push_back(3); // Fiducial corner parameter
   block_sizes->push_back(8); // Camera parameters
-
-  J0_min = zeros(2, 6);
-  J1_min = zeros(2, 6);
-  J2_min = zeros(2, 3);
-  J3_min = zeros(2, 8);
 }
 
 int reproj_error_t::get_residual(vec2_t &z_hat, vec2_t &r) const {
@@ -157,11 +264,11 @@ bool reproj_error_t::Evaluate(double const *const *params,
         const vec3_t p_CiFi = tf_point(T_CiC0 * T_C0F, p_FFi);
 
         // clang-format off
-        J0_min.block(0, 0, 2, 3) = -1 * Jh_weighted * C_CiC0;
-        J0_min.block(0, 3, 2, 3) = -1 * Jh_weighted * C_CiC0 * -skew(C_C0Ci * p_CiFi);
+        J_min[0].block(0, 0, 2, 3) = -1 * Jh_weighted * C_CiC0;
+        J_min[0].block(0, 3, 2, 3) = -1 * Jh_weighted * C_CiC0 * -skew(C_C0Ci * p_CiFi);
         // clang-format on
 
-        J = J0_min * lift_pose_jacobian(T_C0Ci);
+        J = J_min[0] * lift_pose_jacobian(T_C0Ci);
       }
     }
 
@@ -173,9 +280,10 @@ bool reproj_error_t::Evaluate(double const *const *params,
       if (valid) {
         const mat3_t C_CiC0 = tf_rot(T_CiC0);
         const mat3_t C_C0F = tf_rot(T_C0F);
-        J1_min.block(0, 0, 2, 3) = Jh_weighted * C_CiC0;
-        J1_min.block(0, 3, 2, 3) = Jh_weighted * C_CiC0 * -skew(C_C0F * p_FFi);
-        J = J1_min * lift_pose_jacobian(T_C0F);
+        J_min[1].block(0, 0, 2, 3) = Jh_weighted * C_CiC0;
+        J_min[1].block(0, 3, 2, 3) =
+            Jh_weighted * C_CiC0 * -skew(C_C0F * p_FFi);
+        J = J_min[1] * lift_pose_jacobian(T_C0F);
       }
     }
 
@@ -186,8 +294,8 @@ bool reproj_error_t::Evaluate(double const *const *params,
       if (valid) {
         const mat4_t T_CiF = T_CiC0 * T_C0F;
         const mat3_t C_CiF = tf_rot(T_CiF);
-        J2_min = Jh_weighted * C_CiF;
-        J.block(0, 0, 2, 3) = J2_min;
+        J_min[2] = Jh_weighted * C_CiF;
+        J.block(0, 0, 2, 3) = J_min[2];
       }
     }
 
@@ -197,8 +305,8 @@ bool reproj_error_t::Evaluate(double const *const *params,
       J.setZero();
       if (valid) {
         const matx_t J_cam = cam_geom->params_jacobian(param, p_CiFi);
-        J3_min = -1 * sqrt_info * J_cam;
-        J = J3_min;
+        J_min[3] = -1 * sqrt_info * J_cam;
+        J = J_min[3];
       }
     }
   }

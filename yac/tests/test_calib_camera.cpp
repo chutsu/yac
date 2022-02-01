@@ -130,13 +130,15 @@ int test_calib_camera() {
 
   // Calibrate
   calib_camera_t calib{calib_target};
-  calib.enable_nbv = false;
+  calib.enable_nbv = true;
+  calib.enable_nbv_filter = false;
+  calib.enable_outlier_rejection = true;
   calib.add_camera_data(cam_grids);
   calib.add_camera(0, cam_res, proj_model, dist_model);
   calib.add_camera(1, cam_res, proj_model, dist_model);
   calib.solve();
-  // calib.save_results("/tmp/calib-results.yaml");
-  calib.save_estimates("/tmp/relposes.csv");
+  calib.save_results("/tmp/calib-results.yaml");
+  // calib.save_estimates("/tmp/relposes.csv");
   // calib.save_stats("/tmp/calib-stats.csv");
 
   return 0;
@@ -180,7 +182,8 @@ int test_calib_camera_validate() {
 
   // Calibrate
   calib_camera_t calib{target};
-  calib.enable_nbv = false;
+  calib.enable_nbv = true;
+  calib.enable_nbv_filter = true;
   calib.enable_outlier_rejection = true;
   calib.add_camera_data(cam_grids);
 
@@ -299,7 +302,7 @@ void test_suite() {
   MU_ADD_TEST(test_calib_camera_find_nbv);
   MU_ADD_TEST(test_calib_camera);
   // MU_ADD_TEST(test_calib_camera2);
-  // MU_ADD_TEST(test_calib_camera_validate);
+  MU_ADD_TEST(test_calib_camera_validate);
   // MU_ADD_TEST(test_calib_camera_kalibr_data);
 }
 

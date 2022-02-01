@@ -12,16 +12,30 @@
 
 namespace yac {
 
+// CALIB ERROR /////////////////////////////////////////////////////////////////
+
 struct calib_error_t : public ceres::CostFunction {
-  std::vector<param_t> params;
-  vecx_t residuals;
-  matxs_row_major_t jacobians;
+  // Data
+  std::vector<param_t *> param_blocks;
+  mutable vecx_t residuals;
+  mutable matxs_t J_min;
+
+  // Covariance
+  matx_t covar;
+  matx_t info;
+  matx_t sqrt_info;
+
+  // Loss
+  ceres::LossFunction *loss_fn = nullptr;
 
   calib_error_t() = default;
   virtual ~calib_error_t() = default;
-  virtual bool eval();
-  virtual bool eval(vecx_t *residuals,
-                    matxs_row_major_t *jacobians = nullptr) const;
+
+  bool eval();
+  bool check_jacs(const int param_idx,
+                  const std::string &jac_name,
+                  const double step = 1e-8,
+                  const double tol = 1e-4);
 };
 
 // POSE ERROR //////////////////////////////////////////////////////////////////
@@ -43,7 +57,7 @@ struct pose_error_t : public ceres::SizedCostFunction<6, 7> {
 // REPROJECTION ERROR //////////////////////////////////////////////////////////
 
 /** Reprojection Error */
-struct reproj_error_t : public ceres::CostFunction {
+struct reproj_error_t : public calib_error_t {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
   // Data
@@ -60,18 +74,12 @@ struct reproj_error_t : public ceres::CostFunction {
   const mat2_t info;
   const mat2_t sqrt_info;
 
-  // For debugging
-  mutable matx_t J0_min;
-  mutable matx_t J1_min;
-  mutable matx_t J2_min;
-  mutable matx_t J3_min;
-
   /** Constructor */
-  reproj_error_t(const camera_geometry_t *cam_geom_,
-                 const camera_params_t *cam_params_,
-                 const pose_t *T_BCi_,
-                 const pose_t *T_C0F_,
-                 const fiducial_corner_t *p_FFi_,
+  reproj_error_t(camera_geometry_t *cam_geom_,
+                 camera_params_t *cam_params_,
+                 pose_t *T_BCi_,
+                 pose_t *T_C0F_,
+                 fiducial_corner_t *p_FFi_,
                  const vec2_t &z_,
                  const mat2_t &covar_);
 

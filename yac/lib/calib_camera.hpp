@@ -108,8 +108,8 @@ struct calib_camera_t {
   bool enable_nbv_filter = true;
   bool enable_outlier_rejection = true;
   int min_nbv_views = 20;
-  real_t outlier_threshold = 4.0;
-  real_t info_gain_threshold = 0.2;
+  real_t outlier_threshold = 3.0;
+  real_t info_gain_threshold = 0.08;
 
   // Data
   calib_target_t calib_target;

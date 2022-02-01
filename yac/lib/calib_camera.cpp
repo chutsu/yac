@@ -1463,7 +1463,7 @@ void calib_camera_t::solve() {
 
   // Solve
   if (enable_nbv) {
-    _solve_nbv2();
+    _solve_nbv();
   } else {
     _solve_batch();
   }

@@ -6,7 +6,7 @@
 namespace yac {
 
 #ifndef TEST_PATH
-  #define TEST_PATH "."
+#define TEST_PATH "."
 #endif
 
 #define CV_TEST_IMAGE TEST_PATH "/test_data/core/test_image.jpg"
@@ -150,7 +150,7 @@ int benchmark_grid_fast() {
     const cv::Mat image = cv::imread(CV_TEST_IMAGE);
     cv::Mat image_gray;
     if (image.channels() == 3) {
-      cv::cvtColor(image, image_gray, CV_BGR2GRAY);
+      cv::cvtColor(image, image_gray, cv::COLOR_BGR2GRAY);
     } else {
       image_gray = image.clone();
     }

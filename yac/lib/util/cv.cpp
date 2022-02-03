@@ -71,7 +71,7 @@ sort_keypoints(const std::vector<cv::KeyPoint> keypoints, const size_t limit) {
   // Sort responses
   std::vector<int> index(responses.size());
   std::iota(std::begin(index), std::end(index), 0);
-  cv::sortIdx(responses, index, CV_SORT_DESCENDING);
+  cv::sortIdx(responses, index, cv::SORT_DESCENDING);
 
   // Form sorted keypoints
   std::vector<cv::KeyPoint> keypoints_sorted;
@@ -91,7 +91,7 @@ cv::Mat gray2rgb(const cv::Mat &image) {
   cv::Mat out_image(image_height, image_width, CV_8UC3);
 
   if (image.channels() == 1) {
-    cv::cvtColor(image, out_image, CV_GRAY2RGB);
+    cv::cvtColor(image, out_image, cv::COLOR_GRAY2RGB);
   } else {
     return image.clone();
   }
@@ -103,7 +103,7 @@ cv::Mat rgb2gray(const cv::Mat &image) {
   cv::Mat image_gray;
 
   if (image.channels() == 3) {
-    cv::cvtColor(image, image_gray, CV_BGR2GRAY);
+    cv::cvtColor(image, image_gray, cv::COLOR_BGR2GRAY);
   } else {
     return image.clone();
   }
@@ -1141,7 +1141,7 @@ int solvepnp(const camera_geometry_t *cam,
                rvec,
                tvec,
                false,
-               CV_ITERATIVE);
+               cv::SOLVEPNP_ITERATIVE);
 
   // Form relative tag pose as a 4x4 tfation matrix
   // -- Convert Rodrigues rotation vector to rotation matrix

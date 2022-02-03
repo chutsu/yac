@@ -693,9 +693,8 @@ void aprilgrid_detector_t::filter_tags(
 
       const cv::Size win_size(2, 2);
       const cv::Size zero_zone(-1, -1);
-      const cv::TermCriteria criteria(CV_TERMCRIT_EPS + CV_TERMCRIT_ITER,
-                                      30,
-                                      0.1);
+      const int type = cv::TermCriteria::EPS + cv::TermCriteria::MAX_ITER;
+      const cv::TermCriteria criteria(type, 30, 0.1);
       cv::cornerSubPix(image, corners, win_size, zero_zone, criteria);
 
       corners_after.push_back(corners[0]);
@@ -768,7 +767,8 @@ void aprilgrid_detector_t::filter_measurements(
 
   const cv::Size win_size(2, 2);
   const cv::Size zero_zone(-1, -1);
-  const cv::TermCriteria criteria(CV_TERMCRIT_EPS + CV_TERMCRIT_ITER, 30, 0.1);
+  const int type = cv::TermCriteria::EPS + cv::TermCriteria::MAX_ITER;
+  const cv::TermCriteria criteria(type, 30, 0.1);
   cv::cornerSubPix(image, corners_after, win_size, zero_zone, criteria);
 
   for (size_t i = 0; i < nb_measurements; i++) {
@@ -810,7 +810,8 @@ aprilgrid_t aprilgrid_detector_t::detect(const timestamp_t ts,
   const double max_subpix_disp = sqrt(1.5);
   const cv::Size win_size(2, 2);
   const cv::Size zero_zone(-1, -1);
-  const cv::TermCriteria criteria(CV_TERMCRIT_EPS + CV_TERMCRIT_ITER, 30, 0.1);
+  const int type = cv::TermCriteria::EPS + cv::TermCriteria::MAX_ITER;
+  const cv::TermCriteria criteria(type, 30, 0.1);
 
   // Setup
   aprilgrid_t grid{ts, tag_rows, tag_cols, tag_size, tag_spacing};

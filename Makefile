@@ -1,6 +1,7 @@
 SHELL:=/bin/bash
 CATKIN_WS=${HOME}/catkin_ws
 YAC_PATH=${CATKIN_WS}/src/yac
+ROS_VERSION="noetic"
 
 .PHONY: help deps lib_debug lib debug release download_test_data tests
 
@@ -23,39 +24,39 @@ deps: ## Install dependencies
 
 lib_debug: ${CATKIN_WS} ${YAC_PATH}  ## Build libyac in debug mode
 	@cd ${CATKIN_WS} && \
-		. /opt/ros/melodic/setup.sh && \
+		. /opt/ros/${ROS_VERSION}/setup.sh && \
 		catkin build yac -DCMAKE_BUILD_TYPE=RelWithDebInfo -j4
 
 lib_relwithdeb: ${CATKIN_WS} ${YAC_PATH}  ## Build libyac in release with debug mode
 	@cd ${CATKIN_WS} && \
-		. /opt/ros/melodic/setup.sh && \
+		. /opt/ros/${ROS_VERSION}/setup.sh && \
 		catkin build yac -DCMAKE_BUILD_TYPE=RelWithDebInfo -j4
 
 lib: ${CATKIN_WS} ${YAC_PATH}  ## Build libyac in release mode
 	@cd ${CATKIN_WS} && \
-		. /opt/ros/melodic/setup.sh && \
+		. /opt/ros/${ROS_VERSION}/setup.sh && \
 		catkin build yac -DCMAKE_BUILD_TYPE=Release -j4
 
 debug: ${CATKIN_WS} ${YAC_PATH} ## Build libyac and yac_ros in debug mode
 	@cd ${CATKIN_WS} && \
-		. /opt/ros/melodic/setup.sh && \
+		. /opt/ros/${ROS_VERSION}/setup.sh && \
 		catkin build yac yac_ros -DCMAKE_BUILD_TYPE=Debug -j4
 
 relwithdeb: ${CATKIN_WS} ${YAC_PATH} ## Build libyac and yac_ros in release with debug mode
 	@cd ${CATKIN_WS} && \
-		. /opt/ros/melodic/setup.sh && \
+		. /opt/ros/${ROS_VERSION}/setup.sh && \
 		catkin build yac yac_ros -DCMAKE_BUILD_TYPE=RelWithDebInfo -j4
 
 release: ${CATKIN_WS} ${YAC_PATH} ## Build libyac and yac_ros in release mode
 	@cd ${CATKIN_WS} && \
-		. /opt/ros/melodic/setup.sh && \
+		. /opt/ros/${ROS_VERSION}/setup.sh && \
 		catkin build yac yac_ros -DCMAKE_BUILD_TYPE=Release -j4
 
 download_test_data: ## Download test data
 	@bash ./scripts/download_test_data.bash
 
 tests: ## Build and run tests
-	@. /opt/ros/melodic/setup.sh\
+	@. /opt/ros/${ROS_VERSION}/setup.sh\
 		&& source ${CATKIN_WS}/devel/setup.bash \
 		&& rosrun yac test_util_aprilgrid \
 		&& rosrun yac test_util_config \

@@ -18,19 +18,26 @@ set -e
 # YAC - CALIBRATION DATA
 # RUN_CMD="rosrun yac test_calib_data"
 
+# YAC - ERRORS
+# RUN_CMD="rosrun yac test_calib_errors"
+# RUN_CMD="rosrun yac test_calib_errors --target test_pose_error"
+# RUN_CMD="rosrun yac test_calib_errors --target test_reproj_error"
+RUN_CMD="rosrun yac test_calib_errors --target test_fiducial_error"
+
 # YAC - CAMERA CALIBRATION
 # RUN_CMD="rosrun yac test_calib_camera"
-# RUN_CMD="rosrun yac test_calib_camera --target test_reproj_error"
 # RUN_CMD="rosrun yac test_calib_camera --target test_initialize_camera"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_find_nbv"
-RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera"
+# RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_mono"
+# RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_stereo"
+# RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_validate"
+
 
 # YAC - MOCAP CALIBRATION
 # RUN_CMD="rosrun yac test_calib_mocap"
 
 # YAC - VISUAL-INERTIAL CALIBRATION
 # RUN_CMD="rosrun yac test_calib_vi"
-# RUN_CMD="rosrun yac test_calib_vi --target test_fiducial_error"
 # RUN_CMD="rosrun yac test_calib_vi --target test_calib_vi"
 
 # YAC - NBV

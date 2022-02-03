@@ -81,6 +81,18 @@ timeline_t setup_camimu_test_data() {
   return timeline;
 }
 
+int test_pose_error() {
+  const vec3_t r{0.1, 0.2, 0.3};
+  const vec3_t rpy{0.1, 0.2, 0.3};
+  const quat_t q = euler2quat(rpy);
+  pose_t pose{0, tf(q, r)};
+  matx_t covar = I(6);
+  pose_error_t err(&pose, covar);
+  MU_CHECK(err.check_jacs(0, "J_pose"));
+
+  return 0;
+}
+
 int test_reproj_error() {
   // Load data
   auto cam_grids = setup_test_data();
@@ -144,466 +156,105 @@ int test_reproj_error() {
   return 0;
 }
 
-// int test_fiducial_error() {
-//   // Fiducial pose in world frame
-//   // clang-format off
-//   mat4_t T_WF;
-//   T_WF << 0.0, 0.0, 1.0, -1.0,
-//           1.0, 0.0, 0.0, -0.4,
-//           0.0, 1.0, 0.0, -0.5,
-//           0.0, 0.0, 0.0, 1.0;
-//   T_WF = tf_perturb_rot(T_WF, 0.01, 0);
-//   // clang-format on
-//
-//   // Imu pose in world frame
-//   // clang-format off
-//   mat4_t T_WS;
-//   T_WS << -1.0, 0.0, 0.0, 0.1,
-//           0.0, -1.0, 0.0, 0.0,
-//           0.0, 0.0, 1.0, 0.0,
-//           0.0, 0.0, 0.0, 1.0;
-//   T_WS = tf_perturb_rot(T_WS, 0.01, 1);
-//   // ^ Note: Due to numerical stability issues the translation component
-//   cannot
-//   // be 0 for checking jacobians
-//   // clang-format on
-//
-//   // Camera extrinsics
-//   // clang-format off
-//   mat4_t T_BC0;
-//   T_BC0 << 0.0, -1.0, 0.0, 0.001,
-//            1.0, 0.0, 0.0, 0.001,
-//            0.0, 0.0, 1.0, 0.001,
-//            0.0, 0.0, 0.0, 1.0;
-//   T_BC0 = tf_perturb_rot(T_BC0, 0.01, 2);
-//   // clang-format on
-//
-//   // Imu extrinsics
-//   // clang-format off
-//   mat4_t T_BS;
-//   T_BS << 0.0, 0.0, 1.0, 0.001,
-//           0.0, -1.0, 0.0, 0.001,
-//           1.0, 0.0, 0.0, 0.001,
-//           0.0, 0.0, 0.0, 1.0;
-//   T_BS = tf_perturb_rot(T_BS, -0.01, 2);
-//   // clang-format on
-//
-//   // Get AprilGrid data
-//   aprilgrid_t grid{0, 6, 6, 0.088, 0.3};
-//   const int tag_id = 0;
-//   const int corner_idx = 2;
-//   const timestamp_t ts = 0;
-//   const vec3_t r_FFi = grid.object_point(tag_id, corner_idx);
-//   print_vector("r_FFi", r_FFi);
-//
-//   // Camera parameters
-//   const int cam_idx = 0;
-//   const pinhole_radtan4_t cam_geom;
-//   const int res[2] = {752, 480};
-//   const std::string proj_model = "pinhole";
-//   const std::string dist_model = "radtan4";
-//   const vec4_t proj_params{458.654, 457.296, 367.215, 248.375};
-//   const vec4_t dist_params{-0.28340811, 0.07395907,
-//   0.00019359, 1.76187114e-05}; vec_t<8> params_data; params_data <<
-//   proj_params, dist_params;
-//
-//   // Project image point
-//   const mat2_t covar = I(2);
-//   vec2_t z;
-//   const mat4_t T_C0B = T_BC0.inverse();
-//   const mat4_t T_SW = T_WS.inverse();
-//   const vec3_t r_C0Fi = tf_point(T_C0B * T_BS * T_SW * T_WF, r_FFi);
-//   cam_geom.project(res, params_data, r_C0Fi, z);
-//
-//   // Form fiducial error
-//   fiducial_error_t err(ts,
-//                        &cam_geom,
-//                        &cam_params[cam_idx],
-//                        &cam_exts[cam_idx],
-//                        &imu_exts,
-//                        &fiducial,
-//                        tag_id,
-//                        corner_idx,
-//                        r_FFi,
-//                        z,
-//                        covar);
-//
-//   // Form parameters
-//   pose_t fiducial_pose{0, T_WF};
-//   pose_t sensor_pose{ts, T_WS};
-//   extrinsics_t cam_extrinsics{T_BC0};
-//   extrinsics_t imu_extrinsics{T_BS};
-//   camera_params_t cam(cam_idx,
-//                       res,
-//                       proj_model,
-//                       dist_model,
-//                       proj_params,
-//                       dist_params);
-//   std::vector<double *> params = {fiducial_pose.param.data(),
-//                                   sensor_pose.param.data(),
-//                                   imu_extrinsics.param.data(),
-//                                   cam_extrinsics.param.data(),
-//                                   cam.param.data()};
-//
-//   // Form residual and jacobian data
-//   vec2_t r;
-//   Eigen::Matrix<double, 2, 7, Eigen::RowMajor> J0;
-//   Eigen::Matrix<double, 2, 7, Eigen::RowMajor> J1;
-//   Eigen::Matrix<double, 2, 7, Eigen::RowMajor> J2;
-//   Eigen::Matrix<double, 2, 7, Eigen::RowMajor> J3;
-//   Eigen::Matrix<double, 2, 8, Eigen::RowMajor> J4;
-//   std::vector<double *> jacobians = {J0.data(),
-//                                      J1.data(),
-//                                      J2.data(),
-//                                      J3.data(),
-//                                      J4.data()};
-//
-//   // Baseline
-//   err.Evaluate(params.data(), r.data(), jacobians.data());
-//   print_vector("r", r);
-//   double step = 1e-8;
-//   double threshold = 1e-4;
-//
-//   // -- Test fiducial-pose jacobian
-//   {
-//     mat_t<2, 6> fdiff;
-//
-//     for (int i = 0; i < 6; i++) {
-//       vec2_t r_fd;
-//       fiducial_pose.perturb(i, step);
-//       err.Evaluate(params.data(), r_fd.data(), nullptr);
-//       fdiff.col(i) = (r_fd - r) / step;
-//       fiducial_pose.perturb(i, -step);
-//     }
-//
-//     const mat_t<2, 6> J0_min = J0.block(0, 0, 2, 6);
-//     MU_CHECK(check_jacobian("J0", fdiff, J0_min, threshold, true) == 0);
-//     print_matrix("fdiff", fdiff);
-//     print_matrix("J0", J0);
-//   }
-//
-//   // -- Test sensor-pose jacobian
-//   {
-//     mat_t<2, 6> fdiff;
-//
-//     for (int i = 0; i < 6; i++) {
-//       // Forward difference
-//       // vec2_t r_fd;
-//       // sensor_pose.perturb(i, step);
-//       // err.Evaluate(params.data(), r_fd.data(), nullptr);
-//       // sensor_pose.perturb(i, -step);
-//       // fdiff.col(i) = (r_fd - r) / step;
-//
-//       // Central finite difference
-//       vec2_t r_fd;
-//       sensor_pose.perturb(i, 0.5 * step);
-//       err.Evaluate(params.data(), r_fd.data(), nullptr);
-//       sensor_pose.perturb(i, -0.5 * step);
-//
-//       vec2_t r_bd;
-//       sensor_pose.perturb(i, -0.5 * step);
-//       err.Evaluate(params.data(), r_bd.data(), nullptr);
-//       sensor_pose.perturb(i, 0.5 * step);
-//
-//       fdiff.col(i) = (r_fd - r_bd) / step;
-//     }
-//
-//     const mat_t<2, 6> J1_min = J1.block(0, 0, 2, 6);
-//     MU_CHECK(check_jacobian("J1", fdiff, J1_min, threshold, true) == 0);
-//   }
-//
-//   // -- Test imu-extrinsics jacobian
-//   {
-//     mat_t<2, 6> fdiff;
-//     for (int i = 0; i < 6; i++) {
-//       imu_extrinsics.perturb(i, step);
-//       vec2_t r_fd;
-//       err.Evaluate(params.data(), r_fd.data(), nullptr);
-//       fdiff.col(i) = (r_fd - r) / step;
-//       imu_extrinsics.perturb(i, -step);
-//     }
-//
-//     const mat_t<2, 6> J2_min = J2.block(0, 0, 2, 6);
-//     MU_CHECK(check_jacobian("J2", fdiff, J2_min, threshold, true) == 0);
-//     print_matrix("fdiff", fdiff);
-//     print_matrix("J2", J2_min);
-//   }
-//
-//   // -- Test cam extrinsics jacobian
-//   {
-//     mat_t<2, 6> fdiff;
-//     for (int i = 0; i < 6; i++) {
-//       cam_extrinsics.perturb(i, step);
-//       vec2_t r_fd;
-//       err.Evaluate(params.data(), r_fd.data(), nullptr);
-//       fdiff.col(i) = (r_fd - r) / step;
-//       cam_extrinsics.perturb(i, -step);
-//     }
-//
-//     const mat_t<2, 6> J3_min = J3.block(0, 0, 2, 6);
-//     MU_CHECK(check_jacobian("J3", fdiff, J3_min, threshold, true) == 0);
-//     print_matrix("fdiff", fdiff);
-//     print_matrix("J3", J3_min);
-//   }
-//
-//   // -- Test camera-parameters jacobian
-//   {
-//     mat_t<2, 8> fdiff;
-//
-//     for (int i = 0; i < 8; i++) {
-//       cam.perturb(i, step);
-//       vec2_t r_fd;
-//       err.Evaluate(params.data(), r_fd.data(), nullptr);
-//       fdiff.col(i) = (r_fd - r) / step;
-//       cam.perturb(i, -step);
-//     }
-//
-//     MU_CHECK(check_jacobian("J4", fdiff, J4, threshold, true) == 0);
-//     print_matrix("fdiff", fdiff);
-//     print_matrix("J4", J4);
-//   }
-//
-//   return 0;
-// }
+int test_fiducial_error() {
+  // Fiducial pose in world frame
+  // clang-format off
+  mat4_t T_WF;
+  T_WF << 0.0, 0.0, 1.0, -1.0,
+          1.0, 0.0, 0.0, -0.4,
+          0.0, 1.0, 0.0, -0.5,
+          0.0, 0.0, 0.0, 1.0;
+  T_WF = tf_perturb_rot(T_WF, 0.01, 0);
+  fiducial_t fiducial{T_WF};
+  // clang-format on
 
-// int test_fiducial_td_error() {
-//   assert(test_data.grids.size() > 2);
-//
-//   const auto grid_i = test_data.grids0[400];
-//   const auto grid_j = test_data.grids0[401];
-//
-//   std::vector<int> tag_ids;
-//   std::vector<int> corner_indicies;
-//   vec2s_t kps_i;
-//   vec2s_t kps_j;
-//   vec3s_t object_points;
-//   aprilgrid_t::common_measurements(grid_i,
-//                                    grid_j,
-//                                    tag_ids,
-//                                    corner_indicies,
-//                                    kps_i,
-//                                    kps_j,
-//                                    object_points);
-//
-//   int i = 0;
-//   auto ts_i = grid_i.timestamp;
-//   auto ts_j = grid_j.timestamp;
-//   const int tag_id = tag_ids[i];
-//   const int corner_idx = corner_indicies[i];
-//   const vec3_t r_FFi = object_points[i];
-//   const vec2_t z_i = kps_i[i];
-//   const vec2_t z_j = kps_j[i];
-//   const mat2_t covar = I(2);
-//
-//   // clang-format off
-//   mat4_t T_WF;
-//   T_WF << -0.121411, -0.234188, 0.964580, -0.858724,
-//            0.992576, -0.035726, 0.116261, -0.407895,
-//            0.007234, 0.971535, 0.236787, -0.486840,
-//            0.000000, 0.000000, 0.000000, 1.000000;
-//   // clang-format on
-//
-//   // clang-format off
-//   mat4_t T_WS;
-//   T_WS << -0.324045, 0.036747, -0.945328, 0.100000,
-//            0.036747, 0.998980, 0.026236, 0.00000,
-//            0.945328, -0.026236, -0.325065, 0.00000,
-//            0.000000, 0.000000, 0.000000, 1.000000;
-//   // ^ Note: Due to numerical stability issues the translation component
-//   cannot
-//   // be 0 for checking jacobians
-//   // clang-format on
-//
-//   // clang-format off
-//   mat4_t T_BC0;
-//   T_BC0 << 0.0, -1.0, 0.0, 0.001,
-//            1.0, 0.0, 0.0, 0.001,
-//            0.0, 0.0, 1.0, 0.001,
-//            0.0, 0.0, 0.0, 1.0;
-//   // clang-format on
-//
-//   // clang-format off
-//   mat4_t T_BS;
-//   T_BS << 0.0, -1.0, 0.0, 0.001,
-//           1.0, 0.0, 0.0, 0.001,
-//           0.0, 0.0, 1.0, 0.001,
-//           0.0, 0.0, 0.0, 1.0;
-//   // clang-format on
-//
-//   const int cam_idx = 0;
-//   const pinhole_radtan4_t cam_geom;
-//   const int res[2] = {752, 480};
-//   const std::string proj_model = "pinhole";
-//   const std::string dist_model = "radtan4";
-//   const vec4_t proj_params{458.654, 457.296, 367.215, 248.375};
-//   const vec4_t dist_params{-0.28340811, 0.07395907,
-//   0.00019359, 1.76187114e-05};
-//
-//   fiducial_td_error_t err(ts_i,
-//                           ts_j,
-//                           &cam_geom,
-//                           cam_idx,
-//                           res,
-//                           tag_id,
-//                           corner_idx,
-//                           r_FFi,
-//                           z_i,
-//                           z_j,
-//                           T_WF,
-//                           covar);
-//
-//   fiducial_t fiducial{T_WF};
-//   pose_t sensor_pose{ts_i, T_WS};
-//   extrinsics_t cam_extrinsics{T_BC0};
-//   extrinsics_t imu_extrinsics{T_BS};
-//   camera_params_t cam(cam_idx,
-//                       res,
-//                       proj_model,
-//                       dist_model,
-//                       proj_params,
-//                       dist_params);
-//   time_delay_t td(0.0);
-//
-//   std::vector<double *> params = {fiducial.param.data(),
-//                                   sensor_pose.param.data(),
-//                                   imu_extrinsics.param.data(),
-//                                   cam_extrinsics.param.data(),
-//                                   cam.param.data(),
-//                                   td.param.data()};
-//   vec2_t r;
-//   Eigen::Matrix<double, 2, 2, Eigen::RowMajor> J0;
-//   Eigen::Matrix<double, 2, 7, Eigen::RowMajor> J1;
-//   Eigen::Matrix<double, 2, 7, Eigen::RowMajor> J2;
-//   Eigen::Matrix<double, 2, 7, Eigen::RowMajor> J3;
-//   Eigen::Matrix<double, 2, 8, Eigen::RowMajor> J4;
-//   Eigen::Vector2d J5;
-//   std::vector<double *> jacobians =
-//       {J0.data(), J1.data(), J2.data(), J3.data(), J4.data(), J5.data()};
-//
-//   // Baseline
-//   err.Evaluate(params.data(), r.data(), jacobians.data());
-//   print_vector("r", r);
-//
-//   double step = 1e-8;
-//   double threshold = 1e-5;
-//
-//   // -- Test fiducial jacobian
-//   {
-//     mat_t<2, 2> fdiff;
-//
-//     for (int i = 0; i < 2; i++) {
-//       vec2_t r_fd;
-//       fiducial.perturb(i, step);
-//       err.Evaluate(params.data(), r_fd.data(), nullptr);
-//       fdiff.col(i) = (r_fd - r) / step;
-//       fiducial.perturb(i, -step);
-//     }
-//
-//     MU_CHECK(check_jacobian("J0", fdiff, J0, threshold, true) == 0);
-//     print_matrix("fdiff", fdiff);
-//     print_matrix("J0", J0);
-//   }
-//
-//   // -- Test sensor-pose jacobian
-//   {
-//     mat_t<2, 6> fdiff;
-//
-//     for (int i = 0; i < 6; i++) {
-//       // Forward difference
-//       // vec2_t r_fd;
-//       // sensor_pose.perturb(i, step);
-//       // err.Evaluate(params.data(), r_fd.data(), nullptr);
-//       // sensor_pose.perturb(i, -step);
-//       // fdiff.col(i) = (r_fd - r) / step;
-//
-//       // Central finite difference
-//       vec2_t r_fd;
-//       sensor_pose.perturb(i, 0.5 * step);
-//       err.Evaluate(params.data(), r_fd.data(), nullptr);
-//       sensor_pose.perturb(i, -0.5 * step);
-//
-//       vec2_t r_bd;
-//       sensor_pose.perturb(i, -0.5 * step);
-//       err.Evaluate(params.data(), r_bd.data(), nullptr);
-//       sensor_pose.perturb(i, 0.5 * step);
-//
-//       fdiff.col(i) = (r_fd - r_bd) / step;
-//     }
-//
-//     const mat_t<2, 6> J1_min = J1.block(0, 0, 2, 6);
-//     MU_CHECK(check_jacobian("J1", fdiff, J1_min, threshold, true) == 0);
-//   }
-//
-//   // -- Test imu-extrinsics jacobian
-//   {
-//     const mat_t<2, 6> J2_min = J2.block(0, 0, 2, 6);
-//
-//     mat_t<2, 6> fdiff;
-//     for (int i = 0; i < 6; i++) {
-//       imu_extrinsics.perturb(i, step);
-//       vec2_t r_fd;
-//       err.Evaluate(params.data(), r_fd.data(), nullptr);
-//       fdiff.col(i) = (r_fd - r) / step;
-//       imu_extrinsics.perturb(i, -step);
-//     }
-//
-//     MU_CHECK(check_jacobian("J2", fdiff, J2_min, threshold, true) == 0);
-//     print_matrix("fdiff", fdiff);
-//     print_matrix("J2", J2_min);
-//   }
-//
-//   // -- Test cam extrinsics jacobian
-//   {
-//     const mat_t<2, 6> J3_min = J3.block(0, 0, 2, 6);
-//
-//     mat_t<2, 6> fdiff;
-//     for (int i = 0; i < 6; i++) {
-//       cam_extrinsics.perturb(i, step);
-//       vec2_t r_fd;
-//       err.Evaluate(params.data(), r_fd.data(), nullptr);
-//       fdiff.col(i) = (r_fd - r) / step;
-//       cam_extrinsics.perturb(i, -step);
-//     }
-//
-//     MU_CHECK(check_jacobian("J3", fdiff, J3_min, threshold, true) == 0);
-//     print_matrix("fdiff", fdiff);
-//     print_matrix("J3", J3_min);
-//   }
-//
-//   // -- Test camera-parameters jacobian
-//   {
-//     mat_t<2, 8> fdiff;
-//
-//     for (int i = 0; i < 8; i++) {
-//       cam.perturb(i, step);
-//       vec2_t r_fd;
-//       err.Evaluate(params.data(), r_fd.data(), nullptr);
-//       fdiff.col(i) = (r_fd - r) / step;
-//       cam.perturb(i, -step);
-//     }
-//
-//     MU_CHECK(check_jacobian("J4", fdiff, J4, threshold, true) == 0);
-//     print_matrix("fdiff", fdiff);
-//     print_matrix("J4", J4);
-//   }
-//
-//   // -- Test time delay
-//   {
-//     mat_t<2, 1> fdiff;
-//
-//     td.perturb(0, step);
-//     vec2_t r_fd;
-//     err.Evaluate(params.data(), r_fd.data(), nullptr);
-//     fdiff.col(0) = (r_fd - r) / step;
-//     td.perturb(0, -step);
-//
-//     MU_CHECK(check_jacobian("J5", fdiff, J5, threshold, true) == 0);
-//     print_matrix("fdiff", fdiff);
-//     print_matrix("J5", J5);
-//   }
-//
-//   return 0;
-// }
+  // Imu pose in world frame
+  // clang-format off
+  mat4_t T_WS;
+  T_WS << -1.0, 0.0, 0.0, 0.1,
+          0.0, -1.0, 0.0, 0.0,
+          0.0, 0.0, 1.0, 0.0,
+          0.0, 0.0, 0.0, 1.0;
+  T_WS = tf_perturb_rot(T_WS, 0.01, 1);
+  pose_t pose{0, T_WS};
+  // ^ Note: Due to numerical stability issues the translation component
+  // cannot be 0 for checking jacobians
+  // clang-format on
+
+  // Camera extrinsics
+  // clang-format off
+  mat4_t T_BC0;
+  T_BC0 << 0.0, -1.0, 0.0, 0.001,
+           1.0, 0.0, 0.0, 0.001,
+           0.0, 0.0, 1.0, 0.001,
+           0.0, 0.0, 0.0, 1.0;
+  T_BC0 = tf_perturb_rot(T_BC0, 0.01, 2);
+  extrinsics_t cam_exts{T_BC0};
+  // clang-format on
+
+  // Imu extrinsics
+  // clang-format off
+  mat4_t T_BS;
+  T_BS << 0.0, 0.0, 1.0, 0.001,
+          0.0, -1.0, 0.0, 0.001,
+          1.0, 0.0, 0.0, 0.001,
+          0.0, 0.0, 0.0, 1.0;
+  T_BS = tf_perturb_rot(T_BS, -0.01, 2);
+  extrinsics_t imu_exts{T_BS};
+  // clang-format on
+
+  // Get AprilGrid data
+  aprilgrid_t grid{0, 6, 6, 0.088, 0.3};
+  const int tag_id = 0;
+  const int corner_idx = 2;
+  const timestamp_t ts = 0;
+  const vec3_t r_FFi = grid.object_point(tag_id, corner_idx);
+
+  // Camera parameters
+  pinhole_radtan4_t cam_geom;
+  const int cam_idx = 0;
+  const int cam_res[2] = {752, 480};
+  const std::string proj_model = "pinhole";
+  const std::string dist_model = "radtan4";
+  const vec4_t proj_params{458.654, 457.296, 367.215, 248.375};
+  const vec4_t dist_params{-0.28340811, 0.07395907, 0.00019359, 1.76187114e-05};
+  camera_params_t cam_params{cam_idx,
+                             cam_res,
+                             proj_model,
+                             dist_model,
+                             proj_params,
+                             dist_params};
+
+  // Project image point
+  const mat2_t covar = I(2);
+  const mat4_t T_C0B = T_BC0.inverse();
+  const mat4_t T_SW = T_WS.inverse();
+  const vec3_t r_C0Fi = tf_point(T_C0B * T_BS * T_SW * T_WF, r_FFi);
+  vec2_t z = zeros(2, 1);
+  cam_geom.project(cam_res, cam_params.param, r_C0Fi, z);
+
+  // Form fiducial error
+  fiducial_error_t err(ts,
+                       &cam_geom,
+                       &cam_params,
+                       &cam_exts,
+                       &imu_exts,
+                       &fiducial,
+                       &pose,
+                       tag_id,
+                       corner_idx,
+                       r_FFi,
+                       z,
+                       covar);
+
+  MU_CHECK(err.check_jacs(0, "J_fiducial"));
+  MU_CHECK(err.check_jacs(1, "J_pose"));
+  MU_CHECK(err.check_jacs(2, "J_imu_exts"));
+  MU_CHECK(err.check_jacs(2, "J_cam_exts"));
+  MU_CHECK(err.check_jacs(3, "J_cam"));
+
+  return 0;
+}
 
 int test_residual_info() {
   // Load data
@@ -1294,9 +945,9 @@ int test_residual_info() {
 // }
 
 void test_suite() {
+  MU_ADD_TEST(test_pose_error);
   MU_ADD_TEST(test_reproj_error);
-  // MU_ADD_TEST(test_fiducial_error);
-  // MU_ADD_TEST(test_fiducial_td_error);
+  MU_ADD_TEST(test_fiducial_error);
   MU_ADD_TEST(test_residual_info);
   // MU_ADD_TEST(test_marg_error);
   // MU_ADD_TEST(test_marg_error_check_gradients);

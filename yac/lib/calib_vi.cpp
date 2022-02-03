@@ -57,7 +57,6 @@ calib_vi_view_t::calib_vi_view_t(const timestamp_t ts_,
                                                       corner_idx,
                                                       r_FFi,
                                                       z,
-                                                      T_WF,
                                                       covar);
       fiducial_errors[cam_idx].emplace_back(std::move(error));
 

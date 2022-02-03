@@ -28,10 +28,16 @@ struct calib_error_t : public ceres::CostFunction {
   // Loss
   ceres::LossFunction *loss_fn = nullptr;
 
+  /* Constructor */
   calib_error_t() = default;
+
+  /* Destructor */
   virtual ~calib_error_t() = default;
 
+  /* Evaluate */
   bool eval();
+
+  /* Check jacobians */
   bool check_jacs(const int param_idx,
                   const std::string &jac_name,
                   const double step = 1e-8,
@@ -40,15 +46,22 @@ struct calib_error_t : public ceres::CostFunction {
 
 // POSE ERROR //////////////////////////////////////////////////////////////////
 
-struct pose_error_t : public ceres::SizedCostFunction<6, 7> {
-  pose_t pose_meas_;
-  matx_t covar_;
-  matx_t info_;
-  matx_t sqrt_info_;
+struct pose_error_t : public calib_error_t {
+  const pose_t *pose = nullptr;
+  const mat4_t pose_meas;
 
-  pose_error_t(const pose_t &pose, const matx_t &covar);
+  // Covariance
+  matx_t covar;
+  matx_t info;
+  matx_t sqrt_info;
+
+  /* Constructor */
+  pose_error_t(pose_t *pose_, const matx_t &covar_);
+
+  /* Destructor */
   ~pose_error_t() = default;
 
+  /* Evaluate */
   bool Evaluate(double const *const *params,
                 double *residuals,
                 double **jacobians) const;
@@ -83,6 +96,9 @@ struct reproj_error_t : public calib_error_t {
                  const vec2_t &z_,
                  const mat2_t &covar_);
 
+  /* Destructor */
+  ~reproj_error_t() = default;
+
   /** Get residual */
   int get_residual(vec2_t &z_hat, vec2_t &r) const;
 
@@ -100,7 +116,7 @@ struct reproj_error_t : public calib_error_t {
 
 // FIDUCIAL ERROR //////////////////////////////////////////////////////////////
 
-struct fiducial_error_t : public ceres::CostFunction {
+struct fiducial_error_t : public calib_error_t {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 
   const timestamp_t ts_ = 0;
@@ -122,6 +138,7 @@ struct fiducial_error_t : public ceres::CostFunction {
   const mat2_t info_;
   const mat2_t sqrt_info_;
 
+  /* Constructor */
   fiducial_error_t(const timestamp_t &ts,
                    camera_geometry_t *cam_geom,
                    camera_params_t *cam_params,
@@ -133,12 +150,18 @@ struct fiducial_error_t : public ceres::CostFunction {
                    const int corner_idx,
                    const vec3_t &r_FFi,
                    const vec2_t &z,
-                   const mat4_t &T_WF,
                    const mat2_t &covar);
+
+  /* Destructor */
   ~fiducial_error_t() = default;
 
+  /** Get residual */
   int get_residual(vec2_t &r) const;
+
+  /** Get reprojection error */
   int get_reproj_error(real_t &error) const;
+
+  /** Evaluate */
   bool Evaluate(double const *const *params,
                 double *residuals,
                 double **jacobians) const;
@@ -250,74 +273,6 @@ protected:
 };
 
 // MARGINALIZATION ERROR ///////////////////////////////////////////////////////
-
-/* Residual Information */
-struct residual_info_t {
-  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-
-  const ceres::CostFunction *cost_fn = nullptr;
-  const ceres::LossFunction *loss_fn = nullptr;
-  std::vector<param_t *> param_blocks;
-  std::vector<double *> param_blocks_raw;
-
-  vecx_t residuals;
-  std::vector<matx_row_major_t> jacobians;
-
-  residual_info_t(const ceres::CostFunction *cost_fn_,
-                  const std::vector<param_t *> &param_blocks_,
-                  const ::ceres::LossFunction *loss_fn_ = nullptr)
-      : cost_fn{cost_fn_}, loss_fn{loss_fn_}, param_blocks{param_blocks_} {
-    // Pre-allocate memory for residuals
-    residuals.resize(cost_fn_->num_residuals());
-
-    // Pre-allocate memory for jacobians
-    jacobians.resize(param_blocks.size());
-    double **jacobian_ptrs = new double *[param_blocks.size()];
-    for (size_t i = 0; i < param_blocks_.size(); i++) {
-      const auto &param = param_blocks_[i];
-      param_blocks_raw.push_back(param->param.data());
-      jacobians[i].resize(residuals.size(), param->global_size);
-      jacobian_ptrs[i] = jacobians[i].data();
-    }
-
-    // Evaluate cost function to obtain the jacobians and residuals
-    cost_fn->Evaluate(param_blocks_raw.data(), residuals.data(), jacobian_ptrs);
-    free(jacobian_ptrs);
-
-    // Scale jacobians and residuals if using loss function
-    // following ceres-sovler in `internal/ceres/corrector.cc`
-    if (loss_fn_) {
-      double residual_scaling = 0.0;
-      double alpha_sq_norm = 0.0;
-      double rho[3] = {0.0};
-
-      double sq_norm = residuals.squaredNorm();
-      loss_fn_->Evaluate(sq_norm, rho);
-      double sqrt_rho1 = sqrt(rho[1]);
-
-      if ((sq_norm == 0.0) || (rho[2] <= 0.0)) {
-        residual_scaling = sqrt_rho1;
-        alpha_sq_norm = 0.0;
-      } else {
-        const double D = 1.0 + 2.0 * sq_norm * rho[2] / rho[1];
-        const double alpha = 1.0 - sqrt(D);
-        residual_scaling = sqrt_rho1 / (1 - alpha);
-        alpha_sq_norm = alpha / sq_norm;
-      }
-
-      for (size_t i = 0; i < param_blocks.size(); i++) {
-        // clang-format off
-        jacobians[i] = sqrt_rho1 * (
-          jacobians[i] - alpha_sq_norm * residuals *
-          (residuals.transpose() * jacobians[i])
-        );
-        // clang-format on
-      }
-
-      residuals *= residual_scaling;
-    }
-  }
-};
 
 // class marg_error_t : public ::ceres::CostFunction {
 // public:

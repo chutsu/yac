@@ -106,15 +106,24 @@ bool calib_error_t::check_jacs(const int param_idx,
 
 // POSE ERROR //////////////////////////////////////////////////////////////////
 
-pose_error_t::pose_error_t(const pose_t &pose, const matx_t &covar)
-    : pose_meas_{pose}, covar_{covar}, info_{covar.inverse()},
-      sqrt_info_{info_.llt().matrixL().transpose()} {}
+pose_error_t::pose_error_t(pose_t *pose_, const matx_t &covar_)
+    : pose{pose_}, pose_meas{pose_->tf()}, covar{covar_}, info{covar.inverse()},
+      sqrt_info{info.llt().matrixU()} {
+  // Data
+  param_blocks.push_back(pose_);
+  residuals = zeros(6, 1);
+  J_min.push_back(zeros(6, 6));
+
+  // Ceres-Solver
+  set_num_residuals(6);
+  auto block_sizes = mutable_parameter_block_sizes();
+  block_sizes->push_back(7); // Camera-camera extrinsics
+}
 
 bool pose_error_t::Evaluate(double const *const *params,
                             double *residuals,
                             double **jacobians) const {
   // Parameters
-  mat4_t pose_meas = pose_meas_.tf();
   mat4_t pose_est = tf(params[0]);
 
   // Error
@@ -129,19 +138,18 @@ bool pose_error_t::Evaluate(double const *const *params,
 
   // Residuals
   Eigen::Map<Eigen::Matrix<double, 6, 1>> r(residuals);
-  r = sqrt_info_ * error;
+  r = sqrt_info * error;
 
   // Jacobians
   if (jacobians != NULL && jacobians[0] != NULL) {
-    mat_t<6, 6> J_min;
-    J_min.setIdentity();
-    J_min *= -1.0;
-    J_min.block<3, 3>(3, 3) = -plus(dq).topLeftCorner<3, 3>();
-    J_min = (sqrt_info_ * J_min).eval();
+    J_min[0].setIdentity();
+    J_min[0] *= -1.0;
+    J_min[0].block<3, 3>(3, 3) = -plus(dq).topLeftCorner<3, 3>();
+    J_min[0] = (sqrt_info * J_min[0]).eval();
 
     Eigen::Map<Eigen::Matrix<double, 6, 7, Eigen::RowMajor>> J(jacobians[0]);
     J.setZero();
-    J.block(0, 0, 6, 6) = J_min;
+    J = J_min[0] * lift_pose_jacobian(pose_est);
   }
 
   return true;
@@ -269,7 +277,6 @@ bool reproj_error_t::Evaluate(double const *const *params,
         J_min[0].block(0, 0, 2, 3) = -1 * Jh_weighted * C_CiC0;
         J_min[0].block(0, 3, 2, 3) = -1 * Jh_weighted * C_CiC0 * -skew(C_C0Ci * p_CiFi);
         // clang-format on
-
         J = J_min[0] * lift_pose_jacobian(T_C0Ci);
       }
     }
@@ -280,12 +287,13 @@ bool reproj_error_t::Evaluate(double const *const *params,
       J.setZero();
 
       if (valid) {
+        // clang-format off
         const mat3_t C_CiC0 = tf_rot(T_CiC0);
         const mat3_t C_C0F = tf_rot(T_C0F);
         J_min[1].block(0, 0, 2, 3) = Jh_weighted * C_CiC0;
-        J_min[1].block(0, 3, 2, 3) =
-            Jh_weighted * C_CiC0 * -skew(C_C0F * p_FFi);
+        J_min[1].block(0, 3, 2, 3) = Jh_weighted * C_CiC0 * -skew(C_C0F * p_FFi);
         J = J_min[1] * lift_pose_jacobian(T_C0F);
+        // clang-format on
       }
     }
 
@@ -297,7 +305,7 @@ bool reproj_error_t::Evaluate(double const *const *params,
         const mat4_t T_CiF = T_CiC0 * T_C0F;
         const mat3_t C_CiF = tf_rot(T_CiF);
         J_min[2] = Jh_weighted * C_CiF;
-        J.block(0, 0, 2, 3) = J_min[2];
+        J = J_min[2];
       }
     }
 
@@ -329,20 +337,33 @@ fiducial_error_t::fiducial_error_t(const timestamp_t &ts,
                                    const int corner_idx,
                                    const vec3_t &r_FFi,
                                    const vec2_t &z,
-                                   const mat4_t &T_WF,
                                    const mat2_t &covar)
-    : ts_{ts}, cam_geom_{cam_geom},
-      cam_params_{cam_params}, cam_exts_{cam_exts}, imu_exts_{imu_exts},
-      fiducial_{fiducial}, pose_{pose}, tag_id_{tag_id},
-      corner_idx_{corner_idx}, r_FFi_{r_FFi}, z_{z}, T_WF_{T_WF}, covar_{covar},
-      info_{covar.inverse()}, sqrt_info_{info_.llt().matrixU()} {
+    : ts_{ts}, cam_geom_{cam_geom}, cam_params_{cam_params},
+      cam_exts_{cam_exts}, imu_exts_{imu_exts}, fiducial_{fiducial},
+      pose_{pose}, tag_id_{tag_id}, corner_idx_{corner_idx}, r_FFi_{r_FFi},
+      z_{z}, T_WF_{fiducial->estimate()}, covar_{covar}, info_{covar.inverse()},
+      sqrt_info_{info_.llt().matrixU()} {
+  // Data
+  param_blocks.push_back(fiducial_);
+  param_blocks.push_back(pose_);
+  param_blocks.push_back(imu_exts_);
+  param_blocks.push_back(cam_exts_);
+  param_blocks.push_back(cam_params_);
+  residuals = zeros(2, 1);
+  J_min.push_back(zeros(2, fiducial_->local_size));
+  J_min.push_back(zeros(2, 6));
+  J_min.push_back(zeros(2, 6));
+  J_min.push_back(zeros(2, 6));
+  J_min.push_back(zeros(2, 8));
+
+  // Ceres-Solver
   set_num_residuals(2);
   auto block_sizes = mutable_parameter_block_sizes();
-  block_sizes->push_back(fiducial_->param.size()); // T_WF
-  block_sizes->push_back(7);                       // T_WS
-  block_sizes->push_back(7);                       // T_BS
-  block_sizes->push_back(7);                       // T_BCi
-  block_sizes->push_back(8);                       // camera parameters
+  block_sizes->push_back(fiducial_->global_size); // T_WF
+  block_sizes->push_back(7);                      // T_WS
+  block_sizes->push_back(7);                      // T_BS
+  block_sizes->push_back(7);                      // T_BCi
+  block_sizes->push_back(8);                      // camera parameters
 }
 
 int fiducial_error_t::get_residual(vec2_t &r) const {
@@ -463,23 +484,24 @@ bool fiducial_error_t::Evaluate(double const *const *params,
       // Fill Jacobian
       const mat3_t C_CiW = tf_rot(T_CiB * T_BS * T_SW);
 #if FIDUCIAL_PARAMS_SIZE == 2
+      J_min[0].block(0, 0, 2, 1) = -1 * Jh_weighted * C_CiW * J_x;
+      J_min[0].block(0, 1, 2, 1) = -1 * Jh_weighted * C_CiW * J_y;
       Eigen::Map<mat_t<2, 2, row_major_t>> J(jacobians[0]);
-      J.block(0, 0, 2, 1) = -1 * Jh_weighted * C_CiW * J_x;
-      J.block(0, 1, 2, 1) = -1 * Jh_weighted * C_CiW * J_y;
+      J = J_min[0];
 #elif FIDUCIAL_PARAMS_SIZE == 3
-      Eigen::Map<mat_t<2, 3, row_major_t>> J(jacobians[0]);
       J.block(0, 0, 2, 1) = -1 * Jh_weighted * C_CiW * J_x;
       J.block(0, 1, 2, 1) = -1 * Jh_weighted * C_CiW * J_y;
       J.block(0, 2, 2, 1) = -1 * Jh_weighted * C_CiW * J_z;
+      Eigen::Map<mat_t<2, 3, row_major_t>> J(jacobians[0]);
+      J = J_min[0];
 #elif FIDUCIAL_PARAMS_SIZE == 7
+      // clang-format off
       const mat3_t C_WF = tf_rot(T_WF);
-      mat_t<2, 6, row_major_t> J_min;
-      J_min.setZero();
-      J_min.block(0, 0, 2, 3) = -1 * Jh_weighted * C_CiW * I(3);
-      J_min.block(0, 3, 2, 3) = -1 * Jh_weighted * C_CiW * -skew(C_WF * r_FFi_);
-
+      J_min[0].block(0, 0, 2, 3) = -1 * Jh_weighted * C_CiW * I(3);
+      J_min[0].block(0, 3, 2, 3) = -1 * Jh_weighted * C_CiW * -skew(C_WF * r_FFi_);
+      // clang-format on
       Eigen::Map<mat_t<2, 7, row_major_t>> J(jacobians[0]);
-      J = J_min * lift_pose_jacobian(T_WF);
+      J = J_min[0] * lift_pose_jacobian(T_WF);
 #endif
       if (valid == false) {
         J.setZero();
@@ -495,13 +517,13 @@ bool fiducial_error_t::Evaluate(double const *const *params,
       const mat4_t T_SW = T_WS.inverse();
       const vec3_t r_SFi = tf_point(T_SW * T_WF, r_FFi_);
 
-      mat_t<2, 6, row_major_t> J_min;
-      J_min.setZero();
-      J_min.block(0, 0, 2, 3) = -1 * Jh_weighted * -C_CiW * I(3);
-      J_min.block(0, 3, 2, 3) = -1 * Jh_weighted * -C_CiW * -skew(C_WS * r_SFi);
+      // clang-format off
+      J_min[1].block(0, 0, 2, 3) = -1 * Jh_weighted * -C_CiW * I(3);
+      J_min[1].block(0, 3, 2, 3) = -1 * Jh_weighted * -C_CiW * -skew(C_WS * r_SFi);
+      // clang-format on
 
       Eigen::Map<mat_t<2, 7, row_major_t>> J(jacobians[1]);
-      J = J_min * lift_pose_jacobian(T_WS);
+      J = J_min[1] * lift_pose_jacobian(T_WS);
       if (valid == false) {
         J.setZero();
       }
@@ -513,12 +535,13 @@ bool fiducial_error_t::Evaluate(double const *const *params,
       const mat3_t C_BS = tf_rot(T_BS);
       const vec3_t r_SFi = tf_point(T_SW * T_WF, r_FFi_);
 
-      mat_t<2, 6, row_major_t> J_min;
-      J_min.block(0, 0, 2, 3) = -1 * Jh_weighted * C_CiB * I(3);
-      J_min.block(0, 3, 2, 3) = -1 * Jh_weighted * C_CiB * -skew(C_BS * r_SFi);
+      // clang-format off
+      J_min[2].block(0, 0, 2, 3) = -1 * Jh_weighted * C_CiB * I(3);
+      J_min[2].block(0, 3, 2, 3) = -1 * Jh_weighted * C_CiB * -skew(C_BS * r_SFi);
+      // clang-format on
 
       Eigen::Map<mat_t<2, 7, row_major_t>> J(jacobians[2]);
-      J = J_min * lift_pose_jacobian(T_BS);
+      J = J_min[2] * lift_pose_jacobian(T_BS);
       if (valid == false) {
         J.setZero();
       }
@@ -531,13 +554,12 @@ bool fiducial_error_t::Evaluate(double const *const *params,
       const vec3_t r_CiFi = tf_point(T_CiB * T_BS * T_SW * T_WF, r_FFi_);
 
       // clang-format off
-      mat_t<2, 6, row_major_t> J_min;
-      J_min.block(0, 0, 2, 3) = -1 * Jh_weighted * -C_CiB * I(3);
-      J_min.block(0, 3, 2, 3) = -1 * Jh_weighted * -C_CiB * -skew(C_BCi * r_CiFi);
+      J_min[3].block(0, 0, 2, 3) = -1 * Jh_weighted * -C_CiB * I(3);
+      J_min[3].block(0, 3, 2, 3) = -1 * Jh_weighted * -C_CiB * -skew(C_BCi * r_CiFi);
       // clang-format on
 
       Eigen::Map<mat_t<2, 7, row_major_t>> J(jacobians[3]);
-      J = J_min * lift_pose_jacobian(T_BCi);
+      J = J_min[3] * lift_pose_jacobian(T_BCi);
       if (valid == false) {
         J.setZero();
       }
@@ -546,8 +568,10 @@ bool fiducial_error_t::Evaluate(double const *const *params,
     // Jacobians w.r.t. camera parameters
     if (jacobians[4]) {
       const matx_t J_cam = cam_geom_->params_jacobian(cam_params, r_CiFi);
+
+      J_min[4] = -1 * sqrt_info_ * J_cam;
       Eigen::Map<mat_t<2, 8, row_major_t>> J(jacobians[4]);
-      J.block(0, 0, 2, 8) = -1 * sqrt_info_ * J_cam;
+      J = J_min[4];
       if (valid == false) {
         J.setZero();
       }
@@ -1023,7 +1047,7 @@ int ImuError::redoPreintegration(const mat4_t & /*T_WS*/,
 
   // square root
   Eigen::LLT<information_t> lltOfInformation(information_);
-  squareRootInformation_ = lltOfInformation.matrixL().transpose();
+  squareRootInformation_ = lltOfInformation.matrixU();
 
   // std::cout << squareRootInformation_ << std::endl;
   // exit(0);

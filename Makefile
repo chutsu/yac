@@ -56,7 +56,8 @@ download_test_data: ## Download test data
 	@bash ./scripts/download_test_data.bash
 
 tests: ## Build and run tests
-	@. /opt/ros/${ROS_VERSION}/setup.sh\
+	@cd ${CATKIN_WS} && \
+		. /opt/ros/${ROS_VERSION}/setup.sh\
 		&& source ${CATKIN_WS}/devel/setup.bash \
 		&& rosrun yac test_util_aprilgrid \
 		&& rosrun yac test_util_config \

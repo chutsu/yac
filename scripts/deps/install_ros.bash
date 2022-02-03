@@ -15,9 +15,9 @@ apt_update
 apt_install dpkg
 sudo dpkg --configure -a
 apt_install ros-${ROS_VERSION}-desktop
-apt_install python3-catkin-tools
 apt_install ros-${ROS_VERSION}-gazebo-dev*
 apt_install ros-${ROS_VERSION}-tf2*
-apt_install python-rosdep
+apt_install python3-catkin-tools
+apt_install python3-rosdep
 sudo rosdep init
 rosdep update

@@ -13,7 +13,17 @@ install() {
 }
 
 install_base() {
-  apt_install dialog apt-utils git mercurial cmake g++ clang wget libasan3 libasan4 libasan5
+  apt_install \
+    dialog \
+    apt-utils \
+    git \
+    mercurial \
+    cmake \
+    g++ \
+    clang \
+    wget \
+    libasan4 \
+    libasan5
 }
 
 apt_update
@@ -22,5 +32,5 @@ install ros
 # install apriltags
 install ceres
 install eigen
-install opencv3
+install opencv
 install yamlcpp

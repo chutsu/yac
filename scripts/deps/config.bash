@@ -2,6 +2,7 @@
 PREFIX="/usr/local"
 DOWNLOAD_PATH="$PREFIX/src"
 BUILD_TYPE="Release"
+ROS_VERSION="noetic"
 
 apt_update() {
   echo "[Updating APT package list]";

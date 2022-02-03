@@ -45,7 +45,7 @@ void draw_hcentered_text(const std::string &text,
               text_scale,
               text_color,
               text_thickness,
-              CV_AA);
+              cv::LINE_AA);
 }
 
 void draw_camera_index(const int cam_idx, cv::Mat &image) {
@@ -58,7 +58,7 @@ void draw_camera_index(const int cam_idx, cv::Mat &image) {
   int baseline = 0;
   auto size = cv::getTextSize(text, font, scale, thickness, &baseline);
   const cv::Point pos{10, 30}; // Bottom left of text string
-  cv::putText(image, text, pos, font, scale, color, thickness, CV_AA);
+  cv::putText(image, text, pos, font, scale, color, thickness, cv::LINE_AA);
 }
 
 void draw_nbv_reproj_error(const real_t nbv_reproj_error, cv::Mat &image) {
@@ -87,7 +87,7 @@ void draw_nbv_reproj_error(const real_t nbv_reproj_error, cv::Mat &image) {
               text_scale,
               text_color,
               text_thickness,
-              CV_AA);
+              cv::LINE_AA);
 }
 
 void draw_status_text(const std::string &text, cv::Mat &image) {
@@ -129,7 +129,7 @@ void draw_status_text(const std::string &text, cv::Mat &image) {
               text_scale,
               text_color,
               text_thickness,
-              CV_AA);
+              cv::LINE_AA);
 }
 
 void draw_detected(const aprilgrid_t &grid, cv::Mat &image) {
@@ -154,7 +154,7 @@ void draw_detected(const aprilgrid_t &grid, cv::Mat &image) {
               text_scale,
               text_color,
               text_thickness,
-              CV_AA);
+              cv::LINE_AA);
 
   // Visualize detected corners
   const auto corner_color = cv::Scalar(0, 255, 0);

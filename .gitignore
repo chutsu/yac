@@ -7,6 +7,6 @@ deps/lib
 deps/share
 deps/*.log
 deps/src/apriltag3/build
-deps/src/apriltags/build
+deps/src/apriltag
 deps/src/ceres-solver
 deps/src/SuiteSparse

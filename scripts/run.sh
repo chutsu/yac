@@ -19,11 +19,11 @@ set -e
 # RUN_CMD="rosrun yac test_calib_data"
 
 # YAC - CAMERA CALIBRATION
-RUN_CMD="rosrun yac test_calib_camera"
+# RUN_CMD="rosrun yac test_calib_camera"
 # RUN_CMD="rosrun yac test_calib_camera --target test_reproj_error"
 # RUN_CMD="rosrun yac test_calib_camera --target test_initialize_camera"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_find_nbv"
-# RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera"
+RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera"
 
 # YAC - MOCAP CALIBRATION
 # RUN_CMD="rosrun yac test_calib_mocap"
@@ -62,7 +62,7 @@ RUN_CMD="rosrun yac test_calib_camera"
 
 tmux send-keys -t dev -R "\
 cd ~/projects/yac \
-&& make lib_relwithdeb \
+&& make relwithdeb \
 && source ~/catkin_ws/devel/setup.bash \
 && ${RUN_CMD}
 " C-m C-m

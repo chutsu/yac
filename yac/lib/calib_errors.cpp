@@ -56,6 +56,8 @@ bool calib_error_t::eval() {
 
     residuals *= residual_scaling;
   }
+
+  return true;
 }
 
 bool calib_error_t::check_jacs(const int param_idx,

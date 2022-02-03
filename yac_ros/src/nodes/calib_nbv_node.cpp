@@ -438,6 +438,8 @@ struct calib_nbv_t {
       nbv_hold_tic = (struct timespec){0, 0};
       find_nbv_event = false;
       printf("nbv_cam_idx: %d, nbv_idx: %d\n", nbv_cam_idx, nbv_idx);
+    } else {
+      FATAL("Failed to find NBV!");
     }
 
   viz_nbv:

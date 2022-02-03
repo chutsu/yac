@@ -44,14 +44,13 @@ public:
   size_t frame_idx_ = 0;
 
   // ROS
+  // clang-format off
   ros_config_t &config_;
   calib_data_t &calib_data_;
   // -- IMU subscriber
   ros::Subscriber imu0_sub_;
   // -- Image subscribers
-  typedef message_filters::sync_policies::ExactTime<sensor_msgs::Image,
-                                                    sensor_msgs::Image>
-      ImageSyncPolicy;
+  typedef message_filters::sync_policies::ExactTime<sensor_msgs::Image, sensor_msgs::Image> ImageSyncPolicy;
   typedef message_filters::Subscriber<sensor_msgs::Image> ImageSubscriber;
   ImageSubscriber cam0_sub_;
   ImageSubscriber cam1_sub_;
@@ -62,6 +61,7 @@ public:
   ros::Publisher rviz_pub_;
   // -- NBT publisher
   ros::Publisher nbt_pub_;
+  // clang-format on
 
   // Visualization
   int viz_width = 800;

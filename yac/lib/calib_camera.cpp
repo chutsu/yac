@@ -409,6 +409,7 @@ void initialize_camera(const calib_target_t &calib_target,
 
 calib_camera_t::calib_camera_t(const calib_target_t &calib_target_)
     : calib_target{calib_target_} {
+  // Ceres-Problem
   prob_options.local_parameterization_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
   prob_options.cost_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
   prob_options.loss_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
@@ -427,6 +428,13 @@ calib_camera_t::calib_camera_t(const calib_target_t &calib_target_)
 }
 
 calib_camera_t::calib_camera_t(const std::string &config_path) {
+  // Ceres-Problem
+  prob_options.local_parameterization_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
+  prob_options.cost_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
+  prob_options.loss_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
+  prob_options.enable_fast_removal = true;
+  problem = new ceres::Problem(prob_options);
+
   // Load configuration
   config_t config{config_path};
   // -- Parse calibration target settings
@@ -452,6 +460,11 @@ calib_camera_t::calib_camera_t(const std::string &config_path) {
     parse(config, cam_str + ".dist_model", dist_model);
     parse(config, cam_str + ".proj_params", proj_params, true);
     parse(config, cam_str + ".dist_params", dist_params, true);
+    printf("%s\n", cam_str.c_str());
+    printf("%s\n", proj_model.c_str());
+    printf("%s\n", dist_model.c_str());
+    print_vector("proj_params", proj_params);
+    print_vector("dist_params", dist_params);
     add_camera(cam_idx,
                cam_res.data(),
                proj_model,
@@ -461,6 +474,35 @@ calib_camera_t::calib_camera_t(const std::string &config_path) {
   }
   if (cam_params.size() == 0) {
     FATAL("Failed to parse any camera parameters...");
+  }
+  // -- Parse camera extrinsics
+  for (const auto cam_idx : get_camera_indices()) {
+    // First camera
+    if (cam_idx == 0) {
+      add_camera_extrinsics(0);
+    }
+
+    // Check if key exists
+    const std::string cam_str = "cam" + std::to_string(cam_idx);
+    const std::string key = "T_cam0_" + cam_str;
+    if (yaml_has_key(config, key) == 0) {
+      continue;
+    }
+
+    // Extract and add camera extrinsics
+    mat4_t T_C0Ci = zeros(4, 4);
+    parse(config, key, T_C0Ci);
+    add_camera_extrinsics(cam_idx, T_C0Ci);
+  }
+
+  // Add fiducial corners to problem
+  const int nb_tags = calib_target.tag_rows * calib_target.tag_cols;
+  for (int tag_id = 0; tag_id < nb_tags; tag_id++) {
+    for (int corner_idx = 0; corner_idx < 4; corner_idx++) {
+      auto corner = corners.get_corner(tag_id, corner_idx);
+      problem->AddParameterBlock(corner->data(), 3);
+      problem->SetParameterBlockConstant(corner->data());
+    }
   }
 }
 
@@ -624,9 +666,11 @@ void calib_camera_t::add_camera_data(const int cam_idx,
   }
 
   if (cam_params.count(cam_idx)) {
-    focal_length_init[cam_idx] = median(focal_lengths);
-    cam_params[cam_idx]->param[0] = focal_length_init[cam_idx];
-    cam_params[cam_idx]->param[1] = focal_length_init[cam_idx];
+    if (focal_lengths.size()) {
+      focal_length_init[cam_idx] = median(focal_lengths);
+      cam_params[cam_idx]->param[0] = focal_length_init[cam_idx];
+      cam_params[cam_idx]->param[1] = focal_length_init[cam_idx];
+    }
   }
 }
 
@@ -919,7 +963,7 @@ int calib_camera_t::find_nbv(const std::map<int, mat4s_t> &nbv_poses,
     if (recover_calib_covar(calib_covar, true) != 0) {
       return -1;
     }
-    entropy_k = info_entropy(calib_covar);
+    entropy_k = shannon_entropy(calib_covar);
   }
 
   // Find NBV
@@ -990,12 +1034,14 @@ int calib_camera_t::find_nbv(const std::map<int, mat4s_t> &nbv_poses,
   cam_idx = best_cam;
   nbv_idx = best_idx;
 
-  const auto info_gain = 0.5 * (best_entropy - entropy_k);
+  const auto info_gain = 0.5 * (entropy_k - best_entropy);
   printf("best_entropy: %f\n", best_entropy);
   printf("entropy_k: %f\n", entropy_k);
   printf("info_gain: %f\n", info_gain);
   if (info_gain < info_gain_threshold) {
     return 1;
+  } else {
+    entropy_k = best_entropy;
   }
 
   return 0;
@@ -1078,6 +1124,12 @@ int calib_camera_t::find_nbv(std::vector<timestamp_t> &nbv_timestamps,
   }
   printf("\n");
 
+  return 0;
+}
+
+int calib_camera_t::find_mere(std::vector<timestamp_t> &nbv_timestamps,
+                              real_t &best_entropy,
+                              timestamp_t &best_nbv) {
   return 0;
 }
 
@@ -1235,6 +1287,114 @@ void calib_camera_t::_solve_batch() {
   }
 }
 
+void calib_camera_t::_solve_inc() {
+  // Initialize
+  _solve_batch();
+  remove_all_views();
+
+  // Shuffle timestamps
+  timestamps_t nbv_timestamps;
+  for (const auto &ts : timestamps) {
+    nbv_timestamps.push_back(ts);
+  }
+  std::random_shuffle(nbv_timestamps.begin(), nbv_timestamps.end());
+
+  // Add min-views
+  LOG_INFO("Add minimal views ...");
+  {
+    auto it = nbv_timestamps.begin();
+    while (it != nbv_timestamps.end()) {
+      // Timestamp
+      auto nbv_ts = *it;
+
+      // Add view
+      for (const auto &[cam_idx, grid] : cam_data[nbv_ts]) {
+        // Check if AprilGrid was detected
+        if (grid.detected == false) {
+          continue;
+        }
+
+        // Add pose
+        if (poses.count(nbv_ts) == 0) {
+          add_pose(nbv_ts);
+        }
+
+        // Add calibration view
+        add_view(grid,
+                 problem,
+                 loss,
+                 cam_idx,
+                 cam_geoms[cam_idx],
+                 cam_params[cam_idx],
+                 cam_exts[cam_idx],
+                 poses[nbv_ts]);
+      }
+
+      // Update
+      it = nbv_timestamps.erase(it);
+
+      bool min_nbv_views_reached = true;
+      for (const auto cam_idx : get_camera_indices()) {
+        if (calib_views[cam_idx].size() < min_nbv_views) {
+          min_nbv_views_reached = false;
+        }
+      }
+      if (min_nbv_views_reached) {
+        break;
+      }
+    }
+
+    // Filter all views
+    LOG_INFO("Filter initial views");
+    removed_outliers = _filter_all_views();
+    LOG_INFO("Removed %d outliers", removed_outliers);
+
+    // Calculate entropy
+    matx_t calib_covar;
+    int retval = recover_calib_covar(calib_covar);
+    if (retval != 0) {
+      FATAL("Failed to estimate calibration covariance!");
+    }
+    calib_entropy_k = shannon_entropy(calib_covar);
+  }
+
+  // Incremental solve
+  while (nbv_timestamps.size()) {
+    // Find next best view
+    real_t mere = 0.0;
+    timestamp_t nbv_ts = 0;
+    find_mere(nbv_timestamps, mere, nbv_ts);
+
+    // Add view
+    for (const auto &[cam_idx, grid] : cam_data[nbv_ts]) {
+      // Add pose
+      if (poses.count(nbv_ts) == 0) {
+        add_pose(nbv_ts);
+      }
+
+      // Add calibration view
+      add_view(grid,
+               problem,
+               loss,
+               cam_idx,
+               cam_geoms[cam_idx],
+               cam_params[cam_idx],
+               cam_exts[cam_idx],
+               poses[nbv_ts]);
+    }
+
+    // Print stats
+    // const auto reproj_errors_all = get_all_reproj_errors();
+    // printf("%ld views remaining ...\n", nbv_timestamps.size());
+
+    // Update
+    const auto nbv_begin = nbv_timestamps.begin();
+    const auto nbv_end = nbv_timestamps.end();
+    const auto nbv_idx = std::remove(nbv_begin, nbv_end, nbv_ts);
+    nbv_timestamps.erase(nbv_idx, nbv_end);
+  }
+}
+
 void calib_camera_t::_solve_nbv() {
   size_t ts_idx = 0;
 
@@ -1251,7 +1411,6 @@ void calib_camera_t::_solve_nbv() {
 
   // NBV
   progressbar bar(nbv_timestamps.size());
-  printf("Solving full problem: ");
 
   for (const auto &ts : nbv_timestamps) {
     bool new_view_added = false;
@@ -1330,7 +1489,7 @@ void calib_camera_t::_solve_nbv() {
   } // Iterate timestamps
 }
 
-void calib_camera_t::_solve_nbv2() {
+void calib_camera_t::_solve_nbv_brute_force() {
   LOG_INFO("Solving Incremental NBV problem");
 
   // Setup
@@ -1457,7 +1616,6 @@ void calib_camera_t::_solve_nbv2() {
     printf("\n");
 
     // Update
-    // nbv_timestamps.erase(nbv_ts);
     const auto nbv_begin = nbv_timestamps.begin();
     const auto nbv_end = nbv_timestamps.end();
     const auto nbv_idx = std::remove(nbv_begin, nbv_end, nbv_ts);
@@ -1476,7 +1634,9 @@ void calib_camera_t::solve() {
 
   // Solve
   if (enable_nbv) {
+    // _solve_inc();
     _solve_nbv();
+    // _solve_nbv_brute_force();
   } else {
     _solve_batch();
   }
@@ -1599,6 +1759,7 @@ int calib_camera_t::save_results(const std::string &save_path) {
 
   // Calibration target
   fprintf(outfile, "calib_target:\n");
+  fprintf(outfile, "  target_type: %s\n", calib_target.target_type.c_str());
   fprintf(outfile, "  tag_rows: %d\n", calib_target.tag_rows);
   fprintf(outfile, "  tag_cols: %d\n", calib_target.tag_cols);
   fprintf(outfile, "  tag_size: %f\n", calib_target.tag_size);
@@ -1727,12 +1888,12 @@ int calib_camera_t::save_stats(const std::string &save_path) {
 
 void calib_camera_t::validate(const std::map<int, aprilgrids_t> &cam_data) {
   // Pre-check
-  if (cam_exts.size() != cam_params.size()) {
-    FATAL("cam_exts.size() != cam_params.size()");
-  } else if (cam_params.size() == 0) {
+  if (cam_params.size() == 0) {
     FATAL("cam_params.size() == 0");
   } else if (cam_exts.size() == 0) {
     FATAL("cam_exts.size() == 0");
+  } else if (cam_exts.size() != cam_params.size()) {
+    FATAL("cam_exts.size() != cam_params.size()");
   }
 
   // Lambda to average poses

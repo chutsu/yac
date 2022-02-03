@@ -200,6 +200,9 @@ struct calib_camera_t {
   int find_nbv(std::vector<timestamp_t> &nbv_timestamps,
                real_t &best_entropy,
                timestamp_t &best_nbv);
+  int find_mere(std::vector<timestamp_t> &nbv_timestamps,
+                real_t &best_entropy,
+                timestamp_t &best_nbv);
 
   void _initialize_intrinsics();
   void _initialize_extrinsics();
@@ -207,8 +210,9 @@ struct calib_camera_t {
   int _filter_all_views();
   int eval_view(real_t &entropy);
   void _solve_batch();
+  void _solve_inc();
   void _solve_nbv();
-  void _solve_nbv2();
+  void _solve_nbv_brute_force();
 
   void solve();
   void show_results();

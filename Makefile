@@ -19,7 +19,7 @@ ${CATKIN_WS}:
 
 deps: ## Install dependencies
 	@echo "[Installing Dependencies]"
-	@sudo bash ./scripts/deps/install.bash
+	@sudo bash ./deps/scripts/install.bash
 	@make -s -C deps
 
 lib_debug: ${CATKIN_WS} ${YAC_PATH}  ## Build libyac in debug mode

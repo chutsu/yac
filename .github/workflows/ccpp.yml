@@ -10,10 +10,10 @@ jobs:
       run: make deps
 
     - name: build
-      run: make release
+      run: sudo make release
 
     - name: download test data
       run: sudo make download_test_data
 
     - name: run tests
-      run: make tests
+      run: sudo make tests

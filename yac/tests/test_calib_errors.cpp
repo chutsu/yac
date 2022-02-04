@@ -257,10 +257,55 @@ int test_fiducial_error() {
 }
 
 struct view_t {
-  std::map<int, camera_params_t *> cam_params;
-  std::map<int, extrinsics_t *> cam_exts;
+  const std::map<int, aprilgrid_t> cam_grids;
+  std::vector<camera_params_t *> &cam_params;
+  std::vector<extrinsics_t *> &cam_exts;
   std::map<int, std::vector<reproj_error_t *>> reproj_errors;
-  pose_t *pose;
+  pose_t *rel_pose; // T_C0F
+
+  view_t(const std::map<int, aprilgrid_t> &cam_grids_,
+         std::vector<camera_params_t *> &cam_params_,
+         std::vector<extrinsics_t *> &cam_exts_,
+         ceres::Problem *problem)
+      : cam_grids{cam_grids_}, cam_params{cam_params_}, cam_exts{cam_exts_} {
+    for (const auto &[cam_idx, grid] : cam_grids) {
+      const auto cam_res = cam_params[cam_idx]->resolution;
+      const vecx_t cam = cam_params[cam_idx]->param;
+      const pinhole_radtan4_t cam_geom;
+
+      // Estimate relative pose (T_C0F)
+      mat4_t T_CiF;
+      if (grid.estimate(&cam_geom, cam_res, cam, T_CiF) != 0) {
+        FATAL("Failed to estimate relative pose!");
+      }
+      const mat4_t T_C0Ci = cam_exts[cam_idx]->tf();
+      const mat4_t T_C0F = T_C0Ci * T_CiF;
+
+      // Form reprojection residual block
+      std::vector<int> tag_ids;
+      std::vector<int> corner_indicies;
+      vec2s_t keypoints;
+      vec3s_t object_points;
+      grid.get_measurements(tag_ids, corner_indicies, keypoints, object_points);
+
+      // for (size_t i = 0; i < tag_ids.size(); i++) {
+      //   auto err = new fiducial_error_t(cam_idx,
+      //                                  cam_res,
+      //                                  tag_ids[i],
+      //                                  corner_indicies[i],
+      //                                  object_points[i],
+      //                                  keypoints[i],
+      //                                  I(2));
+      //
+      //   reproj_errors[cam_idx].push_back(err);
+      //   problem->AddResidualBlock(err,
+      //                             nullptr,
+      //                             rel_pose->param.data(),
+      //                             cam_exts[cam_idx]->param.data(),
+      //                             cam_params[cam_idx]->param.data());
+      // }
+    }
+  }
 };
 
 int test_marg_error() {
@@ -297,7 +342,7 @@ int test_marg_error() {
     }
   }
 
-  // Setup camera
+  // Camera parameters
   const int cam_res[2] = {752, 480};
   const std::string proj_model = "pinhole";
   const std::string dist_model = "radtan4";
@@ -316,15 +361,7 @@ int test_marg_error() {
                               proj_params,
                               dist_params};
 
-  // Setup problem
-  ceres::Problem problem;
-  // std::vector<camera_params_t *> cam_params = {&cam0_params, &cam1_params};
-  // std::vector<extrinsics_t *> cam_exts = {&cam0_exts, &cam1_exts};
-  // std::map<timestamp_t, pose_t *> rel_poses;
-  // std::vector<view_t> views;
-  marg_error_t *marg_error = new marg_error_t();
-
-  // -- Camera extrinsics
+  // Camera extrinsics
   mat4_t T_BC0 = I(4);
   mat4_t T_BC1;
   // clang-format off
@@ -336,66 +373,19 @@ int test_marg_error() {
   extrinsics_t cam0_exts{T_BC0};
   extrinsics_t cam1_exts{T_BC1};
 
+  // Setup problem
+  ceres::Problem problem;
+  std::vector<camera_params_t *> cam_params = {&cam0_params, &cam1_params};
+  std::vector<extrinsics_t *> cam_exts = {&cam0_exts, &cam1_exts};
+  std::map<timestamp_t, pose_t *> rel_poses;
+  std::vector<view_t> views;
+  marg_error_t marg_error;
+
   for (size_t k = 0; k < max_nb_grids; k++) {
-    // std::vector<aprilgrid_t *> cam_grids = {&cam0_grids[k], &cam1_grids[k]};
-    // view_t view;
-    // view.cam_params = cam_params;
-    // view.cam_exts = cam_exts;
-
-    // for (size_t cam_idx = 0; cam_idx < 2; cam_idx++) {
-    //   const auto grid = cam_grids[cam_idx];
-    //   const vec4_t proj_params = cam0_params.proj_params();
-    //   const vec4_t dist_params = cam0_params.dist_params();
-    //   const pinhole_radtan4_t cam{cam_res, proj_params, dist_params};
-    //
-    //   // Estimate relative pose (T_C0F)
-    //   mat4_t T_CiF;
-    //   if (grid->estimate(cam, T_CiF) != 0) {
-    //     FATAL("Failed to estimate relative pose!");
-    //   }
-    //   mat4_t T_BCi = cam_exts[cam_idx]->tf();
-    //   mat4_t T_BF = T_BCi * T_CiF;
-    //
-    //   // Form relative pose
-    //   const auto ts = grid->timestamp;
-    //   pose_t *rel_pose;
-    //   if (rel_poses.count(ts) == 0) {
-    //     rel_pose = new pose_t{grid->timestamp, T_BF};
-    //     rel_poses[ts] = rel_pose;
-    //   } else {
-    //     rel_pose = rel_poses[ts];
-    //   }
-    //   view.pose = rel_pose;
-    //
-    //   // Form reprojection residual block
-    //   std::vector<int> tag_ids;
-    //   std::vector<int> corner_indicies;
-    //   vec2s_t keypoints;
-    //   vec3s_t object_points;
-    //   grid->get_measurements(tag_ids,
-    //                          corner_indicies,
-    //                          keypoints,
-    //                          object_points);
-    //
-    //   for (size_t i = 0; i < tag_ids.size(); i++) {
-    //     auto err = new reproj_error_t<pinhole_radtan4_t>(cam_idx,
-    //                                                      cam_res,
-    //                                                      tag_ids[i],
-    //                                                      corner_indicies[i],
-    //                                                      object_points[i],
-    //                                                      keypoints[i],
-    //                                                      I(2));
-    //
-    //     view.reproj_errors[cam_idx].push_back(err);
-    //     problem.AddResidualBlock(err,
-    //                              nullptr,
-    //                              rel_pose->param.data(),
-    //                              cam_exts[cam_idx]->param.data(),
-    //                              cam_params[cam_idx]->param.data());
-    //   }
-    // }
-
-    // views.push_back(view);
+    std::map<int, aprilgrid_t> cam_grids;
+    cam_grids[0] = cam0_grids[k];
+    cam_grids[1] = cam1_grids[k];
+    views.emplace_back(cam_grids, cam_params, cam_exts, &problem);
   }
 
   // clang-format off
@@ -408,10 +398,6 @@ int test_marg_error() {
   // for (int cam_idx = 0; cam_idx < 2; cam_idx++) {
   //   for (auto &reproj_error : view.reproj_errors.at(cam_idx)) {
   //     view.pose->marginalize = true;
-  //     std::vector<param_t *> param_blocks;
-  //     param_blocks.push_back((param_t *)view.pose);
-  //     param_blocks.push_back((param_t *)view.cam_exts[cam_idx]);
-  //     param_blocks.push_back((param_t *)view.cam_params[cam_idx]);
   //     marg_error->add(reproj_error, param_blocks);
   //   }
   // }
@@ -507,7 +493,8 @@ int test_marg_error() {
 //
 //   mat4_t T_BC0 = I(4);
 //   mat4_t T_BC1;
-//   T_BC1 << 0.99998, -0.00254, -0.00498, 0.10995, 0.00247, 0.99989, -0.01440,
+//   T_BC1 << 0.99998, -0.00254, -0.00498, 0.10995, 0.00247, 0.99989,
+//   -0.01440,
 //       -0.00025, 0.00502, 0.01439, 0.99988, 0.00062, 0.00000, 0.00000,
 //       0.00000, 1.00000;
 //   extrinsics_t cam0_exts{param_id++, T_BC0};
@@ -519,9 +506,8 @@ int test_marg_error() {
 //   std::vector<view_t> views;
 //
 //   for (size_t k = 0; k < max_grids; k++) {
-//     std::vector<aprilgrid_t *> cam_grids = {&cam0_grids[k], &cam1_grids[k]};
-//     view_t view;
-//     view.cam_params = cam_params;
+//     std::vector<aprilgrid_t *> cam_grids = {&cam0_grids[k],
+//     &cam1_grids[k]}; view_t view; view.cam_params = cam_params;
 //     view.cam_exts = cam_exts;
 //
 //     for (size_t cam_idx = 0; cam_idx < 2; cam_idx++) {
@@ -742,9 +728,8 @@ int test_marg_error() {
 //   auto nb_grids = cam0_grids.size();
 //
 //   for (size_t k = 0; k < nb_grids; k++) {
-//     std::vector<aprilgrid_t *> cam_grids = {&cam0_grids[k], &cam1_grids[k]};
-//     view_t view;
-//     view.cam_params = cam_params;
+//     std::vector<aprilgrid_t *> cam_grids = {&cam0_grids[k],
+//     &cam1_grids[k]}; view_t view; view.cam_params = cam_params;
 //     view.cam_exts = cam_exts;
 //
 //     // Keep sliding window bounded
@@ -753,8 +738,8 @@ int test_marg_error() {
 //       if (marg_error_id != nullptr) {
 //         problem.RemoveResidualBlock(marg_error_id);
 //
-//         // Replace old marginalization error, and keep track of previous info
-//         auto marg_error_new = new marg_error_t();
+//         // Replace old marginalization error, and keep track of previous
+//         info auto marg_error_new = new marg_error_t();
 //         marg_error_new->add(marg_error, marg_error->get_params());
 //         delete marg_error;
 //         marg_error = marg_error_new;
@@ -765,8 +750,8 @@ int test_marg_error() {
 //       sliding_window.pop_front();
 //       // problem.RemoveParameterBlock(view.pose->param.data());
 //
-//       // Marginalize the oldest pose and add marginalization prior to problem
-//       for (int cam_idx = 0; cam_idx < nb_cams; cam_idx++) {
+//       // Marginalize the oldest pose and add marginalization prior to
+//       problem for (int cam_idx = 0; cam_idx < nb_cams; cam_idx++) {
 //         for (auto &reproj_error : view.reproj_errors.at(cam_idx)) {
 //           view.pose->marginalize = true;
 //           std::vector<param_t *> param_blocks;
@@ -843,11 +828,13 @@ int test_marg_error() {
 //       ceres::Solver::Summary summary;
 //       ceres::Solve(options, &problem, &summary);
 //
-//       // Obtain the calibration covariance matrix and calculate entropy. This
-//       // is one way to make sure the marginalization error is working. If the
+//       // Obtain the calibration covariance matrix and calculate entropy.
+//       This
+//       // is one way to make sure the marginalization error is working. If
+//       the
 //       // marg_error_t() is working the entropy should be increasing over
-//       time. matx_t covar; if (calib_covar(problem, cam0_params, cam1_params,
-//       cam1_exts, covar) ==
+//       time. matx_t covar; if (calib_covar(problem, cam0_params,
+//       cam1_params, cam1_exts, covar) ==
 //           0) {
 //         printf("entropy: %f\t", entropy(covar));
 //       }

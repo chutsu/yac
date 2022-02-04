@@ -1,0 +1,38 @@
+-- pybind11 v2.9.0 dev1
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /home/chutsu/projects/yac/deps/src/apriltag/build
+[ 88%] Built target apriltag
+[100%] Built target apriltag_pybind
+[ 88%] Built target apriltag
+[100%] Built target apriltag_pybind
+Install the project...
+-- Install configuration: "RELEASE"
+-- Up-to-date: /usr/local/lib/libapriltag.a
+-- Up-to-date: /usr/local/include
+-- Up-to-date: /usr/local/include/AprilTags
+-- Up-to-date: /usr/local/include/AprilTags/Gridder.h
+-- Up-to-date: /usr/local/include/AprilTags/MathUtil.h
+-- Up-to-date: /usr/local/include/AprilTags/GrayModel.h
+-- Up-to-date: /usr/local/include/AprilTags/pch.h
+-- Up-to-date: /usr/local/include/AprilTags/Tag16h5_other.h
+-- Up-to-date: /usr/local/include/AprilTags/Tag25h7.h
+-- Up-to-date: /usr/local/include/AprilTags/Tag36h11_other.h
+-- Up-to-date: /usr/local/include/AprilTags/Segment.h
+-- Up-to-date: /usr/local/include/AprilTags/TagDetection.h
+-- Up-to-date: /usr/local/include/AprilTags/Tag25h9.h
+-- Up-to-date: /usr/local/include/AprilTags/UnionFindSimple.h
+-- Up-to-date: /usr/local/include/AprilTags/GLineSegment2D.h
+-- Up-to-date: /usr/local/include/AprilTags/Edge.h
+-- Up-to-date: /usr/local/include/AprilTags/Tag16h5.h
+-- Up-to-date: /usr/local/include/AprilTags/Gaussian.h
+-- Up-to-date: /usr/local/include/AprilTags/Tag36h9.h
+-- Up-to-date: /usr/local/include/AprilTags/FloatImage.h
+-- Up-to-date: /usr/local/include/AprilTags/XYWeight.h
+-- Up-to-date: /usr/local/include/AprilTags/Quad.h
+-- Up-to-date: /usr/local/include/AprilTags/GLine2D.h
+-- Up-to-date: /usr/local/include/AprilTags/Homography33.h
+-- Up-to-date: /usr/local/include/AprilTags/TagFamily.h
+-- Up-to-date: /usr/local/include/AprilTags/Tag36h11.h
+-- Up-to-date: /usr/local/include/AprilTags/TagDetector.h
+-- Up-to-date: /usr/local/lib/python3.6/dist-packages/apriltag_pybind.cpython-38-x86_64-linux-gnu.so

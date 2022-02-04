@@ -16,4 +16,4 @@ jobs:
       run: sudo make download_test_data
 
     - name: run tests
-      run: sudo make tests
+      run: make tests

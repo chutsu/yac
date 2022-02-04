@@ -22,7 +22,9 @@ set -e
 # RUN_CMD="rosrun yac test_calib_errors"
 # RUN_CMD="rosrun yac test_calib_errors --target test_pose_error"
 # RUN_CMD="rosrun yac test_calib_errors --target test_reproj_error"
-RUN_CMD="rosrun yac test_calib_errors --target test_fiducial_error"
+# RUN_CMD="rosrun yac test_calib_errors --target test_fiducial_error"
+# RUN_CMD="rosrun yac test_calib_errors --target test_imu_error"
+RUN_CMD="rosrun yac test_calib_errors --target test_marg_error"
 
 # YAC - CAMERA CALIBRATION
 # RUN_CMD="rosrun yac test_calib_camera"

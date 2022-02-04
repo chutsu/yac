@@ -256,276 +256,195 @@ int test_fiducial_error() {
   return 0;
 }
 
-int test_residual_info() {
-  // Load data
-  const calib_target_t calib_target;
-  const std::string data_path = "/data/euroc/imu_april";
-  const std::map<int, std::string> cam_paths = {
-      {0, data_path + "/mav0/cam0/data"},
-      {1, data_path + "/mav0/cam1/data"},
-  };
-  const std::string grids_path = "/data/euroc/imu_april/mav0/grid0";
-  auto cam_grids = calib_data_preprocess(calib_target, cam_paths, grids_path);
+struct view_t {
+  std::map<int, camera_params_t *> cam_params;
+  std::map<int, extrinsics_t *> cam_exts;
+  std::map<int, std::vector<reproj_error_t *>> reproj_errors;
+  pose_t *pose;
+};
 
-  // Get 1 detected aprilgrid
-  aprilgrid_t grid;
-  for (size_t k = 0; k < cam_grids[0].size(); k++) {
-    if (cam_grids[0][k].detected) {
-      grid = cam_grids[0][k];
-      break;
+int test_marg_error() {
+  // Test data
+  auto cam_grids = setup_test_data();
+
+  // Filter out grids not detected
+  const size_t max_nb_grids = 10;
+  aprilgrids_t cam0_grids;
+  aprilgrids_t cam1_grids;
+
+  const size_t grids0_end = cam_grids[0].size();
+  const size_t grids1_end = cam_grids[1].size();
+  size_t grid0_idx = 0;
+  size_t grid1_idx = 0;
+  while (grid0_idx < grids0_end && grid1_idx < grids1_end) {
+    auto grid0 = cam_grids[0][grid0_idx];
+    auto grid1 = cam_grids[1][grid1_idx];
+
+    if (grid0.timestamp > grid1.timestamp) {
+      grid1_idx++;
+    } else if (grid0.timestamp < grid1.timestamp) {
+      grid0_idx++;
+    } else if (grid0.timestamp == grid1.timestamp) {
+      if (grid0.detected && grid1.detected) {
+        cam0_grids.push_back(grid0);
+        cam1_grids.push_back(grid1);
+      }
+      if (cam0_grids.size() == max_nb_grids) {
+        break;
+      }
+      grid0_idx++;
+      grid1_idx++;
     }
   }
 
-  // Setup state-variables
-  // -- Camera params
-  const int cam_idx = 0;
+  // Setup camera
   const int cam_res[2] = {752, 480};
-  const std::string cam_proj_model = "pinhole";
-  const std::string cam_dist_model = "radtan4";
+  const std::string proj_model = "pinhole";
+  const std::string dist_model = "radtan4";
   const vec4_t proj_params{458.654, 457.296, 367.215, 248.375};
   const vec4_t dist_params{-0.28340811, 0.07395907, 0.00019359, 1.76187114e-05};
-  pinhole_radtan4_t cam_geom;
-  camera_params_t cam_params{cam_idx,
-                             cam_res,
-                             cam_proj_model,
-                             cam_dist_model,
-                             proj_params,
-                             dist_params};
-  // -- Fiducial corner
-  std::vector<int> tag_ids;
-  std::vector<int> corner_idxs;
-  vec2s_t keypoints;
-  vec3s_t object_points;
-  grid.get_measurements(tag_ids, corner_idxs, keypoints, object_points);
-  mat4_t T_CiF;
-  if (grid.estimate(&cam_geom, cam_res, cam_params.param, T_CiF) != 0) {
-    FATAL("Failed to estimate relative pose!");
-  }
-  fiducial_corners_t corners{calib_target};
-  auto corner = corners.get_corner(tag_ids[0], corner_idxs[0]);
+  camera_params_t cam0_params{0,
+                              cam_res,
+                              proj_model,
+                              dist_model,
+                              proj_params,
+                              dist_params};
+  camera_params_t cam1_params{1,
+                              cam_res,
+                              proj_model,
+                              dist_model,
+                              proj_params,
+                              dist_params};
+
+  // Setup problem
+  ceres::Problem problem;
+  // std::vector<camera_params_t *> cam_params = {&cam0_params, &cam1_params};
+  // std::vector<extrinsics_t *> cam_exts = {&cam0_exts, &cam1_exts};
+  // std::map<timestamp_t, pose_t *> rel_poses;
+  // std::vector<view_t> views;
+  marg_error_t *marg_error = new marg_error_t();
+
   // -- Camera extrinsics
-  mat4_t T_C0Ci = I(4);
-  mat4_t T_C0F = T_C0Ci * T_CiF;
-  pose_t cam_exts{grid.timestamp, T_C0Ci};
-  // -- Relative pose
-  pose_t rel_pose{grid.timestamp, T_C0F};
+  mat4_t T_BC0 = I(4);
+  mat4_t T_BC1;
+  // clang-format off
+  T_BC1 << 0.99998, -0.00254, -0.00498, 0.10995,
+           0.00247, 0.99989, -0.01440, -0.00025,
+           0.00502, 0.01439, 0.99988, 0.00062,
+           0.00000, 0.00000, 0.00000, 1.00000;
+  // clang-format on
+  extrinsics_t cam0_exts{T_BC0};
+  extrinsics_t cam1_exts{T_BC1};
 
-  // Form reprojection residual block
-  reproj_error_t err(&cam_geom,
-                     &cam_params,
-                     &cam_exts,
-                     &rel_pose,
-                     corner,
-                     keypoints[0],
-                     I(2));
+  for (size_t k = 0; k < max_nb_grids; k++) {
+    // std::vector<aprilgrid_t *> cam_grids = {&cam0_grids[k], &cam1_grids[k]};
+    // view_t view;
+    // view.cam_params = cam_params;
+    // view.cam_exts = cam_exts;
 
-  // Marginalization block
-  std::vector<param_t *> param_blocks;
-  param_blocks.push_back((param_t *)&cam_params);
-  param_blocks.push_back((param_t *)&cam_exts);
-  param_blocks.push_back((param_t *)&rel_pose);
-  param_blocks.push_back((param_t *)corner);
-  residual_info_t residual_info{&err, param_blocks};
+    // for (size_t cam_idx = 0; cam_idx < 2; cam_idx++) {
+    //   const auto grid = cam_grids[cam_idx];
+    //   const vec4_t proj_params = cam0_params.proj_params();
+    //   const vec4_t dist_params = cam0_params.dist_params();
+    //   const pinhole_radtan4_t cam{cam_res, proj_params, dist_params};
+    //
+    //   // Estimate relative pose (T_C0F)
+    //   mat4_t T_CiF;
+    //   if (grid->estimate(cam, T_CiF) != 0) {
+    //     FATAL("Failed to estimate relative pose!");
+    //   }
+    //   mat4_t T_BCi = cam_exts[cam_idx]->tf();
+    //   mat4_t T_BF = T_BCi * T_CiF;
+    //
+    //   // Form relative pose
+    //   const auto ts = grid->timestamp;
+    //   pose_t *rel_pose;
+    //   if (rel_poses.count(ts) == 0) {
+    //     rel_pose = new pose_t{grid->timestamp, T_BF};
+    //     rel_poses[ts] = rel_pose;
+    //   } else {
+    //     rel_pose = rel_poses[ts];
+    //   }
+    //   view.pose = rel_pose;
+    //
+    //   // Form reprojection residual block
+    //   std::vector<int> tag_ids;
+    //   std::vector<int> corner_indicies;
+    //   vec2s_t keypoints;
+    //   vec3s_t object_points;
+    //   grid->get_measurements(tag_ids,
+    //                          corner_indicies,
+    //                          keypoints,
+    //                          object_points);
+    //
+    //   for (size_t i = 0; i < tag_ids.size(); i++) {
+    //     auto err = new reproj_error_t<pinhole_radtan4_t>(cam_idx,
+    //                                                      cam_res,
+    //                                                      tag_ids[i],
+    //                                                      corner_indicies[i],
+    //                                                      object_points[i],
+    //                                                      keypoints[i],
+    //                                                      I(2));
+    //
+    //     view.reproj_errors[cam_idx].push_back(err);
+    //     problem.AddResidualBlock(err,
+    //                              nullptr,
+    //                              rel_pose->param.data(),
+    //                              cam_exts[cam_idx]->param.data(),
+    //                              cam_params[cam_idx]->param.data());
+    //   }
+    // }
 
-  // Assert
-  MU_CHECK(residual_info.cost_fn == &err);
-  MU_CHECK(residual_info.loss_fn == nullptr);
-  MU_CHECK(residual_info.param_blocks.size() == 4);
+    // views.push_back(view);
+  }
+
+  // clang-format off
+  // printf("[before marg] nb_parameter_blocks: %d\n", problem.NumParameterBlocks());
+  // printf("[before marg] nb_residual_blocks: %d\n", problem.NumResidualBlocks());
+  // clang-format on
+
+  // Marginalize
+  // const auto view = views[0];
+  // for (int cam_idx = 0; cam_idx < 2; cam_idx++) {
+  //   for (auto &reproj_error : view.reproj_errors.at(cam_idx)) {
+  //     view.pose->marginalize = true;
+  //     std::vector<param_t *> param_blocks;
+  //     param_blocks.push_back((param_t *)view.pose);
+  //     param_blocks.push_back((param_t *)view.cam_exts[cam_idx]);
+  //     param_blocks.push_back((param_t *)view.cam_params[cam_idx]);
+  //     marg_error->add(reproj_error, param_blocks);
+  //   }
+  // }
+  // marg_error->marginalize(problem);
+  // problem.AddResidualBlock(marg_error, nullptr,
+  // marg_error->get_param_ptrs());
+
+  // clang-format off
+  // printf("[after marg] nb_parameter_blocks: %d\n", problem.NumParameterBlocks());
+  // printf("[after marg] nb_residual_blocks: %d\n", problem.NumResidualBlocks());
+  // print_vector("cam0_params", cam_params[0]->param);
+  // print_vector("cam0_exts", cam_exts[0]->param);
+  // print_vector("cam1_params", cam_params[1]->param);
+  // print_vector("cam1_exts", cam_exts[1]->param);
+  // clang-format on
+
+  // Solve
+  // problem.SetParameterBlockConstant(cam_exts[0]->param.data());
+  // ceres::Solver::Options options;
+  // options.minimizer_progress_to_stdout = true;
+  // ceres::Solver::Summary summary;
+  // ceres::Solve(options, &problem, &summary);
+  // std::cout << summary.FullReport() << std::endl;
+  // std::cout << std::endl;
+
+  // print_vector("cam0_params", cam_params[0]->param);
+  // print_vector("cam0_exts", cam_exts[0]->param);
+  // print_vector("cam1_params", cam_params[1]->param);
+  // print_vector("cam1_exts", cam_exts[1]->param);
 
   return 0;
 }
 
-// struct view_t {
-//   std::vector<camera_params_t *> cam_params;
-//   std::vector<extrinsics_t *> cam_exts;
-//   pose_t *pose;
-//   std::map<int, std::vector<reproj_error_t<pinhole_radtan4_t> *>>
-//   reproj_errors;
-// };
-
-// int test_marg_error() {
-//   // Test data
-//   test_data_t test_data = setup_test_data();
-//
-//   // Filter out grids not detected
-//   const size_t max_grids = 10;
-//   aprilgrids_t cam0_grids;
-//   aprilgrids_t cam1_grids;
-//
-//   const size_t grids0_end = test_data.grids0.size();
-//   const size_t grids1_end = test_data.grids1.size();
-//   size_t grid0_idx = 0;
-//   size_t grid1_idx = 0;
-//   while (grid0_idx < grids0_end && grid1_idx < grids1_end) {
-//     auto grid0 = test_data.grids0[grid0_idx];
-//     auto grid1 = test_data.grids1[grid1_idx];
-//
-//     if (grid0.timestamp > grid1.timestamp) {
-//       grid1_idx++;
-//     } else if (grid0.timestamp < grid1.timestamp) {
-//       grid0_idx++;
-//     } else if (grid0.timestamp == grid1.timestamp) {
-//       if (grid0.detected && grid1.detected) {
-//         cam0_grids.push_back(grid0);
-//         cam1_grids.push_back(grid1);
-//       }
-//       if (cam0_grids.size() == max_grids) {
-//         break;
-//       }
-//       grid0_idx++;
-//       grid1_idx++;
-//     }
-//   }
-//
-//   // Setup camera
-//   const int cam_res[2] = {752, 480};
-//   id_t param_id = 0;
-//   const std::string proj_model = "pinhole";
-//   const std::string dist_model = "radtan4";
-//   const vec4_t proj_params{458.654, 457.296, 367.215, 248.375};
-//   const vec4_t dist_params{-0.28340811, 0.07395907,
-//   0.00019359, 1.76187114e-05}; camera_params_t cam0_params{param_id++,
-//                               0,
-//                               cam_res,
-//                               proj_model,
-//                               dist_model,
-//                               proj_params,
-//                               dist_params};
-//   camera_params_t cam1_params{param_id++,
-//                               1,
-//                               cam_res,
-//                               proj_model,
-//                               dist_model,
-//                               proj_params,
-//                               dist_params};
-//
-//   // Setup problem
-//   ceres::Problem problem;
-//   marg_error_t *marg_error = new marg_error_t();
-//
-//   mat4_t T_BC0 = I(4);
-//   mat4_t T_BC1;
-//   T_BC1 << 0.99998, -0.00254, -0.00498, 0.10995, 0.00247, 0.99989, -0.01440,
-//       -0.00025, 0.00502, 0.01439, 0.99988, 0.00062, 0.00000, 0.00000,
-//       0.00000, 1.00000;
-//   extrinsics_t cam0_exts{param_id++, T_BC0};
-//   extrinsics_t cam1_exts{param_id++, T_BC1};
-//
-//   std::vector<camera_params_t *> cam_params = {&cam0_params, &cam1_params};
-//   std::vector<extrinsics_t *> cam_exts = {&cam0_exts, &cam1_exts};
-//   std::map<timestamp_t, pose_t *> rel_poses;
-//   std::vector<view_t> views;
-//
-//   for (size_t k = 0; k < max_grids; k++) {
-//     std::vector<aprilgrid_t *> cam_grids = {&cam0_grids[k], &cam1_grids[k]};
-//     view_t view;
-//     view.cam_params = cam_params;
-//     view.cam_exts = cam_exts;
-//
-//     for (size_t cam_idx = 0; cam_idx < 2; cam_idx++) {
-//       const auto grid = cam_grids[cam_idx];
-//       const vec4_t proj_params = cam0_params.proj_params();
-//       const vec4_t dist_params = cam0_params.dist_params();
-//       const pinhole_radtan4_t cam{cam_res, proj_params, dist_params};
-//
-//       // Estimate relative pose (T_C0F)
-//       mat4_t T_CiF;
-//       if (grid->estimate(cam, T_CiF) != 0) {
-//         FATAL("Failed to estimate relative pose!");
-//       }
-//       mat4_t T_BCi = cam_exts[cam_idx]->tf();
-//       mat4_t T_BF = T_BCi * T_CiF;
-//
-//       // Form relative pose
-//       const auto ts = grid->timestamp;
-//       pose_t *rel_pose;
-//       if (rel_poses.count(ts) == 0) {
-//         rel_pose = new pose_t{param_id++, grid->timestamp, T_BF};
-//         rel_poses[ts] = rel_pose;
-//       } else {
-//         rel_pose = rel_poses[ts];
-//       }
-//       view.pose = rel_pose;
-//
-//       // Form reprojection residual block
-//       std::vector<int> tag_ids;
-//       std::vector<int> corner_indicies;
-//       vec2s_t keypoints;
-//       vec3s_t object_points;
-//       grid->get_measurements(tag_ids,
-//                              corner_indicies,
-//                              keypoints,
-//                              object_points);
-//
-//       for (size_t i = 0; i < tag_ids.size(); i++) {
-//         auto err = new reproj_error_t<pinhole_radtan4_t>(cam_idx,
-//                                                          cam_res,
-//                                                          tag_ids[i],
-//                                                          corner_indicies[i],
-//                                                          object_points[i],
-//                                                          keypoints[i],
-//                                                          I(2));
-//
-//         view.reproj_errors[cam_idx].push_back(err);
-//         problem.AddResidualBlock(err,
-//                                  nullptr,
-//                                  rel_pose->param.data(),
-//                                  cam_exts[cam_idx]->param.data(),
-//                                  cam_params[cam_idx]->param.data());
-//       }
-//     }
-//
-//     views.push_back(view);
-//   }
-//
-//   printf("[before marg] nb_parameter_blocks: %d\n",
-//          problem.NumParameterBlocks());
-//   printf("[before marg] nb_residual_blocks: %d\n",
-//   problem.NumResidualBlocks());
-//
-//   // Marginalize
-//   const auto view = views[0];
-//   for (int cam_idx = 0; cam_idx < 2; cam_idx++) {
-//     for (auto &reproj_error : view.reproj_errors.at(cam_idx)) {
-//       view.pose->marginalize = true;
-//       std::vector<param_t *> param_blocks;
-//       param_blocks.push_back((param_t *)view.pose);
-//       param_blocks.push_back((param_t *)view.cam_exts[cam_idx]);
-//       param_blocks.push_back((param_t *)view.cam_params[cam_idx]);
-//       marg_error->add(reproj_error, param_blocks);
-//     }
-//   }
-//   marg_error->marginalize(problem);
-//   problem.AddResidualBlock(marg_error, nullptr,
-//   marg_error->get_param_ptrs());
-//
-//   printf("[after marg] nb_parameter_blocks: %d\n",
-//          problem.NumParameterBlocks());
-//   printf("[after marg] nb_residual_blocks: %d\n",
-//   problem.NumResidualBlocks());
-//
-//   print_vector("cam0_params", cam_params[0]->param);
-//   print_vector("cam0_exts", cam_exts[0]->param);
-//   print_vector("cam1_params", cam_params[1]->param);
-//   print_vector("cam1_exts", cam_exts[1]->param);
-//
-//   // Solve
-//   problem.SetParameterBlockConstant(cam_exts[0]->param.data());
-//   ceres::Solver::Options options;
-//   options.minimizer_progress_to_stdout = true;
-//   ceres::Solver::Summary summary;
-//   ceres::Solve(options, &problem, &summary);
-//   std::cout << summary.FullReport() << std::endl;
-//   std::cout << std::endl;
-//
-//   print_vector("cam0_params", cam_params[0]->param);
-//   print_vector("cam0_exts", cam_exts[0]->param);
-//   print_vector("cam1_params", cam_params[1]->param);
-//   print_vector("cam1_exts", cam_exts[1]->param);
-//
-//   return 0;
-// }
-//
 // int test_marg_error_check_gradients() {
 //   // Test data
 //   test_data_t test_data = setup_test_data();
@@ -567,14 +486,14 @@ int test_residual_info() {
 //   const std::string dist_model = "radtan4";
 //   const vec4_t proj_params{458.654, 457.296, 367.215, 248.375};
 //   const vec4_t dist_params{-0.28340811, 0.07395907,
-//   0.00019359, 1.76187114e-05}; camera_params_t cam0_params{param_id++,
+//   0.00019359, 1.76187114e-05}; camera_params_t cam0_params{
 //                               0,
 //                               cam_res,
 //                               proj_model,
 //                               dist_model,
 //                               proj_params,
 //                               dist_params};
-//   camera_params_t cam1_params{param_id++,
+//   camera_params_t cam1_params{
 //                               1,
 //                               cam_res,
 //                               proj_model,
@@ -948,8 +867,7 @@ void test_suite() {
   MU_ADD_TEST(test_pose_error);
   MU_ADD_TEST(test_reproj_error);
   MU_ADD_TEST(test_fiducial_error);
-  MU_ADD_TEST(test_residual_info);
-  // MU_ADD_TEST(test_marg_error);
+  MU_ADD_TEST(test_marg_error);
   // MU_ADD_TEST(test_marg_error_check_gradients);
   // MU_ADD_TEST(test_marg_error_swe);
 }

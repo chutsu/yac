@@ -5,7 +5,7 @@ deps/bin
 deps/include
 deps/lib
 deps/share
-deps/*.log
+deps/log
 deps/src/apriltag3/build
 deps/src/apriltag
 deps/src/ceres-solver

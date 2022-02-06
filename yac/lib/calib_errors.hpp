@@ -17,15 +17,6 @@ namespace yac {
 struct calib_error_t : public ceres::CostFunction {
   // Data
   std::vector<param_t *> param_blocks;
-  mutable vecx_t residuals;
-  mutable matxs_t J_min;
-
-  // Covariance
-  matx_t covar;
-  matx_t info;
-  matx_t sqrt_info;
-
-  // Loss
   ceres::LossFunction *loss_fn = nullptr;
 
   /* Constructor */
@@ -34,8 +25,23 @@ struct calib_error_t : public ceres::CostFunction {
   /* Destructor */
   virtual ~calib_error_t() = default;
 
+  /* Get parameter block pointers */
+  std::vector<double *> param_block_ptrs();
+
+  /* Evaluate with Minimal jacobians */
+  virtual bool EvaluateWithMinimalJacobians(double const *const *params,
+                                            double *res,
+                                            double **jacs,
+                                            double **min_jacs) const = 0;
+
+  /* Evaluate with Minimal jacobians */
+  bool Evaluate(double const *const *params, double *res, double **jacs) const;
+
   /* Evaluate */
-  bool eval();
+  bool eval(double const *const *params,
+            double *res,
+            double **jacs,
+            double **min_jacs) const;
 
   /* Check jacobians */
   bool check_jacs(const int param_idx,
@@ -51,20 +57,21 @@ struct pose_error_t : public calib_error_t {
   const mat4_t pose_meas;
 
   // Covariance
-  matx_t covar;
-  matx_t info;
-  matx_t sqrt_info;
+  mat_t<6, 6> covar;
+  mat_t<6, 6> info;
+  mat_t<6, 6> sqrt_info;
 
   /* Constructor */
-  pose_error_t(pose_t *pose_, const matx_t &covar_);
+  pose_error_t(pose_t *pose_, const mat_t<6, 6> &covar_);
 
   /* Destructor */
   ~pose_error_t() = default;
 
   /* Evaluate */
-  bool Evaluate(double const *const *params,
-                double *residuals,
-                double **jacobians) const;
+  bool EvaluateWithMinimalJacobians(double const *const *params,
+                                    double *res,
+                                    double **jacs,
+                                    double **min_jacs) const;
 };
 
 // REPROJECTION ERROR //////////////////////////////////////////////////////////
@@ -109,9 +116,10 @@ struct reproj_error_t : public calib_error_t {
   int get_reproj_error(real_t &error) const;
 
   /** Evaluate */
-  bool Evaluate(double const *const *params,
-                double *residuals,
-                double **jacobians) const;
+  bool EvaluateWithMinimalJacobians(double const *const *params,
+                                    double *res,
+                                    double **jacs,
+                                    double **min_jacs) const;
 };
 
 // FIDUCIAL ERROR //////////////////////////////////////////////////////////////
@@ -119,21 +127,22 @@ struct reproj_error_t : public calib_error_t {
 struct fiducial_error_t : public calib_error_t {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 
+  // Data
   const timestamp_t ts_ = 0;
-
+  // -- Parameters
   camera_geometry_t *cam_geom_;
   camera_params_t *cam_params_;
   extrinsics_t *cam_exts_;
   extrinsics_t *imu_exts_;
   fiducial_t *fiducial_;
   pose_t *pose_;
-
+  // -- Measurement
   const int tag_id_ = -1;
   const int corner_idx_ = -1;
   const vec3_t r_FFi_{0.0, 0.0, 0.0};
   const vec2_t z_{0.0, 0.0};
   const mat4_t T_WF_ = I(4);
-
+  // -- Covariance, information and square-root information
   const mat2_t covar_;
   const mat2_t info_;
   const mat2_t sqrt_info_;
@@ -162,9 +171,10 @@ struct fiducial_error_t : public calib_error_t {
   int get_reproj_error(real_t &error) const;
 
   /** Evaluate */
-  bool Evaluate(double const *const *params,
-                double *residuals,
-                double **jacobians) const;
+  bool EvaluateWithMinimalJacobians(double const *const *params,
+                                    double *res,
+                                    double **jacs,
+                                    double **min_jacs) const;
 };
 
 // INERTIAL ERROR //////////////////////////////////////////////////////////////
@@ -174,65 +184,61 @@ struct fiducial_error_t : public calib_error_t {
 /**
  * Implements a nonlinear IMU factor.
  */
-class ImuError : public ::ceres::SizedCostFunction<15, 7, 9, 7, 9> {
+class imu_error_t : public calib_error_t {
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-  size_t state_id = 0;
-  timestamp_t imu_t0 = 0;
-  timestamp_t imu_t1 = 0;
-  size_t pose0_id = 0;
-  size_t pose1_id = 0;
-  size_t state0_id = 0;
-  size_t state1_id = 0;
-  size_t timedelay_id = 0;
+  pose_t *pose_i = nullptr;
+  sb_params_t *sb_i = nullptr;
+  pose_t *pose_j = nullptr;
+  sb_params_t *sb_j = nullptr;
 
   mutable mat4_t T_WS_0_last_;
   mutable mat4_t T_WS_1_last_;
   mutable vec_t<9> sb0_last_;
   mutable vec_t<9> sb1_last_;
 
-  ///< The number of residuals
-  typedef Eigen::Matrix<double, 15, 15> covariance_t;
-  typedef covariance_t information_t;
-  typedef Eigen::Matrix<double, 15, 15> jacobian_t;
-  typedef Eigen::Matrix<double, 15, 7> jacobian0_t;
-  typedef Eigen::Matrix<double, 15, 9> jacobian1_t;
+  imu_params_t imu_params_;
+  imu_data_t imu_data_;
+  timestamp_t t0_;
+  timestamp_t t1_;
 
-  ImuError() = default;
-  ImuError(const imu_data_t &imu_data,
-           const imu_params_t &imu_params,
-           const timestamp_t &t0,
-           const timestamp_t &t1);
-  virtual ~ImuError() = default;
+  // Constructor
+  imu_error_t() = delete;
+  imu_error_t(const imu_data_t &imu_data,
+              const imu_params_t &imu_params,
+              const timestamp_t &t0,
+              const timestamp_t &t1);
 
+  // Destructor
+  virtual ~imu_error_t() = default;
+
+  /* Propagate IMU Measurements */
   static int propagation(const imu_data_t &imu_data,
                          const imu_params_t &imu_params,
                          mat4_t &T_WS,
                          vec_t<9> &sb,
                          const timestamp_t &t_start,
                          const timestamp_t &t_end,
-                         covariance_t *covariance = 0,
-                         jacobian_t *jacobian = 0);
+                         mat_t<15, 15> *covariance = 0,
+                         mat_t<15, 15> *jacobian = 0);
 
+  /* Redo Preintegration */
   int redoPreintegration(const mat4_t & /*T_WS*/,
                          const vec_t<9> &sb,
                          timestamp_t time,
                          timestamp_t end) const;
 
+  /* Evaluate */
   virtual bool Evaluate(double const *const *parameters,
                         double *residuals,
                         double **jacobians) const;
 
+  /* Evaluate with Minimal Jacobians */
   bool EvaluateWithMinimalJacobians(double const *const *params,
                                     double *residuals,
                                     double **jacobians,
                                     double **jacobiansMinimal) const;
-
-  imu_params_t imu_params_;
-  imu_data_t imu_data_;
-  timestamp_t t0_;
-  timestamp_t t1_;
 
 protected:
   // Preintegration stuff. the mutable is a TERRIBLE HACK, but what can I do.
@@ -268,8 +274,8 @@ protected:
   mutable int redoCounter_ = 0;
 
   // information matrix and its square root form
-  mutable information_t information_;
-  mutable information_t squareRootInformation_;
+  mutable mat_t<15, 15> information_;
+  mutable mat_t<15, 15> squareRootInformation_;
 };
 
 // MARGINALIZATION ERROR ///////////////////////////////////////////////////////
@@ -280,14 +286,13 @@ public:
   bool marginalized_ = false;
 
   // Residual blocks and parameters involved for marginalization
-  std::vector<calib_error_t *> blocks_;
+  size_t m_ = 0; // Size of params to marginalize
+  size_t r_ = 0; // Size of params to remain
+  std::vector<calib_error_t *> res_blocks_;
+  std::vector<param_t *> marg_param_ptrs_;
+  std::vector<param_t *> remain_param_ptrs_;
   std::unordered_map<param_t *, int> param_blocks_;
   std::unordered_map<param_t *, int> param_index_;
-
-  size_t m_ = 0;                             // Size of params to marginalize
-  size_t r_ = 0;                             // Size of params to remain
-  std::vector<param_t *> marg_param_ptrs_;   // Marg param block pointers
-  std::vector<param_t *> remain_param_ptrs_; // Remain param block pointers
 
   std::unordered_map<double *, vecx_t> x0_; // Linearization point x0
   vecx_t e0_;                               // Linearized residuals at x0
@@ -309,9 +314,7 @@ public:
   std::vector<double *> get_param_ptrs();
 
   /* Add Cost Function */
-  void add(const ceres::CostFunction *cost_fn,
-           const std::vector<param_t *> param_blocks,
-           const ::ceres::LossFunction *loss_fn = nullptr);
+  void add(calib_error_t *error);
 
   /* Form Hessian */
   void form_hessian(matx_t &H, vecx_t &b, bool debug);
@@ -333,9 +336,10 @@ public:
   vecx_t compute_delta_chi(double const *const *params) const;
 
   /* Evaluate */
-  bool Evaluate(double const *const *params,
-                double *residuals,
-                double **jacobians = nullptr) const;
+  bool EvaluateWithMinimalJacobians(double const *const *params,
+                                    double *residuals,
+                                    double **jacobians,
+                                    double **jacobiansMinimal) const;
 };
 
 } //  namespace yac

@@ -51,20 +51,6 @@ int test_calib_view() {
   return 0;
 }
 
-int test_initialize_camera() {
-  const auto cam_grids = setup_test_data();
-  const calib_target_t calib_target;
-  const int img_w = 752;
-  const int img_h = 480;
-  const int res[2] = {img_w, img_h};
-  const std::string proj_model = "pinhole";
-  const std::string dist_model = "radtan4";
-  camera_params_t cam0 = camera_params_t::init(0, res, proj_model, dist_model);
-  pinhole_radtan4_t cam_geom;
-  initialize_camera(calib_target, cam_grids.at(0), &cam_geom, &cam0, true);
-  return 0;
-}
-
 int test_calib_camera_find_nbv() {
   // Calibration target and camera parameters
   const calib_target_t calib_target{"aprilgrid", 6, 6, 0.088, 0.3};
@@ -153,6 +139,7 @@ int test_calib_camera_stereo() {
   calib.add_camera(0, cam_res, proj_model, dist_model);
   calib.add_camera(1, cam_res, proj_model, dist_model);
   calib.solve();
+  calib.save_results("/tmp/calib-results.yaml");
 
   return 0;
 }
@@ -212,12 +199,13 @@ int test_calib_camera_validate() {
   calib.enable_nbv_filter = true;
   calib.enable_outlier_filter = true;
   calib.outlier_threshold = 3.0;
-  calib.min_nbv_views = 8;
+  calib.min_nbv_views = 10;
   calib.info_gain_threshold = 0.05;
   calib.add_camera_data(cam_grids);
   calib.add_camera(0, cam_res, proj_model, dist_model);
   calib.add_camera(1, cam_res, proj_model, dist_model);
   calib.solve();
+  calib.save_results("/tmp/calib-results-nbv_full.yaml");
   // calib_camera_t calib{"/tmp/calib-results.yaml"};
 
   // Load test data for validation
@@ -315,7 +303,6 @@ int test_calib_camera_kalibr_data() {
 
 void test_suite() {
   MU_ADD_TEST(test_calib_view);
-  MU_ADD_TEST(test_initialize_camera);
   MU_ADD_TEST(test_calib_camera_find_nbv);
   MU_ADD_TEST(test_calib_camera_mono);
   MU_ADD_TEST(test_calib_camera_stereo);

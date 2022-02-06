@@ -43,7 +43,7 @@ struct calib_vi_view_t {
   CamIdx2FiducialErrors fiducial_errors;
   // -- Imu error
   ceres::ResidualBlockId imu_error_id;
-  std::unique_ptr<ImuError> imu_error;
+  std::unique_ptr<imu_error_t> imu_error;
 
   calib_vi_view_t() = default;
   calib_vi_view_t(const timestamp_t ts_,
@@ -107,6 +107,7 @@ struct calib_vi_t {
   ceres::LossFunction *loss = nullptr;
   PoseLocalParameterization pose_plus;
   std::deque<calib_vi_view_t> calib_views;
+  marg_error_t marg_error;
 
   // Constructor
   calib_vi_t();
@@ -128,6 +129,7 @@ struct calib_vi_t {
                   const bool fix_extrinsics = true);
 
   int nb_cams() const;
+  int nb_views() const;
   veci2_t get_cam_resolution(const int cam_idx) const;
   vecx_t get_cam_params(const int cam_idx) const;
   mat4_t get_cam_extrinsics(const int cam_idx) const;

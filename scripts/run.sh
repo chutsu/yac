@@ -24,7 +24,6 @@ set -e
 # RUN_CMD="rosrun yac test_calib_errors --target test_reproj_error"
 # RUN_CMD="rosrun yac test_calib_errors --target test_fiducial_error"
 # RUN_CMD="rosrun yac test_calib_errors --target test_imu_error"
-# RUN_CMD="rosrun yac test_calib_errors --target test_marg_error"
 
 # YAC - CAMERA CALIBRATION
 # RUN_CMD="rosrun yac test_calib_camera"
@@ -41,6 +40,7 @@ set -e
 # YAC - VISUAL-INERTIAL CALIBRATION
 # RUN_CMD="rosrun yac test_calib_vi"
 RUN_CMD="rosrun yac test_calib_vi --target test_calib_vi"
+# RUN_CMD="rosrun yac test_calib_vi --target test_marg_error"
 
 # YAC - NBV
 # RUN_CMD="rosrun yac test_calib_nbv"
@@ -71,7 +71,7 @@ RUN_CMD="rosrun yac test_calib_vi --target test_calib_vi"
 
 tmux send-keys -t dev -R "\
 cd ~/projects/yac \
-&& make relwithdeb \
+&& make lib_relwithdeb \
 && source ~/catkin_ws/devel/setup.bash \
 && ${RUN_CMD}
 " C-m C-m

@@ -172,7 +172,7 @@ void calib_vi_view_t::form_imu_error(const imu_params_t &imu_params,
                                      sb_params_t *sb_j) {
   const timestamp_t ts_i = pose.ts;
   const timestamp_t ts_j = pose_j->ts;
-  imu_error = std::make_unique<ImuError>(imu_buf, imu_params, ts_i, ts_j);
+  imu_error = std::make_unique<imu_error_t>(imu_buf, imu_params, ts_i, ts_j);
   imu_error_id = problem->AddResidualBlock(imu_error.get(),
                                            NULL,
                                            pose.param.data(),
@@ -293,6 +293,8 @@ void calib_vi_t::add_camera(const int cam_idx,
 }
 
 int calib_vi_t::nb_cams() const { return cam_params.size(); }
+
+int calib_vi_t::nb_views() const { return calib_views.size(); }
 
 veci2_t calib_vi_t::get_cam_resolution(const int cam_idx) const {
   auto cam_res = cam_params.at(cam_idx)->resolution;
@@ -619,13 +621,13 @@ void calib_vi_t::show_results() {
 
   // Camera Extrinsics
   for (int cam_idx = 1; cam_idx < nb_cams(); cam_idx++) {
-    const auto key = "T_C0C" + std::to_string(cam_idx);
+    const auto key = "T_cam0_cam" + std::to_string(cam_idx);
     const mat4_t T_C0Ci = get_cam_extrinsics(cam_idx);
     print_matrix(key, T_C0Ci, "  ");
   }
 
   // Imu extrinsics
-  print_matrix("T_C0S", get_imu_extrinsics(), "  ");
+  print_matrix("T_cam0_imu0", get_imu_extrinsics(), "  ");
 }
 
 // int calib_vi_t::recover_calib_covar(matx_t &calib_covar) {

@@ -4,34 +4,36 @@ namespace yac {
 
 // CALIB ERROR /////////////////////////////////////////////////////////////////
 
-bool calib_error_t::eval() {
-  // Pre-allocate memory for residuals
-  residuals = zeros(num_residuals(), 1);
-
-  // Pre-allocate memory for jacobians
-  std::vector<matx_row_major_t> jacobians;
-  jacobians.resize(param_blocks.size());
-
-  std::vector<double *> param_ptrs;
-  std::vector<double *> jacobian_ptrs;
-  for (size_t i = 0; i < param_blocks.size(); i++) {
-    const auto &param = param_blocks[i];
-    param_ptrs.push_back(param->param.data());
-    jacobians[i].resize(residuals.size(), param->global_size);
-    jacobian_ptrs.push_back(jacobians[i].data());
+std::vector<double *> calib_error_t::param_block_ptrs() {
+  std::vector<double *> ptrs;
+  for (auto &param : param_blocks) {
+    ptrs.push_back(param->data());
   }
+  return ptrs;
+}
 
+bool calib_error_t::Evaluate(double const *const *params,
+                             double *res,
+                             double **jacs) const {
+  return EvaluateWithMinimalJacobians(params, res, jacs, nullptr);
+}
+
+bool calib_error_t::eval(double const *const *params,
+                         double *res,
+                         double **jacs,
+                         double **min_jacs) const {
   // Evaluate cost function to obtain the jacobians and residuals
-  Evaluate(param_ptrs.data(), residuals.data(), jacobian_ptrs.data());
+  EvaluateWithMinimalJacobians(params, res, jacs, min_jacs);
 
   // Scale jacobians and residuals if using loss function
   // following ceres-sovler in `internal/ceres/corrector.cc`
   if (loss_fn) {
+    Eigen::Map<Eigen::VectorXd> r(res, num_residuals());
     double residual_scaling = 0.0;
     double alpha_sq_norm = 0.0;
     double rho[3] = {0.0};
 
-    double sq_norm = residuals.squaredNorm();
+    double sq_norm = r.squaredNorm();
     loss_fn->Evaluate(sq_norm, rho);
     double sqrt_rho1 = sqrt(rho[1]);
 
@@ -46,15 +48,11 @@ bool calib_error_t::eval() {
     }
 
     for (size_t i = 0; i < param_blocks.size(); i++) {
-      // clang-format off
-      jacobians[i] = sqrt_rho1 * (
-        jacobians[i] - alpha_sq_norm * residuals *
-        (residuals.transpose() * jacobians[i])
-      );
-      // clang-format on
+      const size_t param_size = param_blocks[i]->global_size;
+      Eigen::Map<Eigen::MatrixXd> J(jacs[i], num_residuals(), param_size);
+      J = sqrt_rho1 * (J - alpha_sq_norm * r * (r.transpose() * J));
     }
-
-    residuals *= residual_scaling;
+    r *= residual_scaling;
   }
 
   return true;
@@ -77,18 +75,31 @@ bool calib_error_t::check_jacs(const int param_idx,
   }
 
   // Jacobians
-  double **jacobian_ptrs = new double *[param_blocks.size()];
-  std::vector<matx_row_major_t> jacobians;
-  jacobians.resize(param_blocks.size());
+  double **jac_ptrs = new double *[param_blocks.size()];
+  std::vector<matx_row_major_t> jacs;
+  jacs.resize(param_blocks.size());
   for (size_t i = 0; i < param_blocks.size(); i++) {
-    jacobians[i].resize(residual_size, param_blocks[i]->global_size);
-    jacobian_ptrs[i] = jacobians[i].data();
+    jacs[i].resize(residual_size, param_blocks[i]->global_size);
+    jac_ptrs[i] = jacs[i].data();
+  }
+
+  // Min-Jacobians
+  double **min_jac_ptrs = new double *[param_blocks.size()];
+  std::vector<matx_row_major_t> min_jacs;
+  min_jacs.resize(param_blocks.size());
+  for (size_t i = 0; i < param_blocks.size(); i++) {
+    min_jacs[i].resize(residual_size, param_blocks[i]->local_size);
+    min_jac_ptrs[i] = min_jacs[i].data();
   }
 
   // Base-line
   vecx_t r = zeros(residual_size);
-  Evaluate(param_ptrs.data(), r.data(), jacobian_ptrs);
-  free(jacobian_ptrs);
+  EvaluateWithMinimalJacobians(param_ptrs.data(),
+                               r.data(),
+                               jac_ptrs,
+                               min_jac_ptrs);
+  free(jac_ptrs);
+  free(min_jac_ptrs);
 
   // Finite difference
   matx_t fdiff = zeros(residual_size, local_size);
@@ -100,19 +111,17 @@ bool calib_error_t::check_jacs(const int param_idx,
     param->perturb(i, -step);
   }
 
-  int retval = check_jacobian(jac_name, fdiff, J_min[param_idx], tol, true);
+  int retval = check_jacobian(jac_name, fdiff, min_jacs[param_idx], tol, true);
   return (retval == 0) ? true : false;
 }
 
 // POSE ERROR //////////////////////////////////////////////////////////////////
 
-pose_error_t::pose_error_t(pose_t *pose_, const matx_t &covar_)
+pose_error_t::pose_error_t(pose_t *pose_, const mat_t<6, 6> &covar_)
     : pose{pose_}, pose_meas{pose_->tf()}, covar{covar_}, info{covar.inverse()},
       sqrt_info{info.llt().matrixU()} {
   // Data
   param_blocks.push_back(pose_);
-  residuals = zeros(6, 1);
-  J_min.push_back(zeros(6, 6));
 
   // Ceres-Solver
   set_num_residuals(6);
@@ -120,9 +129,10 @@ pose_error_t::pose_error_t(pose_t *pose_, const matx_t &covar_)
   block_sizes->push_back(7); // Camera-camera extrinsics
 }
 
-bool pose_error_t::Evaluate(double const *const *params,
-                            double *residuals,
-                            double **jacobians) const {
+bool pose_error_t::EvaluateWithMinimalJacobians(double const *const *params,
+                                                double *res,
+                                                double **jacs,
+                                                double **min_jacs) const {
   // Parameters
   mat4_t pose_est = tf(params[0]);
 
@@ -137,19 +147,26 @@ bool pose_error_t::Evaluate(double const *const *params,
   error.tail<3>() = dtheta;
 
   // Residuals
-  Eigen::Map<Eigen::Matrix<double, 6, 1>> r(residuals);
+  Eigen::Map<Eigen::Matrix<double, 6, 1>> r(res);
   r = sqrt_info * error;
 
   // Jacobians
-  if (jacobians != NULL && jacobians[0] != NULL) {
-    J_min[0].setIdentity();
-    J_min[0] *= -1.0;
-    J_min[0].block<3, 3>(3, 3) = -plus(dq).topLeftCorner<3, 3>();
-    J_min[0] = (sqrt_info * J_min[0]).eval();
+  if (jacs != NULL && jacs[0] != NULL) {
+    matx_t J_min = zeros(6, 6);
+    J_min.setIdentity();
+    J_min *= -1.0;
+    J_min.block<3, 3>(3, 3) = -plus(dq).topLeftCorner<3, 3>();
+    J_min = sqrt_info * J_min;
 
-    Eigen::Map<Eigen::Matrix<double, 6, 7, Eigen::RowMajor>> J(jacobians[0]);
+    Eigen::Map<Eigen::Matrix<double, 6, 7, Eigen::RowMajor>> J(jacs[0]);
     J.setZero();
-    J = J_min[0] * lift_pose_jacobian(pose_est);
+    J = J_min * lift_pose_jacobian(pose_est);
+
+    if (min_jacs[0]) {
+      Eigen::Map<Eigen::Matrix<double, 6, 6, Eigen::RowMajor>> J0_min(
+          min_jacs[0]);
+      J0_min = J_min;
+    }
   }
 
   return true;
@@ -172,11 +189,6 @@ reproj_error_t::reproj_error_t(camera_geometry_t *cam_geom_,
   param_blocks.push_back(T_C0F_);
   param_blocks.push_back(p_FFi_);
   param_blocks.push_back(cam_params_);
-  residuals = zeros(2, 1);
-  J_min.push_back(zeros(2, 6));
-  J_min.push_back(zeros(2, 6));
-  J_min.push_back(zeros(2, 3));
-  J_min.push_back(zeros(2, 8));
 
   // Ceres-Solver
   set_num_residuals(2);
@@ -233,9 +245,10 @@ int reproj_error_t::get_reproj_error(real_t &error) const {
   return 0;
 }
 
-bool reproj_error_t::Evaluate(double const *const *params,
-                              double *residuals,
-                              double **jacobians) const {
+bool reproj_error_t::EvaluateWithMinimalJacobians(double const *const *params,
+                                                  double *res,
+                                                  double **jacs,
+                                                  double **min_jacs) const {
   // Map parameters out
   const mat4_t T_C0Ci = tf(params[0]);
   const mat4_t T_C0F = tf(params[1]);
@@ -247,77 +260,86 @@ bool reproj_error_t::Evaluate(double const *const *params,
   const mat4_t T_CiC0 = T_C0Ci.inverse();
   const vec3_t p_CiFi = tf_point(T_CiC0 * T_C0F, p_FFi);
   // -- Project point from camera frame to image plane
-  auto res = cam_params->resolution;
+  auto cam_res = cam_params->resolution;
   vec2_t z_hat;
   bool valid = true;
-  if (cam_geom->project(res, param, p_CiFi, z_hat) != 0) {
+  if (cam_geom->project(cam_res, param, p_CiFi, z_hat) != 0) {
     valid = false;
   }
 
   // Residual
-  Eigen::Map<vec2_t> r(residuals);
+  Eigen::Map<vec2_t> r(res);
   r = sqrt_info * (z - z_hat);
 
   // Jacobians
   const matx_t Jh = cam_geom->project_jacobian(param, p_CiFi);
   const matx_t Jh_weighted = -1 * sqrt_info * Jh;
 
-  if (jacobians) {
-    // Jacobians w.r.t T_C0Ci
-    if (jacobians[0]) {
-      Eigen::Map<mat_t<2, 7, row_major_t>> J(jacobians[0]);
-      J.setZero();
+  if (jacs == nullptr) {
+    return true;
+  }
 
-      if (valid) {
-        const mat3_t C_CiC0 = tf_rot(T_CiC0);
-        const mat3_t C_C0Ci = C_CiC0.transpose();
-        const vec3_t p_CiFi = tf_point(T_CiC0 * T_C0F, p_FFi);
+  // Jacobians w.r.t T_C0Ci
+  if (jacs[0]) {
+    // clang-format off
+    const mat3_t C_CiC0 = tf_rot(T_CiC0);
+    const mat3_t C_C0Ci = C_CiC0.transpose();
+    const vec3_t p_CiFi = tf_point(T_CiC0 * T_C0F, p_FFi);
+    matx_t J_min = zeros(2, 6);
+    J_min.block(0, 0, 2, 3) = -1 * Jh_weighted * C_CiC0;
+    J_min.block(0, 3, 2, 3) = -1 * Jh_weighted * C_CiC0 * -skew(C_C0Ci * p_CiFi);
+    // clang-format on
 
-        // clang-format off
-        J_min[0].block(0, 0, 2, 3) = -1 * Jh_weighted * C_CiC0;
-        J_min[0].block(0, 3, 2, 3) = -1 * Jh_weighted * C_CiC0 * -skew(C_C0Ci * p_CiFi);
-        // clang-format on
-        J = J_min[0] * lift_pose_jacobian(T_C0Ci);
-      }
+    Eigen::Map<mat_t<2, 7, row_major_t>> J(jacs[0]);
+    J = (valid) ? J_min * lift_pose_jacobian(T_C0Ci) : zeros(2, 7);
+
+    if (min_jacs && min_jacs[0]) {
+      Eigen::Map<mat_t<2, 6, row_major_t>> min_J(min_jacs[0]);
+      min_J = (valid) ? J_min : zeros(2, 6);
     }
+  }
 
-    // Jacobians w.r.t T_C0F
-    if (jacobians[1]) {
-      Eigen::Map<mat_t<2, 7, row_major_t>> J(jacobians[1]);
-      J.setZero();
+  // Jacobians w.r.t T_C0F
+  if (jacs[1]) {
+    const mat3_t C_CiC0 = tf_rot(T_CiC0);
+    const mat3_t C_C0F = tf_rot(T_C0F);
+    matx_t J_min = zeros(2, 6);
+    J_min.block(0, 0, 2, 3) = Jh_weighted * C_CiC0;
+    J_min.block(0, 3, 2, 3) = Jh_weighted * C_CiC0 * -skew(C_C0F * p_FFi);
 
-      if (valid) {
-        // clang-format off
-        const mat3_t C_CiC0 = tf_rot(T_CiC0);
-        const mat3_t C_C0F = tf_rot(T_C0F);
-        J_min[1].block(0, 0, 2, 3) = Jh_weighted * C_CiC0;
-        J_min[1].block(0, 3, 2, 3) = Jh_weighted * C_CiC0 * -skew(C_C0F * p_FFi);
-        J = J_min[1] * lift_pose_jacobian(T_C0F);
-        // clang-format on
-      }
+    Eigen::Map<mat_t<2, 7, row_major_t>> J(jacs[1]);
+    J = (valid) ? J_min * lift_pose_jacobian(T_C0F) : zeros(2, 7);
+
+    if (min_jacs && min_jacs[1]) {
+      Eigen::Map<mat_t<2, 6, row_major_t>> min_J(min_jacs[1]);
+      min_J = (valid) ? J_min : zeros(2, 6);
     }
+  }
 
-    // Jacobians w.r.t fiducial corner
-    if (jacobians[2]) {
-      Eigen::Map<mat_t<2, 3, row_major_t>> J(jacobians[2]);
-      J.setZero();
-      if (valid) {
-        const mat4_t T_CiF = T_CiC0 * T_C0F;
-        const mat3_t C_CiF = tf_rot(T_CiF);
-        J_min[2] = Jh_weighted * C_CiF;
-        J = J_min[2];
-      }
+  // Jacobians w.r.t fiducial corner
+  if (jacs[2]) {
+    Eigen::Map<mat_t<2, 3, row_major_t>> J(jacs[2]);
+    const mat4_t T_CiF = T_CiC0 * T_C0F;
+    const mat3_t C_CiF = tf_rot(T_CiF);
+    const matx_t J_min = Jh_weighted * C_CiF;
+    J = J_min;
+
+    if (min_jacs && min_jacs[2]) {
+      Eigen::Map<mat_t<2, 3, row_major_t>> min_J(min_jacs[2]);
+      min_J = (valid) ? J_min : zeros(2, 3);
     }
+  }
 
-    // Jacobians w.r.t cam params
-    if (jacobians[3]) {
-      Eigen::Map<mat_t<2, 8, row_major_t>> J(jacobians[3]);
-      J.setZero();
-      if (valid) {
-        const matx_t J_cam = cam_geom->params_jacobian(param, p_CiFi);
-        J_min[3] = -1 * sqrt_info * J_cam;
-        J = J_min[3];
-      }
+  // Jacobians w.r.t cam params
+  if (jacs[3]) {
+    Eigen::Map<mat_t<2, 8, row_major_t>> J(jacs[3]);
+    const matx_t J_cam = cam_geom->params_jacobian(param, p_CiFi);
+    const matx_t J_min = -1 * sqrt_info * J_cam;
+    J = J_min;
+
+    if (min_jacs && min_jacs[3]) {
+      Eigen::Map<mat_t<2, 8, row_major_t>> min_J(min_jacs[3]);
+      min_J = (valid) ? J_min : zeros(2, 8);
     }
   }
 
@@ -349,12 +371,6 @@ fiducial_error_t::fiducial_error_t(const timestamp_t &ts,
   param_blocks.push_back(imu_exts_);
   param_blocks.push_back(cam_exts_);
   param_blocks.push_back(cam_params_);
-  residuals = zeros(2, 1);
-  J_min.push_back(zeros(2, fiducial_->local_size));
-  J_min.push_back(zeros(2, 6));
-  J_min.push_back(zeros(2, 6));
-  J_min.push_back(zeros(2, 6));
-  J_min.push_back(zeros(2, 8));
 
   // Ceres-Solver
   set_num_residuals(2);
@@ -399,9 +415,10 @@ int fiducial_error_t::get_reproj_error(real_t &error) const {
   return 0;
 }
 
-bool fiducial_error_t::Evaluate(double const *const *params,
-                                double *residuals,
-                                double **jacobians) const {
+bool fiducial_error_t::EvaluateWithMinimalJacobians(double const *const *params,
+                                                    double *res,
+                                                    double **jacs,
+                                                    double **min_jacs) const {
   // Map parameters
 #if FIDUCIAL_PARAMS_SIZE == 2
   const double roll = params[0][0];
@@ -440,176 +457,209 @@ bool fiducial_error_t::Evaluate(double const *const *params,
 
   // Residuals
   const vec2_t r = sqrt_info_ * (z_ - z_hat);
-  residuals[0] = r.x();
-  residuals[1] = r.y();
+  res[0] = r.x();
+  res[1] = r.y();
 
   // Jacobians
   const matx_t Jh = cam_geom_->project_jacobian(cam_params, r_CiFi);
   const matx_t Jh_weighted = sqrt_info_ * Jh;
 
-  if (jacobians) {
-    // Jacobians w.r.t. T_WF
-    if (jacobians[0]) {
-#if FIDUCIAL_PARAMS_SIZE == 2 || FIDUCIAL_PARAMS_SIZE == 3
-      const double cphi = cos(roll);
-      const double sphi = sin(roll);
-      const double ctheta = cos(pitch);
-      const double stheta = sin(pitch);
-      const double cpsi = cos(yaw);
-      const double spsi = sin(yaw);
-
-      const double x = r_FFi_(0);
-      const double y = r_FFi_(1);
-      const double z = r_FFi_(2);
-
-      const vec3_t J_x{y * (sphi * spsi + stheta * cphi * cpsi) +
-                           z * (-sphi * stheta * cpsi + spsi * cphi),
-                       y * (-sphi * cpsi + spsi * stheta * cphi) +
-                           z * (-sphi * spsi * stheta - cphi * cpsi),
-                       y * cphi * ctheta - z * sphi * ctheta};
-      const vec3_t J_y{-x * stheta * cpsi + y * sphi * cpsi * ctheta +
-                           z * cphi * cpsi * ctheta,
-                       -x * spsi * stheta + y * sphi * spsi * ctheta +
-                           z * spsi * cphi * ctheta,
-                       -x * ctheta - y * sphi * stheta - z * stheta * cphi};
-      const vec3_t J_z{-x * spsi * ctheta +
-                           y * (-sphi * spsi * stheta - cphi * cpsi) +
-                           z * (sphi * cpsi - spsi * stheta * cphi),
-                       x * cpsi * ctheta +
-                           y * (sphi * stheta * cpsi - spsi * cphi) +
-                           z * (sphi * spsi + stheta * cphi * cpsi),
-                       0};
-#endif
-
-      // Fill Jacobian
-      const mat3_t C_CiW = tf_rot(T_CiB * T_BS * T_SW);
-#if FIDUCIAL_PARAMS_SIZE == 2
-      J_min[0].block(0, 0, 2, 1) = -1 * Jh_weighted * C_CiW * J_x;
-      J_min[0].block(0, 1, 2, 1) = -1 * Jh_weighted * C_CiW * J_y;
-      Eigen::Map<mat_t<2, 2, row_major_t>> J(jacobians[0]);
-      J = J_min[0];
-#elif FIDUCIAL_PARAMS_SIZE == 3
-      J.block(0, 0, 2, 1) = -1 * Jh_weighted * C_CiW * J_x;
-      J.block(0, 1, 2, 1) = -1 * Jh_weighted * C_CiW * J_y;
-      J.block(0, 2, 2, 1) = -1 * Jh_weighted * C_CiW * J_z;
-      Eigen::Map<mat_t<2, 3, row_major_t>> J(jacobians[0]);
-      J = J_min[0];
-#elif FIDUCIAL_PARAMS_SIZE == 7
-      // clang-format off
-      const mat3_t C_WF = tf_rot(T_WF);
-      J_min[0].block(0, 0, 2, 3) = -1 * Jh_weighted * C_CiW * I(3);
-      J_min[0].block(0, 3, 2, 3) = -1 * Jh_weighted * C_CiW * -skew(C_WF * r_FFi_);
-      // clang-format on
-      Eigen::Map<mat_t<2, 7, row_major_t>> J(jacobians[0]);
-      J = J_min[0] * lift_pose_jacobian(T_WF);
-#endif
-      if (valid == false) {
-        J.setZero();
-      }
-    }
-
-    // Jacobians w.r.t T_WS
-    if (jacobians[1]) {
-      const mat3_t C_CiS = tf_rot(T_CiB * T_BS);
-      const mat3_t C_WS = tf_rot(T_WS);
-      const mat3_t C_SW = C_WS.transpose();
-      const mat3_t C_CiW = C_CiS * C_SW;
-      const mat4_t T_SW = T_WS.inverse();
-      const vec3_t r_SFi = tf_point(T_SW * T_WF, r_FFi_);
-
-      // clang-format off
-      J_min[1].block(0, 0, 2, 3) = -1 * Jh_weighted * -C_CiW * I(3);
-      J_min[1].block(0, 3, 2, 3) = -1 * Jh_weighted * -C_CiW * -skew(C_WS * r_SFi);
-      // clang-format on
-
-      Eigen::Map<mat_t<2, 7, row_major_t>> J(jacobians[1]);
-      J = J_min[1] * lift_pose_jacobian(T_WS);
-      if (valid == false) {
-        J.setZero();
-      }
-    }
-
-    // Jacobians w.r.t T_BS
-    if (jacobians[2]) {
-      const mat3_t C_CiB = tf_rot(T_CiB);
-      const mat3_t C_BS = tf_rot(T_BS);
-      const vec3_t r_SFi = tf_point(T_SW * T_WF, r_FFi_);
-
-      // clang-format off
-      J_min[2].block(0, 0, 2, 3) = -1 * Jh_weighted * C_CiB * I(3);
-      J_min[2].block(0, 3, 2, 3) = -1 * Jh_weighted * C_CiB * -skew(C_BS * r_SFi);
-      // clang-format on
-
-      Eigen::Map<mat_t<2, 7, row_major_t>> J(jacobians[2]);
-      J = J_min[2] * lift_pose_jacobian(T_BS);
-      if (valid == false) {
-        J.setZero();
-      }
-    }
-
-    // Jacobians w.r.t T_BCi
-    if (jacobians[3]) {
-      const mat3_t C_CiB = tf_rot(T_CiB);
-      const mat3_t C_BCi = C_CiB.transpose();
-      const vec3_t r_CiFi = tf_point(T_CiB * T_BS * T_SW * T_WF, r_FFi_);
-
-      // clang-format off
-      J_min[3].block(0, 0, 2, 3) = -1 * Jh_weighted * -C_CiB * I(3);
-      J_min[3].block(0, 3, 2, 3) = -1 * Jh_weighted * -C_CiB * -skew(C_BCi * r_CiFi);
-      // clang-format on
-
-      Eigen::Map<mat_t<2, 7, row_major_t>> J(jacobians[3]);
-      J = J_min[3] * lift_pose_jacobian(T_BCi);
-      if (valid == false) {
-        J.setZero();
-      }
-    }
-
-    // Jacobians w.r.t. camera parameters
-    if (jacobians[4]) {
-      const matx_t J_cam = cam_geom_->params_jacobian(cam_params, r_CiFi);
-
-      J_min[4] = -1 * sqrt_info_ * J_cam;
-      Eigen::Map<mat_t<2, 8, row_major_t>> J(jacobians[4]);
-      J = J_min[4];
-      if (valid == false) {
-        J.setZero();
-      }
-    }
-
-    // // Jacobians w.r.t. time delay
-    // if (jacobians[5]) {
-    //   Eigen::Map<vec2_t> J(jacobians[5]);
-    //   J = sqrt_info_ * v_ij_;
-    //   if (valid == false) {
-    //     J.setZero();
-    //   }
-    // }
+  if (jacs == nullptr) {
+    return true;
   }
+
+  // Jacobians w.r.t. T_WF
+  if (jacs[0]) {
+#if FIDUCIAL_PARAMS_SIZE == 2 || FIDUCIAL_PARAMS_SIZE == 3
+    const double cphi = cos(roll);
+    const double sphi = sin(roll);
+    const double ctheta = cos(pitch);
+    const double stheta = sin(pitch);
+    const double cpsi = cos(yaw);
+    const double spsi = sin(yaw);
+
+    const double x = r_FFi_(0);
+    const double y = r_FFi_(1);
+    const double z = r_FFi_(2);
+
+    const vec3_t J_x{y * (sphi * spsi + stheta * cphi * cpsi) +
+                         z * (-sphi * stheta * cpsi + spsi * cphi),
+                     y * (-sphi * cpsi + spsi * stheta * cphi) +
+                         z * (-sphi * spsi * stheta - cphi * cpsi),
+                     y * cphi * ctheta - z * sphi * ctheta};
+    const vec3_t J_y{-x * stheta * cpsi + y * sphi * cpsi * ctheta +
+                         z * cphi * cpsi * ctheta,
+                     -x * spsi * stheta + y * sphi * spsi * ctheta +
+                         z * spsi * cphi * ctheta,
+                     -x * ctheta - y * sphi * stheta - z * stheta * cphi};
+    const vec3_t J_z{-x * spsi * ctheta +
+                         y * (-sphi * spsi * stheta - cphi * cpsi) +
+                         z * (sphi * cpsi - spsi * stheta * cphi),
+                     x * cpsi * ctheta +
+                         y * (sphi * stheta * cpsi - spsi * cphi) +
+                         z * (sphi * spsi + stheta * cphi * cpsi),
+                     0};
+#endif
+
+    // Fill Jacobian
+    const mat3_t C_CiW = tf_rot(T_CiB * T_BS * T_SW);
+#if FIDUCIAL_PARAMS_SIZE == 2
+    matx_t J_min = zeros(2, 2);
+    J_min.block(0, 0, 2, 1) = -1 * Jh_weighted * C_CiW * J_x;
+    J_min.block(0, 1, 2, 1) = -1 * Jh_weighted * C_CiW * J_y;
+    Eigen::Map<mat_t<2, 2, row_major_t>> J(jacs[0]);
+    J = (valid) ? J_min : zeros(2, 2);
+    if (min_jacs && min_jacs[0]) {
+      Eigen::Map<mat_t<2, 2, row_major_t>> min_J(min_jacs[0]);
+      min_J = (valid) ? J_min : zeros(2, 2);
+    }
+#elif FIDUCIAL_PARAMS_SIZE == 3
+    matx_t J_min = zeros(2, 3);
+    J_min.block(0, 0, 2, 1) = -1 * Jh_weighted * C_CiW * J_x;
+    J_min.block(0, 1, 2, 1) = -1 * Jh_weighted * C_CiW * J_y;
+    J_min.block(0, 2, 2, 1) = -1 * Jh_weighted * C_CiW * J_z;
+    Eigen::Map<mat_t<2, 3, row_major_t>> J(jacs[0]);
+    J = (valid) ? J_min : zeros(2, 3);
+    if (min_jacs && min_jacs[0]) {
+      Eigen::Map<mat_t<2, 3, row_major_t>> min_J(min_jacs[0]);
+      min_J = (valid) ? J_min : zeros(2, 3);
+    }
+#elif FIDUCIAL_PARAMS_SIZE == 7
+    // clang-format off
+    const mat3_t C_WF = tf_rot(T_WF);
+    matx_t J_min = zeros(2, 6);
+    J_min.block(0, 0, 2, 3) = -1 * Jh_weighted * C_CiW * I(3);
+    J_min.block(0, 3, 2, 3) = -1 * Jh_weighted * C_CiW * -skew(C_WF * r_FFi_);
+    // clang-format on
+    Eigen::Map<mat_t<2, 7, row_major_t>> J(jacs[0]);
+    J = J_min * lift_pose_jacobian(T_WF);
+    J = (valid) ? J : zeros(2, 7);
+    if (min_jacs && min_jacs[0]) {
+      Eigen::Map<mat_t<2, 6, row_major_t>> min_J(min_jacs[0]);
+      min_J = (valid) ? J_min : zeros(2, 6);
+    }
+#endif
+  }
+
+  // Jacobians w.r.t T_WS
+  if (jacs[1]) {
+    // clang-format off
+    const mat3_t C_CiS = tf_rot(T_CiB * T_BS);
+    const mat3_t C_WS = tf_rot(T_WS);
+    const mat3_t C_SW = C_WS.transpose();
+    const mat3_t C_CiW = C_CiS * C_SW;
+    const mat4_t T_SW = T_WS.inverse();
+    const vec3_t r_SFi = tf_point(T_SW * T_WF, r_FFi_);
+    matx_t J_min = zeros(2, 6);
+    J_min.block(0, 0, 2, 3) = -1 * Jh_weighted * -C_CiW * I(3);
+    J_min.block(0, 3, 2, 3) = -1 * Jh_weighted * -C_CiW * -skew(C_WS * r_SFi);
+    // clang-format on
+
+    Eigen::Map<mat_t<2, 7, row_major_t>> J(jacs[1]);
+    J = J_min * lift_pose_jacobian(T_WS);
+    J = (valid) ? J : zeros(2, 7);
+
+    if (min_jacs && min_jacs[1]) {
+      Eigen::Map<mat_t<2, 6, row_major_t>> min_J(min_jacs[1]);
+      min_J = (valid) ? J_min : zeros(2, 6);
+    }
+  }
+
+  // Jacobians w.r.t T_BS
+  if (jacs[2]) {
+    // clang-format off
+    const mat3_t C_CiB = tf_rot(T_CiB);
+    const mat3_t C_BS = tf_rot(T_BS);
+    const vec3_t r_SFi = tf_point(T_SW * T_WF, r_FFi_);
+    matx_t J_min = zeros(2, 6);
+    J_min.block(0, 0, 2, 3) = -1 * Jh_weighted * C_CiB * I(3);
+    J_min.block(0, 3, 2, 3) = -1 * Jh_weighted * C_CiB * -skew(C_BS * r_SFi);
+    // clang-format on
+
+    Eigen::Map<mat_t<2, 7, row_major_t>> J(jacs[2]);
+    J = J_min * lift_pose_jacobian(T_BS);
+    J = (valid) ? J : zeros(2, 7);
+
+    if (min_jacs && min_jacs[2]) {
+      Eigen::Map<mat_t<2, 6, row_major_t>> min_J(min_jacs[2]);
+      min_J = (valid) ? J_min : zeros(2, 6);
+    }
+  }
+
+  // Jacobians w.r.t T_BCi
+  if (jacs[3]) {
+    // clang-format off
+    const mat3_t C_CiB = tf_rot(T_CiB);
+    const mat3_t C_BCi = C_CiB.transpose();
+    const vec3_t r_CiFi = tf_point(T_CiB * T_BS * T_SW * T_WF, r_FFi_);
+    matx_t J_min = zeros(2, 6);
+    J_min.block(0, 0, 2, 3) = -1 * Jh_weighted * -C_CiB * I(3);
+    J_min.block(0, 3, 2, 3) = -1 * Jh_weighted * -C_CiB * -skew(C_BCi * r_CiFi);
+    // clang-format on
+
+    Eigen::Map<mat_t<2, 7, row_major_t>> J(jacs[3]);
+    J = J_min * lift_pose_jacobian(T_BCi);
+
+    if (min_jacs && min_jacs[3]) {
+      Eigen::Map<mat_t<2, 6, row_major_t>> min_J(min_jacs[3]);
+      min_J = (valid) ? J_min : zeros(2, 6);
+    }
+  }
+
+  // Jacobians w.r.t. camera parameters
+  if (jacs[4]) {
+    const matx_t J_cam = cam_geom_->params_jacobian(cam_params, r_CiFi);
+    const matx_t J_min = -1 * sqrt_info_ * J_cam;
+    Eigen::Map<mat_t<2, 8, row_major_t>> J(jacs[4]);
+    J = J_min;
+
+    if (min_jacs && min_jacs[4]) {
+      Eigen::Map<mat_t<2, 8, row_major_t>> min_J(min_jacs[4]);
+      min_J = (valid) ? J_min : zeros(2, 8);
+    }
+  }
+
+  // // Jacobians w.r.t. time delay
+  // if (jacs[5]) {
+  //   Eigen::Map<vec2_t> J(jacs[5]);
+  //   J = sqrt_info_ * v_ij_;
+  //   if (valid == false) {
+  //     J.setZero();
+  //   }
+  // }
 
   return true;
 }
 
 // INERTIAL ERROR //////////////////////////////////////////////////////////////
 
-ImuError::ImuError(const imu_data_t &imu_data,
-                   const imu_params_t &imu_params,
-                   const timestamp_t &t0,
-                   const timestamp_t &t1) {
+imu_error_t::imu_error_t(const imu_data_t &imu_data,
+                         const imu_params_t &imu_params,
+                         const timestamp_t &t0,
+                         const timestamp_t &t1) {
+  // Data
   imu_data_ = imu_data;
   imu_params_ = imu_params;
   t0_ = t0;
   t1_ = t1;
+
+  // Ceres-Solver
+  set_num_residuals(15);
+  auto block_sizes = mutable_parameter_block_sizes();
+  block_sizes->push_back(7); // pose_i
+  block_sizes->push_back(9); // sb_i
+  block_sizes->push_back(7); // pose_j
+  block_sizes->push_back(9); // sb_j
 }
 
-int ImuError::propagation(const imu_data_t &imu_data,
-                          const imu_params_t &imu_params,
-                          mat4_t &T_WS,
-                          vec_t<9> &sb,
-                          const timestamp_t &t_start,
-                          const timestamp_t &t_end,
-                          covariance_t *covariance,
-                          jacobian_t *jacobian) {
+int imu_error_t::propagation(const imu_data_t &imu_data,
+                             const imu_params_t &imu_params,
+                             mat4_t &T_WS,
+                             vec_t<9> &sb,
+                             const timestamp_t &t_start,
+                             const timestamp_t &t_end,
+                             mat_t<15, 15> *covariance,
+                             mat_t<15, 15> *jacobian) {
   // now the propagation
   // timestamp_t time = t_start;
   // timestamp_t end = t_end;
@@ -850,10 +900,10 @@ int ImuError::propagation(const imu_data_t &imu_data,
   return i;
 }
 
-int ImuError::redoPreintegration(const mat4_t & /*T_WS*/,
-                                 const vec_t<9> &sb,
-                                 timestamp_t time,
-                                 timestamp_t end) const {
+int imu_error_t::redoPreintegration(const mat4_t & /*T_WS*/,
+                                    const vec_t<9> &sb,
+                                    timestamp_t time,
+                                    timestamp_t end) const {
   // Ensure unique access
   std::lock_guard<std::mutex> lock(preintegrationMutex_);
 
@@ -1046,25 +1096,23 @@ int ImuError::redoPreintegration(const mat4_t & /*T_WS*/,
   information_ = 0.5 * information_ + 0.5 * information_.transpose().eval();
 
   // square root
-  Eigen::LLT<information_t> lltOfInformation(information_);
+  Eigen::LLT<mat_t<15, 15>> lltOfInformation(information_);
   squareRootInformation_ = lltOfInformation.matrixU();
-
-  // std::cout << squareRootInformation_ << std::endl;
-  // exit(0);
 
   return i;
 }
 
-bool ImuError::Evaluate(double const *const *parameters,
-                        double *residuals,
-                        double **jacobians) const {
+bool imu_error_t::Evaluate(double const *const *parameters,
+                           double *residuals,
+                           double **jacobians) const {
   return EvaluateWithMinimalJacobians(parameters, residuals, jacobians, NULL);
 }
 
-bool ImuError::EvaluateWithMinimalJacobians(double const *const *params,
-                                            double *residuals,
-                                            double **jacobians,
-                                            double **jacobiansMinimal) const {
+bool imu_error_t::EvaluateWithMinimalJacobians(
+    double const *const *params,
+    double *residuals,
+    double **jacobians,
+    double **jacobiansMinimal) const {
   // Map T_WS_0
   const vec3_t r_WS_0{params[0][0], params[0][1], params[0][2]};
   const quat_t q_WS_0{params[0][6], params[0][3], params[0][4], params[0][5]};
@@ -1277,41 +1325,28 @@ std::vector<double *> marg_error_t::get_param_ptrs() {
   return params;
 }
 
-/*
-void marg_error_t::add(const ceres::CostFunction *cost_fn,
-                       const std::vector<param_t *> param_blocks,
-                       const ::ceres::LossFunction *loss_fn) {
-  // Check pointer to cost function
-  if (cost_fn == nullptr) {
-    FATAL("cost_fn == nullptr!");
-  }
-
-  // Check number of param blocks matches what the cost function is
-  // expecting
-  const auto param_sizes = cost_fn->parameter_block_sizes();
-  if (param_blocks.size() != param_sizes.size()) {
-    FATAL("param_blocks.size() != cost_fn->num_params!");
+void marg_error_t::add(calib_error_t *res_block) {
+  // Check pointer to residual block
+  if (res_block == nullptr) {
+    FATAL("res_block == nullptr!");
   }
 
   // Make sure param blocks are valid
-  for (size_t i = 0; i < param_blocks.size(); i++) {
-    const auto &param = param_blocks[i];
-    const auto &param_size = param_sizes[i];
-    if (param == nullptr) {
-      FATAL("Param block [%ld] is NULL! Implementation Error!", i);
+  for (auto param_block : res_block->param_blocks) {
+    if (param_block == nullptr) {
+      FATAL("Param block is NULL! Implementation Error!");
     }
-
-    if (param->global_size != param_size) {
-      FATAL("Param block [%ld] is not what the cost function expected!", i);
+    if (param_block->marginalize) {
+      marg_param_ptrs_.push_back(param_block);
+    } else {
+      remain_param_ptrs_.push_back(param_block);
     }
   }
 
   // Keep track
-  blocks_.emplace_back(cost_fn, param_blocks, loss_fn);
+  res_blocks_.push_back(res_block);
 }
-*/
 
-/*
 void marg_error_t::form_hessian(matx_t &H, vecx_t &b, bool debug) {
   // Reset marginalization error parameter block sizes
   mutable_parameter_block_sizes()->clear();
@@ -1329,14 +1364,11 @@ void marg_error_t::form_hessian(matx_t &H, vecx_t &b, bool debug) {
     if (param_block->fixed) {
       continue;
     }
-
     param_index_.insert({param_block, index});
     index += param_block->local_size;
     r_ += param_block->local_size;
-
     // !!!!!!!!!!!!!!!!!!!!!!!! VERY IMPORTANT !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    // Update param blocks and sizes for
-    // ceres::CostFunction
+    // Update param blocks and sizes for ceres::CostFunction
     mutable_parameter_block_sizes()->push_back(param_block->global_size);
   }
 
@@ -1356,18 +1388,49 @@ void marg_error_t::form_hessian(matx_t &H, vecx_t &b, bool debug) {
     printf("b shape: %zu x %zu\n", b.rows(), b.cols());
   }
 
-  for (const auto &block : blocks_) {
-    for (size_t i = 0; i < block.param_blocks.size(); i++) {
-      const auto &param_i = block.param_blocks[i];
+  for (calib_error_t *res_block : res_blocks_) {
+    // Setup parameter data
+    std::vector<double *> param_ptrs;
+    for (auto param_block : res_block->param_blocks) {
+      param_ptrs.push_back(param_block->data());
+    }
+
+    // Setup Jacobians data
+    const int r_size = res_block->num_residuals();
+    std::vector<matx_row_major_t> jacs;
+    std::vector<double *> jac_ptrs;
+    for (auto param_block : res_block->param_blocks) {
+      jacs.push_back(zeros(r_size, param_block->global_size));
+      jac_ptrs.push_back(jacs.back().data());
+    }
+
+    // Setup Min-Jacobians data
+    std::vector<matx_row_major_t> min_jacs;
+    std::vector<double *> min_jac_ptrs;
+    for (auto param_block : res_block->param_blocks) {
+      min_jacs.push_back(zeros(r_size, param_block->local_size));
+      min_jac_ptrs.push_back(min_jacs.back().data());
+    }
+
+    // Evaluate residual block
+    vecx_t r = zeros(r_size);
+    res_block->EvaluateWithMinimalJacobians(param_ptrs.data(),
+                                            r.data(),
+                                            jac_ptrs.data(),
+                                            min_jac_ptrs.data());
+
+    // Fill Hessian
+    for (size_t i = 0; i < res_block->param_blocks.size(); i++) {
+      const auto &param_i = res_block->param_blocks[i];
       const int idx_i = param_index_[param_i];
       const int size_i = param_i->local_size;
-      const matx_t J_i = block.jacobians[i].leftCols(size_i);
+      const matx_t J_i = min_jacs[i];
 
-      for (size_t j = i; j < block.param_blocks.size(); j++) {
-        const auto &param_j = block.param_blocks[j];
+      for (size_t j = i; j < res_block->param_blocks.size(); j++) {
+        const auto &param_j = res_block->param_blocks[j];
         const int idx_j = param_index_[param_j];
         const int size_j = param_j->local_size;
-        const matx_t J_j = block.jacobians[j].leftCols(size_j);
+        const matx_t J_j = min_jacs[j];
 
         if (i == j) {
           // Form diagonals of H
@@ -1381,12 +1444,10 @@ void marg_error_t::form_hessian(matx_t &H, vecx_t &b, bool debug) {
       }
 
       // RHS of Gauss Newton (i.e. vector b)
-      b.segment(idx_i, size_i) += -J_i.transpose() * block.residuals;
-      // TODO: Double check the signs here^ with the -1?
+      b.segment(idx_i, size_i) += -J_i.transpose() * r;
     }
   }
-}
-*/
+} // namespace yac
 
 void marg_error_t::schurs_complement(const matx_t &H,
                                      const vecx_t &b,
@@ -1514,7 +1575,8 @@ void marg_error_t::marginalize(ceres::Problem *problem, bool debug) {
   // auto eigvals =
   //     (eig.eigenvalues().array() > eps).select(eig.eigenvalues().array(),
   //     0.0);
-  // // const auto eigvals_inv = (eigvals > eps).select(eigvals.inverse(), 0);
+  // // const auto eigvals_inv = (eigvals > eps).select(eigvals.inverse(),
+  // 0);
   // auto eigvals =
   //     (eig.eigenvalues().array() > tol).select(eig.eigenvalues().array(),
   //     0.0);
@@ -1581,7 +1643,8 @@ vecx_t marg_error_t::compute_delta_chi(double const *const *params) const {
   //
   //   // Calculate i-th DeltaChi
   //   const Eigen::Map<const vecx_t> x(params[i], size);
-  //   if (param_block->type == "pose_t" || param_block->type == "extrinsics_t")
+  //   if (param_block->type == "pose_t" || param_block->type ==
+  // "extrinsics_t")
   //   {
   //     // Pose minus
   //     const vec3_t dr = x.head<3>() - x0_i.head<3>();
@@ -1603,9 +1666,11 @@ vecx_t marg_error_t::compute_delta_chi(double const *const *params) const {
   return DeltaChi;
 }
 
-bool marg_error_t::Evaluate(double const *const *params,
-                            double *residuals,
-                            double **jacobians) const {
+bool marg_error_t::EvaluateWithMinimalJacobians(
+    double const *const *params,
+    double *residuals,
+    double **jacobians,
+    double **jacobiansMinimal) const {
   /*
   // Residual e
   const vecx_t Delta_Chi = compute_delta_chi(params);

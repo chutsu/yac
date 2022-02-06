@@ -85,16 +85,6 @@ using camera_calib_views_t = std::map<int, calib_views_t>;
 
 // CALIBRATOR //////////////////////////////////////////////////////////////////
 
-/**
- * Initialize camera intrinsics using AprilGrids `grids` observed by the camera,
- * the camera geometry `cam_geom`, and camera parameters `cam_params`.
- */
-void initialize_camera(const calib_target_t &calib_target,
-                       const aprilgrids_t &grids,
-                       camera_geometry_t *cam_geom,
-                       camera_params_t *cam_params,
-                       const bool verbose = false);
-
 /** Camera Calibrator **/
 struct calib_camera_t {
   // Flags
@@ -193,16 +183,13 @@ struct calib_camera_t {
   void remove_view(const timestamp_t ts);
   void remove_all_views();
 
-  int recover_calib_covar(matx_t &calib_covar, bool verbose = false);
+  int recover_calib_covar(matx_t &calib_covar, bool verbose = true);
   int find_nbv(const std::map<int, mat4s_t> &nbv_poses,
                int &cam_idx,
                int &nbv_idx);
   int find_nbv(std::vector<timestamp_t> &nbv_timestamps,
                real_t &best_entropy,
                timestamp_t &best_nbv);
-  int find_mere(std::vector<timestamp_t> &nbv_timestamps,
-                real_t &best_entropy,
-                timestamp_t &best_nbv);
 
   void _initialize_intrinsics();
   void _initialize_extrinsics();
@@ -210,7 +197,6 @@ struct calib_camera_t {
   int _filter_all_views();
   int eval_view(real_t &entropy);
   void _solve_batch();
-  void _solve_inc();
   void _solve_nbv();
   void _solve_nbv_brute_force();
 

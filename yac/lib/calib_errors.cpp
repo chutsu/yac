@@ -633,15 +633,20 @@ bool fiducial_error_t::EvaluateWithMinimalJacobians(double const *const *params,
 
 // INERTIAL ERROR //////////////////////////////////////////////////////////////
 
-imu_error_t::imu_error_t(const imu_data_t &imu_data,
-                         const imu_params_t &imu_params,
-                         const timestamp_t &t0,
-                         const timestamp_t &t1) {
+imu_error_t::imu_error_t(const imu_params_t &imu_params,
+                         const imu_data_t &imu_data,
+                         pose_t *pose_i,
+                         sb_params_t *sb_i,
+                         pose_t *pose_j,
+                         sb_params_t *sb_j)
+    : imu_params_{imu_params}, imu_data_{imu_data}, t0_{pose_i->ts},
+      t1_{pose_j->ts}, pose_i_{pose_i}, sb_i_{sb_i}, pose_j_{pose_j},
+      sb_j_{sb_j} {
   // Data
-  imu_data_ = imu_data;
-  imu_params_ = imu_params;
-  t0_ = t0;
-  t1_ = t1;
+  param_blocks.push_back(pose_i);
+  param_blocks.push_back(sb_i);
+  param_blocks.push_back(pose_j);
+  param_blocks.push_back(sb_j);
 
   // Ceres-Solver
   set_num_residuals(15);
@@ -727,8 +732,8 @@ int imu_error_t::propagation(const imu_data_t &imu_data,
     double dt = ns2sec(ts_kp1 - ts_k);
     // printf("dt: %f\n", dt);
 
-    // If next imu measurement timestamp is after t_end, interpolate gyro and
-    // accel at t_end
+    // If next imu measurement timestamp is after t_end, interpolate gyro
+    // and accel at t_end
     if (ts_kp1 > t_end) {
       double interval = ns2sec(ts_kp1 - imu_data.timestamps[k]);
       ts_kp1 = t_end;
@@ -1311,7 +1316,8 @@ bool imu_error_t::EvaluateWithMinimalJacobians(
   return true;
 }
 
-// MARGINALIZATION ERROR ///////////////////////////////////////////////////////
+// MARGINALIZATION ERROR
+// ///////////////////////////////////////////////////////
 
 size_t marg_error_t::get_residual_size() const { return r_; }
 
@@ -1367,14 +1373,15 @@ void marg_error_t::form_hessian(matx_t &H, vecx_t &b, bool debug) {
     param_index_.insert({param_block, index});
     index += param_block->local_size;
     r_ += param_block->local_size;
-    // !!!!!!!!!!!!!!!!!!!!!!!! VERY IMPORTANT !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    // Update param blocks and sizes for ceres::CostFunction
+    // !!!!!!!!!!!!!!!!!!!!!!!! VERY IMPORTANT
+    // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Update param blocks and sizes for
+    // ceres::CostFunction
     mutable_parameter_block_sizes()->push_back(param_block->global_size);
   }
 
-  // !!!!!!!!!!!!!!!!!!!!!!!!!! VERY IMPORTANT!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  // Now we know the Hessian size, we can update the number of residuals for
-  // ceres::CostFunction
+  // !!!!!!!!!!!!!!!!!!!!!!!!!! VERY
+  // IMPORTANT!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Now we know the Hessian size,
+  // we can update the number of residuals for ceres::CostFunction
   set_num_residuals(r_);
 
   // Form the H and b. Left and RHS of Gauss-Newton.
@@ -1474,9 +1481,9 @@ void marg_error_t::schurs_complement(const matx_t &H,
   //
   //   A_pinv = V * Lambda_pinv * V_transpose
   //
-  // Where Lambda_pinv is formed by **replacing every non-zero diagonal entry
-  // by its reciprocal, leaving the zeros in place, and transposing the
-  // resulting matrix.
+  // Where Lambda_pinv is formed by **replacing every non-zero diagonal
+  // entry by its reciprocal, leaving the zeros in place, and transposing
+  // the resulting matrix.
   // clang-format off
   const double eps = 1.0e-8;
   const Eigen::SelfAdjointEigenSolver<matx_t> eig(Hmm);
@@ -1517,10 +1524,11 @@ void marg_error_t::marginalize(ceres::Problem *problem, bool debug) {
   // // Keep track of:
   // // - Pointers to parameter blocks for marginalization.
   // // - Pointers to parameter blocks to remain.
-  // for (const auto &block : blocks_) {
-  //   for (size_t i = 0; i < block.param_blocks.size(); i++) {
-  //     const auto &param = block.param_blocks[i];
-  //
+  // marg_param_ptrs_.clear();
+  // remain_param_ptrs_.clear();
+  // for (auto res_block : res_blocks_) {
+  //   for (size_t i = 0; i < res_block->param_blocks.size(); i++) {
+  //     const auto &param = res_block->param_blocks[i];
   //     if (param_blocks_.find(param) == param_blocks_.end()) {
   //       if (param->marginalize) {
   //         marg_param_ptrs_.push_back(param);
@@ -1532,16 +1540,16 @@ void marg_error_t::marginalize(ceres::Problem *problem, bool debug) {
   //   }
   // }
   //
-  // // printf("nb_marg_params: %ld\n", marg_param_ptrs_.size());
-  // // for (const auto &param : marg_param_ptrs_) {
-  // //   printf("- marg_param: %s\n", param->type.c_str());
-  // // }
-  // //
-  // // printf("nb_remain_params: %ld\n", remain_param_ptrs_.size());
-  // // for (const auto &param : remain_param_ptrs_) {
-  // //   printf("- remain_param: %s\n", param->type.c_str());
-  // // }
+  // printf("nb_marg_params: %ld\n", marg_param_ptrs_.size());
+  // for (const auto &param : marg_param_ptrs_) {
+  //   printf("- marg_param: %s\n", param->type.c_str());
+  // }
   //
+  // printf("nb_remain_params: %ld\n", remain_param_ptrs_.size());
+  // for (const auto &param : remain_param_ptrs_) {
+  //   printf("- remain_param: %s\n", param->type.c_str());
+  // }
+
   // // Form Hessian and RHS of Gauss newton
   // matx_t H;
   // vecx_t b;
@@ -1551,8 +1559,8 @@ void marg_error_t::marginalize(ceres::Problem *problem, bool debug) {
   // matx_t H_marg;
   // vecx_t b_marg;
   // schurs_complement(H, b, m_, r_, H_marg, b_marg, false, debug);
-  // // Note: after the Schur's Complement, H_marg and b_marg will be smaller
-  // due
+  // // Note: after the Schur's Complement, H_marg and b_marg will be
+  // smaller due
   // // to marginalization.
   //
   // // Calculate preconditioner for H
@@ -1607,7 +1615,8 @@ void marg_error_t::marginalize(ceres::Problem *problem, bool debug) {
   //   x0_.insert({param_block->param.data(), param_block->param});
   // }
   //
-  // // Remove parameter blocks from problem, which in turn ceres will remove
+  // // Remove parameter blocks from problem, which in turn ceres will
+  // remove
   // // residual blocks linked to the parameter.
   // for (const auto &marg_param : marg_param_ptrs_) {
   //   problem->RemoveParameterBlock(marg_param->param.data());

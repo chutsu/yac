@@ -170,9 +170,12 @@ void calib_vi_view_t::form_imu_error(const imu_params_t &imu_params,
                                      const imu_data_t &imu_buf,
                                      pose_t *pose_j,
                                      sb_params_t *sb_j) {
-  const timestamp_t ts_i = pose.ts;
-  const timestamp_t ts_j = pose_j->ts;
-  imu_error = std::make_unique<imu_error_t>(imu_buf, imu_params, ts_i, ts_j);
+  imu_error = std::make_unique<imu_error_t>(imu_params,
+                                            imu_buf,
+                                            &pose,
+                                            &sb,
+                                            pose_j,
+                                            sb_j);
   imu_error_id = problem->AddResidualBlock(imu_error.get(),
                                            NULL,
                                            pose.param.data(),

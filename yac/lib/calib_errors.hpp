@@ -188,27 +188,29 @@ class imu_error_t : public calib_error_t {
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-  pose_t *pose_i = nullptr;
-  sb_params_t *sb_i = nullptr;
-  pose_t *pose_j = nullptr;
-  sb_params_t *sb_j = nullptr;
+  imu_params_t imu_params_;
+  imu_data_t imu_data_;
+  timestamp_t t0_;
+  timestamp_t t1_;
+
+  pose_t *pose_i_ = nullptr;
+  sb_params_t *sb_i_ = nullptr;
+  pose_t *pose_j_ = nullptr;
+  sb_params_t *sb_j_ = nullptr;
 
   mutable mat4_t T_WS_0_last_;
   mutable mat4_t T_WS_1_last_;
   mutable vec_t<9> sb0_last_;
   mutable vec_t<9> sb1_last_;
 
-  imu_params_t imu_params_;
-  imu_data_t imu_data_;
-  timestamp_t t0_;
-  timestamp_t t1_;
-
   // Constructor
   imu_error_t() = delete;
-  imu_error_t(const imu_data_t &imu_data,
-              const imu_params_t &imu_params,
-              const timestamp_t &t0,
-              const timestamp_t &t1);
+  imu_error_t(const imu_params_t &imu_params,
+              const imu_data_t &imu_data,
+              pose_t *pose_i,
+              sb_params_t *sb_i,
+              pose_t *pose_j,
+              sb_params_t *sb_j);
 
   // Destructor
   virtual ~imu_error_t() = default;

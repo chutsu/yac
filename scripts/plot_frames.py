@@ -3,6 +3,7 @@ import numpy as np
 from numpy.linalg import inv
 
 import matplotlib.pylab as plt
+from mpl_toolkits import mplot3d
 
 from proto import plot_tf
 from proto import plot_set_axes_equal

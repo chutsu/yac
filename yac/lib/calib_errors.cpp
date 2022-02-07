@@ -1342,11 +1342,6 @@ void marg_error_t::add(calib_error_t *res_block) {
     if (param_block == nullptr) {
       FATAL("Param block is NULL! Implementation Error!");
     }
-    if (param_block->marginalize) {
-      marg_param_ptrs_.push_back(param_block);
-    } else {
-      remain_param_ptrs_.push_back(param_block);
-    }
   }
 
   // Keep track
@@ -1487,6 +1482,9 @@ void marg_error_t::schurs_complement(const matx_t &H,
   // clang-format off
   const double eps = 1.0e-8;
   const Eigen::SelfAdjointEigenSolver<matx_t> eig(Hmm);
+  if (eig.info() != Eigen::Success) {
+    FATAL("FAILED TO DECOMPOSE Hmm");
+  }
   const matx_t V = eig.eigenvectors();
   const auto eigvals = eig.eigenvalues().array();
   const auto eigvals_inv = (eigvals > eps).select(eigvals.inverse(), 0);
@@ -1521,156 +1519,126 @@ void marg_error_t::schurs_complement(const matx_t &H,
 }
 
 void marg_error_t::marginalize(ceres::Problem *problem, bool debug) {
-  // // Keep track of:
-  // // - Pointers to parameter blocks for marginalization.
-  // // - Pointers to parameter blocks to remain.
-  // marg_param_ptrs_.clear();
-  // remain_param_ptrs_.clear();
-  // for (auto res_block : res_blocks_) {
-  //   for (size_t i = 0; i < res_block->param_blocks.size(); i++) {
-  //     const auto &param = res_block->param_blocks[i];
-  //     if (param_blocks_.find(param) == param_blocks_.end()) {
-  //       if (param->marginalize) {
-  //         marg_param_ptrs_.push_back(param);
-  //       } else if (param->fixed == false) {
-  //         remain_param_ptrs_.push_back(param);
-  //       }
-  //       param_blocks_[param] = 1;
-  //     }
-  //   }
-  // }
-  //
-  // printf("nb_marg_params: %ld\n", marg_param_ptrs_.size());
-  // for (const auto &param : marg_param_ptrs_) {
-  //   printf("- marg_param: %s\n", param->type.c_str());
-  // }
-  //
-  // printf("nb_remain_params: %ld\n", remain_param_ptrs_.size());
-  // for (const auto &param : remain_param_ptrs_) {
-  //   printf("- remain_param: %s\n", param->type.c_str());
-  // }
+  // Keep track of:
+  // - Pointers to parameter blocks for marginalization.
+  // - Pointers to parameter blocks to remain.
+  marg_param_ptrs_.clear();
+  remain_param_ptrs_.clear();
+  for (auto res_block : res_blocks_) {
+    for (size_t i = 0; i < res_block->param_blocks.size(); i++) {
+      const auto &param = res_block->param_blocks[i];
+      if (param_blocks_.find(param) == param_blocks_.end()) {
+        if (param->marginalize) {
+          marg_param_ptrs_.push_back(param);
+        } else if (param->fixed == false) {
+          remain_param_ptrs_.push_back(param);
+        }
+        param_blocks_[param] = 1;
+      }
+    }
+  }
 
-  // // Form Hessian and RHS of Gauss newton
-  // matx_t H;
-  // vecx_t b;
-  // form_hessian(H, b, debug);
-  //
-  // // Compute Schurs Complement
-  // matx_t H_marg;
-  // vecx_t b_marg;
-  // schurs_complement(H, b, m_, r_, H_marg, b_marg, false, debug);
-  // // Note: after the Schur's Complement, H_marg and b_marg will be
-  // smaller due
-  // // to marginalization.
-  //
-  // // Calculate preconditioner for H
-  // const vecx_t p = (H_marg.diagonal().array() > 1.0e-9)
-  //                      .select(H_marg.diagonal().cwiseSqrt(), 1.0e-3);
-  // const vecx_t p_inv = p.cwiseInverse();
-  //
-  // // Decompose matrix H into J^T * J to obtain J via eigen-decomposition
-  // // i.e. H = U S U^T and therefore J = S^0.5 * U^T
-  // // const Eigen::SelfAdjointEigenSolver<matx_t> eig(H_marg);
-  // const Eigen::SelfAdjointEigenSolver<matx_t> eig(
-  //     0.5 * p_inv.asDiagonal() * (H_marg + H_marg.transpose()) *
-  //     p_inv.asDiagonal());
-  // // -- Calculate tolerance
-  // // const double eps = 1.0e-8;
-  // const auto eps = std::numeric_limits<double>::epsilon();
-  // const auto tol = eps * H_marg.cols() *
-  // eig.eigenvalues().array().maxCoeff();
-  // // -- Form J0
-  // auto eigvals =
-  //     (eig.eigenvalues().array() > eps).select(eig.eigenvalues().array(),
-  //     0.0);
-  // // const auto eigvals_inv = (eigvals > eps).select(eigvals.inverse(),
-  // 0);
-  // auto eigvals =
-  //     (eig.eigenvalues().array() > tol).select(eig.eigenvalues().array(),
-  //     0.0);
-  // const auto eigvals_inv = (eigvals > tol).select(eigvals.inverse(), 0);
-  // const vecx_t S = vecx_t(eigvals);
-  // const vecx_t S_sqrt = S.cwiseSqrt();
-  // // J0_ = S_sqrt.asDiagonal() * eig.eigenvectors().transpose();
-  // J0_ =
-  //     (p.asDiagonal() * eig.eigenvectors() *
-  //     (S_sqrt.asDiagonal())).transpose();
-  // printf("tolerance: %f\t", tol);
-  // printf("rank: %ld\t", rank(H_marg));
-  // printf("size(H_marg): %ldx%ld\n", H_marg.rows(), H_marg.cols());
-  // // print_vector("eigvals", eig.eigenvalues());
-  //
-  // // Calculate residual: e0 = -pinv(J^T) * b
-  // const vecx_t S_pinv = vecx_t(eigvals_inv);
-  // const vecx_t S_pinv_sqrt = S_pinv.cwiseSqrt();
-  // // const matx_t J_pinv_T = S_pinv_sqrt.asDiagonal() *
-  // eig.eigenvectors().transpose();
-  // const matx_t J_pinv_T = (S_pinv_sqrt.asDiagonal()) *
-  //                         eig.eigenvectors().transpose() *
-  //                         p_inv.asDiagonal();
-  // e0_ = -J_pinv_T * b_marg;
-  //
-  // // Keep track of linearization point x0
-  // for (const auto &param_block : remain_param_ptrs_) {
-  //   x0_.insert({param_block->param.data(), param_block->param});
-  // }
-  //
-  // // Remove parameter blocks from problem, which in turn ceres will
-  // remove
-  // // residual blocks linked to the parameter.
-  // for (const auto &marg_param : marg_param_ptrs_) {
-  //   problem->RemoveParameterBlock(marg_param->param.data());
-  // }
-  //
-  // // Change flag to denote terms have been marginalized
-  // marginalized_ = true;
-  //
-  // // Debug
-  // if (debug) {
-  //   mat2csv("/tmp/H.csv", H);
-  //   mat2csv("/tmp/b.csv", b);
-  //   mat2csv("/tmp/H_marg.csv", H_marg);
-  //   mat2csv("/tmp/b_marg.csv", b_marg);
-  //   mat2csv("/tmp/J0.csv", J0_);
-  // }
+  printf("nb_marg_params: %ld\n", marg_param_ptrs_.size());
+  for (const auto &param : marg_param_ptrs_) {
+    printf("- marg_param: %s\n", param->type.c_str());
+  }
+
+  printf("nb_remain_params: %ld\n", remain_param_ptrs_.size());
+  for (const auto &param : remain_param_ptrs_) {
+    printf("- remain_param: %s\n", param->type.c_str());
+  }
+
+  // Form Hessian and RHS of Gauss newton
+  matx_t H;
+  vecx_t b;
+  form_hessian(H, b, debug);
+
+  // Compute Schurs Complement
+  matx_t H_marg;
+  vecx_t b_marg;
+  schurs_complement(H, b, m_, r_, H_marg, b_marg, false, debug);
+
+  // Decompose matrix H into J^T * J to obtain J via eigen-decomposition
+  // i.e. H = U S U^T and therefore J = S^0.5 * U^T
+  // clang-format off
+  const Eigen::SelfAdjointEigenSolver<matx_t> eig(H_marg);
+  if (eig.info() != Eigen::Success) {
+    FATAL("FAILED TO DECOMPOSE H_marg");
+  }
+  const double eps = std::numeric_limits<double>::epsilon();
+  const double tol = eps * H_marg.cols() * eig.eigenvalues().array().maxCoeff();
+  const vecx_t S = (eig.eigenvalues().array() > tol).select(eig.eigenvalues().array(), 0.0);
+  const vecx_t S_inv = (eig.eigenvalues().array() > tol).select(eig.eigenvalues().array().inverse(), 0);
+  const vecx_t S_sqrt = S.cwiseSqrt();
+  const vecx_t S_inv_sqrt = S_inv.cwiseSqrt();
+  // clang-format on
+
+  // Keep track of :
+  // - Linearization point x0
+  // - Linearized jacobians
+  // - Linearized residuals
+  // clang-format off
+  for (const auto &param_block : remain_param_ptrs_) {
+    x0_.insert({param_block->param.data(), param_block->param});
+  }
+  J0_ = S_sqrt.asDiagonal() * eig.eigenvectors().transpose();
+  r0_ = -1.0 * S_inv_sqrt.asDiagonal() * eig.eigenvectors().transpose() * b_marg;
+  // clang-format on
+
+  // Remove parameter blocks from problem, which in turn ceres will remove
+  // residual blocks linked to the parameter.
+  for (const auto &marg_param : marg_param_ptrs_) {
+    problem->RemoveParameterBlock(marg_param->param.data());
+  }
+
+  // Change flag to denote terms have been marginalized
+  marginalized_ = true;
+
+  // Debug
+  if (debug) {
+    mat2csv("/tmp/H.csv", H);
+    mat2csv("/tmp/b.csv", b);
+    mat2csv("/tmp/H_marg.csv", H_marg);
+    mat2csv("/tmp/b_marg.csv", b_marg);
+    mat2csv("/tmp/J0.csv", J0_);
+  }
 }
 
 vecx_t marg_error_t::compute_delta_chi(double const *const *params) const {
   assert(marginalized_);
 
   // Stack DeltaChi vector
-  vecx_t DeltaChi(e0_.size());
-  // for (size_t i = 0; i < remain_param_ptrs_.size(); i++) {
-  //   const auto param_block = remain_param_ptrs_[i];
-  //   if (param_block->fixed) {
-  //     continue;
-  //   }
-  //
-  //   const auto idx = param_index_.at(param_block) - m_;
-  //   const vecx_t x0_i = x0_.at(param_block->param.data());
-  //   const size_t size = param_block->global_size;
-  //
-  //   // Calculate i-th DeltaChi
-  //   const Eigen::Map<const vecx_t> x(params[i], size);
-  //   if (param_block->type == "pose_t" || param_block->type ==
-  // "extrinsics_t")
-  //   {
-  //     // Pose minus
-  //     const vec3_t dr = x.head<3>() - x0_i.head<3>();
-  //     const quat_t q_i(x(6), x(3), x(4), x(5));
-  //     const quat_t q_j(x0_i(6), x0_i(3), x0_i(4), x0_i(5));
-  //     const quat_t dq = q_j.inverse() * q_i;
-  //     DeltaChi.segment<3>(idx + 0) = dr;
-  //     DeltaChi.segment<3>(idx + 3) = 2.0 * dq.vec();
-  //     if (!(dq.w() >= 0)) {
-  //       DeltaChi.segment<3>(idx + 3) = 2.0 * -dq.vec();
-  //     }
-  //
-  //   } else {
-  //     // Trivial minus
-  //     DeltaChi.segment(idx, size) = x - x0_i;
-  //   }
-  // }
+  vecx_t DeltaChi(r0_.size());
+  for (size_t i = 0; i < remain_param_ptrs_.size(); i++) {
+    const auto param_block = remain_param_ptrs_[i];
+    if (param_block->fixed) {
+      continue;
+    }
+
+    const auto idx = param_index_.at(param_block) - m_;
+    const vecx_t x0_i = x0_.at(param_block->param.data());
+    const size_t size = param_block->global_size;
+
+    // Calculate i-th DeltaChi
+    const Eigen::Map<const vecx_t> x(params[i], size);
+    if (param_block->type == "pose_t" || param_block->type == "extrinsics_t" ||
+        (param_block->type == "fiducial_t" && param_block->param.size() == 7)) {
+      // Pose minus
+      const vec3_t dr = x.head<3>() - x0_i.head<3>();
+      const quat_t q_i(x(6), x(3), x(4), x(5));
+      const quat_t q_j(x0_i(6), x0_i(3), x0_i(4), x0_i(5));
+      const quat_t dq = q_j.inverse() * q_i;
+      DeltaChi.segment<3>(idx + 0) = dr;
+      DeltaChi.segment<3>(idx + 3) = 2.0 * dq.vec();
+      if (!(dq.w() >= 0)) {
+        DeltaChi.segment<3>(idx + 3) = 2.0 * -dq.vec();
+      }
+
+    } else {
+      // Trivial minus
+      DeltaChi.segment(idx, size) = x - x0_i;
+    }
+  }
 
   return DeltaChi;
 }
@@ -1680,31 +1648,33 @@ bool marg_error_t::EvaluateWithMinimalJacobians(
     double *residuals,
     double **jacobians,
     double **jacobiansMinimal) const {
-  /*
   // Residual e
   const vecx_t Delta_Chi = compute_delta_chi(params);
-  Eigen::Map<vecx_t> e(residuals, e0_.rows());
-  e = e0_ + J0_ * Delta_Chi;
+  Eigen::Map<vecx_t> e(residuals, r0_.rows());
+  e = r0_ + J0_ * Delta_Chi;
 
   // Return First Estimate Jacobians (FEJ)
   if (jacobians == nullptr) {
     return true;
   }
 
-  const size_t J_rows = e0_.rows();
+  const size_t J_rows = r0_.rows();
   for (size_t i = 0; i < remain_param_ptrs_.size(); i++) {
     if (jacobians[i] != nullptr) {
       const auto &param = remain_param_ptrs_[i];
       const size_t index = param_index_.at(param) - m_;
       const size_t J_cols = param->global_size;
-      const size_t local_size = param->local_size;
 
       Eigen::Map<matx_row_major_t> J(jacobians[i], J_rows, J_cols);
-      J.setZero();
-      J.leftCols(local_size) = J0_.middleCols(index, local_size);
+      if (param->global_size == param->local_size) {
+        J = J0_.middleCols(index, param->local_size);
+      } else {
+        const matx_t J_min = J0_.middleCols(index, param->local_size);
+        const mat4_t pose = tf(param->param);
+        J = J_min * lift_pose_jacobian(pose);
+      }
     }
   }
-  */
 
   return true;
 }

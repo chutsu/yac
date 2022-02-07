@@ -1045,8 +1045,7 @@ void calib_camera_t::_initialize_intrinsics() {
                      dist_params);
     calib.add_camera_extrinsics(0);
     calib.add_camera_data(0, grids);
-    calib.enable_nbv = true;
-    calib.enable_nbv_filter = false;
+    calib.enable_nbv = false;
     calib.enable_outlier_filter = true;
     calib.info_gain_threshold = 0.05;
     calib.initialized = true;

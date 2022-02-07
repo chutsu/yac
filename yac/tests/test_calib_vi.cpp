@@ -352,10 +352,8 @@ int test_marg_error() {
   LOG_INFO("Add inertial error");
   calib.marg_error.add(view.imu_error.get());
 
-  LOG_INFO("Form hessian");
-  matx_t H;
-  vecx_t b;
-  calib.marg_error.form_hessian(H, b, true);
+  LOG_INFO("Marginalize");
+  calib.marg_error.marginalize(calib.problem);
 
   return 0;
 }

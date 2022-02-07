@@ -297,7 +297,7 @@ public:
   std::unordered_map<param_t *, int> param_index_;
 
   std::unordered_map<double *, vecx_t> x0_; // Linearization point x0
-  vecx_t e0_;                               // Linearized residuals at x0
+  vecx_t r0_;                               // Linearized residuals at x0
   matx_t J0_;                               // Linearized jacobians at x0
 
   /* Constructor */

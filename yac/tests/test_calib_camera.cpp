@@ -140,6 +140,7 @@ int test_calib_camera_stereo() {
   calib.add_camera(1, cam_res, proj_model, dist_model);
   calib.solve();
   calib.save_results("/tmp/calib-results.yaml");
+  calib.save_estimates("/tmp/calib-estimates.yaml");
 
   return 0;
 }

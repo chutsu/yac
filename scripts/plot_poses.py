@@ -1,12 +1,15 @@
 """ Plot Poses """
+import sys
+
 import matplotlib.pylab as plt
+from mpl_toolkits import mplot3d
 
 from proto import load_poses
 from proto import plot_tf
 from proto import plot_set_axes_equal
 
 if __name__ == "__main__":
-  calib_poses = load_poses("/tmp/calib_poses.csv")
+  calib_poses = load_poses(sys.argv[1])
 
   plt.figure()
   ax = plt.axes(projection='3d')

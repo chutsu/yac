@@ -156,13 +156,6 @@ int calib_vi_view_t::filter_view(const real_t outlier_threshold) {
     }
   }
 
-  // printf("view_ts: %ld\n", ts);
-  // printf("error_stddev: %f\n", error_stddev);
-  // printf("threshold: %f\n", threshold);
-  // printf("nb_inliers: %d\n", nb_inliers);
-  // printf("nb_outliers: %d\n", nb_outliers);
-  // printf("\n");
-
   return nb_outliers;
 }
 

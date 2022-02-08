@@ -134,13 +134,21 @@ int test_calib_camera_stereo() {
 
   // Calibrate
   calib_camera_t calib{target};
-  calib.enable_nbv = false;
   calib.add_camera_data(cam_grids);
   calib.add_camera(0, cam_res, proj_model, dist_model);
   calib.add_camera(1, cam_res, proj_model, dist_model);
   calib.solve();
   calib.save_results("/tmp/calib-results.yaml");
   calib.save_estimates("/tmp/calib-estimates.yaml");
+
+  // Load test data for validation
+  const std::string data_path = "/data/euroc/imu_april";
+  std::map<int, std::string> cam_paths;
+  cam_paths[0] = data_path + "/mav0/cam0/data";
+  cam_paths[1] = data_path + "/mav0/cam1/data";
+  const std::string grids_path = "/data/euroc/imu_april/mav0/grid0";
+  const auto imu_grids = calib_data_preprocess(target, cam_paths, grids_path);
+  calib.validate(imu_grids);
 
   return 0;
 }
@@ -261,16 +269,15 @@ int test_calib_camera_kalibr_data() {
   vec4_t cam1_proj_params;
   vec4_t cam1_dist_params;
 
-  cam0_proj_params << 460.28579839, 459.06697967, 368.29981211, 244.66090975;
-  cam0_dist_params << -0.27615787, 0.06777914, 0.00075657, -0.00029946;
-  cam1_proj_params << 458.93183782, 457.62112957, 378.78364596, 251.34132251;
-  cam1_dist_params << -0.27284724, 0.06488226, 0.00050597, -0.00020954;
+  cam0_proj_params << 460.285798, 459.066980,368.299812,244.660910;
+  cam0_dist_params << -0.276158,0.067779,0.000757,-0.000299;
+  cam1_proj_params << 458.931838, 457.621130, 378.783646, 251.341323;
+  cam1_dist_params << -0.272847, 0.064882, 0.000506, -0.000210;
 
-  mat4_t T_C0C1;
-  T_C0C1 <<  0.99998276,  0.00248809, 0.00531827, -0.10994775,
-            -0.00256386,  0.99989464, 0.01428733,  0.00051399,
-            -0.00528217, -0.01430072, 0.99988379, -0.00024094,
-             0.        ,  0.        , 0.        ,  1.        ;
+  vec3_t r_C1C0{-0.109948,0.000514,-0.000241};
+  quat_t q_C1C0{0.999970, -0.007147,0.002650,-0.001263};
+  mat4_t T_C1C0 = tf(q_C1C0, r_C1C0);
+  mat4_t T_C0C1 = T_C1C0.inverse();
 
   calib.add_camera(0,
                    cam_res,
@@ -289,7 +296,7 @@ int test_calib_camera_kalibr_data() {
   // clang-format on
 
   calib.solve();
-  calib.save_results("/tmp/calib-results.yaml");
+  // calib.save_results("/tmp/calib-results.yaml");
 
   // Load test data for validation
   const std::string grids_path = "/data/euroc/imu_april/mav0/grid0";

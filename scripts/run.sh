@@ -32,6 +32,7 @@ set -e
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_mono"
 RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_stereo"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_validate"
+# RUN_CMD="rosrun --prefix 'gdb -ex run -args' yac test_calib_camera --target test_calib_camera_kalibr_data"
 
 
 # YAC - MOCAP CALIBRATION
@@ -69,18 +70,18 @@ RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_stereo"
 #   config_file:=/home/chutsu/projects/yac/yac_ros/config/calib_intel_d435i.yaml"
 # RUN_CMD="roslaunch yac_ros calib_mocap.launch"
 
-# tmux send-keys -t dev -R "\
-# cd ~/projects/yac \
-# && make lib_relwithdeb \
-# && source ~/catkin_ws/devel/setup.bash \
-# && ${RUN_CMD}
-# " C-m C-m
-# exit
+tmux send-keys -t dev -R "\
+cd ~/projects/yac \
+&& make lib_relwithdeb \
+&& source ~/catkin_ws/devel/setup.bash \
+&& ${RUN_CMD}
+" C-m C-m
+exit
 
 # python3 scripts/plot_frames.py
 # python3 scripts/plot_poses.py /tmp/calib-estimates.yaml
 # python3 scripts/plot_stats.py
-python3 scripts/plot_xyz.py /tmp/calib-estimates.csv "#ts" rx ry rz
+# python3 scripts/plot_xyz.py /tmp/calib-estimates.csv "#ts" rx ry rz
 # python3 scripts/sandbox.py
 
 # make

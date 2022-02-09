@@ -125,15 +125,24 @@ int test_calib_camera_mono() {
 }
 
 int test_calib_camera_stereo() {
-  // Setup
+  // Load training data
   const calib_target_t target{"aprilgrid", 6, 6, 0.088, 0.3};
   const int cam_res[2] = {752, 480};
   const std::string proj_model = "pinhole";
   const std::string dist_model = "radtan4";
   const auto cam_grids = setup_test_data();
 
+  // Load validation data
+  const std::string data_path = "/data/euroc/imu_april";
+  std::map<int, std::string> cam_paths;
+  cam_paths[0] = data_path + "/mav0/cam0/data";
+  cam_paths[1] = data_path + "/mav0/cam1/data";
+  const std::string grids_path = "/data/euroc/imu_april/mav0/grid0";
+  const auto imu_grids = calib_data_preprocess(target, cam_paths, grids_path);
+
   // Calibrate
   calib_camera_t calib{target};
+  calib.validation_data = imu_grids;
   calib.add_camera_data(cam_grids);
   calib.add_camera(0, cam_res, proj_model, dist_model);
   calib.add_camera(1, cam_res, proj_model, dist_model);
@@ -141,13 +150,6 @@ int test_calib_camera_stereo() {
   calib.save_results("/tmp/calib-results.yaml");
   calib.save_estimates("/tmp/calib-estimates.yaml");
 
-  // Load test data for validation
-  const std::string data_path = "/data/euroc/imu_april";
-  std::map<int, std::string> cam_paths;
-  cam_paths[0] = data_path + "/mav0/cam0/data";
-  cam_paths[1] = data_path + "/mav0/cam1/data";
-  const std::string grids_path = "/data/euroc/imu_april/mav0/grid0";
-  const auto imu_grids = calib_data_preprocess(target, cam_paths, grids_path);
   calib.validate(imu_grids);
 
   return 0;
@@ -253,8 +255,8 @@ int test_calib_camera_kalibr_data() {
   // Calibrate
   const calib_target_t calib_target{"aprilgrid", 6, 6, 0.088, 0.3};
   calib_camera_t calib{calib_target};
-  calib.enable_nbv = true;
-  calib.enable_outlier_filter = true;
+  calib.enable_nbv = false;
+  calib.enable_outlier_filter = false;
   calib.initialized = true;
   calib.add_camera_data(0, cam_grids.at(0));
   calib.add_camera_data(1, cam_grids.at(1));
@@ -263,21 +265,14 @@ int test_calib_camera_kalibr_data() {
   const int cam_res[2] = {752, 480};
   const std::string proj_model = "pinhole";
   const std::string dist_model = "radtan4";
-
-  vec4_t cam0_proj_params;
-  vec4_t cam0_dist_params;
-  vec4_t cam1_proj_params;
-  vec4_t cam1_dist_params;
-
-  cam0_proj_params << 460.285798, 459.066980,368.299812,244.660910;
-  cam0_dist_params << -0.276158,0.067779,0.000757,-0.000299;
-  cam1_proj_params << 458.931838, 457.621130, 378.783646, 251.341323;
-  cam1_dist_params << -0.272847, 0.064882, 0.000506, -0.000210;
-
-  vec3_t r_C1C0{-0.109948,0.000514,-0.000241};
-  quat_t q_C1C0{0.999970, -0.007147,0.002650,-0.001263};
-  mat4_t T_C1C0 = tf(q_C1C0, r_C1C0);
-  mat4_t T_C0C1 = T_C1C0.inverse();
+  const vec4_t cam0_proj_params{460.285798, 459.066980,368.299812,244.660910};
+  const vec4_t cam0_dist_params{-0.276158,0.067779,0.000757,-0.000299};
+  const vec4_t cam1_proj_params{458.931838, 457.621130, 378.783646, 251.341323};
+  const vec4_t cam1_dist_params{-0.272847, 0.064882, 0.000506, -0.000210};
+  const vec3_t r_C1C0{-0.109948,0.000514,-0.000241};
+  const quat_t q_C1C0{0.999970, -0.007147,0.002650,-0.001263};
+  const mat4_t T_C1C0 = tf(q_C1C0, r_C1C0);
+  const mat4_t T_C0C1 = T_C1C0.inverse();
 
   calib.add_camera(0,
                    cam_res,

@@ -89,19 +89,26 @@ using camera_calib_views_t = std::map<int, calib_views_t>;
 struct calib_camera_t {
   // Flags
   bool initialized = false;
-  bool batch_problem_setup = false;
+  bool problem_init = false;
   bool filter_views_init = false;
 
   // Settings
   bool verbose = true;
-
-  bool enable_outlier_filter = true;
-  real_t outlier_threshold = 3.0;
-
+  // -- Intrinsics initialization
+  bool enable_intrinsics_nbv = false;
+  bool enable_intrinsics_outlier_filter = true;
+  real_t intrinsics_outlier_threshold = 3.0;
+  real_t intrinsics_info_gain_threshold = 0.05;
+  int intrinsics_min_nbv_views = 20;
+  // -- Extrinsics initialization
+  bool enable_extrinsics_outlier_filter = true;
+  // -- Final stage settings
   bool enable_nbv = true;
   bool enable_nbv_filter = true;
-  int min_nbv_views = 20;
-  real_t info_gain_threshold = 0.08;
+  bool enable_outlier_filter = true;
+  int min_nbv_views = 10;
+  real_t outlier_threshold = 3.0;
+  real_t info_gain_threshold = 0.05;
 
   // Data
   calib_target_t calib_target;
@@ -109,13 +116,18 @@ struct calib_camera_t {
   std::map<int, real_t> focal_length_init;
   std::set<timestamp_t> timestamps;
   camera_data_t cam_data;
+  std::map<int, aprilgrids_t> validation_data;
   real_t calib_entropy_k = 0;
   int removed_outliers = 0;
-
-  // Calib views
   camera_calib_views_t calib_views;
 
+  // Temporary storage
+  std::map<int, vecx_t> cam_params_tmp;
+  std::map<int, vecx_t> cam_exts_tmp;
+  std::map<timestamp_t, vecx_t> poses_tmp;
+
   // Problem
+  std::default_random_engine calib_rng;
   ceres::Problem::Options prob_options;
   ceres::Problem *problem = nullptr;
   ceres::LossFunction *loss = nullptr;
@@ -180,6 +192,7 @@ struct calib_camera_t {
                 camera_params_t *cam_params,
                 extrinsics_t *cam_exts,
                 pose_t *rel_pose);
+  bool add_view(const std::map<int, aprilgrid_t> &cam_grids);
   void remove_view(const timestamp_t ts);
   void remove_all_views();
 
@@ -195,8 +208,9 @@ struct calib_camera_t {
   void _initialize_extrinsics();
   int _filter_view(const timestamp_t ts);
   int _filter_all_views();
-  int eval_view(real_t &entropy);
-  void _solve_batch();
+  int _eval_nbv(const timestamp_t ts);
+  void _print_stats(const real_t progress);
+  void _solve_batch(const bool filter_outliers);
   void _solve_nbv();
   void _solve_nbv_brute_force();
 
@@ -205,8 +219,7 @@ struct calib_camera_t {
   int save_results(const std::string &save_path);
   int save_estimates(const std::string &save_path);
   int save_stats(const std::string &save_path);
-
-  void validate(const std::map<int, aprilgrids_t> &cam_data);
+  real_t validate(const std::map<int, aprilgrids_t> &cam_data);
 };
 
 /** Solve Camera Calibration Problem */

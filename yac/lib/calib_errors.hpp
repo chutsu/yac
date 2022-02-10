@@ -339,9 +339,9 @@ public:
 
   /* Evaluate */
   bool EvaluateWithMinimalJacobians(double const *const *params,
-                                    double *residuals,
-                                    double **jacobians,
-                                    double **jacobiansMinimal) const;
+                                    double *res,
+                                    double **jacs,
+                                    double **min_jacs) const;
 };
 
 } //  namespace yac

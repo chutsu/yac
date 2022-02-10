@@ -133,6 +133,7 @@ struct calib_camera_t {
   ceres::Problem::Options prob_options;
   ceres::Problem *problem = nullptr;
   ceres::LossFunction *loss = nullptr;
+  marg_error_t marg_error;
   PoseLocalParameterization pose_plus;
 
   // State variables

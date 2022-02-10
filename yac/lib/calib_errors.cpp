@@ -66,7 +66,6 @@ bool calib_error_t::check_jacs(const int param_idx,
   param_t *param = param_blocks[param_idx];
   const int residual_size = num_residuals();
   const int local_size = param->local_size;
-  const int global_size = param->global_size;
 
   // Params
   std::vector<double *> param_ptrs;
@@ -1499,7 +1498,7 @@ void marg_error_t::schurs_complement(const matx_t &H,
   b_marg = brr - Hrm * Hmm_inv * bmm;
   const double inv_check = ((Hmm * Hmm_inv) - I(m, m)).sum();
   if (fabs(inv_check) > 1e-4) {
-    LOG_ERROR("FAILED!: Inverse identity check: %f", inv_check);
+    LOG_WARN("FAILED!: Inverse identity check: %f", inv_check);
   }
 
   if (debug) {
@@ -1535,15 +1534,15 @@ void marg_error_t::marginalize(ceres::Problem *problem, bool debug) {
     }
   }
 
-  printf("nb_marg_params: %ld\n", marg_param_ptrs_.size());
-  for (const auto &param : marg_param_ptrs_) {
-    printf("- marg_param: %s\n", param->type.c_str());
-  }
+  // printf("nb_marg_params: %ld\n", marg_param_ptrs_.size());
+  // for (const auto &param : marg_param_ptrs_) {
+  //   printf("- marg_param: %s\n", param->type.c_str());
+  // }
 
-  printf("nb_remain_params: %ld\n", remain_param_ptrs_.size());
-  for (const auto &param : remain_param_ptrs_) {
-    printf("- remain_param: %s\n", param->type.c_str());
-  }
+  // printf("nb_remain_params: %ld\n", remain_param_ptrs_.size());
+  // for (const auto &param : remain_param_ptrs_) {
+  //   printf("- remain_param: %s\n", param->type.c_str());
+  // }
 
   // Form Hessian and RHS of Gauss newton
   matx_t H;
@@ -1604,6 +1603,18 @@ void marg_error_t::marginalize(ceres::Problem *problem, bool debug) {
 vecx_t marg_error_t::compute_delta_chi(double const *const *params) const {
   assert(marginalized_);
 
+  // Check if parameter is a pose
+  auto is_pose = [](const param_t *param) {
+    if (param->type == "pose_t") {
+      return true;
+    } else if (param->type == "extrinsics_t") {
+      return true;
+    } else if (param->type == "fiducial_t" && param->global_size == 7) {
+      return true;
+    }
+    return false;
+  };
+
   // Stack DeltaChi vector
   vecx_t DeltaChi(r0_.size());
   for (size_t i = 0; i < remain_param_ptrs_.size(); i++) {
@@ -1618,54 +1629,54 @@ vecx_t marg_error_t::compute_delta_chi(double const *const *params) const {
 
     // Calculate i-th DeltaChi
     const Eigen::Map<const vecx_t> x(params[i], size);
-    if (param_block->type == "pose_t" || param_block->type == "extrinsics_t" ||
-        (param_block->type == "fiducial_t" && param_block->param.size() == 7)) {
+    if (is_pose(param_block)) {
       // Pose minus
-      const vec3_t dr = x.head<3>() - x0_i.head<3>();
-      const quat_t q_i(x(6), x(3), x(4), x(5));
-      const quat_t q_j(x0_i(6), x0_i(3), x0_i(4), x0_i(5));
-      const quat_t dq = q_j.inverse() * q_i;
+      const vec3_t dr = x0_i.head<3>() - x.head<3>();
+      const quat_t q_i(x0_i(6), x0_i(3), x0_i(4), x0_i(5));
+      const quat_t q_j(x(6), x(3), x(4), x(5));
+      const quat_t dq = q_i * q_j.inverse();
       DeltaChi.segment<3>(idx + 0) = dr;
       DeltaChi.segment<3>(idx + 3) = 2.0 * dq.vec();
       if (!(dq.w() >= 0)) {
         DeltaChi.segment<3>(idx + 3) = 2.0 * -dq.vec();
       }
-
     } else {
       // Trivial minus
-      DeltaChi.segment(idx, size) = x - x0_i;
+      DeltaChi.segment(idx, size) = x0_i - x;
     }
   }
 
   return DeltaChi;
 }
 
-bool marg_error_t::EvaluateWithMinimalJacobians(
-    double const *const *params,
-    double *residuals,
-    double **jacobians,
-    double **jacobiansMinimal) const {
-  // Residual e
+bool marg_error_t::EvaluateWithMinimalJacobians(double const *const *params,
+                                                double *res,
+                                                double **jacs,
+                                                double **min_jacs) const {
+  UNUSED(min_jacs);
+
+  // Residuals
   const vecx_t Delta_Chi = compute_delta_chi(params);
-  Eigen::Map<vecx_t> e(residuals, r0_.rows());
+  Eigen::Map<vecx_t> e(res, r0_.rows());
   e = r0_ + J0_ * Delta_Chi;
 
   // Return First Estimate Jacobians (FEJ)
-  if (jacobians == nullptr) {
+  if (jacs == nullptr) {
     return true;
   }
 
   const size_t J_rows = r0_.rows();
   for (size_t i = 0; i < remain_param_ptrs_.size(); i++) {
-    if (jacobians[i] != nullptr) {
+    if (jacs[i] != nullptr) {
       const auto &param = remain_param_ptrs_[i];
       const size_t index = param_index_.at(param) - m_;
       const size_t J_cols = param->global_size;
 
-      Eigen::Map<matx_row_major_t> J(jacobians[i], J_rows, J_cols);
+      Eigen::Map<matx_row_major_t> J(jacs[i], J_rows, J_cols);
       if (param->global_size == param->local_size) {
         J = J0_.middleCols(index, param->local_size);
-      } else {
+      } else if (param->local_size == 6) {
+        // We can assume this parameter is a pose / extrinsics parameter
         const matx_t J_min = J0_.middleCols(index, param->local_size);
         const mat4_t pose = tf(param->param);
         J = J_min * lift_pose_jacobian(pose);

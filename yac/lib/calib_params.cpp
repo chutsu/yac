@@ -256,10 +256,10 @@ fiducial_corners_t::fiducial_corners_t(const calib_target_t &target_)
     const vec3_t p1{x + tag_size, y, 0.0};
     const vec3_t p2{x + tag_size, y + tag_size, 0.0};
     const vec3_t p3{x, y + tag_size, 0.0};
-    data[tag_id][0] = fiducial_corner_t{tag_id, 0, p0}; // Bottom left
-    data[tag_id][1] = fiducial_corner_t{tag_id, 1, p1}; // Bottom right
-    data[tag_id][2] = fiducial_corner_t{tag_id, 2, p2}; // Top right
-    data[tag_id][3] = fiducial_corner_t{tag_id, 3, p3}; // Top left
+    data[tag_id][0] = fiducial_corner_t{tag_id, 0, p0, true}; // Bottom left
+    data[tag_id][1] = fiducial_corner_t{tag_id, 1, p1, true}; // Bottom right
+    data[tag_id][2] = fiducial_corner_t{tag_id, 2, p2, true}; // Top right
+    data[tag_id][3] = fiducial_corner_t{tag_id, 3, p3, true}; // Top left
   }
 }
 

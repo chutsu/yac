@@ -16,8 +16,6 @@ aprilgrid_t::aprilgrid_t(const timestamp_t &timestamp,
       tag_spacing{tag_spacing}, data{zeros(tag_rows * tag_cols * 4, 6)} {}
 
 void aprilgrid_t::clear() {
-  assert(init == true);
-
   detected = false;
   nb_detections = 0;
   data.setZero();
@@ -338,7 +336,6 @@ int aprilgrid_t::save(const std::string &save_path) const {
 }
 
 int aprilgrid_t::load(const std::string &data_path) {
-  assert(init == true);
   // Open file for loading
   int nb_rows = 0;
   FILE *fp = file_open(data_path, "r", &nb_rows);
@@ -415,6 +412,7 @@ int aprilgrid_t::load(const std::string &data_path) {
   }
 
   // Clean up
+  init = true;
   fclose(fp);
 
   return 0;

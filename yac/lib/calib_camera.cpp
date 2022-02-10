@@ -648,7 +648,7 @@ void calib_camera_t::add_pose(const timestamp_t ts, const bool fixed) {
     return;
   }
 
-  // Find the AprilGrid that has the most observations
+  // Find the AprilGrid that has the most observations at timestamp ts
   int best_cam_idx = 0;
   aprilgrid_t best_grid;
   for (const auto &[cam_idx, grid] : cam_data.at(ts)) {
@@ -1162,12 +1162,6 @@ int calib_camera_t::_filter_all_views() {
 }
 
 int calib_camera_t::_eval_nbv(const timestamp_t nbv_ts) {
-  // Ceres options and summary
-  ceres::Solver::Options options;
-  options.minimizer_progress_to_stdout = false;
-  options.max_num_iterations = 50;
-  ceres::Solver::Summary summary;
-
   // Keep track of initial values
   poses_tmp.clear();
   cam_params_tmp.clear();
@@ -1181,13 +1175,14 @@ int calib_camera_t::_eval_nbv(const timestamp_t nbv_ts) {
   }
 
   // Solve with new view
-  if (nb_views() > min_nbv_views) {
-    ceres::Solve(options, problem, &summary);
-  }
+  ceres::Solver::Options options;
+  options.minimizer_progress_to_stdout = false;
+  options.max_num_iterations = 10;
+  ceres::Solver::Summary summary;
+  ceres::Solve(options, problem, &summary);
 
   // Filter last view and optimize again
   int removed = 0;
-  const auto first_camera = get_camera_indices()[0];
   if (enable_nbv_filter && nb_views() > min_nbv_views) {
     if (filter_views_init == false) {
       removed = _filter_all_views();
@@ -1206,14 +1201,20 @@ int calib_camera_t::_eval_nbv(const timestamp_t nbv_ts) {
   if (retval != 0) {
     return -1;
   }
+
+  // Initialize covar_det_k
   if (fltcmp(covar_det_k, -1.0) == 0) {
     covar_det_k = calib_covar.determinant();
+    removed_outliers += removed;
     return 0;
   }
 
   // Calculate information gain
   const real_t covar_det_kp1 = calib_covar.determinant();
-  info_gain = 0.5 * (log(covar_det_k / covar_det_kp1) / log(2.0));
+  info_gain = 0.5 * ((log(covar_det_k) - log(covar_det_kp1)) / log(2.0));
+  printf("log2(covar_det_k): %e ", log(covar_det_k) / log(2.0));
+  printf("log2(covar_det_k): %e ", log(covar_det_kp1) / log(2.0));
+  printf("info gain: %f\n", info_gain);
   if (info_gain < info_gain_threshold) {
     // Restore values before view was added
     for (const auto &[ts, pose] : poses) {
@@ -1273,6 +1274,7 @@ void calib_camera_t::_print_stats(const real_t progress) {
   // printf("entropy: %.2f ", calib_entropy_k);
   // printf("validation_error: %.2f ", valid_error);
   printf("info_gain: %.2f ", info_gain);
+  printf("covar_det_k: %e ", covar_det_k);
   printf("\n");
 
   const mat4_t T_BC0 = get_camera_extrinsics(0);
@@ -1353,6 +1355,12 @@ void calib_camera_t::_solve_nbv() {
   std::shuffle(nbv_timestamps.begin(), nbv_timestamps.end(), calib_rng);
   const real_t nb_timestamps = (real_t)nbv_timestamps.size();
 
+  // Solver options
+  ceres::Solver::Options options;
+  options.minimizer_progress_to_stdout = false;
+  options.max_num_iterations = 100;
+  ceres::Solver::Summary summary;
+
   // NBV
   if (verbose) {
     printf("Solving Incremental NBV problem\n");
@@ -1388,10 +1396,10 @@ void calib_camera_t::_solve_nbv() {
     // Update
     ts_idx++;
     problem_init = true;
-    const auto nbv_begin = nbv_timestamps.begin();
-    const auto nbv_end = nbv_timestamps.end();
-    const auto nbv_idx = std::remove(nbv_begin, nbv_end, ts);
-    nbv_timestamps.erase(nbv_idx, nbv_end);
+    // const auto nbv_begin = nbv_timestamps.begin();
+    // const auto nbv_end = nbv_timestamps.end();
+    // const auto nbv_idx = std::remove(nbv_begin, nbv_end, ts);
+    // nbv_timestamps.erase(nbv_idx, nbv_end);
   }
 
   // Final outlier rejection, then batch solve
@@ -1403,10 +1411,6 @@ void calib_camera_t::_solve_nbv() {
   }
 
   // Final Solve
-  ceres::Solver::Options options;
-  options.minimizer_progress_to_stdout = verbose;
-  options.max_num_iterations = 100;
-  ceres::Solver::Summary summary;
   ceres::Solve(options, problem, &summary);
   if (verbose) {
     std::cout << summary.BriefReport() << std::endl;

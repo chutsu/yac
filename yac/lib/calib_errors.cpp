@@ -1368,15 +1368,12 @@ void marg_error_t::form_hessian(matx_t &H, vecx_t &b, bool debug) {
     param_index_.insert({param_block, index});
     index += param_block->local_size;
     r_ += param_block->local_size;
-    // !!!!!!!!!!!!!!!!!!!!!!!! VERY IMPORTANT
-    // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Update param blocks and sizes for
-    // ceres::CostFunction
+    // VERY IMPORTANT!! Update param blocks and sizes for ceres::CostFunction
     mutable_parameter_block_sizes()->push_back(param_block->global_size);
   }
 
-  // !!!!!!!!!!!!!!!!!!!!!!!!!! VERY
-  // IMPORTANT!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Now we know the Hessian size,
-  // we can update the number of residuals for ceres::CostFunction
+  // !! VERY IMPORTANT !! Now we know the Hessian size, we can update the
+  // number of residuals for ceres::CostFunction
   set_num_residuals(r_);
 
   // Form the H and b. Left and RHS of Gauss-Newton.

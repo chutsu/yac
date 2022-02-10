@@ -25,7 +25,7 @@ deps: ## Install dependencies
 lib_debug: ${CATKIN_WS} ${YAC_PATH}  ## Build libyac in debug mode
 	@cd ${CATKIN_WS} && \
 		. /opt/ros/${ROS_VERSION}/setup.sh && \
-		catkin build yac -DCMAKE_BUILD_TYPE=RelWithDebInfo -j4
+		catkin build yac -DCMAKE_BUILD_TYPE=Debug -j4
 
 lib_relwithdeb: ${CATKIN_WS} ${YAC_PATH}  ## Build libyac in release with debug mode
 	@cd ${CATKIN_WS} && \

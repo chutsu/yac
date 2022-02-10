@@ -1,4 +1,4 @@
-#/bin/bash
+#!/bin/bash
 set -e
 
 # --prefix 'gdb -ex=run -ex=\"set confirm off\" -ex=bt -ex=quit -args'
@@ -27,11 +27,21 @@ set -e
 
 # YAC - CAMERA CALIBRATION
 # RUN_CMD="rosrun yac test_calib_camera"
-# RUN_CMD="rosrun yac test_calib_camera --target test_initialize_camera"
+# RUN_CMD="rosrun yac test_calib_camera --target test_calib_view"
+# RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_add_camera_data"
+# RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_add_camera"
+# RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_add_camera_extrinsics"
+# RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_add_pose"
+# RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_add_and_remove_view"
+# RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_recover_calib_covar"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_find_nbv"
+# RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_filter_view"
+# RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_filter_all_views"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_mono"
-RUN_CMD="rosrun --prefix 'gdb -ex run -args' yac test_calib_camera --target test_calib_camera_stereo"
+RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_stereo"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_validate"
+# RUN_CMD="rosrun --prefix 'gdb -ex run -args' yac test_calib_camera"
+# RUN_CMD="rosrun --prefix 'gdb -ex run -args' yac test_calib_camera --target test_calib_camera_stereo"
 # RUN_CMD="rosrun --prefix 'gdb -ex run -args' yac test_calib_camera --target test_calib_camera_kalibr_data"
 
 

@@ -30,7 +30,7 @@ set -e
 # RUN_CMD="rosrun yac test_calib_camera --target test_initialize_camera"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_find_nbv"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_mono"
-RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_stereo"
+RUN_CMD="rosrun --prefix 'gdb -ex run -args' yac test_calib_camera --target test_calib_camera_stereo"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_validate"
 # RUN_CMD="rosrun --prefix 'gdb -ex run -args' yac test_calib_camera --target test_calib_camera_kalibr_data"
 

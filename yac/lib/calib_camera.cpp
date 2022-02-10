@@ -1206,11 +1206,14 @@ int calib_camera_t::_eval_nbv(const timestamp_t nbv_ts) {
   if (retval != 0) {
     return -1;
   }
+  if (fltcmp(covar_det_k, -1.0) == 0) {
+    covar_det_k = calib_covar.determinant();
+    return 0;
+  }
 
   // Calculate information gain
-  const real_t calib_entropy_kp1 = shannon_entropy(calib_covar);
-  const real_t info_gain = 0.5 * (calib_entropy_k - calib_entropy_kp1);
-  printf("info gain: %f\n", info_gain);
+  const real_t covar_det_kp1 = calib_covar.determinant();
+  info_gain = 0.5 * (log(covar_det_k / covar_det_kp1) / log(2.0));
   if (info_gain < info_gain_threshold) {
     // Restore values before view was added
     for (const auto &[ts, pose] : poses) {
@@ -1233,41 +1236,43 @@ int calib_camera_t::_eval_nbv(const timestamp_t nbv_ts) {
   }
 
   // Update
-  calib_entropy_k = calib_entropy_kp1;
+  covar_det_k = covar_det_kp1;
   removed_outliers += removed;
 
   return 0;
 }
 
 void calib_camera_t::_print_stats(const real_t progress) {
-  // calib_camera_t valid{calib_target};
-  // for (const auto cam_idx : get_camera_indices()) {
-  //   const auto cam_param = cam_params[cam_idx];
-  //   const int *cam_res = cam_param->resolution;
-  //   const std::string &proj_model = cam_param->proj_model;
-  //   const std::string &dist_model = cam_param->dist_model;
-  //   const vecx_t &proj_params = cam_param->proj_params();
-  //   const vecx_t &dist_params = cam_param->dist_params();
+  // if (validation_data.size()) {
+  //   calib_camera_t valid{calib_target};
+  //   for (const auto cam_idx : get_camera_indices()) {
+  //     const auto cam_param = cam_params[cam_idx];
+  //     const int *cam_res = cam_param->resolution;
+  //     const std::string &proj_model = cam_param->proj_model;
+  //     const std::string &dist_model = cam_param->dist_model;
+  //     const vecx_t &proj_params = cam_param->proj_params();
+  //     const vecx_t &dist_params = cam_param->dist_params();
   //
-  //   valid.add_camera(cam_idx,
-  //                    cam_res,
-  //                    proj_model,
-  //                    dist_model,
-  //                    proj_params,
-  //                    dist_params,
-  //                    true);
-  //   valid.add_camera_extrinsics(cam_idx, cam_exts[cam_idx]->tf());
+  //     valid.add_camera(cam_idx,
+  //                      cam_res,
+  //                      proj_model,
+  //                      dist_model,
+  //                      proj_params,
+  //                      dist_params,
+  //                      true);
+  //     valid.add_camera_extrinsics(cam_idx, cam_exts[cam_idx]->tf());
+  //   }
+  //   const auto valid_error = valid.validate(validation_data);
   // }
-  // const auto valid_error = valid.validate(validation_data);
 
   const auto reproj_errors_all = get_all_reproj_errors();
   // clang-format off
   printf("[%.2f%%] ", progress);
   printf("nb_views: %d  ", nb_views());
   printf("reproj_error: %.2f ", rmse(reproj_errors_all));
+  // printf("entropy: %.2f ", calib_entropy_k);
   // printf("validation_error: %.2f ", valid_error);
-  printf("entropy: %.2f ", calib_entropy_k);
-  // printf("info_gain: %.2f ", info_gain);
+  printf("info_gain: %.2f ", info_gain);
   printf("\n");
 
   const mat4_t T_BC0 = get_camera_extrinsics(0);
@@ -1346,6 +1351,7 @@ void calib_camera_t::_solve_nbv() {
     }
   }
   std::shuffle(nbv_timestamps.begin(), nbv_timestamps.end(), calib_rng);
+  const real_t nb_timestamps = (real_t)nbv_timestamps.size();
 
   // NBV
   if (verbose) {
@@ -1353,7 +1359,7 @@ void calib_camera_t::_solve_nbv() {
   }
   size_t ts_idx = 0;
   size_t stale_counter = 0;
-  size_t stale_threshold = 20;
+  size_t stale_threshold = 40;
 
   for (const auto &ts : nbv_timestamps) {
     // Add view
@@ -1369,12 +1375,11 @@ void calib_camera_t::_solve_nbv() {
     }
 
     // Stop early?
-    if (stale_counter > stale_threshold) {
-      break;
-    }
+    // if (stale_counter > stale_threshold) {
+    //   break;
+    // }
 
     // Print stats
-    const real_t nb_timestamps = (real_t)nbv_timestamps.size();
     const real_t progress = ((real_t)ts_idx / nb_timestamps) * 100.0;
     if (verbose) {
       _print_stats(progress);
@@ -1387,7 +1392,6 @@ void calib_camera_t::_solve_nbv() {
     const auto nbv_end = nbv_timestamps.end();
     const auto nbv_idx = std::remove(nbv_begin, nbv_end, ts);
     nbv_timestamps.erase(nbv_idx, nbv_end);
-    std::shuffle(nbv_timestamps.begin(), nbv_timestamps.end(), calib_rng);
   }
 
   // Final outlier rejection, then batch solve

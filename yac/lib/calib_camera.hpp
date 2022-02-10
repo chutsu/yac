@@ -106,9 +106,9 @@ struct calib_camera_t {
   bool enable_nbv = true;
   bool enable_nbv_filter = true;
   bool enable_outlier_filter = true;
-  int min_nbv_views = 10;
-  real_t outlier_threshold = 3.0;
-  real_t info_gain_threshold = 0.05;
+  int min_nbv_views = 40;
+  real_t outlier_threshold = 4.0;
+  real_t info_gain_threshold = 0.6;
 
   // Data
   calib_target_t calib_target;
@@ -117,7 +117,9 @@ struct calib_camera_t {
   std::set<timestamp_t> timestamps;
   camera_data_t cam_data;
   std::map<int, aprilgrids_t> validation_data;
-  real_t calib_entropy_k = 0;
+  real_t calib_entropy_k = -1;
+  real_t covar_det_k = -1.0;
+  real_t info_gain = 0.0;
   int removed_outliers = 0;
   camera_calib_views_t calib_views;
 

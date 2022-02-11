@@ -1341,6 +1341,37 @@ void calib_camera_t::_solve_batch(const bool filter_outliers) {
   }
 }
 
+void calib_camera_t::_solve_inc() {
+  // Solver options
+  ceres::Solver::Options options;
+  options.minimizer_progress_to_stdout = false;
+  options.max_num_iterations = 100;
+  ceres::Solver::Summary summary;
+
+  // NBV
+  if (verbose) {
+    printf("Solving Incremental problem\n");
+  }
+  size_t ts_idx = 0;
+
+  for (const auto &ts : timestamps) {
+    // Add view
+    if (add_view(cam_data[ts]) == false) {
+      continue;
+    }
+
+    // Print stats
+    const real_t progress = ((real_t)ts_idx / timestamps.size()) * 100.0;
+    if (verbose) {
+      _print_stats(progress);
+    }
+
+    // Update
+    ts_idx++;
+    problem_init = true;
+  }
+}
+
 void calib_camera_t::_solve_nbv() {
   // Shuffle timestamps
   timestamps_t nbv_timestamps;
@@ -1815,7 +1846,7 @@ int calib_camera_t::save_stats(const std::string &save_path) {
   return 0;
 }
 
-real_t calib_camera_t::validate(const std::map<int, aprilgrids_t> &cam_data) {
+real_t calib_camera_t::validate(const std::map<int, aprilgrids_t> &valid_data) {
   // Pre-check
   if (cam_params.size() == 0) {
     FATAL("cam_params.size() == 0");
@@ -1827,6 +1858,14 @@ real_t calib_camera_t::validate(const std::map<int, aprilgrids_t> &cam_data) {
 
   // Lambda to average poses
   auto find_mean_pose = [](const mat4s_t &poses) {
+    if (poses.size() == 0) {
+      FATAL("Num of poses should not be 0!");
+    }
+
+    if (poses.size() == 1) {
+      return poses[0];
+    }
+
     std::vector<real_t> rx;
     std::vector<real_t> ry;
     std::vector<real_t> rz;
@@ -1864,7 +1903,7 @@ real_t calib_camera_t::validate(const std::map<int, aprilgrids_t> &cam_data) {
     return tf(q, r);
   };
 
-  // Estimate relaitve poses T_C0F
+  // Estimate relative poses T_C0F
   std::map<timestamp_t, mat4s_t> fiducial_poses;
   for (const auto cam_idx : get_camera_indices()) {
     const auto cam_geom = cam_geoms[cam_idx];
@@ -1872,7 +1911,7 @@ real_t calib_camera_t::validate(const std::map<int, aprilgrids_t> &cam_data) {
     const auto cam_res = cam_param->resolution;
     const auto T_C0Ci = cam_exts[cam_idx]->tf();
 
-    for (const auto &grid : cam_data.at(cam_idx)) {
+    for (const auto &grid : valid_data.at(cam_idx)) {
       // Make sure aprilgrid is detected
       if (grid.detected == false) {
         continue;
@@ -1894,9 +1933,9 @@ real_t calib_camera_t::validate(const std::map<int, aprilgrids_t> &cam_data) {
     const auto cam_geom = cam_geoms[cam_idx];
     const auto cam_param = cam_params[cam_idx];
     const auto cam_res = cam_param->resolution;
-    const auto T_CiC0 = cam_exts[cam_idx]->tf().inverse();
+    const mat4_t T_CiC0 = cam_exts[cam_idx]->tf().inverse();
 
-    for (const auto &grid : cam_data.at(cam_idx)) {
+    for (const auto &grid : valid_data.at(cam_idx)) {
       // Make sure aprilgrid is detected
       if (grid.detected == false) {
         continue;

@@ -408,13 +408,15 @@ int test_calib_camera_stereo() {
 
   // Calibrate
   calib_camera_t calib{target};
-  calib.enable_nbv = true;
+  calib.enable_nbv = false;
   calib.add_camera_data(test_data);
   calib.add_camera(0, cam_res, proj_model, dist_model);
   calib.add_camera(1, cam_res, proj_model, dist_model);
-  calib.solve();
-  calib.save_results("/tmp/calib-results.yaml");
-  calib.save_estimates("/tmp/calib-estimates.yaml");
+  calib.add_camera_extrinsics(0);
+  calib.add_camera_extrinsics(1);
+  // calib.solve();
+  // calib.save_results("/tmp/calib-results.yaml");
+  // calib.save_estimates("/tmp/calib-estimates.yaml");
   calib.validate(valid_data);
 
   return 0;
@@ -454,13 +456,17 @@ int test_marg_error() {
   calib.add_camera_data(1, cam1_grids);
   calib.add_camera(0, cam_res, proj_model, dist_model);
   calib.add_camera(1, cam_res, proj_model, dist_model);
-  calib._initialize_intrinsics();
-  calib._initialize_extrinsics();
-  // calib.add_camera_extrinsics(0);
-  // calib.add_camera_extrinsics(1);
+  // calib._initialize_intrinsics();
+  // calib._initialize_extrinsics();
+  calib.add_camera_extrinsics(0);
+  calib.add_camera_extrinsics(1);
 
   // Build problem
   for (const auto ts : calib.timestamps) {
+    if (calib.cam_data[ts].size() != 2) {
+      continue;
+    }
+
     calib.add_view(calib.cam_data[ts]);
     if (calib.nb_views() > max_num_views) {
       break;
@@ -468,24 +474,45 @@ int test_marg_error() {
   }
 
   // Test marginalization error add
+  int i = 0;
   for (auto &[ts, view] : calib.calib_views[0]) {
+    printf("cam0 view ts: %ld\n", view->T_C0F->ts);
     view->T_C0F->marginalize = true;
     for (auto &res_fn : view->res_fns) {
       calib.marg_error.add(res_fn.get());
     }
     break;
+
+    // if (i++ == max_num_views - 8) {
+    //   break;
+    // }
   }
+  int j = 0;
   for (auto &[ts, view] : calib.calib_views[1]) {
+    printf("cam1 view ts: %ld\n", view->T_C0F->ts);
     view->T_C0F->marginalize = true;
     for (auto &res_fn : view->res_fns) {
       calib.marg_error.add(res_fn.get());
     }
     break;
+
+    // if (j++ == max_num_views - 8) {
+    //   break;
+    // }
   }
-  calib.marg_error.marginalize(calib.problem);
+
+  // Test marginalize
+  int nb_res_blocks = calib.problem->NumResidualBlocks();
+  int nb_param_blocks = calib.problem->NumParameterBlocks();
+  calib.marg_error.marginalize(calib.problem, true);
   calib.problem->AddResidualBlock(&calib.marg_error,
                                   NULL,
                                   calib.marg_error.get_param_ptrs());
+  // -- Asserts
+  nb_res_blocks -= (calib.marg_error.res_blocks_.size() - 1);
+  nb_param_blocks -= 1;
+  MU_CHECK(nb_res_blocks == calib.problem->NumResidualBlocks());
+  MU_CHECK(nb_param_blocks == calib.problem->NumParameterBlocks());
 
   // Solve
   ceres::Solver::Options options;
@@ -569,7 +596,7 @@ int test_calib_camera_kalibr_data() {
 
 void test_suite() {
   load_test_dataset();
-  // load_validation_dataset();
+  load_validation_dataset();
 
   MU_ADD_TEST(test_calib_view);
   MU_ADD_TEST(test_calib_camera_add_camera_data);

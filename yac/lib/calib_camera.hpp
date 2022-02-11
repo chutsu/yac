@@ -214,6 +214,7 @@ struct calib_camera_t {
   int _eval_nbv(const timestamp_t ts);
   void _print_stats(const real_t progress);
   void _solve_batch(const bool filter_outliers);
+  void _solve_inc();
   void _solve_nbv();
   void _solve_nbv_brute_force();
 

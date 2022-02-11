@@ -40,8 +40,8 @@ set -e
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_mono"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_stereo"
 RUN_CMD="rosrun yac test_calib_camera --target test_marg_error"
+# RUN_CMD="rosrun --prefix 'gdb -ex run -args' yac test_calib_camera --target test_marg_error"
 # RUN_CMD="rosrun --prefix 'gdb -ex run -args' yac test_calib_camera"
-# RUN_CMD="rosrun --prefix 'gdb -ex run -args' yac test_calib_camera --target test_calib_camera_stereo"
 # RUN_CMD="rosrun --prefix 'gdb -ex run -args' yac test_calib_camera --target test_calib_camera_kalibr_data"
 
 
@@ -80,14 +80,15 @@ RUN_CMD="rosrun yac test_calib_camera --target test_marg_error"
 #   config_file:=/home/chutsu/projects/yac/yac_ros/config/calib_intel_d435i.yaml"
 # RUN_CMD="roslaunch yac_ros calib_mocap.launch"
 
-tmux send-keys -t dev -R "\
-cd ~/projects/yac \
-&& make lib_relwithdeb \
-&& source ~/catkin_ws/devel/setup.bash \
-&& ${RUN_CMD}
-" C-m C-m
-exit
+# tmux send-keys -t dev -R "\
+# cd ~/projects/yac \
+# && make lib_relwithdeb \
+# && source ~/catkin_ws/devel/setup.bash \
+# && ${RUN_CMD}
+# " C-m C-m
+# exit
 
+python3 scripts/marg.py
 # python3 scripts/plot_frames.py
 # python3 scripts/plot_poses.py /tmp/calib-estimates.yaml
 # python3 scripts/plot_stats.py

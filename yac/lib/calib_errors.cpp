@@ -1528,11 +1528,19 @@ void marg_error_t::marginalize(ceres::Problem *problem, bool debug) {
   matx_t H;
   vecx_t b;
   form_hessian(H, b);
+  if (debug) {
+    mat2csv("/tmp/H.csv", H);
+    mat2csv("/tmp/b.csv", b);
+  }
 
   // Compute Schurs Complement
   matx_t H_marg;
   vecx_t b_marg;
   schurs_complement(H, b, m_, r_, H_marg, b_marg);
+  if (debug) {
+    mat2csv("/tmp/H_marg.csv", H_marg);
+    mat2csv("/tmp/b_marg.csv", b_marg);
+  }
 
   // Decompose matrix H into J^T * J to obtain J via eigen-decomposition
   // i.e. H = U S U^T and therefore J = S^0.5 * U^T
@@ -1551,11 +1559,15 @@ void marg_error_t::marginalize(ceres::Problem *problem, bool debug) {
   // - Linearized jacobians
   // - Linearized residuals
   // clang-format off
+  J0_ = S_sqrt.asDiagonal() * eig.eigenvectors().transpose();
+  r0_ = -1.0 * S_inv_sqrt.asDiagonal() * eig.eigenvectors().transpose() * b_marg;
   for (const auto &param_block : remain_param_ptrs_) {
     x0_.insert({param_block->param.data(), param_block->param});
   }
-  J0_ = S_sqrt.asDiagonal() * eig.eigenvectors().transpose();
-  r0_ = -1.0 * S_inv_sqrt.asDiagonal() * eig.eigenvectors().transpose() * b_marg;
+  if (debug) {
+    mat2csv("/tmp/J0.csv", J0_);
+    mat2csv("/tmp/r0.csv", r0_);
+  }
 
   // Check decomposition
   const real_t decomp_norm = ((J0_.transpose() * J0_) - H_marg).norm();

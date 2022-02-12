@@ -309,7 +309,7 @@ public:
   marg_error_t() = default;
 
   /* Destructor */
-  ~marg_error_t() = default;
+  ~marg_error_t();
 
   /* Get Residual Size */
   size_t get_residual_size() const;

@@ -49,9 +49,9 @@ int test_calib_view() {
                &corners,
                &problem,
                &loss,
-               cam_geoms,
-               cam_params,
-               cam_exts,
+               &cam_geoms,
+               &cam_params,
+               &cam_exts,
                &rel_pose);
 
   return 0;
@@ -329,31 +329,31 @@ int test_calib_camera_filter_all_views() {
   return 0;
 }
 
-// int test_calib_camera_eval_nbv() {
-//   const int cam_res[2] = {752, 480};
-//   const std::string proj_model = "pinhole";
-//   const std::string dist_model = "radtan4";
-//   const calib_target_t calib_target;
-//
-//   calib_camera_t calib{calib_target};
-//   calib.add_camera(0, cam_res, proj_model, dist_model);
-//   calib.add_camera(1, cam_res, proj_model, dist_model);
-//   calib.add_camera_extrinsics(0);
-//   calib.add_camera_extrinsics(1);
-//   calib.add_camera_data(0, test_data.at(0));
-//   calib.add_camera_data(1, test_data.at(1));
-//
-//   timestamp_t last_ts = 0;
-//   for (const auto ts : calib.timestamps) {
-//     calib.add_view(calib.calib_data[ts]);
-//     if (calib.nb_views() > 10) {
-//       break;
-//     }
-//   }
-//   calib._eval_nbv(last_ts);
-//
-//   return 0;
-// }
+int test_calib_camera_eval_nbv() {
+  const int cam_res[2] = {752, 480};
+  const std::string proj_model = "pinhole";
+  const std::string dist_model = "radtan4";
+  const calib_target_t calib_target;
+
+  calib_camera_t calib{calib_target};
+  calib.add_camera(0, cam_res, proj_model, dist_model);
+  calib.add_camera(1, cam_res, proj_model, dist_model);
+  calib.add_camera_extrinsics(0);
+  calib.add_camera_extrinsics(1);
+  calib.add_camera_data(0, test_data.at(0));
+  calib.add_camera_data(1, test_data.at(1));
+
+  timestamp_t last_ts = 0;
+  for (const auto ts : calib.timestamps) {
+    calib.add_view(calib.calib_data[ts]);
+    if (calib.nb_views() > 10) {
+      break;
+    }
+  }
+  calib._eval_nbv(last_ts);
+
+  return 0;
+}
 
 int test_calib_camera_solve_batch() {
   // Setup
@@ -374,23 +374,23 @@ int test_calib_camera_solve_batch() {
   return 0;
 }
 
-// int test_calib_camera_solve_inc() {
-//   // Setup
-//   const calib_target_t calib_target{"aprilgrid", 6, 6, 0.088, 0.3};
-//   const int cam_res[2] = {752, 480};
-//   const std::string proj_model = "pinhole";
-//   const std::string dist_model = "radtan4";
-//
-//   // Calibrate
-//   calib_camera_t calib{calib_target};
-//   calib.enable_nbv = false;
-//   calib.add_camera_data(0, test_data.at(0));
-//   calib.add_camera(0, cam_res, proj_model, dist_model);
-//   calib.add_camera_extrinsics(0);
-//   calib._solve_inc();
-//
-//   return 0;
-// }
+int test_calib_camera_solve_inc() {
+  // Setup
+  const calib_target_t calib_target{"aprilgrid", 6, 6, 0.088, 0.3};
+  const int cam_res[2] = {752, 480};
+  const std::string proj_model = "pinhole";
+  const std::string dist_model = "radtan4";
+
+  // Calibrate
+  calib_camera_t calib{calib_target};
+  calib.enable_nbv = false;
+  calib.add_camera_data(0, test_data.at(0));
+  calib.add_camera(0, cam_res, proj_model, dist_model);
+  calib.add_camera_extrinsics(0);
+  calib._solve_inc();
+
+  return 0;
+}
 
 int test_calib_camera_mono() {
   // Setup
@@ -422,8 +422,6 @@ int test_calib_camera_stereo() {
   calib.add_camera_data(test_data);
   calib.add_camera(0, cam_res, proj_model, dist_model);
   calib.add_camera(1, cam_res, proj_model, dist_model);
-  calib.add_camera_extrinsics(0);
-  calib.add_camera_extrinsics(1);
   calib.solve();
   // calib.save_results("/tmp/calib-results.yaml");
   // calib.save_estimates("/tmp/calib-estimates.yaml");
@@ -432,110 +430,83 @@ int test_calib_camera_stereo() {
   return 0;
 }
 
-// int test_marg_error() {
-//   const size_t max_num_views = 20;
-//
-//   // Calibration data
-//   aprilgrids_t cam0_grids;
-//   aprilgrids_t cam1_grids;
-//   for (const auto grid : test_data.at(0)) {
-//     if (grid.detected) {
-//       cam0_grids.push_back(grid);
-//     }
-//     if (cam0_grids.size() >= max_num_views) {
-//       break;
-//     }
-//   }
-//   for (const auto grid : test_data.at(1)) {
-//     if (grid.detected) {
-//       cam1_grids.push_back(grid);
-//     }
-//     if (cam1_grids.size() >= max_num_views) {
-//       break;
-//     }
-//   }
-//
-//   // Calibrator
-//   const calib_target_t target{"aprilgrid", 6, 6, 0.088, 0.3};
-//   const int cam_res[2] = {752, 480};
-//   const std::string proj_model = "pinhole";
-//   const std::string dist_model = "radtan4";
-//   calib_camera_t calib{target};
-//   calib.enable_nbv = false;
-//   calib.add_camera_data(0, cam0_grids);
-//   calib.add_camera_data(1, cam1_grids);
-//   calib.add_camera(0, cam_res, proj_model, dist_model);
-//   calib.add_camera(1, cam_res, proj_model, dist_model);
-//   // calib._initialize_intrinsics();
-//   // calib._initialize_extrinsics();
-//   calib.add_camera_extrinsics(0);
-//   calib.add_camera_extrinsics(1);
-//
-//   // Build problem
-//   for (const auto ts : calib.timestamps) {
-//     if (calib.calib_data[ts].size() != 2) {
-//       continue;
-//     }
-//
-//     calib.add_view(calib.calib_data[ts]);
-//     if (calib.nb_views() > max_num_views) {
-//       break;
-//     }
-//   }
-//
-//   // Test marginalization error add
-//   marg_error_t marg_error;
-//   int i = 0;
-//   for (auto &[ts, view] : calib.calib_views[0]) {
-//     printf("cam0 view ts: %ld\n", view->T_C0F->ts);
-//     view->T_C0F->marginalize = true;
-//     for (auto &res_fn : view->res_fns) {
-//       marg_error.add(res_fn);
-//     }
-//     break;
-//
-//     if (i++ == max_num_views - 2) {
-//       break;
-//     }
-//   }
-//   int j = 0;
-//   for (auto &[ts, view] : calib.calib_views[1]) {
-//     printf("cam1 view ts: %ld\n", view->T_C0F->ts);
-//     view->T_C0F->marginalize = true;
-//     for (auto &res_fn : view->res_fns) {
-//       marg_error.add(res_fn);
-//     }
-//     break;
-//
-//     if (j++ == max_num_views - 2) {
-//       break;
-//     }
-//   }
-//
-//   // Test marginalize
-//   int nb_res_blocks = calib.problem->NumResidualBlocks();
-//   int nb_param_blocks = calib.problem->NumParameterBlocks();
-//   marg_error.marginalize(calib.problem, true);
-//   // -- Asserts
-//   nb_res_blocks -= (marg_error.res_blocks_.size() - 1);
-//   nb_param_blocks -= 1;
-//   MU_CHECK(nb_res_blocks == calib.problem->NumResidualBlocks());
-//   MU_CHECK(nb_param_blocks == calib.problem->NumParameterBlocks());
-//
-//   // Solve
-//   ceres::Solver::Options options;
-//   options.minimizer_progress_to_stdout = true;
-//   options.max_num_iterations = 50;
-//   // options.check_gradients = true;
-//   ceres::Solver::Summary summary;
-//   ceres::Solve(options, calib.problem, &summary);
-//   // std::cout << summary.FullReport() << std::endl;
-//   std::cout << summary.BriefReport() << std::endl;
-//   calib.show_results();
-//
-//   return 0;
-// }
-//
+int test_marg_error() {
+  const size_t max_num_views = 20;
+
+  // Calibration data
+  aprilgrids_t cam0_grids;
+  aprilgrids_t cam1_grids;
+  for (const auto grid : test_data.at(0)) {
+    if (grid.detected) {
+      cam0_grids.push_back(grid);
+    }
+    if (cam0_grids.size() >= max_num_views) {
+      break;
+    }
+  }
+  for (const auto grid : test_data.at(1)) {
+    if (grid.detected) {
+      cam1_grids.push_back(grid);
+    }
+    if (cam1_grids.size() >= max_num_views) {
+      break;
+    }
+  }
+
+  // Calibrator
+  const calib_target_t target{"aprilgrid", 6, 6, 0.088, 0.3};
+  const int cam_res[2] = {752, 480};
+  const std::string proj_model = "pinhole";
+  const std::string dist_model = "radtan4";
+  calib_camera_t calib{target};
+  calib.enable_nbv = false;
+  calib.add_camera_data(0, cam0_grids);
+  calib.add_camera_data(1, cam1_grids);
+  calib.add_camera(0, cam_res, proj_model, dist_model);
+  calib.add_camera(1, cam_res, proj_model, dist_model);
+  // calib._initialize_intrinsics();
+  // calib._initialize_extrinsics();
+  calib.add_camera_extrinsics(0);
+  calib.add_camera_extrinsics(1);
+
+  // Build problem
+  for (const auto ts : calib.timestamps) {
+    if (calib.calib_data[ts].size() != 2) {
+      continue;
+    }
+
+    calib.add_view(calib.calib_data[ts]);
+    if (calib.nb_views() > max_num_views) {
+      break;
+    }
+  }
+
+  // Test marginalization error
+  int nb_res_blocks = calib.problem->NumResidualBlocks();
+  int nb_param_blocks = calib.problem->NumParameterBlocks();
+  marg_error_t marg_error;
+  auto view = calib.calib_views.front();
+  view->marginalize(&marg_error);
+  // -- Asserts
+  nb_res_blocks -= (marg_error.res_blocks_.size() - 1);
+  nb_param_blocks -= 1;
+  MU_CHECK(nb_res_blocks == calib.problem->NumResidualBlocks());
+  MU_CHECK(nb_param_blocks == calib.problem->NumParameterBlocks());
+
+  // Solve
+  ceres::Solver::Options options;
+  options.minimizer_progress_to_stdout = true;
+  options.max_num_iterations = 50;
+  // options.check_gradients = true;
+  ceres::Solver::Summary summary;
+  ceres::Solve(options, calib.problem, &summary);
+  // std::cout << summary.FullReport() << std::endl;
+  std::cout << summary.BriefReport() << std::endl;
+  calib.show_results();
+
+  return 0;
+}
+
 // int test_calib_camera_kalibr_data() {
 //   // Load AprilGrid data
 //   const std::string grid0_path = "/tmp/yac_data/cam0";
@@ -616,12 +587,12 @@ void test_suite() {
   // MU_ADD_TEST(test_calib_camera_find_nbv);
   MU_ADD_TEST(test_calib_camera_filter_view);
   MU_ADD_TEST(test_calib_camera_filter_all_views);
-  // MU_ADD_TEST(test_calib_camera_eval_nbv);
+  MU_ADD_TEST(test_calib_camera_eval_nbv);
   MU_ADD_TEST(test_calib_camera_solve_batch);
-  // MU_ADD_TEST(test_calib_camera_solve_inc);
+  MU_ADD_TEST(test_calib_camera_solve_inc);
   MU_ADD_TEST(test_calib_camera_mono);
   MU_ADD_TEST(test_calib_camera_stereo);
-  // MU_ADD_TEST(test_marg_error);
+  MU_ADD_TEST(test_marg_error);
   // MU_ADD_TEST(test_calib_camera_kalibr_data);
 }
 

@@ -1317,6 +1317,12 @@ bool imu_error_t::EvaluateWithMinimalJacobians(
 
 // MARGINALIZATION ERROR /////////////////////////////////////////////////////
 
+marg_error_t::~marg_error_t() {
+  for (auto res_block : res_blocks_) {
+    delete res_block;
+  }
+}
+
 size_t marg_error_t::get_residual_size() const { return r_; }
 
 std::vector<param_t *> marg_error_t::get_params() { return remain_param_ptrs_; }
@@ -1401,15 +1407,15 @@ void marg_error_t::form_hessian(matx_t &H, vecx_t &b) {
     }
   }
 
-  printf("nb_marg_params: %ld\n", marg_param_ptrs_.size());
-  for (const auto &param : marg_param_ptrs_) {
-    printf("- marg_param: %s\n", param->type.c_str());
-  }
-
-  printf("nb_remain_params: %ld\n", remain_param_ptrs_.size());
-  for (const auto &param : remain_param_ptrs_) {
-    printf("- remain_param: %s\n", param->type.c_str());
-  }
+  // printf("nb_marg_params: %ld\n", marg_param_ptrs_.size());
+  // for (const auto &param : marg_param_ptrs_) {
+  //   printf("- marg_param: %s\n", param->type.c_str());
+  // }
+  //
+  // printf("nb_remain_params: %ld\n", remain_param_ptrs_.size());
+  // for (const auto &param : remain_param_ptrs_) {
+  //   printf("- remain_param: %s\n", param->type.c_str());
+  // }
 
   // !! VERY IMPORTANT !! Now we know the Hessian size, we can update the
   // number of residuals for ceres::CostFunction

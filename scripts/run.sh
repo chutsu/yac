@@ -26,7 +26,7 @@ set -e
 # RUN_CMD="rosrun yac test_calib_errors --target test_imu_error"
 
 # YAC - CAMERA CALIBRATION
-# RUN_CMD="rosrun yac test_calib_camera"
+RUN_CMD="rosrun yac test_calib_camera"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_view"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_add_camera_data"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_add_camera"
@@ -40,8 +40,9 @@ set -e
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_solve_batch"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_solve_inc"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_mono"
-RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_stereo"
+# RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_stereo"
 # RUN_CMD="rosrun yac test_calib_camera --target test_marg_error"
+# RUN_CMD="rosrun yac calib_euroc"
 # RUN_CMD="rosrun --prefix 'gdb -ex run -args' yac test_calib_camera --target test_marg_error"
 # RUN_CMD="rosrun --prefix 'gdb -ex run -args' yac test_calib_camera"
 # RUN_CMD="rosrun --prefix 'gdb -ex run -args' yac test_calib_camera --target test_calib_camera_kalibr_data"

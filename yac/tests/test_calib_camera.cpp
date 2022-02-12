@@ -3,30 +3,47 @@
 
 namespace yac {
 
+#ifndef TEST_PATH
+#define TEST_PATH "."
+#endif
+
+#define TEST_CAM_DATA TEST_PATH "/test_data/calib/cam_april"
+#define TEST_IMUCAM_DATA TEST_PATH "/test_data/calib/imu_april"
+
 // GLOBAL VARIABLES
 std::map<int, aprilgrids_t> test_data;
 std::map<int, aprilgrids_t> valid_data;
 
 void load_test_dataset() {
-  // Calibration data
-  const calib_target_t calib_target;
-  const std::string grids_path = "/data/euroc/cam_april/mav0/grid0";
-  const std::string data_path = "/data/euroc/cam_april";
-  std::map<int, std::string> cam_paths;
-  cam_paths[0] = data_path + "/mav0/cam0/data";
-  cam_paths[1] = data_path + "/mav0/cam1/data";
-  test_data = calib_data_preprocess(calib_target, cam_paths, grids_path);
+  std::vector<std::string> cam0_files;
+  std::vector<std::string> cam1_files;
+  list_files(TEST_CAM_DATA "/cam0", cam0_files);
+  list_files(TEST_CAM_DATA "/cam1", cam1_files);
+
+  for (auto grid_path : cam0_files) {
+    grid_path = std::string(TEST_CAM_DATA "/cam0/") + grid_path;
+    test_data[0].emplace_back(grid_path);
+  }
+  for (auto grid_path : cam1_files) {
+    grid_path = std::string(TEST_CAM_DATA "/cam1/") + grid_path;
+    test_data[1].emplace_back(grid_path);
+  }
 }
 
 void load_validation_dataset() {
-  // Load test data for validation
-  const calib_target_t calib_target;
-  const std::string grids_path = "/data/euroc/imu_april/mav0/grid0";
-  const std::string data_path = "/data/euroc/imu_april";
-  std::map<int, std::string> cam_paths;
-  cam_paths[0] = data_path + "/mav0/cam0/data";
-  cam_paths[1] = data_path + "/mav0/cam1/data";
-  valid_data = calib_data_preprocess(calib_target, cam_paths, grids_path);
+  std::vector<std::string> cam0_files;
+  std::vector<std::string> cam1_files;
+  list_files(TEST_IMUCAM_DATA "/cam0", cam0_files);
+  list_files(TEST_IMUCAM_DATA "/cam1", cam1_files);
+
+  for (auto grid_path : cam0_files) {
+    grid_path = std::string(TEST_IMUCAM_DATA "/cam0/") + grid_path;
+    valid_data[0].emplace_back(grid_path);
+  }
+  for (auto grid_path : cam1_files) {
+    grid_path = std::string(TEST_IMUCAM_DATA "/cam1/") + grid_path;
+    valid_data[1].emplace_back(grid_path);
+  }
 }
 
 int test_calib_view() {
@@ -467,8 +484,6 @@ int test_marg_error() {
   calib.add_camera_data(1, cam1_grids);
   calib.add_camera(0, cam_res, proj_model, dist_model);
   calib.add_camera(1, cam_res, proj_model, dist_model);
-  // calib._initialize_intrinsics();
-  // calib._initialize_extrinsics();
   calib.add_camera_extrinsics(0);
   calib.add_camera_extrinsics(1);
 
@@ -491,19 +506,15 @@ int test_marg_error() {
   auto view = calib.calib_views.front();
   view->marginalize(&marg_error);
   // -- Asserts
-  nb_res_blocks -= (marg_error.res_blocks_.size() - 1);
-  nb_param_blocks -= 1;
-  MU_CHECK(nb_res_blocks == calib.problem->NumResidualBlocks());
-  MU_CHECK(nb_param_blocks == calib.problem->NumParameterBlocks());
+  MU_CHECK(nb_res_blocks > calib.problem->NumResidualBlocks());
+  MU_CHECK(nb_param_blocks > calib.problem->NumParameterBlocks());
 
   // Solve
   ceres::Solver::Options options;
   options.minimizer_progress_to_stdout = true;
-  options.max_num_iterations = 50;
-  // options.check_gradients = true;
+  options.max_num_iterations = 10;
   ceres::Solver::Summary summary;
   ceres::Solve(options, calib.problem, &summary);
-  // std::cout << summary.FullReport() << std::endl;
   std::cout << summary.BriefReport() << std::endl;
   calib.show_results();
 

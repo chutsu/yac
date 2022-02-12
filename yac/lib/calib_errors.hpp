@@ -335,7 +335,8 @@ public:
                          vecx_t &b_marg);
 
   /* Marginalize */
-  void marginalize(ceres::Problem *problem, bool debug = true);
+  ceres::ResidualBlockId marginalize(ceres::Problem *problem,
+                                     bool debug = true);
 
   /* Compute Delta Chi */
   vecx_t compute_delta_chi(double const *const *params) const;

@@ -48,7 +48,7 @@ struct calib_view_t {
   // Problem
   ceres::Problem *problem = nullptr;
   ceres::LossFunction *loss = nullptr;
-  std::deque<std::shared_ptr<reproj_error_t>> res_fns;
+  std::deque<reproj_error_t *> res_fns;
   std::deque<ceres::ResidualBlockId> res_ids;
 
   // Parameters
@@ -71,13 +71,18 @@ struct calib_view_t {
                pose_t *T_C0F_,
                const aprilgrid_t &grid_,
                const mat2_t &covar_ = I(2));
-  ~calib_view_t() = default;
+  ~calib_view_t();
 
   vec2s_t get_residuals() const;
   std::vector<real_t> get_reproj_errors() const;
   int filter_view(const real_t reproj_threshold);
   int filter_view(const vec2_t &residual_threshold);
 };
+
+// struct calib_view_set_t {
+//   timestamp_t timestamp = 0;
+//   std::map<int, calib_view_t> data;
+// };
 
 // Typedefs
 using calib_views_t = std::map<timestamp_t, std::unique_ptr<calib_view_t>>;
@@ -117,11 +122,17 @@ struct calib_camera_t {
   std::set<timestamp_t> timestamps;
   camera_data_t cam_data;
   std::map<int, aprilgrids_t> validation_data;
+  int removed_outliers = 0;
+
+  // NBV
   real_t calib_entropy_k = -1;
   real_t covar_det_k = -1.0;
   real_t info_gain = 0.0;
-  int removed_outliers = 0;
+
+  // Sliding window
+  std::deque<timestamp_t> window;
   camera_calib_views_t calib_views;
+  // std::deque<calib_view_t> calib_views;
 
   // Temporary storage
   std::map<int, vecx_t> cam_params_tmp;
@@ -133,7 +144,8 @@ struct calib_camera_t {
   ceres::Problem::Options prob_options;
   ceres::Problem *problem = nullptr;
   ceres::LossFunction *loss = nullptr;
-  marg_error_t marg_error;
+  ceres::ResidualBlockId marg_error_id;
+  marg_error_t *marg_error = nullptr;
   PoseLocalParameterization pose_plus;
 
   // State variables
@@ -198,6 +210,7 @@ struct calib_camera_t {
   bool add_view(const std::map<int, aprilgrid_t> &cam_grids);
   void remove_view(const timestamp_t ts);
   void remove_all_views();
+  void marginalize_last_view();
 
   int recover_calib_covar(matx_t &calib_covar, bool verbose = true);
   int find_nbv(const std::map<int, mat4s_t> &nbv_poses,

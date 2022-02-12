@@ -185,14 +185,14 @@ calib_view_t::calib_view_t(ceres::Problem *problem_,
     const int corner_idx = corner_idxs[i];
     const vec2_t z = kps[i];
     auto p_FFi_ = corners_->get_corner(tag_id, corner_idx);
-    auto res_fn = std::make_shared<reproj_error_t>(cam_geom,
-                                                   cam_params,
-                                                   T_BCi_,
-                                                   T_C0F_,
-                                                   p_FFi_,
-                                                   z,
-                                                   covar);
-    auto res_id = problem->AddResidualBlock(res_fn.get(),
+    auto res_fn = new reproj_error_t(cam_geom,
+                                     cam_params,
+                                     T_BCi_,
+                                     T_C0F_,
+                                     p_FFi_,
+                                     z,
+                                     covar);
+    auto res_id = problem->AddResidualBlock(res_fn,
                                             loss,
                                             T_BCi_->data(),
                                             T_C0F_->data(),
@@ -200,6 +200,12 @@ calib_view_t::calib_view_t(ceres::Problem *problem_,
                                             cam_params->data());
     res_fns.push_back(res_fn);
     res_ids.push_back(res_id);
+  }
+}
+
+calib_view_t::~calib_view_t() {
+  for (auto res_fn : res_fns) {
+    delete res_fn;
   }
 }
 
@@ -238,11 +244,12 @@ int calib_view_t::filter_view(const real_t reproj_threshold) {
   auto res_ids_it = res_ids.begin();
 
   while (res_fns_it != res_fns.end()) {
-    auto &res = *res_fns_it;
-    auto &res_id = *res_ids_it;
+    auto res = *res_fns_it;
+    auto res_id = *res_ids_it;
 
     real_t err = 0.0;
     if (res->get_reproj_error(err) == 0 && err > reproj_threshold) {
+      delete res;
       problem->RemoveResidualBlock(res_id);
       res_fns_it = res_fns.erase(res_fns_it);
       res_ids_it = res_ids.erase(res_ids_it);
@@ -267,11 +274,12 @@ int calib_view_t::filter_view(const vec2_t &residual_threshold) {
   auto res_ids_it = res_ids.begin();
 
   while (res_fns_it != res_fns.end()) {
-    auto &res = *res_fns_it;
-    auto &res_id = *res_ids_it;
+    auto res = *res_fns_it;
+    auto res_id = *res_ids_it;
 
     vec2_t r{0.0, 0.0};
     if (res->get_residual(r) == 0 && (r.x() > th_x || r.y() > th_y)) {
+      delete res;
       problem->RemoveResidualBlock(res_id);
       res_fns_it = res_fns.erase(res_fns_it);
       res_ids_it = res_ids.erase(res_ids_it);
@@ -411,6 +419,10 @@ calib_camera_t::~calib_camera_t() {
 
   if (problem) {
     delete problem;
+  }
+
+  if (marg_error) {
+    delete marg_error;
   }
 }
 
@@ -697,6 +709,7 @@ void calib_camera_t::add_view(const aprilgrid_t &grid,
                               extrinsics_t *cam_exts,
                               pose_t *rel_pose) {
   const timestamp_t ts = grid.timestamp;
+  window.push_back(ts);
   calib_views[cam_idx][ts] = std::make_unique<calib_view_t>(problem,
                                                             loss,
                                                             &corners,
@@ -738,6 +751,10 @@ bool calib_camera_t::add_view(const std::map<int, aprilgrid_t> &cam_grids) {
 }
 
 void calib_camera_t::remove_view(const timestamp_t ts) {
+  // Remove timestamp from window
+  const auto it = std::remove(window.begin(), window.end(), ts);
+  window.erase(it, window.end());
+
   // Remove view
   for (auto &[cam_idx, cam_views] : calib_views) {
     if (cam_views.count(ts) == 0) {
@@ -758,7 +775,9 @@ void calib_camera_t::remove_view(const timestamp_t ts) {
   // Remove pose
   if (poses.count(ts)) {
     auto pose_ptr = poses[ts];
-    problem->RemoveParameterBlock(pose_ptr->param.data());
+    if (problem->HasParameterBlock(pose_ptr->param.data())) {
+      problem->RemoveParameterBlock(pose_ptr->param.data());
+    }
     poses.erase(ts);
     delete pose_ptr;
   }
@@ -769,6 +788,77 @@ void calib_camera_t::remove_all_views() {
     remove_view(ts);
   }
   problem_init = false;
+}
+
+void calib_camera_t::marginalize_last_view() {
+  // Form new marg_error_t
+  if (marg_error == nullptr) {
+    // Initialize first marg_error_t
+    marg_error = new marg_error_t();
+
+  } else {
+    // Add previous marg_error_t to new
+    auto new_marg_error = new marg_error_t();
+    new_marg_error->add(marg_error);
+
+    // Delete old marg_error_t
+    problem->RemoveResidualBlock(marg_error_id);
+    delete marg_error;
+    marg_error = nullptr; // <- Defensive programming
+
+    // Point to new marg_error_t
+    marg_error = new_marg_error;
+  }
+
+  // Mark the pose to be marginalized
+  const auto marg_ts = window.front();
+  poses[marg_ts]->marginalize = true;
+  printf("marg pose [%ld]\n", marg_ts);
+
+  // Add the residual blocks at ts to marg_error_t
+  for (auto &[cam_idx, cam_views] : calib_views) {
+    for (auto &[view_ts, view] : cam_views) {
+      if (view_ts != marg_ts) {
+        continue;
+      }
+
+      // Add view residual blocks to marg_error_t
+      for (auto &res_fn : view->res_fns) {
+        marg_error->add(res_fn);
+      }
+    }
+  }
+
+  // Marginalize and add to problem
+  marg_error_id = marg_error->marginalize(problem);
+
+  printf("marg_error_t:\n");
+  printf("  nb_res_blocks: %ld\n", marg_error->res_blocks_.size());
+  printf("  nb_marg_params: %ld\n", marg_error->marg_param_ptrs_.size());
+  printf("  nb_remain_params: %ld\n", marg_error->remain_param_ptrs_.size());
+
+  // Remove timestamp from window
+  const auto it = std::remove(window.begin(), window.end(), marg_ts);
+  window.erase(it, window.end());
+
+  // Remove view
+  for (auto &[cam_idx, cam_views] : calib_views) {
+    if (cam_views.count(marg_ts) == 0) {
+      continue;
+    }
+    auto &view = cam_views[marg_ts];
+    if (view == nullptr) {
+      continue;
+    }
+    cam_views.erase(marg_ts);
+  }
+
+  // Remove pose
+  if (poses.count(marg_ts)) {
+    auto pose_ptr = poses[marg_ts];
+    poses.erase(marg_ts);
+    delete pose_ptr;
+  }
 }
 
 int calib_camera_t::recover_calib_covar(matx_t &calib_covar, bool verbose) {
@@ -1310,10 +1400,10 @@ void calib_camera_t::_solve_batch(const bool filter_outliers) {
   ceres::Solver::Options options;
   options.minimizer_progress_to_stdout = verbose;
   options.max_num_iterations = 100;
-  options.function_tolerance = 1e-20;
-  options.gradient_tolerance = 1e-20;
-  options.parameter_tolerance = 1e-20;
-  options.inner_iteration_tolerance = 1e-5;
+  // options.function_tolerance = 1e-20;
+  // options.gradient_tolerance = 1e-20;
+  // options.parameter_tolerance = 1e-20;
+  // options.inner_iteration_tolerance = 1e-5;
 
   // Solve
   ceres::Solver::Summary summary;
@@ -1344,11 +1434,11 @@ void calib_camera_t::_solve_batch(const bool filter_outliers) {
 void calib_camera_t::_solve_inc() {
   // Solver options
   ceres::Solver::Options options;
-  options.minimizer_progress_to_stdout = false;
-  options.max_num_iterations = 100;
+  options.minimizer_progress_to_stdout = true;
+  options.max_num_iterations = 10;
   ceres::Solver::Summary summary;
 
-  // NBV
+  // Incremental
   if (verbose) {
     printf("Solving Incremental problem\n");
   }
@@ -1359,6 +1449,12 @@ void calib_camera_t::_solve_inc() {
     if (add_view(cam_data[ts]) == false) {
       continue;
     }
+
+    // Solve
+    if (window.size() > 5) {
+      marginalize_last_view();
+    }
+    ceres::Solve(options, problem, &summary);
 
     // Print stats
     const real_t progress = ((real_t)ts_idx / timestamps.size()) * 100.0;

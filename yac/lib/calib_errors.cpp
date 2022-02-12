@@ -213,7 +213,7 @@ int reproj_error_t::get_residual(vec2_t &z_hat, vec2_t &r) const {
   const vec3_t p_CiFi = tf_point(T_CiC0_ * T_C0F_, p_FFi_);
   // -- Project point from camera frame to image plane
   auto res = cam_params->resolution;
-  auto param = cam_params->param;
+  const vecx_t param = cam_params->param;
   if (cam_geom->project(res, param, p_CiFi, z_hat) != 0) {
     return -1;
   }
@@ -1394,10 +1394,21 @@ void marg_error_t::form_hessian(matx_t &H, vecx_t &b) {
       H_idx += param_block->local_size;
       r_ += param_block->local_size;
       remain_param_ptrs_.push_back(param_block);
+      param_blocks.push_back(param_block); // <- calib_error_t::param_blocks
 
       // VERY IMPORTANT!! Update param blocks and sizes for ceres::CostFunction
       mutable_parameter_block_sizes()->push_back(param_block->global_size);
     }
+  }
+
+  printf("nb_marg_params: %ld\n", marg_param_ptrs_.size());
+  for (const auto &param : marg_param_ptrs_) {
+    printf("- marg_param: %s\n", param->type.c_str());
+  }
+
+  printf("nb_remain_params: %ld\n", remain_param_ptrs_.size());
+  for (const auto &param : remain_param_ptrs_) {
+    printf("- remain_param: %s\n", param->type.c_str());
   }
 
   // !! VERY IMPORTANT !! Now we know the Hessian size, we can update the
@@ -1523,7 +1534,8 @@ void marg_error_t::schurs_complement(const matx_t &H,
   b_marg = brr - Hrm * Hmm_inv * bmm;
 }
 
-void marg_error_t::marginalize(ceres::Problem *problem, bool debug) {
+ceres::ResidualBlockId marg_error_t::marginalize(ceres::Problem *problem,
+                                                 bool debug) {
   // Form Hessian and RHS of Gauss newton
   matx_t H;
   vecx_t b;
@@ -1583,8 +1595,9 @@ void marg_error_t::marginalize(ceres::Problem *problem, bool debug) {
     problem->RemoveParameterBlock(marg_param->param.data());
   }
 
-  // Change flag to denote terms have been marginalized
+  // Change flag to denote marginalized and add it self to problem
   marginalized_ = true;
+  return problem->AddResidualBlock(this, NULL, get_param_ptrs());
 }
 
 vecx_t marg_error_t::compute_delta_chi(double const *const *params) const {

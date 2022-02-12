@@ -382,6 +382,24 @@ int test_calib_camera_solve_batch() {
   return 0;
 }
 
+int test_calib_camera_solve_inc() {
+  // Setup
+  const calib_target_t calib_target{"aprilgrid", 6, 6, 0.088, 0.3};
+  const int cam_res[2] = {752, 480};
+  const std::string proj_model = "pinhole";
+  const std::string dist_model = "radtan4";
+
+  // Calibrate
+  calib_camera_t calib{calib_target};
+  calib.enable_nbv = false;
+  calib.add_camera_data(0, test_data.at(0));
+  calib.add_camera(0, cam_res, proj_model, dist_model);
+  calib.add_camera_extrinsics(0);
+  calib._solve_inc();
+
+  return 0;
+}
+
 int test_calib_camera_mono() {
   // Setup
   const calib_target_t calib_target{"aprilgrid", 6, 6, 0.088, 0.3};
@@ -474,42 +492,40 @@ int test_marg_error() {
   }
 
   // Test marginalization error add
+  marg_error_t marg_error;
   int i = 0;
   for (auto &[ts, view] : calib.calib_views[0]) {
     printf("cam0 view ts: %ld\n", view->T_C0F->ts);
     view->T_C0F->marginalize = true;
     for (auto &res_fn : view->res_fns) {
-      calib.marg_error.add(res_fn.get());
+      marg_error.add(res_fn);
     }
     break;
 
-    // if (i++ == max_num_views - 8) {
-    //   break;
-    // }
+    if (i++ == max_num_views - 2) {
+      break;
+    }
   }
   int j = 0;
   for (auto &[ts, view] : calib.calib_views[1]) {
     printf("cam1 view ts: %ld\n", view->T_C0F->ts);
     view->T_C0F->marginalize = true;
     for (auto &res_fn : view->res_fns) {
-      calib.marg_error.add(res_fn.get());
+      marg_error.add(res_fn);
     }
     break;
 
-    // if (j++ == max_num_views - 8) {
-    //   break;
-    // }
+    if (j++ == max_num_views - 2) {
+      break;
+    }
   }
 
   // Test marginalize
   int nb_res_blocks = calib.problem->NumResidualBlocks();
   int nb_param_blocks = calib.problem->NumParameterBlocks();
-  calib.marg_error.marginalize(calib.problem, true);
-  calib.problem->AddResidualBlock(&calib.marg_error,
-                                  NULL,
-                                  calib.marg_error.get_param_ptrs());
+  marg_error.marginalize(calib.problem, true);
   // -- Asserts
-  nb_res_blocks -= (calib.marg_error.res_blocks_.size() - 1);
+  nb_res_blocks -= (marg_error.res_blocks_.size() - 1);
   nb_param_blocks -= 1;
   MU_CHECK(nb_res_blocks == calib.problem->NumResidualBlocks());
   MU_CHECK(nb_param_blocks == calib.problem->NumParameterBlocks());
@@ -596,7 +612,7 @@ int test_calib_camera_kalibr_data() {
 
 void test_suite() {
   load_test_dataset();
-  load_validation_dataset();
+  // load_validation_dataset();
 
   MU_ADD_TEST(test_calib_view);
   MU_ADD_TEST(test_calib_camera_add_camera_data);
@@ -610,6 +626,7 @@ void test_suite() {
   MU_ADD_TEST(test_calib_camera_filter_all_views);
   MU_ADD_TEST(test_calib_camera_eval_nbv);
   MU_ADD_TEST(test_calib_camera_solve_batch);
+  MU_ADD_TEST(test_calib_camera_solve_inc);
   MU_ADD_TEST(test_calib_camera_mono);
   MU_ADD_TEST(test_calib_camera_stereo);
   MU_ADD_TEST(test_marg_error);

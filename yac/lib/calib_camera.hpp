@@ -12,9 +12,7 @@ namespace yac {
 
 // CAMCHAIN ///////////////////////////////////////////////////////////////////j
 
-/**
- * Camera Chain Query Tool
- */
+/** Camera Chain Query Tool */
 struct camchain_t {
   std::map<int, std::vector<int>> adj_list;  // CameraChain adjacency list
   std::map<int, std::map<int, mat4_t>> exts; // Extrinsics
@@ -44,49 +42,44 @@ struct camchain_t {
 
 // CALIB VIEW //////////////////////////////////////////////////////////////////
 
+/** Calibration view */
 struct calib_view_t {
+  // Data
+  timestamp_t ts = 0;
+  CamIdx2Grids grids;
+  fiducial_corners_t *corners = nullptr;
+
   // Problem
   ceres::Problem *problem = nullptr;
   ceres::LossFunction *loss = nullptr;
-  std::deque<reproj_error_t *> res_fns;
-  std::deque<ceres::ResidualBlockId> res_ids;
+  CamIdx2ReprojErrors res_fns;
+  CamIdx2ReprojErrorIds res_ids;
 
   // Parameters
-  fiducial_corners_t *corners = nullptr;
-  camera_geometry_t *cam_geom = nullptr;
-  camera_params_t *cam_params = nullptr;
-  pose_t *T_BCi = nullptr;
+  CamIdx2Geometry &cam_geoms;
+  CamIdx2Parameters &cam_params;
+  CamIdx2Extrinsics &cam_exts;
   pose_t *T_C0F = nullptr;
-  mat2_t covar;
 
-  // Data
-  const aprilgrid_t grid;
-
-  calib_view_t(ceres::Problem *problem_,
-               ceres::LossFunction *loss_,
+  calib_view_t(const timestamp_t ts_,
+               const CamIdx2Grids &grids_,
                fiducial_corners_t *corners_,
-               camera_geometry_t *cam_geom_,
-               camera_params_t *cam_params_,
-               pose_t *T_BCi_,
-               pose_t *T_C0F_,
-               const aprilgrid_t &grid_,
-               const mat2_t &covar_ = I(2));
+               ceres::Problem *problem_,
+               ceres::LossFunction *loss_,
+               CamIdx2Geometry &cam_geom_,
+               CamIdx2Parameters &cam_params_,
+               CamIdx2Extrinsics &cam_exts_,
+               pose_t *T_C0F_);
   ~calib_view_t();
 
+  std::vector<int> get_camera_indices() const;
   vec2s_t get_residuals() const;
+  vec2s_t get_residuals(const int cam_idx) const;
   std::vector<real_t> get_reproj_errors() const;
+  std::vector<real_t> get_reproj_errors(const int cam_idx) const;
   int filter_view(const real_t reproj_threshold);
   int filter_view(const vec2_t &residual_threshold);
 };
-
-// struct calib_view_set_t {
-//   timestamp_t timestamp = 0;
-//   std::map<int, calib_view_t> data;
-// };
-
-// Typedefs
-using calib_views_t = std::map<timestamp_t, std::unique_ptr<calib_view_t>>;
-using camera_calib_views_t = std::map<int, calib_views_t>;
 
 // CALIBRATOR //////////////////////////////////////////////////////////////////
 
@@ -117,10 +110,9 @@ struct calib_camera_t {
 
   // Data
   calib_target_t calib_target;
-  std::map<int, camera_geometry_t *> cam_geoms;
   std::map<int, real_t> focal_length_init;
   std::set<timestamp_t> timestamps;
-  camera_data_t cam_data;
+  std::map<timestamp_t, std::map<int, aprilgrid_t>> calib_data;
   std::map<int, aprilgrids_t> validation_data;
   int removed_outliers = 0;
 
@@ -131,8 +123,7 @@ struct calib_camera_t {
 
   // Sliding window
   std::deque<timestamp_t> window;
-  camera_calib_views_t calib_views;
-  // std::deque<calib_view_t> calib_views;
+  std::deque<calib_view_t *> calib_views;
 
   // Temporary storage
   std::map<int, vecx_t> cam_params_tmp;
@@ -150,8 +141,9 @@ struct calib_camera_t {
 
   // State variables
   fiducial_corners_t corners{calib_target};
-  std::map<int, camera_params_t *> cam_params;
-  std::map<int, extrinsics_t *> cam_exts;
+  CamIdx2Geometry cam_geoms;
+  CamIdx2Parameters cam_params;
+  CamIdx2Extrinsics cam_exts;
   std::map<timestamp_t, pose_t *> poses;
 
   // Camera geometries
@@ -161,11 +153,10 @@ struct calib_camera_t {
   // Constructor / Destructor
   calib_camera_t() = delete;
   calib_camera_t(const calib_target_t &calib_target_);
-  calib_camera_t(const std::string &config_path);
+  // calib_camera_t(const std::string &config_path);
   ~calib_camera_t();
 
   int nb_cameras() const;
-  int nb_views(const int cam_idx) const;
   int nb_views() const;
   aprilgrids_t get_camera_data(const int cam_idx) const;
   std::vector<int> get_camera_indices() const;
@@ -199,18 +190,10 @@ struct calib_camera_t {
   void add_pose(const int cam_idx,
                 const aprilgrid_t &grid,
                 const bool fixed = false);
-  void add_view(const aprilgrid_t &grid,
-                ceres::Problem *problem,
-                ceres::LossFunction *loss,
-                int cam_idx,
-                camera_geometry_t *cam_geom,
-                camera_params_t *cam_params,
-                extrinsics_t *cam_exts,
-                pose_t *rel_pose);
   bool add_view(const std::map<int, aprilgrid_t> &cam_grids);
   void remove_view(const timestamp_t ts);
   void remove_all_views();
-  void marginalize_last_view();
+  // void marginalize_last_view();
 
   int recover_calib_covar(matx_t &calib_covar, bool verbose = true);
   int find_nbv(const std::map<int, mat4s_t> &nbv_poses,
@@ -227,9 +210,9 @@ struct calib_camera_t {
   int _eval_nbv(const timestamp_t ts);
   void _print_stats(const real_t progress);
   void _solve_batch(const bool filter_outliers);
-  void _solve_inc();
+  // void _solve_inc();
   void _solve_nbv();
-  void _solve_nbv_brute_force();
+  // void _solve_nbv_brute_force();
 
   void solve();
   void show_results();
@@ -239,8 +222,8 @@ struct calib_camera_t {
   real_t validate(const std::map<int, aprilgrids_t> &cam_data);
 };
 
-/** Solve Camera Calibration Problem */
-int calib_camera_solve(const std::string &config_path);
+// /** Solve Camera Calibration Problem */
+// int calib_camera_solve(const std::string &config_path);
 
 } //  namespace yac
 #endif // YAC_CALIB_CAMERA_HPP

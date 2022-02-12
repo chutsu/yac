@@ -7,16 +7,6 @@
 
 namespace yac {
 
-// Typedefs
-// clang-format off
-using CamIdx2Grids = std::map<int, aprilgrid_t>;
-using CamIdx2Geometry = std::map<int, camera_geometry_t *>;
-using CamIdx2Parameters = std::map<int, camera_params_t *>;
-using CamIdx2Extrinsics = std::map<int, extrinsics_t *>;
-using CamIdx2FiducialErrors = std::map<int, std::deque<std::unique_ptr<fiducial_error_t>>>;
-using CamIdx2FiducialErrorIds = std::map<int, std::deque<ceres::ResidualBlockId>>;
-// clang-format on
-
 // VISUAL INERTIAL CALIBRATION VIEW ////////////////////////////////////////////
 
 struct calib_vi_view_t {

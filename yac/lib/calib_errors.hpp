@@ -348,5 +348,18 @@ public:
                                     double **min_jacs) const;
 };
 
+// TYPEDEFS ///////////////////////////////////////////////////////////////////
+
+// clang-format off
+using CamIdx2Grids = std::map<int, aprilgrid_t>;
+using CamIdx2Geometry = std::map<int, camera_geometry_t *>;
+using CamIdx2Parameters = std::map<int, camera_params_t *>;
+using CamIdx2Extrinsics = std::map<int, extrinsics_t *>;
+using CamIdx2ReprojErrors = std::map<int, std::deque<reproj_error_t *>>;
+using CamIdx2ReprojErrorIds = std::map<int, std::deque<ceres::ResidualBlockId>>;
+using CamIdx2FiducialErrors = std::map<int, std::deque<std::unique_ptr<fiducial_error_t>>>;
+using CamIdx2FiducialErrorIds = std::map<int, std::deque<ceres::ResidualBlockId>>;
+// clang-format on
+
 } //  namespace yac
 #endif // YAC_CALIB_ERRORS_HPP

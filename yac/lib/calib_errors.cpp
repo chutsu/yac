@@ -1363,6 +1363,8 @@ void marg_error_t::add(calib_error_t *res_block) {
       remain_camera_param_ptrs_.push_back(param_block);
     } else if (param_block->type == "extrinsics_t") {
       remain_extrinsics_ptrs_.push_back(param_block);
+    } else if (param_block->type == "fiducial_t") {
+      remain_fiducial_ptrs_.push_back(param_block);
     }
     params_seen_[param_block] = true;
   }
@@ -1390,6 +1392,7 @@ void marg_error_t::form_hessian(matx_t &H, vecx_t &b) {
       &remain_sb_param_ptrs_,
       &remain_camera_param_ptrs_,
       &remain_extrinsics_ptrs_,
+      &remain_fiducial_ptrs_,
   };
   for (const auto &param_ptrs : remain_params) {
     for (const auto &param_block : *param_ptrs) {
@@ -1406,16 +1409,6 @@ void marg_error_t::form_hessian(matx_t &H, vecx_t &b) {
       mutable_parameter_block_sizes()->push_back(param_block->global_size);
     }
   }
-
-  // printf("nb_marg_params: %ld\n", marg_param_ptrs_.size());
-  // for (const auto &param : marg_param_ptrs_) {
-  //   printf("- marg_param: %s\n", param->type.c_str());
-  // }
-  //
-  // printf("nb_remain_params: %ld\n", remain_param_ptrs_.size());
-  // for (const auto &param : remain_param_ptrs_) {
-  //   printf("- remain_param: %s\n", param->type.c_str());
-  // }
 
   // !! VERY IMPORTANT !! Now we know the Hessian size, we can update the
   // number of residuals for ceres::CostFunction
@@ -1600,6 +1593,12 @@ ceres::ResidualBlockId marg_error_t::marginalize(ceres::Problem *problem,
   for (const auto &marg_param : marg_param_ptrs_) {
     problem->RemoveParameterBlock(marg_param->param.data());
   }
+
+  // Delete residual blocks - no longer needed
+  for (auto res_block : res_blocks_) {
+    delete res_block;
+  }
+  res_blocks_.clear();
 
   // Change flag to denote marginalized and add it self to problem
   marginalized_ = true;

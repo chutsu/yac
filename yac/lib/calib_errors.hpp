@@ -298,6 +298,7 @@ public:
   std::vector<param_t *> remain_sb_param_ptrs_;
   std::vector<param_t *> remain_camera_param_ptrs_;
   std::vector<param_t *> remain_extrinsics_ptrs_;
+  std::vector<param_t *> remain_fiducial_ptrs_;
   std::unordered_map<param_t *, int> param_blocks_;
   std::unordered_map<param_t *, int> param_index_;
 

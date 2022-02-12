@@ -1447,7 +1447,7 @@ void calib_camera_t::_solve_inc() {
     }
 
     // Solve
-    if (window.size() > 5) {
+    if (window.size() > 3) {
       marginalize_last_view();
     }
     ceres::Solve(options, problem, &summary);

@@ -301,8 +301,8 @@ int calib_view_t::filter_view(const real_t reproj_threshold) {
 
       real_t err = 0.0;
       if (res->get_reproj_error(err) == 0 && err > reproj_threshold) {
-        delete res;
         problem->RemoveResidualBlock(res_id);
+        delete res;
         res_fns_it = res_fns[cam_idx].erase(res_fns_it);
         res_ids_it = res_ids[cam_idx].erase(res_ids_it);
         nb_outliers++;
@@ -334,8 +334,8 @@ int calib_view_t::filter_view(const vec2_t &residual_threshold) {
 
       vec2_t r{0.0, 0.0};
       if (res->get_residual(r) == 0 && (r.x() > th_x || r.y() > th_y)) {
-        delete res;
         problem->RemoveResidualBlock(res_id);
+        delete res;
         res_fns_it = res_fns[cam_idx].erase(res_fns_it);
         res_ids_it = res_ids[cam_idx].erase(res_ids_it);
         nb_outliers++;
@@ -1343,13 +1343,13 @@ void calib_camera_t::_print_stats(const real_t progress) {
   //   const auto valid_error = valid.validate(validation_data);
   // }
 
-  // Calculate entropy
-  matx_t calib_covar;
-  int retval = recover_calib_covar(calib_covar);
-  if (retval != 0) {
-    FATAL("Failed to estimate calibration covariance!");
-  }
-  calib_entropy_k = shannon_entropy(calib_covar);
+  // // Calculate entropy
+  // matx_t calib_covar;
+  // int retval = recover_calib_covar(calib_covar);
+  // if (retval != 0) {
+  //   FATAL("Failed to estimate calibration covariance!");
+  // }
+  // calib_entropy_k = shannon_entropy(calib_covar);
 
   const auto reproj_errors_all = get_all_reproj_errors();
   // clang-format off
@@ -1360,7 +1360,7 @@ void calib_camera_t::_print_stats(const real_t progress) {
   // printf("validation_error: %.2f ", valid_error);
   // printf("info_gain: %.2f ", info_gain);
   // printf("covar_det_k: %e ", covar_det_k);
-  printf("shannon_entropy: %f\n", calib_entropy_k);
+  // printf("shannon_entropy: %f\n", calib_entropy_k);
   printf("\n");
 
   // const mat4_t T_BC0 = get_camera_extrinsics(0);
@@ -1431,7 +1431,7 @@ void calib_camera_t::_solve_inc() {
   // Solver options
   ceres::Solver::Options options;
   options.minimizer_progress_to_stdout = false;
-  options.max_num_iterations = 10;
+  options.max_num_iterations = 20;
   ceres::Solver::Summary summary;
 
   // Incremental
@@ -1447,7 +1447,7 @@ void calib_camera_t::_solve_inc() {
     }
 
     // Solve
-    if (window.size() > 3) {
+    if (window.size() > 5) {
       marginalize_last_view();
     }
     ceres::Solve(options, problem, &summary);
@@ -1461,6 +1461,10 @@ void calib_camera_t::_solve_inc() {
     // Update
     ts_idx++;
     problem_init = true;
+  }
+
+  if (verbose) {
+    show_results();
   }
 }
 
@@ -1541,91 +1545,91 @@ void calib_camera_t::_solve_nbv() {
   }
 }
 
-// void calib_camera_t::_solve_nbv_brute_force() {
-//   // Setup
-//   if (verbose) {
-//     printf("Solving Incremental NBV problem\n");
-//   }
-//   real_t calib_entropy_k = 0.0;
-//
-//   // Form NBV timestamps where aprilgrids are actually detected
-//   std::vector<timestamp_t> nbv_timestamps;
-//   for (const auto &ts : timestamps) {
-//     for (const auto &[cam_idx, grid] : calib_data[ts]) {
-//       if (grid.detected) {
-//         nbv_timestamps.push_back(ts);
-//         break;
-//       }
-//     }
-//   }
-//   std::shuffle(nbv_timestamps.begin(), nbv_timestamps.end(), calib_rng);
-//
-//   // Add min-views
-//   {
-//     auto it = nbv_timestamps.begin();
-//     while (it != nbv_timestamps.end()) {
-//       // Timestamp
-//       auto nbv_ts = *it;
-//
-//       // Add view
-//       if (add_view(calib_data[nbv_ts]) == false) {
-//         continue;
-//       }
-//
-//       // Update
-//       it = nbv_timestamps.erase(it);
-//       if (nb_views() >= min_nbv_views) {
-//         break;
-//       }
-//     }
-//
-//     // Filter all views
-//     removed_outliers = _filter_all_views();
-//     if (verbose) {
-//       printf("Removed %d outliers\n", removed_outliers);
-//     }
-//
-//     // Calculate entropy
-//     matx_t calib_covar;
-//     int retval = recover_calib_covar(calib_covar);
-//     if (retval != 0) {
-//       FATAL("Failed to estimate calibration covariance!");
-//     }
-//     calib_entropy_k = shannon_entropy(calib_covar);
-//   }
-//
-//   // Find next best view
-//   const real_t nb_views = nbv_timestamps.size();
-//   while (nbv_timestamps.size()) {
-//     // Find next best view
-//     real_t calib_entropy_kp1 = 0.0;
-//     timestamp_t nbv_ts = 0;
-//     find_nbv(nbv_timestamps, calib_entropy_kp1, nbv_ts);
-//
-//     // Calculate information gain
-//     real_t info_gain = 0.5 * (calib_entropy_k - calib_entropy_kp1);
-//     if (info_gain < info_gain_threshold) {
-//       break;
-//     } else {
-//       calib_entropy_k = calib_entropy_kp1;
-//     }
-//
-//     // Add view
-//     if (add_view(calib_data[nbv_ts]) == false) {
-//       continue;
-//     }
-//
-//     // Print stats
-//     _print_stats((nbv_timestamps.size() / nb_views) * 100.0);
-//
-//     // Update
-//     const auto nbv_begin = nbv_timestamps.begin();
-//     const auto nbv_end = nbv_timestamps.end();
-//     const auto nbv_idx = std::remove(nbv_begin, nbv_end, nbv_ts);
-//     nbv_timestamps.erase(nbv_idx, nbv_end);
-//     problem_init = true;
-//   }
-// }
+void calib_camera_t::_solve_nbv_brute_force() {
+  // Setup
+  if (verbose) {
+    printf("Solving Incremental NBV problem\n");
+  }
+  real_t calib_entropy_k = 0.0;
+
+  // Form NBV timestamps where aprilgrids are actually detected
+  std::vector<timestamp_t> nbv_timestamps;
+  for (const auto &ts : timestamps) {
+    for (const auto &[cam_idx, grid] : calib_data[ts]) {
+      if (grid.detected) {
+        nbv_timestamps.push_back(ts);
+        break;
+      }
+    }
+  }
+  std::shuffle(nbv_timestamps.begin(), nbv_timestamps.end(), calib_rng);
+
+  // Add min-views
+  {
+    auto it = nbv_timestamps.begin();
+    while (it != nbv_timestamps.end()) {
+      // Timestamp
+      auto nbv_ts = *it;
+
+      // Add view
+      if (add_view(calib_data[nbv_ts]) == false) {
+        continue;
+      }
+
+      // Update
+      it = nbv_timestamps.erase(it);
+      if (nb_views() >= min_nbv_views) {
+        break;
+      }
+    }
+
+    // Filter all views
+    removed_outliers = _filter_all_views();
+    if (verbose) {
+      printf("Removed %d outliers\n", removed_outliers);
+    }
+
+    // Calculate entropy
+    matx_t calib_covar;
+    int retval = recover_calib_covar(calib_covar);
+    if (retval != 0) {
+      FATAL("Failed to estimate calibration covariance!");
+    }
+    calib_entropy_k = shannon_entropy(calib_covar);
+  }
+
+  // Find next best view
+  const real_t nb_views = nbv_timestamps.size();
+  while (nbv_timestamps.size()) {
+    // Find next best view
+    real_t calib_entropy_kp1 = 0.0;
+    timestamp_t nbv_ts = 0;
+    find_nbv(nbv_timestamps, calib_entropy_kp1, nbv_ts);
+
+    // Calculate information gain
+    real_t info_gain = 0.5 * (calib_entropy_k - calib_entropy_kp1);
+    if (info_gain < info_gain_threshold) {
+      break;
+    } else {
+      calib_entropy_k = calib_entropy_kp1;
+    }
+
+    // Add view
+    if (add_view(calib_data[nbv_ts]) == false) {
+      continue;
+    }
+
+    // Print stats
+    _print_stats((nbv_timestamps.size() / nb_views) * 100.0);
+
+    // Update
+    const auto nbv_begin = nbv_timestamps.begin();
+    const auto nbv_end = nbv_timestamps.end();
+    const auto nbv_idx = std::remove(nbv_begin, nbv_end, nbv_ts);
+    nbv_timestamps.erase(nbv_idx, nbv_end);
+    problem_init = true;
+  }
+}
 
 void calib_camera_t::solve() {
   // Print Calibration settings

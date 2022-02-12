@@ -1520,6 +1520,7 @@ void marg_error_t::schurs_complement(const matx_t &H,
   const double inv_check = ((Hmm * Hmm_inv) - I(m, m)).sum();
   if (fabs(inv_check) > 1e-4) {
     LOG_WARN("Inverse identity check: %f", inv_check);
+    LOG_WARN("This is bad ... Usually means marg_error_t is bad!");
   }
   // clang-format on
 
@@ -1582,9 +1583,10 @@ ceres::ResidualBlockId marg_error_t::marginalize(ceres::Problem *problem,
 
   // Check decomposition
   const real_t decomp_norm = ((J0_.transpose() * J0_) - H_marg).norm();
-  const bool decomp_check = decomp_norm < 1.0e-4;
+  const bool decomp_check = decomp_norm < 1.0e-2;
   if (decomp_check == false) {
     LOG_WARN("Decompose JtJ check: %f", decomp_norm);
+    LOG_WARN("This is bad ... Usually means marg_error_t is bad!");
   }
   // clang-format on
 

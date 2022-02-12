@@ -384,10 +384,13 @@ int test_calib_camera_solve_inc() {
   // Calibrate
   calib_camera_t calib{calib_target};
   calib.enable_nbv = false;
-  calib.add_camera_data(0, test_data.at(0));
+  calib.add_camera_data(test_data);
   calib.add_camera(0, cam_res, proj_model, dist_model);
-  calib.add_camera_extrinsics(0);
+  calib.add_camera(1, cam_res, proj_model, dist_model);
+  calib._initialize_intrinsics();
+  calib._initialize_extrinsics();
   calib._solve_inc();
+  calib.validate(valid_data);
 
   return 0;
 }
@@ -423,9 +426,9 @@ int test_calib_camera_stereo() {
   calib.add_camera(0, cam_res, proj_model, dist_model);
   calib.add_camera(1, cam_res, proj_model, dist_model);
   calib.solve();
-  // calib.save_results("/tmp/calib-results.yaml");
-  // calib.save_estimates("/tmp/calib-estimates.yaml");
-  // calib.validate(valid_data);
+  calib.save_results("/tmp/calib-results.yaml");
+  calib.save_estimates("/tmp/calib-estimates.yaml");
+  calib.validate(valid_data);
 
   return 0;
 }
@@ -575,7 +578,7 @@ int test_marg_error() {
 
 void test_suite() {
   load_test_dataset();
-  // load_validation_dataset();
+  load_validation_dataset();
 
   MU_ADD_TEST(test_calib_view);
   MU_ADD_TEST(test_calib_camera_add_camera_data);
@@ -584,7 +587,7 @@ void test_suite() {
   MU_ADD_TEST(test_calib_camera_add_pose);
   MU_ADD_TEST(test_calib_camera_add_and_remove_view);
   MU_ADD_TEST(test_calib_camera_recover_calib_covar);
-  // MU_ADD_TEST(test_calib_camera_find_nbv);
+  MU_ADD_TEST(test_calib_camera_find_nbv);
   MU_ADD_TEST(test_calib_camera_filter_view);
   MU_ADD_TEST(test_calib_camera_filter_all_views);
   MU_ADD_TEST(test_calib_camera_eval_nbv);

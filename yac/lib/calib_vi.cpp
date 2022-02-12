@@ -5,7 +5,6 @@ namespace yac {
 // VISUAL INERTIAL CALIBRATION VIEW ////////////////////////////////////////////
 
 calib_vi_view_t::calib_vi_view_t(const timestamp_t ts_,
-                                 ceres::Problem *problem_,
                                  const CamIdx2Grids &grids_,
                                  const mat4_t &T_WS_,
                                  const vec_t<9> &sb_,
@@ -14,6 +13,7 @@ calib_vi_view_t::calib_vi_view_t(const timestamp_t ts_,
                                  CamIdx2Extrinsics &cam_exts_,
                                  extrinsics_t *imu_exts_,
                                  fiducial_t *fiducial_,
+                                 ceres::Problem *problem_,
                                  PoseLocalParameterization *pose_plus)
     : ts{ts_}, grids{grids_}, pose{ts_, T_WS_}, sb{ts_, sb_},
       cam_geoms{cam_geoms_}, cam_params{cam_params_}, cam_exts{cam_exts_},
@@ -417,7 +417,6 @@ void calib_vi_t::initialize(const CamIdx2Grids &grids, imu_data_t &imu_buf) {
   const timestamp_t ts = grids.at(0).timestamp;
   const vec_t<9> sb = zeros(9, 1);
   calib_views.emplace_back(ts,
-                           problem,
                            grids,
                            T_WS,
                            sb,
@@ -426,6 +425,7 @@ void calib_vi_t::initialize(const CamIdx2Grids &grids, imu_data_t &imu_buf) {
                            cam_exts,
                            imu_exts,
                            fiducial,
+                           problem,
                            &pose_plus);
 
   initialized = true;
@@ -479,7 +479,6 @@ void calib_vi_t::add_view(const CamIdx2Grids &grids) {
   // measurements, we are estimating `T_WS_k` via vision. This is because
   // vision estimate is better in this case.
   calib_views.emplace_back(ts_k,
-                           problem,
                            grids,
                            T_WS_k,
                            sb_k,
@@ -488,6 +487,7 @@ void calib_vi_t::add_view(const CamIdx2Grids &grids) {
                            cam_exts,
                            imu_exts,
                            fiducial,
+                           problem,
                            &pose_plus);
 
   // Form imu factor between view km1 and k

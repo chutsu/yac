@@ -213,7 +213,7 @@ struct calib_camera_t {
   void _solve_batch(const bool filter_outliers);
   void _solve_inc();
   void _solve_nbv();
-  // void _solve_nbv_brute_force();
+  void _solve_nbv_brute_force();
 
   void solve();
   void show_results();

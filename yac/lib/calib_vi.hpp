@@ -37,7 +37,6 @@ struct calib_vi_view_t {
 
   calib_vi_view_t() = default;
   calib_vi_view_t(const timestamp_t ts_,
-                  ceres::Problem *problem_,
                   const CamIdx2Grids &grids_,
                   const mat4_t &T_WS,
                   const vec_t<9> &sb,
@@ -46,6 +45,7 @@ struct calib_vi_view_t {
                   CamIdx2Extrinsics &cam_exts_,
                   extrinsics_t *imu_exts_,
                   fiducial_t *fiducial_,
+                  ceres::Problem *problem_,
                   PoseLocalParameterization *pose_plus);
   ~calib_vi_view_t() = default;
 

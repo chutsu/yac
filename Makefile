@@ -50,7 +50,7 @@ relwithdeb: ${CATKIN_WS} ${YAC_PATH} ## Build libyac and yac_ros in release with
 release: ${CATKIN_WS} ${YAC_PATH} ## Build libyac and yac_ros in release mode
 	cd ${CATKIN_WS} \
 		&& . /opt/ros/${ROS_VERSION}/setup.sh \
-		&& catkin build yac yac_ros -DCMAKE_BUILD_TYPE=Release -j4
+		&& catkin build yac -DCMAKE_BUILD_TYPE=Release -j4
 
 download_test_data: ## Download test data
 	@bash ./scripts/download_test_data.bash

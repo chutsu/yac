@@ -12,7 +12,7 @@ help:
 			{printf "\033[1;36m%-20s\033[0m%s\n", $$1, $$2}'
 
 ${YAC_PATH}:
-	ln -sf . ${CATKIN_WS}/src/yac
+	ln -sf ${PWD} ${CATKIN_WS}/src/yac
 
 ${CATKIN_WS}:
 	@mkdir -p ${CATKIN_WS}/src; catkin init

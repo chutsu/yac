@@ -67,8 +67,8 @@ struct calib_vi_t {
   bool verbose = true;
   double sigma_vision = 1.0;
   int batch_max_iter = 30;
-  bool enable_outlier_rejection = true;
-  double outlier_threshold = 3.0;
+  bool enable_outlier_rejection = false;
+  double outlier_threshold = 4.0;
 
   // Camera geometries
   pinhole_radtan4_t pinhole_radtan4;
@@ -97,7 +97,7 @@ struct calib_vi_t {
   ceres::LossFunction *loss = nullptr;
   PoseLocalParameterization pose_plus;
   std::deque<calib_vi_view_t> calib_views;
-  marg_error_t marg_error;
+  marg_error_t *marg_error = nullptr;
 
   // Constructor
   calib_vi_t();

@@ -128,7 +128,6 @@ int calib_vi_view_t::filter_view(const real_t outlier_threshold) {
   // Calculate threshold
   const auto error_stddev = stddev(reproj_errors_all);
   const auto threshold = outlier_threshold * error_stddev;
-  // const auto threshold = outlier_threshold;
 
   int nb_inliers = 0;
   int nb_outliers = 0;
@@ -142,8 +141,12 @@ int calib_vi_view_t::filter_view(const real_t outlier_threshold) {
       auto &fiducial_error = *err_it;
       auto &fiducial_id = *id_it;
 
-      real_t err = 0.0;
-      if (fiducial_error->get_reproj_error(err) == 0 && err > threshold) {
+      vec2_t r;
+      if (fiducial_error->get_residual(r) != 0) {
+        continue;
+      }
+
+      if (r.x() > threshold || r.y() > threshold) {
         problem->RemoveResidualBlock(fiducial_id);
         err_it = cam_errors.erase(err_it);
         id_it = cam_error_ids.erase(id_it);
@@ -182,6 +185,8 @@ void calib_vi_view_t::form_imu_error(const imu_params_t &imu_params,
 calib_vi_t::calib_vi_t() {
   prob_options.local_parameterization_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
   prob_options.cost_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
+  prob_options.loss_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
+  prob_options.enable_fast_removal = true;
   problem = new ceres::Problem{prob_options};
 }
 
@@ -530,14 +535,15 @@ void calib_vi_t::add_measurement(const timestamp_t imu_ts,
 }
 
 void calib_vi_t::solve() {
+  // Solver options
+  ceres::Solver::Options options;
+  options.minimizer_progress_to_stdout = verbose;
+  options.max_num_iterations = batch_max_iter;
+  ceres::Solver::Summary summary;
+
   // Optimize problem - first pass
   {
     // LOG_INFO("Optimize problem - first pass");
-    ceres::Solver::Options options;
-    options.minimizer_progress_to_stdout = verbose;
-    options.max_num_iterations = batch_max_iter;
-
-    ceres::Solver::Summary summary;
     ceres::Solve(options, problem, &summary);
     if (verbose) {
       std::cout << summary.BriefReport() << std::endl << std::endl;
@@ -550,6 +556,7 @@ void calib_vi_t::solve() {
     LOG_INFO("Filter outliers");
     int nb_outliers = 0;
     for (auto &view : calib_views) {
+      printf("filtering view: %ld\n", view.ts);
       nb_outliers += view.filter_view(outlier_threshold);
     }
     LOG_INFO("Removed %d outliers!", nb_outliers);
@@ -559,14 +566,9 @@ void calib_vi_t::solve() {
       LOG_INFO("Optimize problem - second pass\n");
 
       // Solve
-      ceres::Solver::Options options;
-      options.minimizer_progress_to_stdout = true;
-      options.max_num_iterations = batch_max_iter;
-
-      ceres::Solver::Summary summary;
       ceres::Solve(options, problem, &summary);
       if (verbose) {
-        std::cout << summary.FullReport() << std::endl << std::endl;
+        std::cout << summary.BriefReport() << std::endl << std::endl;
         show_results();
       }
     }

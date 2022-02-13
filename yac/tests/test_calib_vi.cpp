@@ -46,8 +46,8 @@ void load_imu_data(const std::string &csv_path,
     }
 
     timestamps.push_back(ts);
-    w_B.emplace_back(w_x, w_y, w_z);
     a_B.emplace_back(a_x, a_y, a_z);
+    w_B.emplace_back(w_x, w_y, w_z);
   }
   fclose(fp);
 }
@@ -62,6 +62,15 @@ timeline_t setup_test_data() {
   for (auto grid_path : cam0_files) {
     grid_path = std::string(TEST_IMUCAM_DATA "/cam0/") + grid_path;
     aprilgrid_t grid(grid_path);
+    if (grid.detected == false) {
+      const auto grid_fname = parse_fname(grid_path);
+      const auto ts_str = grid_fname.substr(0, 19);
+      grid.timestamp = std::stoull(ts_str);
+      grid.tag_rows = 6;
+      grid.tag_cols = 6;
+      grid.tag_size = 0.088;
+      grid.tag_spacing = 0.3;
+    }
     timeline.add(grid.timestamp, 0, grid);
   }
 
@@ -71,6 +80,15 @@ timeline_t setup_test_data() {
   for (auto grid_path : cam1_files) {
     grid_path = std::string(TEST_IMUCAM_DATA "/cam1/") + grid_path;
     aprilgrid_t grid(grid_path);
+    if (grid.detected == false) {
+      const auto grid_fname = parse_fname(grid_path);
+      const auto ts_str = grid_fname.substr(0, 19);
+      grid.timestamp = std::stoull(ts_str);
+      grid.tag_rows = 6;
+      grid.tag_cols = 6;
+      grid.tag_size = 0.088;
+      grid.tag_spacing = 0.3;
+    }
     timeline.add(grid.timestamp, 1, grid);
   }
 

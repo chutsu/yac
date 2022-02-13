@@ -66,4 +66,5 @@ tests: ## Build and run tests
 		&& rosrun yac test_util_net \
 		&& rosrun yac test_util_timeline \
 		&& rosrun yac test_calib_data \
-		&& rosrun yac test_calib_camera
+		&& rosrun yac test_calib_camera \
+		&& rosrun yac test_calib_vi

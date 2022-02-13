@@ -18,7 +18,6 @@ calib_vi_view_t::calib_vi_view_t(const timestamp_t ts_,
     : ts{ts_}, grids{grids_}, pose{ts_, T_WS_}, sb{ts_, sb_},
       cam_geoms{cam_geoms_}, cam_params{cam_params_}, cam_exts{cam_exts_},
       imu_exts{imu_exts_}, fiducial{fiducial_}, problem{problem_} {
-
   // Add pose to problem
   problem->AddParameterBlock(pose.param.data(), 7);
   problem->SetParameterization(pose.param.data(), pose_plus);
@@ -46,23 +45,23 @@ calib_vi_view_t::calib_vi_view_t(const timestamp_t ts_,
       const vec3_t r_FFi = pts[i];
 
       // Form residual
-      auto error = std::make_unique<fiducial_error_t>(ts,
-                                                      cam_geoms[cam_idx],
-                                                      cam_params[cam_idx],
-                                                      cam_exts[cam_idx],
-                                                      imu_exts,
-                                                      fiducial,
-                                                      &pose,
-                                                      tag_id,
-                                                      corner_idx,
-                                                      r_FFi,
-                                                      z,
-                                                      covar);
-      fiducial_errors[cam_idx].emplace_back(std::move(error));
+      auto error = new fiducial_error_t(ts,
+                                        cam_geoms[cam_idx],
+                                        cam_params[cam_idx],
+                                        cam_exts[cam_idx],
+                                        imu_exts,
+                                        fiducial,
+                                        &pose,
+                                        tag_id,
+                                        corner_idx,
+                                        r_FFi,
+                                        z,
+                                        covar);
+      fiducial_errors[cam_idx].emplace_back(error);
 
       // Add to problem
       auto error_id =
-          problem->AddResidualBlock(fiducial_errors[cam_idx].back().get(),
+          problem->AddResidualBlock(fiducial_errors[cam_idx].back(),
                                     NULL,
                                     fiducial->param.data(),
                                     pose.param.data(),
@@ -71,6 +70,18 @@ calib_vi_view_t::calib_vi_view_t(const timestamp_t ts_,
                                     cam_params[cam_idx]->param.data());
       fiducial_error_ids[cam_idx].push_back(error_id);
     }
+  }
+}
+
+calib_vi_view_t::~calib_vi_view_t() {
+  for (auto &[cam_idx, errors] : fiducial_errors) {
+    for (auto error : errors) {
+      delete error;
+    }
+  }
+
+  if (imu_error) {
+    delete imu_error;
   }
 }
 
@@ -166,18 +177,37 @@ void calib_vi_view_t::form_imu_error(const imu_params_t &imu_params,
                                      const imu_data_t &imu_buf,
                                      pose_t *pose_j,
                                      sb_params_t *sb_j) {
-  imu_error = std::make_unique<imu_error_t>(imu_params,
-                                            imu_buf,
-                                            &pose,
-                                            &sb,
-                                            pose_j,
-                                            sb_j);
-  imu_error_id = problem->AddResidualBlock(imu_error.get(),
+  imu_error = new imu_error_t(imu_params, imu_buf, &pose, &sb, pose_j, sb_j);
+  imu_error_id = problem->AddResidualBlock(imu_error,
                                            NULL,
                                            pose.param.data(),
                                            sb.param.data(),
                                            pose_j->param.data(),
                                            sb_j->param.data());
+}
+
+ceres::ResidualBlockId calib_vi_view_t::marginalize(marg_error_t *marg_error) {
+  // Mark pose T_WS and speed and biases sb to be marginalized
+  pose.marginalize = true;
+  sb.marginalize = true;
+
+  // Transfer residuals to marginalization error
+  for (auto &[cam_idx, errors] : fiducial_errors) {
+    for (auto &error : errors) {
+      marg_error->add(error);
+    }
+  }
+  marg_error->add(imu_error);
+  const auto res_id = marg_error->marginalize(problem);
+
+  // Clear residuals
+  fiducial_error_ids.clear();
+  fiducial_errors.clear();
+  // ^ Important! we don't want to delete the residual blocks when the view is
+  // deconstructed, but rather by adding the residual functions to the
+  // marginalization error we pass the ownership to marg_error_t
+
+  return res_id;
 }
 
 // VISUAL INERTIAL CALIBRATOR //////////////////////////////////////////////////

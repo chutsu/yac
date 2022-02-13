@@ -33,7 +33,7 @@ struct calib_vi_view_t {
   CamIdx2FiducialErrors fiducial_errors;
   // -- Imu error
   ceres::ResidualBlockId imu_error_id;
-  std::unique_ptr<imu_error_t> imu_error;
+  imu_error_t *imu_error = nullptr;
 
   calib_vi_view_t() = default;
   calib_vi_view_t(const timestamp_t ts_,
@@ -47,7 +47,7 @@ struct calib_vi_view_t {
                   fiducial_t *fiducial_,
                   ceres::Problem *problem_,
                   PoseLocalParameterization *pose_plus);
-  ~calib_vi_view_t() = default;
+  ~calib_vi_view_t();
 
   std::vector<int> get_cam_indices() const;
   std::vector<real_t> get_reproj_errors(const int cam_idx) const;
@@ -58,6 +58,7 @@ struct calib_vi_view_t {
                       const imu_data_t &imu_buf,
                       pose_t *pose_j,
                       sb_params_t *sb_j);
+  ceres::ResidualBlockId marginalize(marg_error_t *marg_error);
 };
 
 // VISUAL INERTIAL CALIBRATOR //////////////////////////////////////////////////
@@ -135,6 +136,7 @@ struct calib_vi_t {
                        const vec3_t &a_m,
                        const vec3_t &w_m);
   // int recover_calib_covar(matx_t &calib_covar);
+  void marginalize_last_view();
 
   void solve();
   void show_results();

@@ -192,17 +192,18 @@ ceres::ResidualBlockId calib_vi_view_t::marginalize(marg_error_t *marg_error) {
   sb.marginalize = true;
 
   // Transfer residuals to marginalization error
+  marg_error->add(imu_error);
   for (auto &[cam_idx, errors] : fiducial_errors) {
     for (auto &error : errors) {
       marg_error->add(error);
     }
   }
-  marg_error->add(imu_error);
   const auto res_id = marg_error->marginalize(problem);
 
   // Clear residuals
   fiducial_error_ids.clear();
   fiducial_errors.clear();
+  imu_error = nullptr;
   // ^ Important! we don't want to delete the residual blocks when the view is
   // deconstructed, but rather by adding the residual functions to the
   // marginalization error we pass the ownership to marg_error_t
@@ -347,8 +348,8 @@ mat4_t calib_vi_t::get_fiducial_pose() const { return fiducial->estimate(); }
 std::map<int, std::vector<real_t>> calib_vi_t::get_reproj_errors() const {
   std::map<int, std::vector<real_t>> errors;
   for (const auto &view : calib_views) {
-    for (const auto cam_idx : view.get_cam_indices()) {
-      extend(errors[cam_idx], view.get_reproj_errors(cam_idx));
+    for (const auto cam_idx : view->get_cam_indices()) {
+      extend(errors[cam_idx], view->get_reproj_errors(cam_idx));
     }
   }
   return errors;
@@ -451,17 +452,17 @@ void calib_vi_t::initialize(const CamIdx2Grids &grids, imu_data_t &imu_buf) {
   // First calibration view
   const timestamp_t ts = grids.at(0).timestamp;
   const vec_t<9> sb = zeros(9, 1);
-  calib_views.emplace_back(ts,
-                           grids,
-                           T_WS,
-                           sb,
-                           cam_geoms,
-                           cam_params,
-                           cam_exts,
-                           imu_exts,
-                           fiducial,
-                           problem,
-                           &pose_plus);
+  calib_views.push_back(new calib_vi_view_t{ts,
+                                            grids,
+                                            T_WS,
+                                            sb,
+                                            cam_geoms,
+                                            cam_params,
+                                            cam_exts,
+                                            imu_exts,
+                                            fiducial,
+                                            problem,
+                                            &pose_plus});
 
   initialized = true;
   prev_grids = grids;
@@ -492,18 +493,18 @@ void calib_vi_t::add_view(const CamIdx2Grids &grids) {
 
   // Get previous calibration view
   auto &view_km1 = calib_views.back();
-  const timestamp_t ts_km1 = view_km1.ts;
+  const timestamp_t ts_km1 = view_km1->ts;
 
   // Infer velocity from two poses T_WS_k and T_WS_km1
   const timestamp_t ts_k = grid_ts;
   const real_t dt = ((ts_k - ts_km1) * 1e-9);
-  const mat4_t T_WS_km1 = view_km1.pose.tf();
+  const mat4_t T_WS_km1 = view_km1->pose.tf();
   const vec3_t r_WS_km1 = tf_trans(T_WS_km1);
   const vec3_t r_WS_k = tf_trans(T_WS_k);
   const vec3_t v_WS_k = (r_WS_k - r_WS_km1) / dt;
 
   // Form current speed and biases vector sb_k
-  const vec_t<9> sb_km1 = view_km1.sb.param;
+  const vec_t<9> sb_km1 = view_km1->sb.param;
   const vec3_t ba_km1 = sb_km1.segment<3>(3);
   const vec3_t bg_km1 = sb_km1.segment<3>(6);
   vec_t<9> sb_k;
@@ -513,21 +514,21 @@ void calib_vi_t::add_view(const CamIdx2Grids &grids) {
   // Note: instead of using the propagated sensor pose T_WS_k using imu
   // measurements, we are estimating `T_WS_k` via vision. This is because
   // vision estimate is better in this case.
-  calib_views.emplace_back(ts_k,
-                           grids,
-                           T_WS_k,
-                           sb_k,
-                           cam_geoms,
-                           cam_params,
-                           cam_exts,
-                           imu_exts,
-                           fiducial,
-                           problem,
-                           &pose_plus);
+  calib_views.push_back(new calib_vi_view_t{ts_k,
+                                            grids,
+                                            T_WS_k,
+                                            sb_k,
+                                            cam_geoms,
+                                            cam_params,
+                                            cam_exts,
+                                            imu_exts,
+                                            fiducial,
+                                            problem,
+                                            &pose_plus});
 
   // Form imu factor between view km1 and k
-  auto &view_k = calib_views.back();
-  view_km1.form_imu_error(imu_params, imu_buf, &view_k.pose, &view_k.sb);
+  auto view_k = calib_views.back();
+  view_km1->form_imu_error(imu_params, imu_buf, &view_k->pose, &view_k->sb);
 
   prev_grids = grids;
 }
@@ -562,6 +563,18 @@ void calib_vi_t::add_measurement(const timestamp_t imu_ts,
 
   // Add new view
   add_view(grids);
+
+  // Marginalize
+  if (enable_marginalization && calib_views.size() > window_size) {
+    // Solve then marginalize
+    ceres::Solver::Options options;
+    options.max_num_iterations = 10;
+    ceres::Solver::Summary summary;
+    ceres::Solve(options, problem, &summary);
+
+    // Marginalize oldest view
+    marginalize_oldest_view();
+  }
 }
 
 void calib_vi_t::solve() {
@@ -586,8 +599,8 @@ void calib_vi_t::solve() {
     LOG_INFO("Filter outliers");
     int nb_outliers = 0;
     for (auto &view : calib_views) {
-      printf("filtering view: %ld\n", view.ts);
-      nb_outliers += view.filter_view(outlier_threshold);
+      printf("filtering view: %ld\n", view->ts);
+      nb_outliers += view->filter_view(outlier_threshold);
     }
     LOG_INFO("Removed %d outliers!", nb_outliers);
 
@@ -702,6 +715,37 @@ void calib_vi_t::show_results() {
 //   return 0;
 // }
 
+void calib_vi_t::marginalize_oldest_view() {
+  // Mark the pose to be marginalized
+  auto view = calib_views.front();
+  view->pose.marginalize = true;
+  view->sb.marginalize = true;
+
+  // Form new marg_error_t
+  if (marg_error == nullptr) {
+    // Initialize first marg_error_t
+    marg_error = new marg_error_t();
+
+  } else {
+    // Add previous marg_error_t to new
+    auto new_marg_error = new marg_error_t();
+    new_marg_error->add(marg_error);
+
+    // Delete old marg_error_t
+    problem->RemoveResidualBlock(marg_error_id);
+
+    // Point to new marg_error_t
+    marg_error = new_marg_error;
+  }
+
+  // Marginalize view
+  marg_error_id = view->marginalize(marg_error);
+
+  // Remove view
+  calib_views.pop_front();
+  delete view;
+}
+
 int calib_vi_t::save_results(const std::string &save_path) const {
   LOG_INFO(KGRN "Saved results to [%s]" KNRM, save_path.c_str());
 
@@ -760,8 +804,8 @@ int calib_vi_t::save_results(const std::string &save_path) const {
   // IMU parameters
   vec3s_t bias_acc;
   vec3s_t bias_gyr;
-  for (const auto &view : calib_views) {
-    const auto sb = view.sb;
+  for (auto view : calib_views) {
+    const auto sb = view->sb;
     bias_acc.push_back(sb.param.segment<3>(3));
     bias_gyr.push_back(sb.param.segment<3>(6));
   }
@@ -834,7 +878,7 @@ void calib_vi_t::save_estimates(const std::string &dir_path) const {
   // Write poses and speed and biases
   for (const auto &view : calib_views) {
     // Poses
-    const auto pose = view.pose;
+    const auto pose = view->pose;
     const auto ts = pose.ts;
     const vec3_t r = pose.trans();
     const quat_t q = pose.rot();
@@ -843,7 +887,7 @@ void calib_vi_t::save_estimates(const std::string &dir_path) const {
     fprintf(poses_csv, "%f,%f,%f,%f\n", q.x(), q.y(), q.z(), q.w());
 
     // Speed and biases
-    const auto sb = view.sb;
+    const auto sb = view->sb;
     const vec3_t v = sb.param.segment<3>(0);
     const vec3_t ba = sb.param.segment<3>(3);
     const vec3_t bg = sb.param.segment<3>(6);

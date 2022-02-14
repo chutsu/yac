@@ -1526,8 +1526,8 @@ void marg_error_t::schurs_complement(const matx_t &H,
   const double eps = 1.0e-8;
   const Eigen::SelfAdjointEigenSolver<matx_t> eig(Hmm);
   const matx_t V = eig.eigenvectors();
-  const auto eigvals = eig.eigenvalues().array();
-  const auto eigvals_inv = (eigvals > eps).select(eigvals.inverse(), 0);
+  const auto eigvals = (eig.eigenvalues().array() > eps).select(eig.eigenvalues().array(), 0);
+  const auto eigvals_inv = (eig.eigenvalues().array() > eps).select(eig.eigenvalues().array().inverse(), 0);
   const matx_t Lambda_inv = vecx_t(eigvals_inv).asDiagonal();
   const matx_t Hmm_inv = V * Lambda_inv * V.transpose();
   const double inv_check = ((Hmm * Hmm_inv) - I(m, m)).sum();
@@ -1566,15 +1566,6 @@ ceres::ResidualBlockId marg_error_t::marginalize(ceres::Problem *problem,
     mat2csv("/tmp/H_marg.csv", H_marg);
     mat2csv("/tmp/b_marg.csv", b_marg);
   }
-
-  // // Precondition H_marg and b_marg
-  // const vecx_t h = H_marg.diagonal();
-  // const vecx_t p = (h.array() > 1.0e-9).select(h.cwiseSqrt(), 1.0e-3);
-  // const vecx_t p_inv = p.cwiseInverse();
-  // const matx_t P_inv = p_inv.asDiagonal();
-  // // -- Scale H and b
-  // H_marg = P_inv * H_marg * P_inv;
-  // b_marg = P_inv * b_marg;
 
   // Decompose matrix H into J' * J to obtain J via eigen-decomposition
   // i.e.

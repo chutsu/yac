@@ -67,13 +67,11 @@ struct calib_vi_t {
   // Settings
   bool verbose = true;
   double sigma_vision = 1.0;
-  int batch_max_iter = 30;
+  int batch_max_iter = 20;
   bool enable_outlier_rejection = false;
   double outlier_threshold = 4.0;
-
-  // Camera geometries
-  pinhole_radtan4_t pinhole_radtan4;
-  pinhole_equi4_t pinhole_equi4;
+  bool enable_marginalization = true;
+  int window_size = 8;
 
   // State-Variables
   CamIdx2Geometry cam_geoms;
@@ -93,12 +91,20 @@ struct calib_vi_t {
   imu_data_t imu_buf;
 
   // Optimization
+  PoseLocalParameterization pose_plus;
   ceres::Problem::Options prob_options;
   ceres::Problem *problem = nullptr;
   ceres::LossFunction *loss = nullptr;
-  PoseLocalParameterization pose_plus;
-  std::deque<calib_vi_view_t> calib_views;
+  ceres::ResidualBlockId marg_error_id;
   marg_error_t *marg_error = nullptr;
+
+  // Window
+  std::deque<timestamp_t> window;
+  std::deque<calib_vi_view_t *> calib_views;
+
+  // Camera geometries
+  pinhole_radtan4_t pinhole_radtan4;
+  pinhole_equi4_t pinhole_equi4;
 
   // Constructor
   calib_vi_t();
@@ -136,7 +142,7 @@ struct calib_vi_t {
                        const vec3_t &a_m,
                        const vec3_t &w_m);
   // int recover_calib_covar(matx_t &calib_covar);
-  void marginalize_last_view();
+  void marginalize_oldest_view();
 
   void solve();
   void show_results();

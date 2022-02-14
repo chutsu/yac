@@ -52,7 +52,8 @@ set -e
 # RUN_CMD="rosrun yac test_calib_mocap"
 
 # YAC - VISUAL-INERTIAL CALIBRATION
-RUN_CMD="rosrun yac test_calib_vi"
+# RUN_CMD="rosrun yac test_calib_vi"
+RUN_CMD="rosrun yac test_calib_vi --target test_calib_vi_online"
 # RUN_CMD="rosrun yac test_calib_vi --target test_calib_vi"
 # RUN_CMD="rosrun yac test_calib_vi --target test_marg_error"
 

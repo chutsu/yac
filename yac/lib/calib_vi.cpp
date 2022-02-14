@@ -568,7 +568,8 @@ void calib_vi_t::add_measurement(const timestamp_t imu_ts,
   if (enable_marginalization && calib_views.size() > window_size) {
     // Solve then marginalize
     ceres::Solver::Options options;
-    options.max_num_iterations = 10;
+    options.minimizer_progress_to_stdout = false;
+    options.max_num_iterations = batch_max_iter;
     ceres::Solver::Summary summary;
     ceres::Solve(options, problem, &summary);
 

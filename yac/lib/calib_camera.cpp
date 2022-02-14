@@ -854,9 +854,6 @@ void calib_camera_t::marginalize_last_view() {
 
     // Delete old marg_error_t
     problem->RemoveResidualBlock(marg_error_id);
-    // marg_error->res_blocks_.clear();
-    // delete marg_error;
-    // marg_error = nullptr; // <- Defensive programming
 
     // Point to new marg_error_t
     marg_error = new_marg_error;
@@ -1343,13 +1340,13 @@ void calib_camera_t::_print_stats(const real_t progress) {
   //   const auto valid_error = valid.validate(validation_data);
   // }
 
-  // // Calculate entropy
-  // matx_t calib_covar;
-  // int retval = recover_calib_covar(calib_covar);
-  // if (retval != 0) {
-  //   FATAL("Failed to estimate calibration covariance!");
-  // }
-  // calib_entropy_k = shannon_entropy(calib_covar);
+  // Calculate entropy
+  matx_t calib_covar;
+  int retval = recover_calib_covar(calib_covar);
+  if (retval != 0) {
+    FATAL("Failed to estimate calibration covariance!");
+  }
+  calib_entropy_k = shannon_entropy(calib_covar);
 
   const auto reproj_errors_all = get_all_reproj_errors();
   // clang-format off
@@ -1360,7 +1357,7 @@ void calib_camera_t::_print_stats(const real_t progress) {
   // printf("validation_error: %.2f ", valid_error);
   // printf("info_gain: %.2f ", info_gain);
   // printf("covar_det_k: %e ", covar_det_k);
-  // printf("shannon_entropy: %f\n", calib_entropy_k);
+  printf("shannon_entropy: %f\n", calib_entropy_k);
   printf("\n");
 
   // const mat4_t T_BC0 = get_camera_extrinsics(0);

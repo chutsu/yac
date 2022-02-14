@@ -71,7 +71,7 @@ struct calib_vi_t {
   bool enable_outlier_rejection = false;
   double outlier_threshold = 4.0;
   bool enable_marginalization = true;
-  int window_size = 8;
+  int window_size = 10;
 
   // State-Variables
   CamIdx2Geometry cam_geoms;

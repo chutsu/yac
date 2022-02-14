@@ -377,9 +377,7 @@ int test_calib_vi_online() {
       }
     }
   }
-  calib.solve();
-  calib.save_results("/tmp/calib-vi.yaml");
-  calib.save_estimates("/tmp");
+  calib.show_results();
 
   return 0;
 }

@@ -374,11 +374,11 @@ fiducial_error_t::fiducial_error_t(const timestamp_t &ts,
   // Ceres-Solver
   set_num_residuals(2);
   auto block_sizes = mutable_parameter_block_sizes();
-  block_sizes->push_back(fiducial_->global_size); // T_WF
-  block_sizes->push_back(7);                      // T_WS
-  block_sizes->push_back(7);                      // T_BS
-  block_sizes->push_back(7);                      // T_BCi
-  block_sizes->push_back(8);                      // camera parameters
+  block_sizes->push_back(fiducial_->global_size);  // T_WF
+  block_sizes->push_back(7);                       // T_WS
+  block_sizes->push_back(7);                       // T_BS
+  block_sizes->push_back(7);                       // T_BCi
+  block_sizes->push_back(cam_params->global_size); // camera parameters
 }
 
 int fiducial_error_t::get_residual(vec2_t &r) const {
@@ -1374,7 +1374,8 @@ void marg_error_t::add(calib_error_t *res_block) {
 }
 
 void marg_error_t::form_hessian(matx_t &H, vecx_t &b) {
-  // Reset marginalization error parameter block sizes and residual size
+  // Reset marginalization error parameter blocks and residual size
+  param_blocks.clear(); // <- calib_error_t::param_blocks
   mutable_parameter_block_sizes()->clear();
   set_num_residuals(0);
 
@@ -1390,9 +1391,9 @@ void marg_error_t::form_hessian(matx_t &H, vecx_t &b) {
   std::vector<std::vector<param_t *> *> remain_params = {
       &remain_pose_param_ptrs_,
       &remain_sb_param_ptrs_,
-      &remain_camera_param_ptrs_,
-      &remain_extrinsics_ptrs_,
       &remain_fiducial_ptrs_,
+      &remain_extrinsics_ptrs_,
+      &remain_camera_param_ptrs_,
   };
   for (const auto &param_ptrs : remain_params) {
     for (const auto &param_block : *param_ptrs) {
@@ -1410,11 +1411,23 @@ void marg_error_t::form_hessian(matx_t &H, vecx_t &b) {
     }
   }
 
+  // printf("nb_marg_params: %ld\n", marg_param_ptrs_.size());
+  // for (const auto &param : marg_param_ptrs_) {
+  //   printf("- marg_param: %s\n", param->type.c_str());
+  // }
+  //
+  // printf("nb_remain_params: %ld\n", remain_param_ptrs_.size());
+  // for (const auto &param : remain_param_ptrs_) {
+  //   printf("- remain_param: %s\n", param->type.c_str());
+  // }
+
   // !! VERY IMPORTANT !! Now we know the Hessian size, we can update the
   // number of residuals for ceres::CostFunction
   set_num_residuals(r_);
 
   // Form the H and b. Left and RHS of Gauss-Newton.
+  // H = J.T * J
+  // b = -J.T * e
   const auto local_size = m_ + r_;
   H = zeros(local_size, local_size);
   b = zeros(local_size, 1);
@@ -1509,7 +1522,7 @@ void marg_error_t::schurs_complement(const matx_t &H,
   // the resulting matrix.
   // clang-format off
   matx_t Hmm = H.block(0, 0, m, m);
-  Hmm = 0.5 * (Hmm + Hmm.transpose()); // Enforce SPD
+  Hmm = 0.5 * (Hmm + Hmm.transpose()); // Enforce Symmetry
   const double eps = 1.0e-8;
   const Eigen::SelfAdjointEigenSolver<matx_t> eig(Hmm);
   const matx_t V = eig.eigenvectors();
@@ -1554,9 +1567,23 @@ ceres::ResidualBlockId marg_error_t::marginalize(ceres::Problem *problem,
     mat2csv("/tmp/b_marg.csv", b_marg);
   }
 
-  // Decompose matrix H into J^T * J to obtain J via eigen-decomposition
-  // i.e. H = U S U^T and therefore J = S^0.5 * U^T
+  // // Precondition H_marg and b_marg
+  // const vecx_t h = H_marg.diagonal();
+  // const vecx_t p = (h.array() > 1.0e-9).select(h.cwiseSqrt(), 1.0e-3);
+  // const vecx_t p_inv = p.cwiseInverse();
+  // const matx_t P_inv = p_inv.asDiagonal();
+  // // -- Scale H and b
+  // H_marg = P_inv * H_marg * P_inv;
+  // b_marg = P_inv * b_marg;
+
+  // Decompose matrix H into J' * J to obtain J via eigen-decomposition
+  // i.e.
+  //
+  //   H = J' * J = U * S * U'
+  //   J = S^{0.5} * U'
+  //
   // clang-format off
+  // H_marg = 0.5 * (H_marg + H_marg.transpose()); // Enforce Symmetry
   const Eigen::SelfAdjointEigenSolver<matx_t> eig(H_marg);
   const double eps = std::numeric_limits<double>::epsilon();
   const double tol = eps * H_marg.cols() * eig.eigenvalues().array().maxCoeff();
@@ -1564,15 +1591,23 @@ ceres::ResidualBlockId marg_error_t::marginalize(ceres::Problem *problem,
   const vecx_t S_inv = (eig.eigenvalues().array() > tol).select(eig.eigenvalues().array().inverse(), 0);
   const vecx_t S_sqrt = S.cwiseSqrt();
   const vecx_t S_inv_sqrt = S_inv.cwiseSqrt();
+  const matx_t J = S_sqrt.asDiagonal() * eig.eigenvectors().transpose();
+  const matx_t J_inv = S_inv_sqrt.asDiagonal() * eig.eigenvectors().transpose();
+  // -- Check decomposition
+  const real_t decomp_norm = ((J.transpose() * J) - H_marg).norm();
+  const bool decomp_check = decomp_norm < 1.0e-2;
+  if (decomp_check == false) {
+    LOG_WARN("Decompose JtJ check: %f", decomp_norm);
+    LOG_WARN("This is bad ... Usually means marg_error_t is bad!");
+  }
   // clang-format on
 
-  // Keep track of :
-  // - Linearization point x0
+  // Form:
   // - Linearized jacobians
   // - Linearized residuals
-  // clang-format off
-  J0_ = S_sqrt.asDiagonal() * eig.eigenvectors().transpose();
-  r0_ = -1.0 * S_inv_sqrt.asDiagonal() * eig.eigenvectors().transpose() * b_marg;
+  // - Linearization point x0
+  J0_ = J;
+  r0_ = -J_inv * b_marg;
   for (const auto &param_block : remain_param_ptrs_) {
     x0_.insert({param_block->param.data(), param_block->param});
   }
@@ -1580,15 +1615,6 @@ ceres::ResidualBlockId marg_error_t::marginalize(ceres::Problem *problem,
     mat2csv("/tmp/J0.csv", J0_);
     mat2csv("/tmp/r0.csv", r0_);
   }
-
-  // Check decomposition
-  const real_t decomp_norm = ((J0_.transpose() * J0_) - H_marg).norm();
-  const bool decomp_check = decomp_norm < 1.0e-2;
-  if (decomp_check == false) {
-    LOG_WARN("Decompose JtJ check: %f", decomp_norm);
-    LOG_WARN("This is bad ... Usually means marg_error_t is bad!");
-  }
-  // clang-format on
 
   // Remove parameter blocks from problem, which in turn ceres will remove
   // residual blocks linked to the parameter.

@@ -461,8 +461,7 @@ camera_params_t camera_params_t::init(const int cam_index_,
                          fixed_};
 }
 
-/****************************** sb_params_t
- * ***********************************/
+/****************************** sb_params_t ***********************************/
 
 sb_params_t::sb_params_t(const timestamp_t &ts_,
                          const vec3_t &v_,
@@ -480,8 +479,7 @@ sb_params_t::sb_params_t(const timestamp_t &ts_,
   param = sb_;
 }
 
-/***************************** time_delay_t
- * ***********************************/
+/***************************** time_delay_t ***********************************/
 
 time_delay_t::time_delay_t(const double td_, const bool fixed_)
     : param_t{"time_delay_t", 1, 1, fixed_} {

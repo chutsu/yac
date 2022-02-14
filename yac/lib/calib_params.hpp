@@ -74,7 +74,7 @@ struct pose_t : param_t {
 
 /******************************* fiducial_t ***********************************/
 
-#define FIDUCIAL_PARAMS_SIZE 2
+#define FIDUCIAL_PARAMS_SIZE 7
 
 #if FIDUCIAL_PARAMS_SIZE == 2 || FIDUCIAL_PARAMS_SIZE == 3
 struct fiducial_t : param_t {

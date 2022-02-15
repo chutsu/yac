@@ -105,9 +105,9 @@ struct calib_camera_t {
   bool enable_nbv = true;
   bool enable_nbv_filter = true;
   bool enable_outlier_filter = true;
-  int min_nbv_views = 10;
+  int min_nbv_views = 40;
   real_t outlier_threshold = 4.0;
-  real_t info_gain_threshold = 0.0;
+  real_t info_gain_threshold = 0.2;
 
   // Data
   calib_target_t calib_target;
@@ -119,7 +119,7 @@ struct calib_camera_t {
 
   // NBV
   real_t calib_entropy_k = -1;
-  real_t covar_det_k = -1.0;
+  real_t info_k = 0.0;
   real_t info_gain = 0.0;
 
   // Sliding window
@@ -196,6 +196,7 @@ struct calib_camera_t {
   void remove_all_views();
   void marginalize_last_view();
 
+  real_t _estimate_calib_info();
   int recover_calib_covar(matx_t &calib_covar, bool verbose = true);
   int find_nbv(const std::map<int, mat4s_t> &nbv_poses,
                int &cam_idx,

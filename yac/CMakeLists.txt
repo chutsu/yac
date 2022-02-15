@@ -123,3 +123,6 @@ TARGET_LINK_LIBRARIES(test_calib_vi yac yac_util ${DEPS})
 # DEMO
 ADD_EXECUTABLE(calib_euroc demo/calib_euroc.cpp)
 TARGET_LINK_LIBRARIES(calib_euroc yac yac_util ${DEPS})
+
+ADD_EXECUTABLE(calib_sandbox demo/calib_sandbox.cpp)
+TARGET_LINK_LIBRARIES(calib_sandbox yac yac_util ${DEPS})

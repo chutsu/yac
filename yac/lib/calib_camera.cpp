@@ -878,93 +878,187 @@ void calib_camera_t::marginalize_last_view() {
   }
 }
 
+real_t calib_camera_t::_estimate_calib_info() {
+  // Track parameters
+  std::vector<calib_error_t *> res_blocks;
+  std::map<param_t *, bool> params_seen;
+  std::vector<param_t *> marg_param_ptrs;
+  std::vector<param_t *> remain_camera_param_ptrs;
+  std::vector<param_t *> remain_extrinsics_ptrs;
+  std::vector<param_t *> remain_fiducial_ptrs;
+  for (auto &view : calib_views) {
+    for (auto &[cam_idx, cam_residuals] : view->res_fns) {
+      for (auto &res_block : cam_residuals) {
+        for (auto param_block : res_block->param_blocks) {
+          // Seen parameter block already
+          if (params_seen.count(param_block)) {
+            continue;
+          }
+
+          // Keep track of parameter block
+          if (param_block->type == "camera_params_t") {
+            remain_camera_param_ptrs.push_back(param_block);
+          } else if (param_block->type == "extrinsics_t") {
+            remain_extrinsics_ptrs.push_back(param_block);
+          } else if (param_block->type == "fiducial_t") {
+            remain_fiducial_ptrs.push_back(param_block);
+          } else {
+            marg_param_ptrs.push_back(param_block);
+          }
+          params_seen[param_block] = true;
+        }
+        res_blocks.push_back(res_block);
+      }
+    }
+  }
+
+  // Determine parameter block column indicies for Hessian matrix H
+  size_t m = 0;
+  size_t r = 0;
+  size_t H_idx = 0;
+  std::map<param_t *, int> param_index;
+  // -- Column indices for parameter blocks to be marginalized
+  for (const auto &param_block : marg_param_ptrs) {
+    param_index.insert({param_block, H_idx});
+    H_idx += param_block->local_size;
+    m += param_block->local_size;
+  }
+  // -- Column indices for parameter blocks to remain
+  std::vector<std::vector<param_t *> *> remain_params = {
+      &remain_fiducial_ptrs,
+      &remain_extrinsics_ptrs,
+      &remain_camera_param_ptrs,
+  };
+  std::vector<param_t *> remain_param_ptrs;
+  for (const auto &param_ptrs : remain_params) {
+    for (const auto &param_block : *param_ptrs) {
+      if (param_block->fixed) {
+        continue;
+      }
+      param_index.insert({param_block, H_idx});
+      H_idx += param_block->local_size;
+      r += param_block->local_size;
+      remain_param_ptrs.push_back(param_block);
+    }
+  }
+
+  // Form the H and b. Left and RHS of Gauss-Newton.
+  // H = J.T * J
+  // b = -J.T * e
+  const auto local_size = m + r;
+  matx_t H = zeros(local_size, local_size);
+  vecx_t b = zeros(local_size, 1);
+
+  for (calib_error_t *res_block : res_blocks) {
+    // Setup parameter data
+    std::vector<double *> param_ptrs;
+    for (auto param_block : res_block->param_blocks) {
+      param_ptrs.push_back(param_block->data());
+    }
+
+    // Setup Jacobians data
+    const int r_size = res_block->num_residuals();
+    std::vector<matx_row_major_t> jacs;
+    std::vector<double *> jac_ptrs;
+    for (auto param_block : res_block->param_blocks) {
+      jacs.push_back(zeros(r_size, param_block->global_size));
+      jac_ptrs.push_back(jacs.back().data());
+    }
+
+    // Setup Min-Jacobians data
+    std::vector<matx_row_major_t> min_jacs;
+    std::vector<double *> min_jac_ptrs;
+    for (auto param_block : res_block->param_blocks) {
+      min_jacs.push_back(zeros(r_size, param_block->local_size));
+      min_jac_ptrs.push_back(min_jacs.back().data());
+    }
+
+    // Evaluate residual block
+    vecx_t r = zeros(r_size, 1);
+    res_block->EvaluateWithMinimalJacobians(param_ptrs.data(),
+                                            r.data(),
+                                            jac_ptrs.data(),
+                                            min_jac_ptrs.data());
+
+    // Fill Hessian
+    for (size_t i = 0; i < res_block->param_blocks.size(); i++) {
+      const auto &param_i = res_block->param_blocks[i];
+      if (param_i->fixed) {
+        continue;
+      }
+      const int idx_i = param_index[param_i];
+      const int size_i = param_i->local_size;
+      const matx_t J_i = min_jacs[i];
+
+      for (size_t j = i; j < res_block->param_blocks.size(); j++) {
+        const auto &param_j = res_block->param_blocks[j];
+        if (param_j->fixed) {
+          continue;
+        }
+        const int idx_j = param_index[param_j];
+        const int size_j = param_j->local_size;
+        const matx_t J_j = min_jacs[j];
+
+        if (i == j) {
+          // Form diagonals of H
+          H.block(idx_i, idx_i, size_i, size_i) += J_i.transpose() * J_i;
+        } else {
+          // Form off-diagonals of H
+          // clang-format off
+          H.block(idx_i, idx_j, size_i, size_j) += J_i.transpose() * J_j;
+          H.block(idx_j, idx_i, size_j, size_i) += (J_i.transpose() *
+          J_j).transpose();
+          // clang-format on
+        }
+      }
+
+      // RHS of Gauss Newton (i.e. vector b)
+      b.segment(idx_i, size_i) += -J_i.transpose() * r;
+    }
+  }
+
+  // Marginalize
+  // Pseudo inverse of Hmm via Eigen-decomposition:
+  //
+  //   A_pinv = V * Lambda_pinv * V_transpose
+  //
+  // Where Lambda_pinv is formed by **replacing every non-zero diagonal
+  // entry by its reciprocal, leaving the zeros in place, and transposing
+  // the resulting matrix.
+  // clang-format off
+  matx_t Hmm = H.block(0, 0, m, m);
+  Hmm = 0.5 * (Hmm + Hmm.transpose()); // Enforce Symmetry
+  const double eps = 1.0e-8;
+  const Eigen::SelfAdjointEigenSolver<matx_t> eig(Hmm);
+  const matx_t V = eig.eigenvectors();
+  const auto eigvals = (eig.eigenvalues().array() > eps).select(eig.eigenvalues().array(), 0);
+  const auto eigvals_inv = (eig.eigenvalues().array() > eps).select(eig.eigenvalues().array().inverse(), 0);
+  const matx_t Lambda_inv = vecx_t(eigvals_inv).asDiagonal();
+  const matx_t Hmm_inv = V * Lambda_inv * V.transpose();
+  // clang-format on
+
+  // Calculate Schur's complement
+  const matx_t Hmr = H.block(0, m, m, r);
+  const matx_t Hrm = H.block(m, 0, r, m);
+  const matx_t Hrr = H.block(m, m, r, r);
+  const vecx_t bmm = b.segment(0, m);
+  const vecx_t brr = b.segment(m, r);
+  const matx_t H_marg = Hrr - Hrm * Hmm_inv * Hmr;
+  const matx_t b_marg = brr - Hrm * Hmm_inv * bmm;
+
+  // Calculate det(inv(H_marg))
+  // clang-format off
+  {
+    const Eigen::SelfAdjointEigenSolver<matx_t> eig(H_marg);
+    const auto det = (eig.eigenvalues().array() > eps).select(eig.eigenvalues().array(), 0);
+    return -1.0 * s.log().sum() / log(2.0);
+  }
+  // clang-format on
+}
+
 int calib_camera_t::recover_calib_covar(matx_t &calib_covar, bool verbose) {
-  // Setup covariance blocks to estimate
-  std::vector<std::pair<const double *, const double *>> covar_blocks;
-  int calib_covar_size = 0;
-  // -- Add camera parameter blocks
-  for (auto &[cam_idx, param] : cam_params) {
-    UNUSED(cam_idx);
-    if (param->fixed == false) {
-      covar_blocks.push_back({param->param.data(), param->param.data()});
-      calib_covar_size += param->param.size();
-    }
-  }
-  // -- Add camera extrinsics blocks
-  for (auto &[cam_idx, param] : cam_exts) {
-    if (cam_idx == 0) {
-      continue;
-    }
-    UNUSED(cam_idx);
-    if (param->fixed == false) {
-      covar_blocks.push_back({param->param.data(), param->param.data()});
-      calib_covar_size += 6;
-    }
-  }
-
-  // Estimate covariance
-  ::ceres::Covariance::Options options;
-  ::ceres::Covariance covar_est(options);
-  if (covar_est.Compute(covar_blocks, problem) == false) {
-    if (verbose) {
-      LOG_ERROR("Failed to estimate covariance!");
-      LOG_ERROR("Maybe Hessian is not full rank?");
-    }
-    return -1;
-  }
-
-  // Extract covariances sub-blocks
-  std::map<int, Eigen::Matrix<double, 8, 8, Eigen::RowMajor>> covar_cam_params;
-  std::map<int, Eigen::Matrix<double, 6, 6, Eigen::RowMajor>> covar_cam_exts;
-  for (auto &[cam_idx, param] : cam_params) {
-    UNUSED(cam_idx);
-    if (param->fixed) {
-      continue;
-    }
-
-    auto param_ptr = param->param.data();
-    auto covar_ptr = covar_cam_params[cam_idx].data();
-    if (!covar_est.GetCovarianceBlock(param_ptr, param_ptr, covar_ptr)) {
-      if (verbose) {
-        LOG_ERROR("Failed to estimate cam%d parameter covariance!", cam_idx);
-      }
-      return -1;
-    }
-  }
-  for (auto &[cam_idx, param] : cam_exts) {
-    if (cam_idx == 0) {
-      continue;
-    }
-    if (param->fixed) {
-      continue;
-    }
-
-    auto param_ptr = param->param.data();
-    auto covar_ptr = covar_cam_exts[cam_idx].data();
-    if (!covar_est.GetCovarianceBlockInTangentSpace(param_ptr,
-                                                    param_ptr,
-                                                    covar_ptr)) {
-      if (verbose) {
-        LOG_ERROR("Failed to estimate cam%d extrinsics covariance!", cam_idx);
-      }
-      return -1;
-    }
-  }
-
-  // Form covariance matrix block
-  calib_covar = zeros(calib_covar_size, calib_covar_size);
-  int idx = 0;
-  for (auto &[cam_idx, covar] : covar_cam_params) {
-    calib_covar.block(idx, idx, 8, 8) = covar;
-    idx += 8;
-  }
-  for (auto &[cam_idx, covar] : covar_cam_exts) {
-    if (cam_idx == 0) {
-      continue;
-    }
-    calib_covar.block(idx, idx, 6, 6) = covar;
-    idx += 6;
-  }
+  matx_t H = _estimate_calib_info();
+  calib_covar = H.inverse();
 
   // Check if calib_covar is full-rank?
   if (rank(calib_covar) != calib_covar.rows()) {
@@ -973,8 +1067,110 @@ int calib_camera_t::recover_calib_covar(matx_t &calib_covar, bool verbose) {
     }
     return -1;
   }
-
   return 0;
+
+  // // Setup covariance blocks to estimate
+  // std::vector<std::pair<const double *, const double *>> covar_blocks;
+  // int calib_covar_size = 0;
+  // // -- Add camera parameter blocks
+  // for (auto &[cam_idx, param] : cam_params) {
+  //   UNUSED(cam_idx);
+  //   if (param->fixed == false) {
+  //     covar_blocks.push_back({param->param.data(), param->param.data()});
+  //     calib_covar_size += param->param.size();
+  //   }
+  // }
+  // // -- Add camera extrinsics blocks
+  // for (auto &[cam_idx, param] : cam_exts) {
+  //   if (cam_idx == 0) {
+  //     continue;
+  //   }
+  //   UNUSED(cam_idx);
+  //   if (param->fixed == false) {
+  //     covar_blocks.push_back({param->param.data(), param->param.data()});
+  //     calib_covar_size += 6;
+  //   }
+  // }
+  //
+  // // Estimate covariance
+  // ::ceres::Covariance::Options options;
+  // // options.algorithm_type = ceres::DENSE_SVD;
+  // ::ceres::Covariance covar_est(options);
+  // if (covar_est.Compute(covar_blocks, problem) == false) {
+  //   if (verbose) {
+  //     LOG_ERROR("Failed to estimate covariance!");
+  //     LOG_ERROR("Maybe Hessian is not full rank?");
+  //   }
+  //   return -1;
+  // }
+  //
+  // // Extract covariances sub-blocks
+  // std::map<int, Eigen::Matrix<double, 8, 8, Eigen::RowMajor>>
+  // covar_cam_params; std::map<int, Eigen::Matrix<double, 6, 6,
+  // Eigen::RowMajor>> covar_cam_exts; for (auto &[cam_idx, param] : cam_params)
+  // {
+  //   UNUSED(cam_idx);
+  //   if (param->fixed) {
+  //     continue;
+  //   }
+  //
+  //   auto param_ptr = param->param.data();
+  //   auto covar_ptr = covar_cam_params[cam_idx].data();
+  //   if (!covar_est.GetCovarianceBlock(param_ptr, param_ptr, covar_ptr)) {
+  //     if (verbose) {
+  //       LOG_ERROR("Failed to estimate cam%d parameter covariance!", cam_idx);
+  //     }
+  //     return -1;
+  //   }
+  // }
+  // for (auto &[cam_idx, param] : cam_exts) {
+  //   if (cam_idx == 0) {
+  //     continue;
+  //   }
+  //   if (param->fixed) {
+  //     continue;
+  //   }
+  //
+  //   auto param_ptr = param->param.data();
+  //   auto covar_ptr = covar_cam_exts[cam_idx].data();
+  //   if (!covar_est.GetCovarianceBlockInTangentSpace(param_ptr,
+  //                                                   param_ptr,
+  //                                                   covar_ptr)) {
+  //     if (verbose) {
+  //       LOG_ERROR("Failed to estimate cam%d extrinsics covariance!",
+  //       cam_idx);
+  //     }
+  //     return -1;
+  //   }
+  // }
+  //
+  // // Form covariance matrix block
+  // calib_covar = zeros(calib_covar_size, calib_covar_size);
+  // int idx = 0;
+  // for (auto &[cam_idx, covar] : covar_cam_params) {
+  //   calib_covar.block(idx, idx, 8, 8) = covar;
+  //   idx += 8;
+  // }
+  // for (auto &[cam_idx, covar] : covar_cam_exts) {
+  //   if (cam_idx == 0) {
+  //     continue;
+  //   }
+  //   calib_covar.block(idx, idx, 6, 6) = covar;
+  //   idx += 6;
+  // }
+  //
+  // // Check if calib_covar is full-rank?
+  // if (rank(calib_covar) != calib_covar.rows()) {
+  //   if (verbose) {
+  //     LOG_ERROR("calib_covar is not full rank!");
+  //   }
+  //   return -1;
+  // }
+  //
+  // mat2csv("/tmp/covar-svd.csv", calib_covar);
+  // exit(0);
+  //
+  // return 0;
 }
 
 int calib_camera_t::find_nbv(const std::map<int, mat4s_t> &nbv_poses,
@@ -1251,7 +1447,7 @@ int calib_camera_t::_eval_nbv(const timestamp_t nbv_ts) {
   // Solve with new view
   ceres::Solver::Options options;
   options.minimizer_progress_to_stdout = false;
-  options.max_num_iterations = 10;
+  options.max_num_iterations = 50;
   ceres::Solver::Summary summary;
   ceres::Solve(options, problem, &summary);
 
@@ -1277,41 +1473,57 @@ int calib_camera_t::_eval_nbv(const timestamp_t nbv_ts) {
   }
 
   // Initialize covar_det_k
-  if (fltcmp(covar_det_k, -1.0) == 0) {
-    covar_det_k = calib_covar.determinant();
-    removed_outliers += removed;
-    return 0;
-  }
+  // if (fltcmp(covar_det_k, -1.0) == 0) {
+  //   covar_det_k = calib_covar.determinant();
+  //   removed_outliers += removed;
+  //   return 0;
+  // }
 
-  // Calculate information gain
-  const real_t covar_det_kp1 = calib_covar.determinant();
-  info_gain = 0.5 * ((log(covar_det_k) - log(covar_det_kp1)) / log(2.0));
-  printf("log2(covar_det_k): %e ", log(covar_det_k) / log(2.0));
-  printf("log2(covar_det_k): %e ", log(covar_det_kp1) / log(2.0));
+  const real_t info_kp1 = log(calib_covar.determinant()) / log(2.0);
+  if (fltcmp(info_k, 0.0) == 0) {
+    // Initialize covar_det_k
+    printf("info_k: %f ", 0.0);
+    printf("info_kp1: %f ", info_kp1);
+    info_gain = 0.5 * info_kp1;
+
+  } else {
+    printf("info_k: %f ", info_k);
+    printf("info_kp1: %f ", info_kp1);
+    info_gain = 0.5 * (info_k - info_kp1);
+
+    if (info_gain < info_gain_threshold) {
+      // Restore values before view was added
+      for (const auto &[ts, pose] : poses) {
+        if (poses_tmp.count(ts)) {
+          pose->param = poses_tmp[ts];
+        }
+      }
+      for (const auto cam_idx : get_camera_indices()) {
+        if (cam_params_tmp.count(cam_idx)) {
+          cam_params[cam_idx]->param = cam_params_tmp[cam_idx];
+        }
+        if (cam_exts_tmp.count(cam_idx)) {
+          cam_exts[cam_idx]->param = cam_exts_tmp[cam_idx];
+        }
+      }
+
+      // Remove view
+      printf("info gain: %f\n", info_gain);
+      FILE *info_csv = fopen("/tmp/yac_info.csv", "a");
+      fprintf(info_csv, "%ld,%f,%f,%f\n", nbv_ts, info_k, info_kp1, info_gain);
+      fclose(info_csv);
+      remove_view(nbv_ts);
+      return -2;
+    }
+  }
   printf("info gain: %f\n", info_gain);
-  if (info_gain < info_gain_threshold) {
-    // Restore values before view was added
-    for (const auto &[ts, pose] : poses) {
-      if (poses_tmp.count(ts)) {
-        pose->param = poses_tmp[ts];
-      }
-    }
-    for (const auto cam_idx : get_camera_indices()) {
-      if (cam_params_tmp.count(cam_idx)) {
-        cam_params[cam_idx]->param = cam_params_tmp[cam_idx];
-      }
-      if (cam_exts_tmp.count(cam_idx)) {
-        cam_exts[cam_idx]->param = cam_exts_tmp[cam_idx];
-      }
-    }
 
-    // Remove view
-    remove_view(nbv_ts);
-    return -2;
-  }
+  FILE *info_csv = fopen("/tmp/yac_info.csv", "a");
+  fprintf(info_csv, "%ld,%f,%f,%f\n", nbv_ts, info_k, info_kp1, info_gain);
+  fclose(info_csv);
 
   // Update
-  covar_det_k = covar_det_kp1;
+  info_k = info_kp1;
   removed_outliers += removed;
 
   return 0;
@@ -1357,7 +1569,7 @@ void calib_camera_t::_print_stats(const real_t progress) {
   // printf("validation_error: %.2f ", valid_error);
   // printf("info_gain: %.2f ", info_gain);
   // printf("covar_det_k: %e ", covar_det_k);
-  printf("shannon_entropy: %f\n", calib_entropy_k);
+  printf("shannon_entropy: %f ", calib_entropy_k);
   printf("\n");
 
   // const mat4_t T_BC0 = get_camera_extrinsics(0);
@@ -1468,16 +1680,32 @@ void calib_camera_t::_solve_inc() {
 void calib_camera_t::_solve_nbv() {
   // Shuffle timestamps
   timestamps_t nbv_timestamps;
-  for (const auto ts : timestamps) {
-    for (const auto &[cam_idx, grid] : calib_data[ts]) {
-      if (grid.detected) {
-        nbv_timestamps.push_back(ts);
-        break;
-      }
-    }
+
+  // Load timestamps
+  int nb_rows = 0;
+  FILE *fp = file_open("/tmp/yac_data/timestamps.csv", "r", &nb_rows);
+  if (fp == NULL) {
+    FATAL("Failed to open[%s]!", "/tmp/yac_data/timestamps.csv");
   }
-  std::shuffle(nbv_timestamps.begin(), nbv_timestamps.end(), calib_rng);
+  // -- Parse timestamps
+  for (int i = 0; i < nb_rows; i++) {
+    double ts_ms = 0.0;
+    fscanf(fp, "%lf", &ts_ms);
+    timestamp_t ts = (ts_ms * 1e6);
+    nbv_timestamps.push_back(ts);
+  }
   const real_t nb_timestamps = (real_t)nbv_timestamps.size();
+
+  // for (const auto ts : timestamps) {
+  //   for (const auto &[cam_idx, grid] : calib_data[ts]) {
+  //     if (grid.detected) {
+  //       nbv_timestamps.push_back(ts);
+  //       break;
+  //     }
+  //   }
+  // }
+  // std::shuffle(nbv_timestamps.begin(), nbv_timestamps.end(), calib_rng);
+  // const real_t nb_timestamps = (real_t)nbv_timestamps.size();
 
   // Solver options
   ceres::Solver::Options options;
@@ -1494,6 +1722,7 @@ void calib_camera_t::_solve_nbv() {
   size_t stale_threshold = 40;
 
   for (const auto &ts : nbv_timestamps) {
+    printf("\nts: %ld\n", ts);
     // Add view
     if (add_view(calib_data[ts]) == false) {
       continue;
@@ -1652,46 +1881,46 @@ void calib_camera_t::solve() {
     // clang-format on
   }
 
-  // Setup
+  // Initialize camera intrinsics and extrinsics
   if (initialized == false) {
     _initialize_intrinsics();
     _initialize_extrinsics();
+    initialized = true;
+  }
 
-    if (verbose) {
-      printf("Initial camera intrinsics\n");
-      // Camera intrinsics
-      for (const auto cam_idx : get_camera_indices()) {
-        const auto cam_param = cam_params[cam_idx];
-        const auto cam_res = cam_param->resolution;
-        const auto proj_params = cam_param->proj_params();
-        const auto dist_params = cam_param->dist_params();
-        printf("cam%d:\n", cam_idx);
-        printf("  resolution: [%d, %d]\n", cam_res[0], cam_res[1]);
-        printf("  proj_model: %s\n", cam_param->proj_model.c_str());
-        printf("  dist_model: %s\n", cam_param->dist_model.c_str());
-        printf("  proj_params: %s\n", vec2str(proj_params).c_str());
-        printf("  dist_params: %s\n", vec2str(dist_params).c_str());
-        printf("\n");
-      }
-
-      // Camera extrinsics
-      printf("Initial camera extrinsics\n");
-      const mat4_t T_BC0 = get_camera_extrinsics(0);
-      const mat4_t T_C0B = T_BC0.inverse();
-      for (const auto cam_idx : get_camera_indices()) {
-        if (cam_idx == 0) {
-          continue;
-        }
-        const mat4_t T_BCi = cam_exts[cam_idx]->tf();
-        const mat4_t T_C0Ci = T_C0B * T_BCi;
-        printf("T_cam0_cam%d: [\n", cam_idx);
-        printf("%s\n", mat2str(T_C0Ci, "  ").c_str());
-        printf("]\n");
-        printf("\n");
-      }
+  // Show initializations
+  if (verbose) {
+    printf("Initial camera intrinsics\n");
+    // Camera intrinsics
+    for (const auto cam_idx : get_camera_indices()) {
+      const auto cam_param = cam_params[cam_idx];
+      const auto cam_res = cam_param->resolution;
+      const auto proj_params = cam_param->proj_params();
+      const auto dist_params = cam_param->dist_params();
+      printf("cam%d:\n", cam_idx);
+      printf("  resolution: [%d, %d]\n", cam_res[0], cam_res[1]);
+      printf("  proj_model: %s\n", cam_param->proj_model.c_str());
+      printf("  dist_model: %s\n", cam_param->dist_model.c_str());
+      printf("  proj_params: %s\n", vec2str(proj_params).c_str());
+      printf("  dist_params: %s\n", vec2str(dist_params).c_str());
+      printf("\n");
     }
 
-    initialized = true;
+    // Camera extrinsics
+    printf("Initial camera extrinsics\n");
+    const mat4_t T_BC0 = get_camera_extrinsics(0);
+    const mat4_t T_C0B = T_BC0.inverse();
+    for (const auto cam_idx : get_camera_indices()) {
+      if (cam_idx == 0) {
+        continue;
+      }
+      const mat4_t T_BCi = cam_exts[cam_idx]->tf();
+      const mat4_t T_C0Ci = T_C0B * T_BCi;
+      printf("T_cam0_cam%d: [\n", cam_idx);
+      printf("%s\n", mat2str(T_C0Ci, "  ").c_str());
+      printf("]\n");
+      printf("\n");
+    }
   }
 
   // Solve

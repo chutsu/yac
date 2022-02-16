@@ -837,7 +837,7 @@ void calib_camera_t::remove_all_views() {
   problem_init = false;
 }
 
-void calib_camera_t::marginalize_last_view() {
+void calib_camera_t::marginalize() {
   // Mark the pose to be marginalized
   const auto marg_ts = window.front();
   poses[marg_ts]->marginalize = true;
@@ -1006,8 +1006,7 @@ real_t calib_camera_t::_estimate_calib_info() {
           // Form off-diagonals of H
           // clang-format off
           H.block(idx_i, idx_j, size_i, size_j) += J_i.transpose() * J_j;
-          H.block(idx_j, idx_i, size_j, size_i) += (J_i.transpose() *
-          J_j).transpose();
+          H.block(idx_j, idx_i, size_j, size_i) += (J_i.transpose() * J_j).transpose();
           // clang-format on
         }
       }
@@ -1018,7 +1017,7 @@ real_t calib_camera_t::_estimate_calib_info() {
   }
 
   // Marginalize
-  // Pseudo inverse of Hmm via Eigen-decomposition:
+  // -- Pseudo inverse of Hmm via Eigen-decomposition:
   //
   //   A_pinv = V * Lambda_pinv * V_transpose
   //
@@ -1036,8 +1035,7 @@ real_t calib_camera_t::_estimate_calib_info() {
   const matx_t Lambda_inv = vecx_t(eigvals_inv).asDiagonal();
   const matx_t Hmm_inv = V * Lambda_inv * V.transpose();
   // clang-format on
-
-  // Calculate Schur's complement
+  // -- Calculate Schur's complement
   const matx_t Hmr = H.block(0, m, m, r);
   const matx_t Hrm = H.block(m, 0, r, m);
   const matx_t Hrr = H.block(m, m, r, r);
@@ -1050,15 +1048,92 @@ real_t calib_camera_t::_estimate_calib_info() {
   // clang-format off
   {
     const Eigen::SelfAdjointEigenSolver<matx_t> eig(H_marg);
-    const auto det = (eig.eigenvalues().array() > eps).select(eig.eigenvalues().array(), 0);
+    const auto s = (eig.eigenvalues().array() > eps).select(eig.eigenvalues().array(), 0);
     return -1.0 * s.log().sum() / log(2.0);
   }
   // clang-format on
 }
 
 int calib_camera_t::recover_calib_covar(matx_t &calib_covar, bool verbose) {
-  matx_t H = _estimate_calib_info();
-  calib_covar = H.inverse();
+  // Setup covariance blocks to estimate
+  int calib_covar_size = 0;
+  std::vector<param_t *> param_blocks;
+  std::map<param_t *, int> param_indices;
+  std::vector<std::pair<const double *, const double *>> covar_blocks;
+  // -- Add camera parameter blocks
+  for (auto &[cam_idx, param] : cam_params) {
+    UNUSED(cam_idx);
+    if (param->fixed) {
+      continue;
+    }
+    param_blocks.push_back(param);
+    param_indices[param] = calib_covar_size;
+    calib_covar_size += param->global_size;
+  }
+  // -- Add camera extrinsics blocks
+  for (auto &[cam_idx, param] : cam_exts) {
+    UNUSED(cam_idx);
+    if (param->fixed) {
+      continue;
+    }
+    param_blocks.push_back(param);
+    param_indices[param] = calib_covar_size;
+    calib_covar_size += param->local_size;
+  }
+  // -- Covariance blocks
+  for (size_t i = 0; i < param_blocks.size(); i++) {
+    for (size_t j = i; j < param_blocks.size(); j++) {
+      auto param_i = param_blocks[i];
+      auto param_j = param_blocks[j];
+      covar_blocks.push_back({param_i->data(), param_j->data()});
+    }
+  }
+
+  // Estimate covariance
+  ::ceres::Covariance::Options options;
+  // options.algorithm_type = ceres::DENSE_SVD;
+  ::ceres::Covariance covar_est(options);
+  if (covar_est.Compute(covar_blocks, problem) == false) {
+    if (verbose) {
+      LOG_ERROR("Failed to estimate covariance!");
+      LOG_ERROR("Maybe Hessian is not full rank?");
+    }
+    return -1;
+  }
+  // -- Form covariance matrix
+  calib_covar.resize(calib_covar_size, calib_covar_size);
+  calib_covar.setZero();
+
+  for (size_t i = 0; i < param_blocks.size(); i++) {
+    for (size_t j = i; j < param_blocks.size(); j++) {
+      auto param_i = param_blocks[i];
+      auto param_j = param_blocks[j];
+      auto ptr_i = param_i->data();
+      auto ptr_j = param_j->data();
+      auto idx_i = param_indices[param_i];
+      auto idx_j = param_indices[param_j];
+      auto size_i = param_i->local_size;
+      auto size_j = param_j->local_size;
+
+      // Diagonal
+      matx_row_major_t block;
+      block.resize(size_i, size_j);
+      block.setZero();
+      auto data = block.data();
+      int retval = 0;
+      if ((size_i == 6 || size_j == 6)) {
+        retval = covar_est.GetCovarianceBlockInTangentSpace(ptr_i, ptr_j, data);
+      } else {
+        retval = covar_est.GetCovarianceBlock(ptr_i, ptr_j, data);
+      }
+      calib_covar.block(idx_i, idx_j, size_i, size_j) = block;
+
+      // Off-diagonal
+      if (i != j) {
+        calib_covar.block(idx_j, idx_i, size_j, size_i) = block.transpose();
+      }
+    }
+  }
 
   // Check if calib_covar is full-rank?
   if (rank(calib_covar) != calib_covar.rows()) {
@@ -1067,110 +1142,8 @@ int calib_camera_t::recover_calib_covar(matx_t &calib_covar, bool verbose) {
     }
     return -1;
   }
-  return 0;
 
-  // // Setup covariance blocks to estimate
-  // std::vector<std::pair<const double *, const double *>> covar_blocks;
-  // int calib_covar_size = 0;
-  // // -- Add camera parameter blocks
-  // for (auto &[cam_idx, param] : cam_params) {
-  //   UNUSED(cam_idx);
-  //   if (param->fixed == false) {
-  //     covar_blocks.push_back({param->param.data(), param->param.data()});
-  //     calib_covar_size += param->param.size();
-  //   }
-  // }
-  // // -- Add camera extrinsics blocks
-  // for (auto &[cam_idx, param] : cam_exts) {
-  //   if (cam_idx == 0) {
-  //     continue;
-  //   }
-  //   UNUSED(cam_idx);
-  //   if (param->fixed == false) {
-  //     covar_blocks.push_back({param->param.data(), param->param.data()});
-  //     calib_covar_size += 6;
-  //   }
-  // }
-  //
-  // // Estimate covariance
-  // ::ceres::Covariance::Options options;
-  // // options.algorithm_type = ceres::DENSE_SVD;
-  // ::ceres::Covariance covar_est(options);
-  // if (covar_est.Compute(covar_blocks, problem) == false) {
-  //   if (verbose) {
-  //     LOG_ERROR("Failed to estimate covariance!");
-  //     LOG_ERROR("Maybe Hessian is not full rank?");
-  //   }
-  //   return -1;
-  // }
-  //
-  // // Extract covariances sub-blocks
-  // std::map<int, Eigen::Matrix<double, 8, 8, Eigen::RowMajor>>
-  // covar_cam_params; std::map<int, Eigen::Matrix<double, 6, 6,
-  // Eigen::RowMajor>> covar_cam_exts; for (auto &[cam_idx, param] : cam_params)
-  // {
-  //   UNUSED(cam_idx);
-  //   if (param->fixed) {
-  //     continue;
-  //   }
-  //
-  //   auto param_ptr = param->param.data();
-  //   auto covar_ptr = covar_cam_params[cam_idx].data();
-  //   if (!covar_est.GetCovarianceBlock(param_ptr, param_ptr, covar_ptr)) {
-  //     if (verbose) {
-  //       LOG_ERROR("Failed to estimate cam%d parameter covariance!", cam_idx);
-  //     }
-  //     return -1;
-  //   }
-  // }
-  // for (auto &[cam_idx, param] : cam_exts) {
-  //   if (cam_idx == 0) {
-  //     continue;
-  //   }
-  //   if (param->fixed) {
-  //     continue;
-  //   }
-  //
-  //   auto param_ptr = param->param.data();
-  //   auto covar_ptr = covar_cam_exts[cam_idx].data();
-  //   if (!covar_est.GetCovarianceBlockInTangentSpace(param_ptr,
-  //                                                   param_ptr,
-  //                                                   covar_ptr)) {
-  //     if (verbose) {
-  //       LOG_ERROR("Failed to estimate cam%d extrinsics covariance!",
-  //       cam_idx);
-  //     }
-  //     return -1;
-  //   }
-  // }
-  //
-  // // Form covariance matrix block
-  // calib_covar = zeros(calib_covar_size, calib_covar_size);
-  // int idx = 0;
-  // for (auto &[cam_idx, covar] : covar_cam_params) {
-  //   calib_covar.block(idx, idx, 8, 8) = covar;
-  //   idx += 8;
-  // }
-  // for (auto &[cam_idx, covar] : covar_cam_exts) {
-  //   if (cam_idx == 0) {
-  //     continue;
-  //   }
-  //   calib_covar.block(idx, idx, 6, 6) = covar;
-  //   idx += 6;
-  // }
-  //
-  // // Check if calib_covar is full-rank?
-  // if (rank(calib_covar) != calib_covar.rows()) {
-  //   if (verbose) {
-  //     LOG_ERROR("calib_covar is not full rank!");
-  //   }
-  //   return -1;
-  // }
-  //
-  // mat2csv("/tmp/covar-svd.csv", calib_covar);
-  // exit(0);
-  //
-  // return 0;
+  return 0;
 }
 
 int calib_camera_t::find_nbv(const std::map<int, mat4s_t> &nbv_poses,
@@ -1264,61 +1237,6 @@ int calib_camera_t::find_nbv(const std::map<int, mat4s_t> &nbv_poses,
   } else {
     entropy_k = best_entropy;
   }
-
-  return 0;
-}
-
-int calib_camera_t::find_nbv(std::vector<timestamp_t> &nbv_timestamps,
-                             real_t &best_entropy,
-                             timestamp_t &best_nbv_ts) {
-  progressbar bar(nbv_timestamps.size());
-  printf("Finding NBV: ");
-
-  best_entropy = 0.0;
-  best_nbv_ts = 0;
-  auto it = nbv_timestamps.begin();
-
-  while (it != nbv_timestamps.end()) {
-    // Timestamp
-    auto nbv_ts = *it++;
-
-    // Add view
-    if (add_view(calib_data[nbv_ts]) == false) {
-      continue;
-    }
-
-    // Solve with new view
-    ceres::Solver::Options options;
-    options.minimizer_progress_to_stdout = false;
-    options.max_num_iterations = 50;
-    ceres::Solver::Summary summary;
-    ceres::Solve(options, problem, &summary);
-
-    // Filter last view and optimize again
-    if (enable_nbv_filter) {
-      _filter_view(nbv_ts);
-      ceres::Solve(options, problem, &summary);
-    }
-
-    // Check information
-    matx_t calib_covar;
-    int retval = recover_calib_covar(calib_covar);
-    if (retval != 0) {
-      continue;
-    }
-
-    // Calculate entropy
-    const real_t entropy = shannon_entropy(calib_covar);
-    if (entropy < best_entropy) {
-      best_entropy = entropy;
-      best_nbv_ts = nbv_ts;
-    }
-
-    // Remove view
-    remove_view(nbv_ts);
-    bar.update();
-  }
-  printf("\n");
 
   return 0;
 }
@@ -1530,65 +1448,54 @@ int calib_camera_t::_eval_nbv(const timestamp_t nbv_ts) {
 }
 
 void calib_camera_t::_print_stats(const real_t progress) {
-  // if (validation_data.size()) {
-  //   calib_camera_t valid{calib_target};
-  //   for (const auto cam_idx : get_camera_indices()) {
-  //     const auto cam_param = cam_params[cam_idx];
-  //     const int *cam_res = cam_param->resolution;
-  //     const std::string &proj_model = cam_param->proj_model;
-  //     const std::string &dist_model = cam_param->dist_model;
-  //     const vecx_t &proj_params = cam_param->proj_params();
-  //     const vecx_t &dist_params = cam_param->dist_params();
-  //
-  //     valid.add_camera(cam_idx,
-  //                      cam_res,
-  //                      proj_model,
-  //                      dist_model,
-  //                      proj_params,
-  //                      dist_params,
-  //                      true);
-  //     valid.add_camera_extrinsics(cam_idx, cam_exts[cam_idx]->tf());
-  //   }
-  //   const auto valid_error = valid.validate(validation_data);
-  // }
+  double valid_error = -1.0;
+  if (validation_data.size()) {
+    calib_camera_t valid{calib_target};
+    for (const auto cam_idx : get_camera_indices()) {
+      const auto cam_param = cam_params[cam_idx];
+      const int *cam_res = cam_param->resolution;
+      const std::string &proj_model = cam_param->proj_model;
+      const std::string &dist_model = cam_param->dist_model;
+      const vecx_t &proj_params = cam_param->proj_params();
+      const vecx_t &dist_params = cam_param->dist_params();
 
-  // Calculate entropy
-  matx_t calib_covar;
-  int retval = recover_calib_covar(calib_covar);
-  if (retval != 0) {
-    FATAL("Failed to estimate calibration covariance!");
+      valid.add_camera(cam_idx,
+                       cam_res,
+                       proj_model,
+                       dist_model,
+                       proj_params,
+                       dist_params,
+                       true);
+      valid.add_camera_extrinsics(cam_idx, cam_exts[cam_idx]->tf());
+    }
+    valid_error = valid.validate(validation_data);
   }
-  calib_entropy_k = shannon_entropy(calib_covar);
 
   const auto reproj_errors_all = get_all_reproj_errors();
   // clang-format off
   printf("[%.2f%%] ", progress);
   printf("nb_views: %d  ", nb_views());
   printf("reproj_error: %.2f ", rmse(reproj_errors_all));
-  // printf("entropy: %.2f ", calib_entropy_k);
-  // printf("validation_error: %.2f ", valid_error);
-  // printf("info_gain: %.2f ", info_gain);
-  // printf("covar_det_k: %e ", covar_det_k);
-  printf("shannon_entropy: %f ", calib_entropy_k);
+  printf("validation_error: %.2f ", valid_error);
   printf("\n");
 
-  // const mat4_t T_BC0 = get_camera_extrinsics(0);
-  // const mat4_t T_C0B = T_BC0.inverse();
-  // for (const auto cam_idx : get_camera_indices()) {
-  //   const auto cam_res = cam_params[cam_idx]->resolution;
-  //   const auto param = cam_params[cam_idx]->param;
-  //   printf("cam%d_params: %s\n", cam_idx, vec2str(param).c_str());
-  // }
-  // for (const auto cam_idx : get_camera_indices()) {
-  //   if (cam_idx == 0) {
-  //     continue;
-  //   }
-  //   const mat4_t T_BCi = cam_exts[cam_idx]->tf();
-  //   const mat4_t T_C0Ci = T_C0B * T_BCi;
-  //   printf("cam%d_exts: %s\n", cam_idx, vec2str(tf_vec(T_C0Ci)).c_str());
-  // }
-  // printf("\n");
-  // fflush(stdout);
+  const mat4_t T_BC0 = get_camera_extrinsics(0);
+  const mat4_t T_C0B = T_BC0.inverse();
+  for (const auto cam_idx : get_camera_indices()) {
+    const auto cam_res = cam_params[cam_idx]->resolution;
+    const auto param = cam_params[cam_idx]->param;
+    printf("cam%d_params: %s\n", cam_idx, vec2str(param).c_str());
+  }
+  for (const auto cam_idx : get_camera_indices()) {
+    if (cam_idx == 0) {
+      continue;
+    }
+    const mat4_t T_BCi = cam_exts[cam_idx]->tf();
+    const mat4_t T_C0Ci = T_C0B * T_BCi;
+    printf("cam%d_exts: %s\n", cam_idx, vec2str(tf_vec(T_C0Ci)).c_str());
+  }
+  printf("\n");
+  fflush(stdout);
   // clang-format on
 }
 
@@ -1657,7 +1564,7 @@ void calib_camera_t::_solve_inc() {
 
     // Solve
     if (window.size() > 5) {
-      marginalize_last_view();
+      marginalize();
     }
     ceres::Solve(options, problem, &summary);
 
@@ -1683,9 +1590,9 @@ void calib_camera_t::_solve_nbv() {
 
   // Load timestamps
   int nb_rows = 0;
-  FILE *fp = file_open("/tmp/yac_data/timestamps.csv", "r", &nb_rows);
+  FILE *fp = file_open("/tmp/yac_data/views.csv", "r", &nb_rows);
   if (fp == NULL) {
-    FATAL("Failed to open[%s]!", "/tmp/yac_data/timestamps.csv");
+    FATAL("Failed to open[%s]!", "/tmp/yac_data/views.csv");
   }
   // -- Parse timestamps
   for (int i = 0; i < nb_rows; i++) {
@@ -1728,12 +1635,12 @@ void calib_camera_t::_solve_nbv() {
       continue;
     }
 
-    // Evaluate NBV
-    if (_eval_nbv(ts) != 0) {
-      stale_counter++;
-    } else {
-      stale_counter = 0;
-    }
+    // // Evaluate NBV
+    // if (_eval_nbv(ts) != 0) {
+    //   stale_counter++;
+    // } else {
+    //   stale_counter = 0;
+    // }
 
     // Stop early?
     // if (stale_counter > stale_threshold) {
@@ -1768,92 +1675,6 @@ void calib_camera_t::_solve_nbv() {
   if (verbose) {
     std::cout << summary.BriefReport() << std::endl;
     std::cout << std::endl;
-  }
-}
-
-void calib_camera_t::_solve_nbv_brute_force() {
-  // Setup
-  if (verbose) {
-    printf("Solving Incremental NBV problem\n");
-  }
-  real_t calib_entropy_k = 0.0;
-
-  // Form NBV timestamps where aprilgrids are actually detected
-  std::vector<timestamp_t> nbv_timestamps;
-  for (const auto &ts : timestamps) {
-    for (const auto &[cam_idx, grid] : calib_data[ts]) {
-      if (grid.detected) {
-        nbv_timestamps.push_back(ts);
-        break;
-      }
-    }
-  }
-  std::shuffle(nbv_timestamps.begin(), nbv_timestamps.end(), calib_rng);
-
-  // Add min-views
-  {
-    auto it = nbv_timestamps.begin();
-    while (it != nbv_timestamps.end()) {
-      // Timestamp
-      auto nbv_ts = *it;
-
-      // Add view
-      if (add_view(calib_data[nbv_ts]) == false) {
-        continue;
-      }
-
-      // Update
-      it = nbv_timestamps.erase(it);
-      if (nb_views() >= min_nbv_views) {
-        break;
-      }
-    }
-
-    // Filter all views
-    removed_outliers = _filter_all_views();
-    if (verbose) {
-      printf("Removed %d outliers\n", removed_outliers);
-    }
-
-    // Calculate entropy
-    matx_t calib_covar;
-    int retval = recover_calib_covar(calib_covar);
-    if (retval != 0) {
-      FATAL("Failed to estimate calibration covariance!");
-    }
-    calib_entropy_k = shannon_entropy(calib_covar);
-  }
-
-  // Find next best view
-  const real_t nb_views = nbv_timestamps.size();
-  while (nbv_timestamps.size()) {
-    // Find next best view
-    real_t calib_entropy_kp1 = 0.0;
-    timestamp_t nbv_ts = 0;
-    find_nbv(nbv_timestamps, calib_entropy_kp1, nbv_ts);
-
-    // Calculate information gain
-    real_t info_gain = 0.5 * (calib_entropy_k - calib_entropy_kp1);
-    if (info_gain < info_gain_threshold) {
-      break;
-    } else {
-      calib_entropy_k = calib_entropy_kp1;
-    }
-
-    // Add view
-    if (add_view(calib_data[nbv_ts]) == false) {
-      continue;
-    }
-
-    // Print stats
-    _print_stats((nbv_timestamps.size() / nb_views) * 100.0);
-
-    // Update
-    const auto nbv_begin = nbv_timestamps.begin();
-    const auto nbv_end = nbv_timestamps.end();
-    const auto nbv_idx = std::remove(nbv_begin, nbv_end, nbv_ts);
-    nbv_timestamps.erase(nbv_idx, nbv_end);
-    problem_init = true;
   }
 }
 
@@ -1926,7 +1747,6 @@ void calib_camera_t::solve() {
   // Solve
   if (enable_nbv) {
     _solve_nbv();
-    // _solve_nbv_brute_force();
   } else {
     _solve_batch(enable_outlier_filter);
   }

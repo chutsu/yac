@@ -118,7 +118,6 @@ struct calib_camera_t {
   int removed_outliers = 0;
 
   // NBV
-  real_t calib_entropy_k = -1;
   real_t info_k = 0.0;
   real_t info_gain = 0.0;
 
@@ -194,16 +193,13 @@ struct calib_camera_t {
   bool add_view(const std::map<int, aprilgrid_t> &cam_grids);
   void remove_view(const timestamp_t ts);
   void remove_all_views();
-  void marginalize_last_view();
+  void marginalize();
 
   real_t _estimate_calib_info();
   int recover_calib_covar(matx_t &calib_covar, bool verbose = true);
   int find_nbv(const std::map<int, mat4s_t> &nbv_poses,
                int &cam_idx,
                int &nbv_idx);
-  int find_nbv(std::vector<timestamp_t> &nbv_timestamps,
-               real_t &best_entropy,
-               timestamp_t &best_nbv);
 
   void _initialize_intrinsics();
   void _initialize_extrinsics();
@@ -214,7 +210,6 @@ struct calib_camera_t {
   void _solve_batch(const bool filter_outliers);
   void _solve_inc();
   void _solve_nbv();
-  void _solve_nbv_brute_force();
 
   void solve();
   void show_results();

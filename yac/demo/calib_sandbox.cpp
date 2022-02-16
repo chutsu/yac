@@ -61,16 +61,16 @@ int main() {
   calib.initialized = true;
   calib.enable_nbv = true;
   calib.enable_nbv_filter = false;
-  calib.enable_outlier_filter = false;
+  calib.enable_outlier_filter = true;
   calib.solve();
-  calib.save_results("/tmp/calib-results.yaml");
+  calib.save_results("/tmp/calib-cameras.yaml");
   calib.validate(valid_data);
 
-  FILE *views_csv = fopen("/tmp/yac_views.csv", "w");
-  for (const auto view : calib.calib_views) {
-    fprintf(views_csv, "%ld\n", view->ts);
-  }
-  fclose(views_csv);
+  // FILE *views_csv = fopen("/tmp/yac_views.csv", "w");
+  // for (const auto view : calib.calib_views) {
+  //   fprintf(views_csv, "%ld\n", view->ts);
+  // }
+  // fclose(views_csv);
   // clang-format on
 
   return 0;

@@ -103,8 +103,9 @@ struct calib_camera_t {
   bool enable_extrinsics_outlier_filter = true;
   // -- Final stage settings
   bool enable_nbv = true;
-  bool enable_nbv_filter = true;
+  bool enable_nbv_filter = false;
   bool enable_outlier_filter = true;
+  bool enable_early_stopping = false;
   int min_nbv_views = 40;
   real_t outlier_threshold = 4.0;
   real_t info_gain_threshold = 0.2;
@@ -120,6 +121,7 @@ struct calib_camera_t {
   // NBV
   real_t info_k = 0.0;
   real_t info_gain = 0.0;
+  real_t valid_error_k = -1.0;
 
   // Sliding window
   std::deque<timestamp_t> window;
@@ -205,6 +207,8 @@ struct calib_camera_t {
   void _initialize_extrinsics();
   int _filter_view(const timestamp_t ts);
   int _filter_all_views();
+  void _cache_estimates();
+  void _restore_estimates();
   int _eval_nbv(const timestamp_t ts);
   void _print_stats(const real_t progress);
   void _solve_batch(const bool filter_outliers);

@@ -1347,7 +1347,6 @@ int calib_camera_t::_filter_all_views() {
       removed += view->filter_view(cam_thresholds[cam_idx]);
     }
   }
-  printf("removed: %d\n", removed);
 
   return removed;
 }
@@ -1411,100 +1410,73 @@ int calib_camera_t::_eval_nbv(const timestamp_t nbv_ts) {
     ceres::Solve(options, problem, &summary);
   }
 
-  // Estimate calibration covariance
+  // Calculate information gain
   matx_t calib_covar;
   int retval = recover_calib_covar(calib_covar);
   if (retval != 0) {
     return -1;
   }
-
-  // Initialize covar_det_k
-  // if (fltcmp(covar_det_k, -1.0) == 0) {
-  //   covar_det_k = calib_covar.determinant();
-  //   removed_outliers += removed;
-  //   return 0;
-  // }
-
   const real_t info_kp1 = log(calib_covar.determinant()) / log(2.0);
+  const real_t info_gain = 0.5 * (info_k - info_kp1);
+
+  // Initialize info_k
   if (fltcmp(info_k, 0.0) == 0) {
-    // Initialize covar_det_k
-    printf("info_k: %f ", 0.0);
-    printf("info_kp1: %f ", info_kp1);
-    info_gain = 0.5 * info_kp1;
+    info_k = info_kp1;
+    return 0;
+  }
 
-  } else {
-    printf("info_k: %f ", info_k);
-    printf("info_kp1: %f ", info_kp1);
-    info_gain = 0.5 * (info_k - info_kp1);
+  // Remove view?
+  if (info_gain < info_gain_threshold) {
+    _restore_estimates();
+    remove_view(nbv_ts);
+    return -2;
+  }
 
-    if (info_gain < info_gain_threshold) {
-      // Restore values before view was added
+  // Double check with validation set
+  if (validation_data.size()) {
+    calib_camera_t valid{calib_target};
+    valid.verbose = false;
+    for (const auto cam_idx : get_camera_indices()) {
+      const auto cam_param = cam_params[cam_idx];
+      const int *cam_res = cam_param->resolution;
+      const std::string &proj_model = cam_param->proj_model;
+      const std::string &dist_model = cam_param->dist_model;
+      const vecx_t &proj_params = cam_param->proj_params();
+      const vecx_t &dist_params = cam_param->dist_params();
+      valid.add_camera(cam_idx,
+                       cam_res,
+                       proj_model,
+                       dist_model,
+                       proj_params,
+                       dist_params,
+                       true);
+      valid.add_camera_extrinsics(cam_idx, cam_exts[cam_idx]->tf());
+    }
+
+    const auto valid_error_kp1 = valid.validate(validation_data);
+    if (fltcmp(valid_error_k, 0.0) == 0 || (valid_error_kp1 < valid_error_k)) {
+      valid_error_k = valid_error_kp1;
+    } else {
       _restore_estimates();
-
-      // Remove view
-      printf("info gain: %f\n", info_gain);
-      FILE *info_csv = fopen("/tmp/yac_info.csv", "a");
-      fprintf(info_csv, "%ld,%f,%f,%f\n", nbv_ts, info_k, info_kp1, info_gain);
-      fclose(info_csv);
       remove_view(nbv_ts);
       return -2;
     }
-
-    if (validation_data.size()) {
-      calib_camera_t valid{calib_target};
-      valid.verbose = false;
-      for (const auto cam_idx : get_camera_indices()) {
-        const auto cam_param = cam_params[cam_idx];
-        const int *cam_res = cam_param->resolution;
-        const std::string &proj_model = cam_param->proj_model;
-        const std::string &dist_model = cam_param->dist_model;
-        const vecx_t &proj_params = cam_param->proj_params();
-        const vecx_t &dist_params = cam_param->dist_params();
-
-        valid.add_camera(cam_idx,
-                         cam_res,
-                         proj_model,
-                         dist_model,
-                         proj_params,
-                         dist_params,
-                         true);
-        valid.add_camera_extrinsics(cam_idx, cam_exts[cam_idx]->tf());
-      }
-      const auto valid_error_kp1 = valid.validate(validation_data);
-      if (fltcmp(valid_error_k, -1.0) == 0) {
-        valid_error_k = valid_error_kp1;
-      } else if (valid_error_kp1 < valid_error_k) {
-        valid_error_k = valid_error_kp1;
-      } else {
-        // Restore values before view was added
-        _restore_estimates();
-
-        // Remove view
-        remove_view(nbv_ts);
-        return -2;
-      }
-    }
   }
-
-  printf("info gain: %f\n", info_gain);
-  FILE *info_csv = fopen("/tmp/yac_info.csv", "a");
-  fprintf(info_csv, "%ld,%f,%f,%f\n", nbv_ts, info_k, info_kp1, info_gain);
-  fclose(info_csv);
 
   // Update
   info_k = info_kp1;
   removed_outliers += removed;
 
   return 0;
-} // namespace yac
+}
 
 void calib_camera_t::_print_stats(const real_t progress) {
   const auto reproj_errors_all = get_all_reproj_errors();
-  // clang-format off
   printf("[%.2f%%] ", progress);
   printf("nb_views: %d  ", nb_views());
   printf("reproj_error: %.2f ", rmse(reproj_errors_all));
-  printf("validation_error: %.2f ", valid_error_k);
+  printf("info_k: %f ", info_k);
+  printf("valid_error_k: %f ", valid_error_k);
   printf("\n");
 
   const mat4_t T_BC0 = get_camera_extrinsics(0);
@@ -1524,7 +1496,6 @@ void calib_camera_t::_print_stats(const real_t progress) {
   }
   printf("\n");
   fflush(stdout);
-  // clang-format on
 }
 
 void calib_camera_t::_solve_batch(const bool filter_outliers) {
@@ -1657,7 +1628,6 @@ void calib_camera_t::_solve_nbv() {
   size_t stale_threshold = 30;
 
   for (const auto &ts : nbv_timestamps) {
-    printf("\nts: %ld\n", ts);
     // Add view
     if (add_view(calib_data[ts]) == false) {
       continue;

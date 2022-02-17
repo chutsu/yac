@@ -105,9 +105,9 @@ struct calib_camera_t {
   bool enable_nbv = true;
   bool enable_nbv_filter = false;
   bool enable_outlier_filter = true;
-  bool enable_early_stopping = false;
+  bool enable_early_stopping = true;
   int min_nbv_views = 40;
-  real_t outlier_threshold = 4.0;
+  real_t outlier_threshold = 3.0;
   real_t info_gain_threshold = 0.2;
 
   // Data
@@ -120,8 +120,7 @@ struct calib_camera_t {
 
   // NBV
   real_t info_k = 0.0;
-  real_t info_gain = 0.0;
-  real_t valid_error_k = -1.0;
+  real_t valid_error_k = 0.0;
 
   // Sliding window
   std::deque<timestamp_t> window;

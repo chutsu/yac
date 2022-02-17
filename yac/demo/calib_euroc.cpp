@@ -36,7 +36,7 @@ int main() {
   calib.add_camera_data(test_data);
   calib.add_camera(0, cam_res, proj_model, dist_model);
   calib.add_camera(1, cam_res, proj_model, dist_model);
-  // calib.validation_data = valid_data;
+  calib.validation_data = valid_data;
   calib.solve();
   calib.save_results("/tmp/calib-results.yaml");
   calib.validate(valid_data);

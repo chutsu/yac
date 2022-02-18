@@ -179,9 +179,11 @@ calib_data_preprocess(const calib_target_t &calib_target,
       cam_grids[cam_idx].push_back(grid);
       if ((k % 100) == 0) {
         printf(".");
+        fflush(stdout);
       }
     }
     printf("\n");
+    fflush(stdout);
   }
 
   return cam_grids;

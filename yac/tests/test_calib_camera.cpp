@@ -308,7 +308,9 @@ int test_calib_camera_filter_view() {
     }
   }
 
-  calib._filter_view(last_ts);
+  std::map<int, vec2_t> cam_thresholds = {{0, vec2_t{1.0, 1.0}},
+                                          {1, vec2_t{1.0, 1.0}}};
+  calib._filter_view(last_ts, cam_thresholds);
   ceres::Solver::Options options;
   options.minimizer_progress_to_stdout = true;
   ceres::Solver::Summary summary;
@@ -407,7 +409,7 @@ int test_calib_camera_solve_inc() {
   calib._initialize_intrinsics();
   calib._initialize_extrinsics();
   calib._solve_inc();
-  calib.validate(valid_data);
+  calib.inspect(valid_data);
 
   return 0;
 }
@@ -445,7 +447,7 @@ int test_calib_camera_stereo() {
   calib.solve();
   calib.save_results("/tmp/calib-results.yaml");
   calib.save_estimates("/tmp/calib-estimates.yaml");
-  calib.validate(valid_data);
+  calib.inspect(valid_data);
 
   return 0;
 }
@@ -582,7 +584,7 @@ int test_marg_error() {
 //
 //   calib.solve();
 //   // calib.save_results("/tmp/calib-results.yaml");
-//   calib.validate(valid_data);
+//   calib.inspect(valid_data);
 //
 //   return 0;
 // }

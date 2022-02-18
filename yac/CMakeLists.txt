@@ -5,7 +5,7 @@ ENDIF (POLICY CMP0048)
 PROJECT(yac)
 
 # GENERAL SETTINGS
-SET(USE_OPENMP OFF)
+SET(USE_OPENMP ON)
 SET(apriltag3_DIR "../deps/share/apriltag3/cmake")  # Use custom AprilTag3
 
 # COMPILATION SETTINGS
@@ -88,6 +88,9 @@ TARGET_LINK_LIBRARIES(test_util_aprilgrid yac yac_util ${DEPS})
 ADD_EXECUTABLE(test_util_config tests/util/test_config.cpp)
 TARGET_LINK_LIBRARIES(test_util_config yac yac_util ${DEPS})
 
+ADD_EXECUTABLE(test_util_core tests/util/test_core.cpp)
+TARGET_LINK_LIBRARIES(test_util_core yac yac_util ${DEPS})
+
 ADD_EXECUTABLE(test_util_cv tests/util/test_cv.cpp)
 TARGET_LINK_LIBRARIES(test_util_cv yac yac_util ${DEPS})
 
@@ -128,5 +131,5 @@ TARGET_LINK_LIBRARIES(test_calib_vi yac yac_util ${DEPS})
 ADD_EXECUTABLE(calib_euroc demo/calib_euroc.cpp)
 TARGET_LINK_LIBRARIES(calib_euroc yac yac_util ${DEPS})
 
-ADD_EXECUTABLE(calib_sandbox demo/calib_sandbox.cpp)
-TARGET_LINK_LIBRARIES(calib_sandbox yac yac_util ${DEPS})
+ADD_EXECUTABLE(calib_inspect demo/calib_inspect.cpp)
+TARGET_LINK_LIBRARIES(calib_inspect yac yac_util ${DEPS})

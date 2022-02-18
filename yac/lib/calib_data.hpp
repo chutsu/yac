@@ -47,7 +47,16 @@ struct calib_target_t {
 
 // CALIBRATION DETECTION //////////////////////////////////////////////////////
 
-/** Calibration data preprocess */
+/***
+ * Preprocess / Load AprilGrid data
+ *
+ * @param[in] calib_target Calibration Target Configuration
+ * @param[in] cam_paths Paths to camera images
+ * @param[in] grids_path Path to save detected AprilGrids
+ * @param[in] imshow Show detections
+ *
+ * @returns AprilGrid data observed by each camera
+ */
 std::map<int, aprilgrids_t>
 calib_data_preprocess(const calib_target_t &calib_target,
                       const std::map<int, std::string> cam_paths,

@@ -103,12 +103,16 @@ struct calib_camera_t {
   bool enable_extrinsics_outlier_filter = true;
   // -- Final stage settings
   bool enable_nbv = true;
+  bool enable_shuffle_views = true;
   bool enable_nbv_filter = false;
   bool enable_outlier_filter = true;
-  bool enable_early_stopping = true;
-  int min_nbv_views = 40;
+  bool enable_marginalization = false;
+  bool enable_early_stopping = false;
+  int min_nbv_views = 10;
   real_t outlier_threshold = 3.0;
   real_t info_gain_threshold = 0.2;
+  int sliding_window_size = 10;
+  int early_stop_threshold = 30;
 
   // Data
   calib_target_t calib_target;
@@ -127,6 +131,7 @@ struct calib_camera_t {
   std::deque<calib_view_t *> calib_views;
 
   // Temporary storage
+  std::map<int, vec2s_t> batch_residuals;
   std::map<int, vecx_t> cam_params_tmp;
   std::map<int, vecx_t> cam_exts_tmp;
   std::map<timestamp_t, vecx_t> poses_tmp;
@@ -170,8 +175,10 @@ struct calib_camera_t {
   std::map<int, std::vector<real_t>> get_reproj_errors();
   std::map<int, vec2s_t> get_residuals();
 
-  void add_camera_data(const std::map<int, aprilgrids_t> &grids);
   void add_camera_data(const int cam_idx, const aprilgrids_t &grids);
+  void add_camera_data(const std::map<int, aprilgrids_t> &grids);
+  void add_camera_data(const std::map<int, aprilgrids_t> &train_data,
+                       const std::map<int, aprilgrids_t> &valid_data);
   void add_camera(const int cam_idx,
                   const int cam_res[2],
                   const std::string &proj_model,
@@ -204,10 +211,13 @@ struct calib_camera_t {
 
   void _initialize_intrinsics();
   void _initialize_extrinsics();
-  int _filter_view(const timestamp_t ts);
+  int _filter_view(const timestamp_t ts,
+                   const std::map<int, vec2_t> &cam_thresholds);
   int _filter_all_views();
   void _cache_estimates();
   void _restore_estimates();
+  int _calc_info(real_t *info);
+  int _calc_info_gain(real_t *info_gain);
   int _eval_nbv(const timestamp_t ts);
   void _print_stats(const real_t progress);
   void _solve_batch(const bool filter_outliers);
@@ -215,11 +225,15 @@ struct calib_camera_t {
   void _solve_nbv();
 
   void solve();
+  void print_settings(FILE *out);
+  void print_metrics(FILE *out);
+  void print_calib_target(FILE *out);
+  void print_estimates(FILE *out);
   void show_results();
   int save_results(const std::string &save_path);
   int save_estimates(const std::string &save_path);
   int save_stats(const std::string &save_path);
-  real_t validate(const std::map<int, aprilgrids_t> &cam_data);
+  real_t inspect(const std::map<int, aprilgrids_t> &cam_data);
 };
 
 /** Solve Camera Calibration Problem */

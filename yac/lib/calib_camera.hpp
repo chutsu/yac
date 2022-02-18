@@ -92,6 +92,7 @@ struct calib_camera_t {
   bool filter_views_init = false;
 
   // Settings
+  // -- General
   bool verbose = true;
   // -- Intrinsics initialization
   bool enable_intrinsics_nbv = false;
@@ -104,7 +105,7 @@ struct calib_camera_t {
   // -- Final stage settings
   bool enable_nbv = true;
   bool enable_shuffle_views = true;
-  bool enable_nbv_filter = false;
+  bool enable_nbv_filter = true;
   bool enable_outlier_filter = true;
   bool enable_marginalization = false;
   bool enable_early_stopping = false;
@@ -217,16 +218,17 @@ struct calib_camera_t {
   void _cache_estimates();
   void _restore_estimates();
   int _calc_info(real_t *info);
-  int _calc_info_gain(real_t *info_gain);
   int _eval_nbv(const timestamp_t ts);
-  void _print_stats(const real_t progress);
+  void _print_stats(const size_t ts_idx, const size_t nb_timestamps);
   void _solve_batch(const bool filter_outliers);
   void _solve_inc();
   void _solve_nbv();
 
   void solve();
   void print_settings(FILE *out);
-  void print_metrics(FILE *out);
+  void print_metrics(FILE *out,
+                     const std::map<int, std::vector<real_t>> &reproj_errors,
+                     const std::vector<real_t> &reproj_errors_all);
   void print_calib_target(FILE *out);
   void print_estimates(FILE *out);
   void show_results();

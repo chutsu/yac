@@ -1189,14 +1189,10 @@ int calib_camera_t::find_nbv(const std::map<int, mat4s_t> &nbv_poses,
     FATAL("Calibration problem is empty!?");
   }
 
-  // Current Entropy
-  real_t entropy_k = 0.0;
-  {
-    matx_t calib_covar;
-    if (recover_calib_covar(calib_covar, true) != 0) {
-      return -1;
-    }
-    entropy_k = shannon_entropy(calib_covar);
+  // Current info
+  real_t info_k = 0.0;
+  if (_calc_info(&info_k) != 0) {
+    return -1;
   }
 
   // Find NBV
@@ -1204,7 +1200,7 @@ int calib_camera_t::find_nbv(const std::map<int, mat4s_t> &nbv_poses,
   const timestamp_t nbv_ts = last_ts + 1;
   int best_cam = 0;
   int best_idx = 0;
-  real_t best_entropy = 0;
+  real_t best_info = 0;
 
   int total_nbv_poses = 0;
   for (const auto &[nbv_cam_idx, nbv_cam_poses] : nbv_poses) {
@@ -1237,21 +1233,16 @@ int calib_camera_t::find_nbv(const std::map<int, mat4s_t> &nbv_poses,
       add_view(cam_grids);
 
       // Evaluate NBV
-      // -- Estimate calibration covariance
-      bar.update();
-      matx_t calib_covar;
-      if (recover_calib_covar(calib_covar, true) != 0) {
-        remove_view(nbv_ts);
-        continue;
-      }
-      remove_view(nbv_ts);
-      // -- Calculate entropy
-      const real_t entropy = shannon_entropy(calib_covar);
-      if (entropy < best_entropy) {
+      real_t info_kp1;
+      if (_calc_info(&info_kp1) == 0 && info_kp1 < best_info) {
         best_cam = nbv_cam_idx;
         best_idx = i;
-        best_entropy = entropy;
+        best_info = info_kp1;
       }
+
+      // Remove view and update
+      remove_view(nbv_ts);
+      bar.update();
     }
   }
   printf("\n");
@@ -1260,14 +1251,12 @@ int calib_camera_t::find_nbv(const std::map<int, mat4s_t> &nbv_poses,
   cam_idx = best_cam;
   nbv_idx = best_idx;
 
-  const auto info_gain = 0.5 * (entropy_k - best_entropy);
-  printf("best_entropy: %f\n", best_entropy);
-  printf("entropy_k: %f\n", entropy_k);
+  const auto info_gain = 0.5 * (info_k - best_info);
+  printf("info_k: %f  ", info_k);
+  printf("best_info: %f  ", best_info);
   printf("info_gain: %f\n", info_gain);
   if (info_gain < info_gain_threshold) {
-    return 1;
-  } else {
-    entropy_k = best_entropy;
+    return -1;
   }
 
   return 0;
@@ -1421,8 +1410,6 @@ int calib_camera_t::_calc_info(real_t *info) {
   return 0;
 }
 
-int calib_camera_t::_calc_info_gain(real_t *info_gain) { return 0; }
-
 int calib_camera_t::_eval_nbv(const timestamp_t nbv_ts) {
   // Keep track of initial values
   _cache_estimates();
@@ -1446,8 +1433,6 @@ int calib_camera_t::_eval_nbv(const timestamp_t nbv_ts) {
       // Recalculate info_k
       _calc_info(&info_k);
       removed_outliers += removed;
-      printf("Initial NBV filter: ");
-      printf("Removed %d outliers\n", removed);
       return 0;
 
     } else {
@@ -1461,8 +1446,6 @@ int calib_camera_t::_eval_nbv(const timestamp_t nbv_ts) {
       }
       // -- Filter and solve again
       removed = _filter_view(nbv_ts, cam_thresholds);
-      printf("NBV filter: ");
-      printf("Removed %d outliers\n", removed);
       ceres::Solve(options, problem, &summary);
     }
   }
@@ -1519,7 +1502,9 @@ int calib_camera_t::_eval_nbv(const timestamp_t nbv_ts) {
   return 0;
 }
 
-void calib_camera_t::_print_stats(const real_t progress) {
+void calib_camera_t::_print_stats(const size_t ts_idx,
+                                  const size_t nb_timestamps) {
+  const real_t progress = ((real_t)ts_idx / nb_timestamps) * 100.0;
   const auto reproj_errors_all = get_all_reproj_errors();
   printf("[%.2f%%] ", progress);
   printf("nb_views: %d  ", nb_views());
@@ -1528,23 +1513,25 @@ void calib_camera_t::_print_stats(const real_t progress) {
   printf("valid_error_k: %f ", valid_error_k);
   printf("\n");
 
-  const mat4_t T_BC0 = get_camera_extrinsics(0);
-  const mat4_t T_C0B = T_BC0.inverse();
-  for (const auto cam_idx : get_camera_indices()) {
-    const auto cam_res = cam_params[cam_idx]->resolution;
-    const auto param = cam_params[cam_idx]->param;
-    printf("cam%d_params: %s\n", cam_idx, vec2str(param).c_str());
-  }
-  for (const auto cam_idx : get_camera_indices()) {
-    if (cam_idx == 0) {
-      continue;
+  if ((ts_idx % 10) == 0) {
+    printf("\n");
+    const mat4_t T_BC0 = get_camera_extrinsics(0);
+    const mat4_t T_C0B = T_BC0.inverse();
+    for (const auto cam_idx : get_camera_indices()) {
+      const auto cam_res = cam_params[cam_idx]->resolution;
+      const auto param = cam_params[cam_idx]->param;
+      printf("cam%d_params: %s\n", cam_idx, vec2str(param).c_str());
     }
-    const mat4_t T_BCi = cam_exts[cam_idx]->tf();
-    const mat4_t T_C0Ci = T_C0B * T_BCi;
-    printf("cam%d_exts: %s\n", cam_idx, vec2str(tf_vec(T_C0Ci)).c_str());
+    for (const auto cam_idx : get_camera_indices()) {
+      if (cam_idx == 0) {
+        continue;
+      }
+      const mat4_t T_BCi = cam_exts[cam_idx]->tf();
+      const mat4_t T_C0Ci = T_C0B * T_BCi;
+      printf("cam%d_exts: %s\n", cam_idx, vec2str(tf_vec(T_C0Ci)).c_str());
+    }
+    printf("\n");
   }
-  printf("\n");
-  fflush(stdout);
 }
 
 void calib_camera_t::_solve_batch(const bool filter_outliers) {
@@ -1595,6 +1582,7 @@ void calib_camera_t::_solve_inc() {
 
   // Solve
   size_t ts_idx = 0;
+
   for (const auto &ts : timestamps) {
     // Add view
     if (add_view(calib_data[ts]) == false) {
@@ -1608,9 +1596,8 @@ void calib_camera_t::_solve_inc() {
     ceres::Solve(options, problem, &summary);
 
     // Print stats
-    const real_t progress = ((real_t)ts_idx / timestamps.size()) * 100.0;
     if (verbose) {
-      _print_stats(progress);
+      _print_stats(ts_idx, timestamps.size());
     }
 
     // Update
@@ -1647,7 +1634,6 @@ void calib_camera_t::_solve_nbv() {
   }
 
   // NBV
-  const real_t nb_timestamps = (real_t)nbv_timestamps.size();
   size_t ts_idx = 0;
   int early_stop_counter = 0;
 
@@ -1670,9 +1656,8 @@ void calib_camera_t::_solve_nbv() {
     }
 
     // Print stats
-    const real_t progress = ((real_t)ts_idx / nb_timestamps) * 100.0;
     if (verbose) {
-      _print_stats(progress);
+      _print_stats(ts_idx, nbv_timestamps.size());
     }
 
     // Stop early?
@@ -1736,19 +1721,20 @@ void calib_camera_t::solve() {
 void calib_camera_t::print_settings(FILE *out) {
   // clang-format off
   fprintf(out, "settings:\n");
+  fprintf(out, "  # General\n");
   fprintf(out, "  verbose: %d\n", verbose);
   fprintf(out, "\n");
-  fprintf(out, "  # -- Intrinsics initialization\n");
+  fprintf(out, "  # Intrinsics initialization\n");
   fprintf(out, "  enable_intrinsics_nbv: %d\n", enable_intrinsics_nbv);
   fprintf(out, "  enable_intrinsics_outlier_filter: %d\n", enable_intrinsics_outlier_filter);
   fprintf(out, "  intrinsics_info_gain_threshold: %f\n", intrinsics_info_gain_threshold);
   fprintf(out, "  intrinsics_outlier_threshold: %f\n", intrinsics_outlier_threshold);
   fprintf(out, "  intrinsics_min_nbv_views: %d\n", intrinsics_min_nbv_views);
   fprintf(out, "\n");
-  fprintf(out, "  # -- Extrinsics initialization\n");
+  fprintf(out, "  # Extrinsics initialization\n");
   fprintf(out, "  enable_extrinsics_outlier_filter: %d\n", enable_extrinsics_outlier_filter);
   fprintf(out, "\n");
-  fprintf(out, "  # -- Final stage settings\n");
+  fprintf(out, "  # NBV settings\n");
   fprintf(out, "  enable_nbv: %d\n", enable_nbv);
   fprintf(out, "  enable_shuffle_views: %d\n", enable_shuffle_views);
   fprintf(out, "  enable_nbv_filter: %d\n", enable_nbv_filter);
@@ -1764,25 +1750,24 @@ void calib_camera_t::print_settings(FILE *out) {
   // clang-format on
 }
 
-void calib_camera_t::print_metrics(FILE *out) {
-  const auto reproj_errors = get_reproj_errors();
-  const auto reproj_errors_all = get_all_reproj_errors();
-
-  fprintf(out, "calib_metrics:\n");
-  fprintf(out, "  total_reproj_error:\n");
-  fprintf(out, "    rmse:   %.4f # [px]\n", rmse(reproj_errors_all));
-  fprintf(out, "    mean:   %.4f # [px]\n", mean(reproj_errors_all));
-  fprintf(out, "    median: %.4f # [px]\n", median(reproj_errors_all));
-  fprintf(out, "    stddev: %.4f # [px]\n", stddev(reproj_errors_all));
+void calib_camera_t::print_metrics(
+    FILE *out,
+    const std::map<int, std::vector<real_t>> &reproj_errors,
+    const std::vector<real_t> &reproj_errors_all) {
+  fprintf(out, "total_reproj_error:\n");
+  fprintf(out, "  rmse:   %.4f # [px]\n", rmse(reproj_errors_all));
+  fprintf(out, "  mean:   %.4f # [px]\n", mean(reproj_errors_all));
+  fprintf(out, "  median: %.4f # [px]\n", median(reproj_errors_all));
+  fprintf(out, "  stddev: %.4f # [px]\n", stddev(reproj_errors_all));
   fprintf(out, "\n");
 
   for (const auto &[cam_idx, cam_errors] : reproj_errors) {
     const auto cam_str = "cam" + std::to_string(cam_idx);
-    fprintf(out, "  %s_reproj_error:\n", cam_str.c_str());
-    fprintf(out, "    rmse:   %.4f # [px]\n", rmse(cam_errors));
-    fprintf(out, "    mean:   %.4f # [px]\n", mean(cam_errors));
-    fprintf(out, "    median: %.4f # [px]\n", median(cam_errors));
-    fprintf(out, "    stddev: %.4f # [px]\n", stddev(cam_errors));
+    fprintf(out, "%s_reproj_error:\n", cam_str.c_str());
+    fprintf(out, "  rmse:   %.4f # [px]\n", rmse(cam_errors));
+    fprintf(out, "  mean:   %.4f # [px]\n", mean(cam_errors));
+    fprintf(out, "  median: %.4f # [px]\n", median(cam_errors));
+    fprintf(out, "  stddev: %.4f # [px]\n", stddev(cam_errors));
     fprintf(out, "\n");
   }
 }
@@ -1839,10 +1824,12 @@ void calib_camera_t::print_estimates(FILE *out) {
 }
 
 void calib_camera_t::show_results() {
+  const auto reproj_errors = get_reproj_errors();
+  const auto reproj_errors_all = get_all_reproj_errors();
   printf("Optimization results:\n");
   printf("---------------------\n");
   print_settings(stdout);
-  print_metrics(stdout);
+  print_metrics(stdout, reproj_errors, reproj_errors_all);
   print_estimates(stdout);
 }
 
@@ -1856,8 +1843,10 @@ int calib_camera_t::save_results(const std::string &save_path) {
   }
 
   // Save results
+  const auto reproj_errors = get_reproj_errors();
+  const auto reproj_errors_all = get_all_reproj_errors();
   print_settings(outfile);
-  print_metrics(outfile);
+  print_metrics(outfile, reproj_errors, reproj_errors_all);
   print_calib_target(outfile);
   print_estimates(outfile);
 
@@ -2033,26 +2022,9 @@ real_t calib_camera_t::inspect(const std::map<int, aprilgrids_t> &valid_data) {
 
   // Print stats
   if (verbose) {
-    printf("Validation Statistics:\n");
+    printf("\nValidation Statistics:\n");
     printf("----------------------\n");
-    printf("total_reproj_error:\n");
-    printf("  rmse:   %.4f # [px]\n", rmse(reproj_errors_all));
-    printf("  mean:   %.4f # [px]\n", mean(reproj_errors_all));
-    printf("  median: %.4f # [px]\n", median(reproj_errors_all));
-    printf("  stddev: %.4f # [px]\n", stddev(reproj_errors_all));
-    printf("\n");
-    for (const auto &[cam_idx, cam_r] : reproj_errors_cams) {
-      const auto cam_str = "cam" + std::to_string(cam_idx);
-      const auto cam_param = cam_params[cam_idx];
-      const auto cam_res = cam_param->resolution;
-      const auto T_C0Ci = cam_exts[cam_idx]->tf();
-      printf("%s_reproj_error:\n", cam_str.c_str());
-      printf("  rmse:   %.4f # [px]\n", rmse(cam_r));
-      printf("  mean:   %.4f # [px]\n", mean(cam_r));
-      printf("  median: %.4f # [px]\n", median(cam_r));
-      printf("  stddev: %.4f # [px]\n", stddev(cam_r));
-      printf("\n");
-    }
+    print_metrics(stdout, reproj_errors_cams, reproj_errors_all);
   }
 
   return rmse(reproj_errors_all);

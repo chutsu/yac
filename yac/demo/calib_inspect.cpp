@@ -11,10 +11,9 @@ std::map<int, yac::aprilgrids_t> load_dataset() {
   return yac::calib_data_preprocess(calib_target, cam_paths, grids_path);
 }
 
-int main() {
+int main(int argc, char *argv[]) {
   const auto inspect_data = load_dataset();
-  const auto config_file =
-      "/data/euroc_results/configs/yac/calib-cameras-marg-0.yaml";
+  const std::string config_file = argv[1];
   yac::calib_camera_t calib{config_file};
   calib.inspect(inspect_data);
   return 0;

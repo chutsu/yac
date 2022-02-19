@@ -9,6 +9,7 @@ set -e
 # RUN_CMD="rosrun yac test_util_aprilgrid"
 # RUN_CMD="rosrun yac test_util_config"
 # RUN_CMD="rosrun yac test_util_cv"
+# RUN_CMD="rosrun yac test_util_core --target test_ctraj_sandbox"
 # RUN_CMD="rosrun yac test_util_data"
 # RUN_CMD="rosrun yac test_util_fs"
 # RUN_CMD="rosrun yac test_util_net"
@@ -26,7 +27,7 @@ set -e
 # RUN_CMD="rosrun yac test_calib_errors --target test_imu_error"
 
 # YAC - CAMERA CALIBRATION
-# RUN_CMD="rosrun yac test_calib_camera"
+RUN_CMD="rosrun yac test_calib_camera"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_view"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_add_camera_data"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_add_camera"
@@ -38,12 +39,12 @@ set -e
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_filter_view"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_filter_all_views"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_solve_batch"
-RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_solve_inc"
+# RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_solve_inc"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_mono"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_stereo"
 # RUN_CMD="rosrun yac test_calib_camera --target test_marg_error"
 # RUN_CMD="rosrun yac calib_euroc"
-# RUN_CMD="rosrun yac calib_sandbox"
+# RUN_CMD="rosrun yac calib_inspect '/data/euroc_results/configs/euroc/euroc.yaml'"
 # RUN_CMD="rosrun --prefix 'gdb -ex run -args' yac test_calib_camera --target test_marg_error"
 # RUN_CMD="rosrun --prefix 'gdb -ex run -args' yac test_calib_camera"
 # RUN_CMD="rosrun --prefix 'gdb -ex run -args' yac test_calib_camera --target test_calib_camera_kalibr_data"
@@ -57,6 +58,9 @@ RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_solve_inc"
 # RUN_CMD="rosrun yac test_calib_vi --target test_calib_vi_online"
 # RUN_CMD="rosrun yac test_calib_vi --target test_calib_vi"
 # RUN_CMD="rosrun yac test_calib_vi --target test_marg_error"
+
+# # YAC - NBT
+# RUN_CMD="rosrun yac test_calib_nbt"
 
 # YAC - NBV
 # RUN_CMD="rosrun yac test_calib_nbv"
@@ -87,13 +91,15 @@ RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_solve_inc"
 
 tmux send-keys -t dev -R "\
 cd ~/projects/yac \
-&& make lib_relwithdeb \
+&& make lib \
 && source ~/catkin_ws/devel/setup.bash \
 && ${RUN_CMD}
 " C-m C-m
 exit
 
 # python3 scripts/marg_sandbox.py
+# python3 scripts/plot_nbt.py
+# python3 scripts/plot_imu.py
 # python3 scripts/plot_info.py
 # python3 scripts/plot_frames.py
 # python3 scripts/plot_poses.py /tmp/calib-estimates.yaml

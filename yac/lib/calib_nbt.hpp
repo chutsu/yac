@@ -93,12 +93,12 @@ void calib_figure8_trajs(const timestamp_t &ts_start,
  *
  * @return AprilGrid
  */
-aprilgrid_t sim_cam_view(const timestamp_t ts,
-                         const calib_target_t &target,
-                         const mat4_t &T_FC0,
-                         const camera_geometry_t *cam_geom,
-                         const camera_params_t *cam_params,
-                         const extrinsics_t *cam_exts);
+aprilgrid_t simulate_aprilgrid(const timestamp_t ts,
+                               const calib_target_t &target,
+                               const mat4_t &T_FC0,
+                               const camera_geometry_t *cam_geom,
+                               const camera_params_t *cam_params,
+                               const extrinsics_t *cam_exts);
 
 /**
  * Simulate cameras
@@ -170,14 +170,13 @@ void nbt_create_timeline(const camera_data_t &cam_grids,
 /**
  * Evaluate NBT
  *
+ * @param[in] calib Calibrator
  * @param[in] traj NBT Trajectory
- * @param[in] ts_start Timestamp start
- * @param[in] ts_end Timestamp end
+ * @param[out] info Information
+ *
  * @returns 0 for success or -1 for failure
  */
-int nbt_eval(const ctraj_t &traj,
-             const timestamp_t &ts_start,
-             const timestamp_t &ts_end);
+int nbt_eval(const calib_vi_t &calib, const ctraj_t &traj, real_t *info);
 
 } //  namespace yac
 #endif // YAC_CALIB_NBT_HPP

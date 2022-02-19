@@ -38,42 +38,6 @@ bool check_fully_observable(const calib_target_t &target,
   return true;
 }
 
-mat4_t calib_target_origin(const calib_target_t &target,
-                           const vec2_t &cam_res,
-                           const double hfov) {
-  const double tag_rows = target.tag_rows;
-  const double tag_cols = target.tag_cols;
-  const double tag_size = target.tag_size;
-  const double tag_spacing = target.tag_spacing;
-
-  // Standard pinhole camera model equation
-  // x = f * X / Z
-  // x / f * X = 1 / Z
-  // Z = f * X / x
-
-  // Calculate target center
-  const double spacing_x = (tag_cols - 1) * tag_spacing * tag_size;
-  const double spacing_y = (tag_rows - 1) * tag_spacing * tag_size;
-  const double width = tag_cols * tag_size + spacing_x;
-  const double height = tag_rows * tag_size + spacing_y;
-  const vec2_t center{width / 2.0, height / 2.0};
-
-  // Calculate distance away from target center
-  const double half_width = width / 2.0;
-  const double half_resolution_x = cam_res(0) / 2.0;
-  const double scale = 0.5; // Target width to be 50% of image space at T_TO
-  const double image_width = cam_res(0);
-  const auto fx = pinhole_focal(image_width, hfov);
-  const auto z_FO = fx * half_width / (half_resolution_x * scale);
-
-  // Form transform of calibration origin (O) wrt fiducial target (F) T_FO
-  const mat3_t C_FO = I(3);
-  const vec3_t r_FO{center(0), center(1), z_FO};
-  const mat4_t T_FO = tf(C_FO, r_FO);
-
-  return T_FO;
-}
-
 /** Calculate target origin (O) w.r.t. fiducial (F) T_FO **/
 mat4_t calib_target_origin(const calib_target_t &target,
                            const camera_geometry_t *cam_geom,
@@ -223,14 +187,13 @@ mat4s_t calib_nbv_poses(const calib_target_t &target,
   return poses;
 }
 
-std::map<int, mat4s_t>
-calib_nbv_poses(const calib_target_t &target,
-                const std::map<int, camera_geometry_t *> &cam_geoms,
-                const std::map<int, camera_params_t *> &cam_params,
-                const std::map<int, extrinsics_t *> &cam_exts,
-                const int range_x_size,
-                const int range_y_size,
-                const int range_z_size) {
+std::map<int, mat4s_t> calib_nbv_poses(const calib_target_t &target,
+                                       const CamIdx2Geometry &cam_geoms,
+                                       const CamIdx2Parameters &cam_params,
+                                       const CamIdx2Extrinsics &cam_exts,
+                                       const int range_x_size,
+                                       const int range_y_size,
+                                       const int range_z_size) {
   std::map<int, mat4s_t> nbv_poses;
 
   for (const auto [cam_idx, _] : cam_geoms) {

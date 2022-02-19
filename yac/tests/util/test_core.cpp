@@ -1,8 +1,9 @@
 #include <unistd.h>
 
-#include "munit.hpp"
-#include "core.hpp"
-
+#include "../munit.hpp"
+#include "util/core.hpp"
+#include "util/fs.hpp"
+#include "util/data.hpp"
 
 namespace yac {
 
@@ -223,8 +224,10 @@ int test_nullspace() {
   return 0;
 }
 
-real_t covar_recover(const long i, const long l,
-                     const sp_mat_t &L, const vecx_t &diag,
+real_t covar_recover(const long i,
+                     const long l,
+                     const sp_mat_t &L,
+                     const vecx_t &diag,
                      mat_hash_t &hash) {
   // Check if covar at (i, l) has already been computed
   if (hash.count(i) == 1 && hash[i].count(l) == 1) {
@@ -238,7 +241,7 @@ real_t covar_recover(const long i, const long l,
   const auto sum_row = [&](const long i) {
     real_t sum = 0;
 
-    for (Eigen::SparseVector<double>::InnerIterator it(L_row); it; ++it){
+    for (Eigen::SparseVector<double>::InnerIterator it(L_row); it; ++it) {
       long j = it.index();
       real_t U_ij = it.value();
 
@@ -310,10 +313,10 @@ int test_covar_recover() {
   profiler_t profile;
 
   matx_t H;
-  csv2mat("/tmp/H.csv", false, H);
+  mat2csv("/tmp/H.csv", H);
 
   // matx_t covar;
-  // csv2mat("/tmp/covar.csv", false, covar);
+  // mat2csv("/tmp/covar.csv", covar);
 
   // matx_t H_diag = H.diagonal().asDiagonal();
   // H = H + 1e-5 * H_diag;
@@ -327,7 +330,7 @@ int test_covar_recover() {
   mat_indicies_t indicies;
   for (int i = H.rows() - 16; i < H.rows(); i++) {
     // for (int j = H.rows() - 16; j < H.rows(); j++) {
-      indicies.emplace_back(i, i);
+    indicies.emplace_back(i, i);
     // }
   }
 
@@ -358,7 +361,6 @@ int test_covar_recover() {
 
   return 0;
 }
-
 
 /******************************************************************************
  * GEOMETRY
@@ -537,7 +539,7 @@ int test_fit_circle() {
     double gnd_radius = randf(0.1, 5.0);
 
     double theta = 0.0;
-    double dtheta = 2.0 * M_PI / (double) nb_points;
+    double dtheta = 2.0 * M_PI / (double)nb_points;
     while (theta <= 2.0 * M_PI) {
       const double x = gnd_radius * cos(theta) + gnd_cx;
       const double y = gnd_radius * sin(theta) + gnd_cy;
@@ -1132,7 +1134,6 @@ int test_intersection() {
   return 0;
 }
 
-
 int test_lerp_timestamps() {
   test_data_t td;
 
@@ -1319,7 +1320,7 @@ void generate_trajectory(timestamps_t &timestamps,
     const real_t ts_s_k = ts2sec(ts_k);
     positions.emplace_back(sin(2 * M_PI * 2 * ts_s_k) + 1.0,
                            sin(2 * M_PI * 2 * ts_s_k) + 2.0,
-                           sin(2 * M_PI * 2 * ts_s_k) + 3.0);
+                           0.0);
 
     // Orientation
     const vec3_t rpy(sin(2 * M_PI * 2 * ts_s_k),
@@ -1388,6 +1389,42 @@ int test_ctraj() {
     OCTAVE_SCRIPT("scripts/core/plot_spline_data.m "
                   "/tmp/pos_data.csv "
                   "/tmp/att_data.csv ");
+  }
+
+  return 0;
+}
+
+int test_ctraj_sandbox() {
+  const size_t nb_knots = 6;
+  row_vector_t knots{nb_knots};
+  knots[0] = 0.0;
+  knots[1] = 0.2;
+  knots[2] = 0.4;
+  knots[3] = 0.6;
+  knots[4] = 0.8;
+  knots[5] = 1.0;
+
+  row_vector_t pos{nb_knots};
+  pos[0] = 0.0;
+  pos[1] = 0.2;
+  pos[2] = 0.4;
+  pos[3] = 0.6;
+  pos[4] = 0.8;
+  pos[5] = 1.0;
+
+  row_vector_t derivs{2};
+  derivs << 0.0, 0.0;
+
+  row_vector_t deriv_indices{2};
+  deriv_indices << 0, pos.size() - 1;
+
+  // clang-format off
+  auto spline = Eigen::SplineFitting<Spline1D>::InterpolateWithDerivatives(pos, derivs, deriv_indices, 3, knots);
+  // auto spline = Eigen::SplineFitting<Spline1D>::Interpolate(pos, 3, knots);
+  // clang-format on
+
+  for (int i = 0; i < nb_knots; i++) {
+    std::cout << spline(pos(i)) << std::endl;
   }
 
   return 0;
@@ -1686,232 +1723,232 @@ int test_sim_imu_measurement() {
   return 0;
 }
 
-/*****************************************************************************
- * CONTROL
- *****************************************************************************/
-
-int test_pid_construct() {
-  pid_t p;
-
-  MU_CHECK_FLOAT(0.0, p.error_prev);
-  MU_CHECK_FLOAT(0.0, p.error_sum);
-
-  MU_CHECK_FLOAT(0.0, p.error_p);
-  MU_CHECK_FLOAT(0.0, p.error_i);
-  MU_CHECK_FLOAT(0.0, p.error_d);
-
-  MU_CHECK_FLOAT(0.0, p.k_p);
-  MU_CHECK_FLOAT(0.0, p.k_i);
-  MU_CHECK_FLOAT(0.0, p.k_d);
-
-  return 0;
-}
-
-int test_pid_setup() {
-  pid_t p(1.0, 2.0, 3.0);
-
-  MU_CHECK_FLOAT(0.0, p.error_prev);
-  MU_CHECK_FLOAT(0.0, p.error_sum);
-
-  MU_CHECK_FLOAT(0.0, p.error_p);
-  MU_CHECK_FLOAT(0.0, p.error_i);
-  MU_CHECK_FLOAT(0.0, p.error_d);
-
-  MU_CHECK_FLOAT(1.0, p.k_p);
-  MU_CHECK_FLOAT(2.0, p.k_i);
-  MU_CHECK_FLOAT(3.0, p.k_d);
-
-  return 0;
-}
-
-int test_pid_update() {
-  pid_t p(1.0, 2.0, 3.0);
-
-  // test and assert
-  real_t output = pid_update(p, 10.0, 0.0, 0.1);
-  std::cout << p << std::endl;
-  std::cout << output << std::endl;
-
-  // MU_CHECK_FLOAT(1.0, p.error_sum);
-  // MU_CHECK_FLOAT(10.0, p.error_p);
-  // MU_CHECK_FLOAT(2.0, p.error_i);
-  // MU_CHECK_FLOAT(300.0, p.error_d);
-  // MU_CHECK_FLOAT(10.0, p.error_prev);
-  // MU_CHECK_FLOAT(111.0, output);
-
-  return 0;
-}
-
-int test_pid_reset() {
-  pid_t p;
-
-  p.error_prev = 0.1;
-  p.error_sum = 0.2;
-
-  p.error_p = 0.3;
-  p.error_i = 0.4;
-  p.error_d = 0.5;
-
-  pid_reset(p);
-
-  MU_CHECK_FLOAT(0.0, p.error_prev);
-  MU_CHECK_FLOAT(0.0, p.error_sum);
-
-  MU_CHECK_FLOAT(0.3, p.error_p);
-  MU_CHECK_FLOAT(0.4, p.error_i);
-  MU_CHECK_FLOAT(0.5, p.error_d);
-
-  return 0;
-}
-
-int test_carrot_ctrl_constructor() {
-  carrot_ctrl_t cc;
-
-  MU_CHECK(cc.wp_start.isApprox(vec3_t::Zero()));
-  MU_CHECK(cc.wp_end.isApprox(vec3_t::Zero()));
-  MU_CHECK(cc.wp_index == 0);
-  MU_CHECK_FLOAT(0.0, cc.look_ahead_dist);
-
-  return 0;
-}
-
-int test_carrot_ctrl_configure() {
-  carrot_ctrl_t cc;
-
-  vec3s_t waypoints;
-  waypoints.emplace_back(0.0, 0.0, 0.0);
-  waypoints.emplace_back(1.0, 1.0, 0.0);
-  waypoints.emplace_back(2.0, 2.0, 0.0);
-  waypoints.emplace_back(3.0, 3.0, 0.0);
-  carrot_ctrl_configure(cc, waypoints, 0.1);
-
-  MU_CHECK(cc.wp_start.isApprox(vec3_t::Zero()));
-  MU_CHECK(cc.wp_end.isApprox(vec3_t{1.0, 1.0, 0.0}));
-  MU_CHECK(cc.wp_index == 1);
-  MU_CHECK_FLOAT(0.1, cc.look_ahead_dist);
-
-  return 0;
-}
-
-int test_carrot_ctrl_closest_point() {
-  carrot_ctrl_t cc;
-
-  vec3s_t wps;
-  wps.emplace_back(0.0, 0.0, 0.0);
-  wps.emplace_back(1.0, 1.0, 0.0);
-  wps.emplace_back(2.0, 2.0, 0.0);
-  wps.emplace_back(3.0, 3.0, 0.0);
-  carrot_ctrl_configure(cc, wps, 0.1);
-
-  MU_CHECK(cc.wp_start.isApprox(vec3_t::Zero()));
-  MU_CHECK(cc.wp_end.isApprox(vec3_t{1.0, 1.0, 0.0}));
-  MU_CHECK(cc.wp_index == 1);
-  MU_CHECK_FLOAT(0.1, cc.look_ahead_dist);
-
-  // Test before waypoint start
-  vec3_t pos0{-1.0, -1.0, 0.0};
-  vec3_t res0;
-  int s0 = carrot_ctrl_closest_point(cc, pos0, res0);
-  MU_CHECK(res0.isApprox(vec3_t{-1.0, -1.0, 0.0}));
-  MU_CHECK(s0 == -1);
-
-  // Test between waypoint start and end
-  vec3_t pos1{0.5, 0.5, 0.0};
-  vec3_t res1;
-  int s1 = carrot_ctrl_closest_point(cc, pos1, res1);
-  MU_CHECK(res1.isApprox(vec3_t{0.5, 0.5, 0.0}));
-  MU_CHECK(s1 == 0);
-
-  // Test after waypoint end
-  vec3_t pos2{1.5, 1.5, 0.0};
-  vec3_t res2;
-  int s2 = carrot_ctrl_closest_point(cc, pos2, res2);
-  MU_CHECK(res2.isApprox(vec3_t{1.5, 1.5, 0.0}));
-  MU_CHECK(s2 == 1);
-
-  return 0;
-}
-
-int test_carrot_ctrl_carrot_point() {
-  carrot_ctrl_t cc;
-
-  vec3s_t wps;
-  wps.emplace_back(0.0, 0.0, 0.0);
-  wps.emplace_back(1.0, 0.0, 0.0);
-  wps.emplace_back(2.0, 0.0, 0.0);
-  wps.emplace_back(3.0, 0.0, 0.0);
-  carrot_ctrl_configure(cc, wps, 0.1);
-
-  MU_CHECK(cc.wp_start.isApprox(vec3_t::Zero()));
-  MU_CHECK(cc.wp_end.isApprox(vec3_t{1.0, 0.0, 0.0}));
-  MU_CHECK(cc.wp_index == 1);
-  MU_CHECK_FLOAT(0.1, cc.look_ahead_dist);
-
-  // Test before waypoint start
-  vec3_t pos0{-1.0, 0.0, 0.0};
-  vec3_t res0;
-  int s0 = carrot_ctrl_carrot_point(cc, pos0, res0);
-  MU_CHECK(res0.isApprox(vec3_t{0.0, 0.0, 0.0}));
-  MU_CHECK(s0 == -1);
-
-  // Test between waypoint start and end
-  vec3_t pos1{0.5, 0.0, 0.0};
-  vec3_t res1;
-  int s1 = carrot_ctrl_carrot_point(cc, pos1, res1);
-  MU_CHECK(res1.isApprox(vec3_t{0.6, 0.0, 0.0}));
-  MU_CHECK(s1 == 0);
-
-  // Test after waypoint end
-  vec3_t pos2{1.5, 0.0, 0.0};
-  vec3_t res2;
-  int s2 = carrot_ctrl_carrot_point(cc, pos2, res2);
-  MU_CHECK(res2.isApprox(vec3_t{1.0, 0.0, 0.0}));
-  MU_CHECK(s2 == 1);
-
-  return 0;
-}
-
-int test_carrot_ctrl_update() {
-  carrot_ctrl_t cc;
-
-  vec3s_t wps;
-  wps.emplace_back(0.0, 0.0, 0.0);
-  wps.emplace_back(1.0, 0.0, 0.0);
-  wps.emplace_back(2.0, 0.0, 0.0);
-  wps.emplace_back(3.0, 0.0, 0.0);
-  carrot_ctrl_configure(cc, wps, 0.1);
-
-  MU_CHECK(cc.wp_start.isApprox(vec3_t::Zero()));
-  MU_CHECK(cc.wp_end.isApprox(vec3_t{1.0, 0.0, 0.0}));
-  MU_CHECK(cc.wp_index == 1);
-  MU_CHECK_FLOAT(0.1, cc.look_ahead_dist);
-
-  // Test before waypoint start
-  vec3_t pos0{-1.0, 0.0, 0.0};
-  vec3_t res0;
-  int s0 = carrot_ctrl_update(cc, pos0, res0);
-  MU_CHECK(res0.isApprox(vec3_t{0.0, 0.0, 0.0}));
-  MU_CHECK(s0 == 0);
-
-  // Test between waypoint start and end
-  vec3_t pos1{0.5, 0.0, 0.0};
-  vec3_t res1;
-  int s1 = carrot_ctrl_update(cc, pos1, res1);
-  MU_CHECK(res1.isApprox(vec3_t{0.6, 0.0, 0.0}));
-  MU_CHECK(s1 == 0);
-
-  // Test after waypoint end
-  vec3_t pos2{1.5, 0.0, 0.0};
-  vec3_t res2;
-  int s2 = carrot_ctrl_update(cc, pos2, res2);
-  MU_CHECK(res2.isApprox(vec3_t{1.0, 0.0, 0.0}));
-  MU_CHECK(s2 == 0);
-  MU_CHECK(cc.wp_index == 2);
-  MU_CHECK(cc.wp_start.isApprox(vec3_t{1.0, 0.0, 0.0}));
-  MU_CHECK(cc.wp_end.isApprox(vec3_t{2.0, 0.0, 0.0}));
-
-  return 0;
-}
+// /*****************************************************************************
+//  * CONTROL
+//  *****************************************************************************/
+//
+// int test_pid_construct() {
+//   pid_t p;
+//
+//   MU_CHECK_FLOAT(0.0, p.error_prev);
+//   MU_CHECK_FLOAT(0.0, p.error_sum);
+//
+//   MU_CHECK_FLOAT(0.0, p.error_p);
+//   MU_CHECK_FLOAT(0.0, p.error_i);
+//   MU_CHECK_FLOAT(0.0, p.error_d);
+//
+//   MU_CHECK_FLOAT(0.0, p.k_p);
+//   MU_CHECK_FLOAT(0.0, p.k_i);
+//   MU_CHECK_FLOAT(0.0, p.k_d);
+//
+//   return 0;
+// }
+//
+// int test_pid_setup() {
+//   pid_t p(1.0, 2.0, 3.0);
+//
+//   MU_CHECK_FLOAT(0.0, p.error_prev);
+//   MU_CHECK_FLOAT(0.0, p.error_sum);
+//
+//   MU_CHECK_FLOAT(0.0, p.error_p);
+//   MU_CHECK_FLOAT(0.0, p.error_i);
+//   MU_CHECK_FLOAT(0.0, p.error_d);
+//
+//   MU_CHECK_FLOAT(1.0, p.k_p);
+//   MU_CHECK_FLOAT(2.0, p.k_i);
+//   MU_CHECK_FLOAT(3.0, p.k_d);
+//
+//   return 0;
+// }
+//
+// int test_pid_update() {
+//   pid_t p(1.0, 2.0, 3.0);
+//
+//   // test and assert
+//   real_t output = pid_update(p, 10.0, 0.0, 0.1);
+//   std::cout << p << std::endl;
+//   std::cout << output << std::endl;
+//
+//   // MU_CHECK_FLOAT(1.0, p.error_sum);
+//   // MU_CHECK_FLOAT(10.0, p.error_p);
+//   // MU_CHECK_FLOAT(2.0, p.error_i);
+//   // MU_CHECK_FLOAT(300.0, p.error_d);
+//   // MU_CHECK_FLOAT(10.0, p.error_prev);
+//   // MU_CHECK_FLOAT(111.0, output);
+//
+//   return 0;
+// }
+//
+// int test_pid_reset() {
+//   pid_t p;
+//
+//   p.error_prev = 0.1;
+//   p.error_sum = 0.2;
+//
+//   p.error_p = 0.3;
+//   p.error_i = 0.4;
+//   p.error_d = 0.5;
+//
+//   pid_reset(p);
+//
+//   MU_CHECK_FLOAT(0.0, p.error_prev);
+//   MU_CHECK_FLOAT(0.0, p.error_sum);
+//
+//   MU_CHECK_FLOAT(0.3, p.error_p);
+//   MU_CHECK_FLOAT(0.4, p.error_i);
+//   MU_CHECK_FLOAT(0.5, p.error_d);
+//
+//   return 0;
+// }
+//
+// int test_carrot_ctrl_constructor() {
+//   carrot_ctrl_t cc;
+//
+//   MU_CHECK(cc.wp_start.isApprox(vec3_t::Zero()));
+//   MU_CHECK(cc.wp_end.isApprox(vec3_t::Zero()));
+//   MU_CHECK(cc.wp_index == 0);
+//   MU_CHECK_FLOAT(0.0, cc.look_ahead_dist);
+//
+//   return 0;
+// }
+//
+// int test_carrot_ctrl_configure() {
+//   carrot_ctrl_t cc;
+//
+//   vec3s_t waypoints;
+//   waypoints.emplace_back(0.0, 0.0, 0.0);
+//   waypoints.emplace_back(1.0, 1.0, 0.0);
+//   waypoints.emplace_back(2.0, 2.0, 0.0);
+//   waypoints.emplace_back(3.0, 3.0, 0.0);
+//   carrot_ctrl_configure(cc, waypoints, 0.1);
+//
+//   MU_CHECK(cc.wp_start.isApprox(vec3_t::Zero()));
+//   MU_CHECK(cc.wp_end.isApprox(vec3_t{1.0, 1.0, 0.0}));
+//   MU_CHECK(cc.wp_index == 1);
+//   MU_CHECK_FLOAT(0.1, cc.look_ahead_dist);
+//
+//   return 0;
+// }
+//
+// int test_carrot_ctrl_closest_point() {
+//   carrot_ctrl_t cc;
+//
+//   vec3s_t wps;
+//   wps.emplace_back(0.0, 0.0, 0.0);
+//   wps.emplace_back(1.0, 1.0, 0.0);
+//   wps.emplace_back(2.0, 2.0, 0.0);
+//   wps.emplace_back(3.0, 3.0, 0.0);
+//   carrot_ctrl_configure(cc, wps, 0.1);
+//
+//   MU_CHECK(cc.wp_start.isApprox(vec3_t::Zero()));
+//   MU_CHECK(cc.wp_end.isApprox(vec3_t{1.0, 1.0, 0.0}));
+//   MU_CHECK(cc.wp_index == 1);
+//   MU_CHECK_FLOAT(0.1, cc.look_ahead_dist);
+//
+//   // Test before waypoint start
+//   vec3_t pos0{-1.0, -1.0, 0.0};
+//   vec3_t res0;
+//   int s0 = carrot_ctrl_closest_point(cc, pos0, res0);
+//   MU_CHECK(res0.isApprox(vec3_t{-1.0, -1.0, 0.0}));
+//   MU_CHECK(s0 == -1);
+//
+//   // Test between waypoint start and end
+//   vec3_t pos1{0.5, 0.5, 0.0};
+//   vec3_t res1;
+//   int s1 = carrot_ctrl_closest_point(cc, pos1, res1);
+//   MU_CHECK(res1.isApprox(vec3_t{0.5, 0.5, 0.0}));
+//   MU_CHECK(s1 == 0);
+//
+//   // Test after waypoint end
+//   vec3_t pos2{1.5, 1.5, 0.0};
+//   vec3_t res2;
+//   int s2 = carrot_ctrl_closest_point(cc, pos2, res2);
+//   MU_CHECK(res2.isApprox(vec3_t{1.5, 1.5, 0.0}));
+//   MU_CHECK(s2 == 1);
+//
+//   return 0;
+// }
+//
+// int test_carrot_ctrl_carrot_point() {
+//   carrot_ctrl_t cc;
+//
+//   vec3s_t wps;
+//   wps.emplace_back(0.0, 0.0, 0.0);
+//   wps.emplace_back(1.0, 0.0, 0.0);
+//   wps.emplace_back(2.0, 0.0, 0.0);
+//   wps.emplace_back(3.0, 0.0, 0.0);
+//   carrot_ctrl_configure(cc, wps, 0.1);
+//
+//   MU_CHECK(cc.wp_start.isApprox(vec3_t::Zero()));
+//   MU_CHECK(cc.wp_end.isApprox(vec3_t{1.0, 0.0, 0.0}));
+//   MU_CHECK(cc.wp_index == 1);
+//   MU_CHECK_FLOAT(0.1, cc.look_ahead_dist);
+//
+//   // Test before waypoint start
+//   vec3_t pos0{-1.0, 0.0, 0.0};
+//   vec3_t res0;
+//   int s0 = carrot_ctrl_carrot_point(cc, pos0, res0);
+//   MU_CHECK(res0.isApprox(vec3_t{0.0, 0.0, 0.0}));
+//   MU_CHECK(s0 == -1);
+//
+//   // Test between waypoint start and end
+//   vec3_t pos1{0.5, 0.0, 0.0};
+//   vec3_t res1;
+//   int s1 = carrot_ctrl_carrot_point(cc, pos1, res1);
+//   MU_CHECK(res1.isApprox(vec3_t{0.6, 0.0, 0.0}));
+//   MU_CHECK(s1 == 0);
+//
+//   // Test after waypoint end
+//   vec3_t pos2{1.5, 0.0, 0.0};
+//   vec3_t res2;
+//   int s2 = carrot_ctrl_carrot_point(cc, pos2, res2);
+//   MU_CHECK(res2.isApprox(vec3_t{1.0, 0.0, 0.0}));
+//   MU_CHECK(s2 == 1);
+//
+//   return 0;
+// }
+//
+// int test_carrot_ctrl_update() {
+//   carrot_ctrl_t cc;
+//
+//   vec3s_t wps;
+//   wps.emplace_back(0.0, 0.0, 0.0);
+//   wps.emplace_back(1.0, 0.0, 0.0);
+//   wps.emplace_back(2.0, 0.0, 0.0);
+//   wps.emplace_back(3.0, 0.0, 0.0);
+//   carrot_ctrl_configure(cc, wps, 0.1);
+//
+//   MU_CHECK(cc.wp_start.isApprox(vec3_t::Zero()));
+//   MU_CHECK(cc.wp_end.isApprox(vec3_t{1.0, 0.0, 0.0}));
+//   MU_CHECK(cc.wp_index == 1);
+//   MU_CHECK_FLOAT(0.1, cc.look_ahead_dist);
+//
+//   // Test before waypoint start
+//   vec3_t pos0{-1.0, 0.0, 0.0};
+//   vec3_t res0;
+//   int s0 = carrot_ctrl_update(cc, pos0, res0);
+//   MU_CHECK(res0.isApprox(vec3_t{0.0, 0.0, 0.0}));
+//   MU_CHECK(s0 == 0);
+//
+//   // Test between waypoint start and end
+//   vec3_t pos1{0.5, 0.0, 0.0};
+//   vec3_t res1;
+//   int s1 = carrot_ctrl_update(cc, pos1, res1);
+//   MU_CHECK(res1.isApprox(vec3_t{0.6, 0.0, 0.0}));
+//   MU_CHECK(s1 == 0);
+//
+//   // Test after waypoint end
+//   vec3_t pos2{1.5, 0.0, 0.0};
+//   vec3_t res2;
+//   int s2 = carrot_ctrl_update(cc, pos2, res2);
+//   MU_CHECK(res2.isApprox(vec3_t{1.0, 0.0, 0.0}));
+//   MU_CHECK(s2 == 0);
+//   MU_CHECK(cc.wp_index == 2);
+//   MU_CHECK(cc.wp_start.isApprox(vec3_t{1.0, 0.0, 0.0}));
+//   MU_CHECK(cc.wp_end.isApprox(vec3_t{2.0, 0.0, 0.0}));
+//
+//   return 0;
+// }
 
 /*****************************************************************************
  * Measurements
@@ -1988,204 +2025,204 @@ int test_imu_data_clear() {
   return 0;
 }
 
-/*****************************************************************************
- * MODEL
- ****************************************************************************/
+// /*****************************************************************************
+//  * MODEL
+//  ****************************************************************************/
+//
+// int test_two_wheel_constructor() {
+//   two_wheel_t model;
+//
+//   MU_CHECK(model.r_G.isApprox(vec3_t::Zero()));
+//   MU_CHECK(model.rpy_G.isApprox(vec3_t::Zero()));
+//   MU_CHECK(model.w_B.isApprox(vec3_t::Zero()));
+//   MU_CHECK(model.v_B.isApprox(vec3_t::Zero()));
+//   MU_CHECK(model.a_B.isApprox(vec3_t::Zero()));
+//
+//   return 0;
+// }
+//
+// int test_two_wheel_update() {
+//   // Setup output file
+//   std::ofstream output_file("/tmp/twowheel.dat");
+//   if (output_file.good() == false) {
+//     LOG_ERROR("Failed to open file for output!");
+//     return -1;
+//   }
+//
+//   // Write output file header
+//   const std::string header = "t,x,y,z,vx,vy,vz,ax,ay,az,roll,pitch,yaw";
+//   output_file << header << std::endl;
+//
+//   // Setup model
+//   real_t t_end = 10.0;
+//   const real_t dt = 0.1;
+//
+//   real_t wz_B = 0.0;
+//   const real_t circle_radius = 10.0;
+//   const real_t circle_velocity = 1.0;
+//   circle_trajectory(circle_radius, circle_velocity, &wz_B, &t_end);
+//   two_wheel_t model;
+//   model.v_B(0) = circle_velocity;
+//   model.w_B(2) = wz_B;
+//
+//   // Record initial model state
+//   output_file << 0.0 << ",";
+//   output_file << model.r_G(0) << ",";
+//   output_file << model.r_G(1) << ",";
+//   output_file << model.r_G(2) << ",";
+//   output_file << model.v_G(0) << ",";
+//   output_file << model.v_G(1) << ",";
+//   output_file << model.v_G(2) << ",";
+//   output_file << model.a_G(0) << ",";
+//   output_file << model.a_G(1) << ",";
+//   output_file << model.a_G(2) << ",";
+//   output_file << model.rpy_G(0) << ",";
+//   output_file << model.rpy_G(1) << ",";
+//   output_file << model.rpy_G(2) << std::endl;
+//
+//   // Simulate model motion
+//   for (real_t t = 0.0; t < t_end; t += dt) {
+//     // Update
+//     model.update(dt);
+//
+//     // Record model state
+//     output_file << t << ",";
+//     output_file << model.r_G(0) << ",";
+//     output_file << model.r_G(1) << ",";
+//     output_file << model.r_G(2) << ",";
+//     output_file << model.v_G(0) << ",";
+//     output_file << model.v_G(1) << ",";
+//     output_file << model.v_G(2) << ",";
+//     output_file << model.a_G(0) << ",";
+//     output_file << model.a_G(1) << ",";
+//     output_file << model.a_G(2) << ",";
+//     output_file << model.rpy_G(0) << ",";
+//     output_file << model.rpy_G(1) << ",";
+//     output_file << model.rpy_G(2) << std::endl;
+//   }
+//   // PYTHON_SCRIPT("scripts/plot_twowheel.py /tmp/twowheel.dat")
+//
+//   return 0;
+// }
 
-int test_two_wheel_constructor() {
-  two_wheel_t model;
+// int setup_output_files(std::ofstream &gnd_file,
+//                        std::ofstream &mea_file,
+//                        std::ofstream &est_file) {
+//   // Ground truth file
+//   const std::string gnd_file_path = "/tmp/mav_gnd.dat";
+//   gnd_file.open(gnd_file_path);
+//   if (gnd_file.good() == false) {
+//     LOG_ERROR("Failed to open ground truth file for recording [%s]",
+//               gnd_file_path.c_str());
+//     return -1;
+//   }
+//
+//   // Measurement file
+//   const std::string mea_file_path = "/tmp/mav_mea.dat";
+//   mea_file.open(mea_file_path);
+//   if (mea_file.good() == false) {
+//     LOG_ERROR("Failed to open measurement file for recording [%s]",
+//               mea_file_path.c_str());
+//     return -1;
+//   }
+//
+//   // Estimate file
+//   const std::string est_file_path = "/tmp/mav_est.dat";
+//   est_file.open(est_file_path);
+//   if (est_file.good() == false) {
+//     LOG_ERROR("Failed to open estimate file for recording [%s]",
+//               est_file_path.c_str());
+//     return -1;
+//   }
+//
+//   // Write header
+//   const std::string gnd_header = "t,x,y,z,vx,vy,vz,roll,pitch,yaw";
+//   gnd_file << gnd_header << std::endl;
+//   const std::string mea_header = "t,ax_B,ay_B,az_B,wx_B,wy_B,wz_B";
+//   mea_file << mea_header << std::endl;
+//   const std::string est_header = "t,x,y,z,vx,vy,vz,roll,pitch,yaw";
+//   est_file << est_header << std::endl;
+//
+//   return 0;
+// }
 
-  MU_CHECK(model.r_G.isApprox(vec3_t::Zero()));
-  MU_CHECK(model.rpy_G.isApprox(vec3_t::Zero()));
-  MU_CHECK(model.w_B.isApprox(vec3_t::Zero()));
-  MU_CHECK(model.v_B.isApprox(vec3_t::Zero()));
-  MU_CHECK(model.a_B.isApprox(vec3_t::Zero()));
-
-  return 0;
-}
-
-int test_two_wheel_update() {
-  // Setup output file
-  std::ofstream output_file("/tmp/twowheel.dat");
-  if (output_file.good() == false) {
-    LOG_ERROR("Failed to open file for output!");
-    return -1;
-  }
-
-  // Write output file header
-  const std::string header = "t,x,y,z,vx,vy,vz,ax,ay,az,roll,pitch,yaw";
-  output_file << header << std::endl;
-
-  // Setup model
-  real_t t_end = 10.0;
-  const real_t dt = 0.1;
-
-  real_t wz_B = 0.0;
-  const real_t circle_radius = 10.0;
-  const real_t circle_velocity = 1.0;
-  circle_trajectory(circle_radius, circle_velocity, &wz_B, &t_end);
-  two_wheel_t model;
-  model.v_B(0) = circle_velocity;
-  model.w_B(2) = wz_B;
-
-  // Record initial model state
-  output_file << 0.0 << ",";
-  output_file << model.r_G(0) << ",";
-  output_file << model.r_G(1) << ",";
-  output_file << model.r_G(2) << ",";
-  output_file << model.v_G(0) << ",";
-  output_file << model.v_G(1) << ",";
-  output_file << model.v_G(2) << ",";
-  output_file << model.a_G(0) << ",";
-  output_file << model.a_G(1) << ",";
-  output_file << model.a_G(2) << ",";
-  output_file << model.rpy_G(0) << ",";
-  output_file << model.rpy_G(1) << ",";
-  output_file << model.rpy_G(2) << std::endl;
-
-  // Simulate model motion
-  for (real_t t = 0.0; t < t_end; t += dt) {
-    // Update
-    model.update(dt);
-
-    // Record model state
-    output_file << t << ",";
-    output_file << model.r_G(0) << ",";
-    output_file << model.r_G(1) << ",";
-    output_file << model.r_G(2) << ",";
-    output_file << model.v_G(0) << ",";
-    output_file << model.v_G(1) << ",";
-    output_file << model.v_G(2) << ",";
-    output_file << model.a_G(0) << ",";
-    output_file << model.a_G(1) << ",";
-    output_file << model.a_G(2) << ",";
-    output_file << model.rpy_G(0) << ",";
-    output_file << model.rpy_G(1) << ",";
-    output_file << model.rpy_G(2) << std::endl;
-  }
-  // PYTHON_SCRIPT("scripts/plot_twowheel.py /tmp/twowheel.dat")
-
-  return 0;
-}
-
-int setup_output_files(std::ofstream &gnd_file,
-                       std::ofstream &mea_file,
-                       std::ofstream &est_file) {
-  // Ground truth file
-  const std::string gnd_file_path = "/tmp/mav_gnd.dat";
-  gnd_file.open(gnd_file_path);
-  if (gnd_file.good() == false) {
-    LOG_ERROR("Failed to open ground truth file for recording [%s]",
-              gnd_file_path.c_str());
-    return -1;
-  }
-
-  // Measurement file
-  const std::string mea_file_path = "/tmp/mav_mea.dat";
-  mea_file.open(mea_file_path);
-  if (mea_file.good() == false) {
-    LOG_ERROR("Failed to open measurement file for recording [%s]",
-              mea_file_path.c_str());
-    return -1;
-  }
-
-  // Estimate file
-  const std::string est_file_path = "/tmp/mav_est.dat";
-  est_file.open(est_file_path);
-  if (est_file.good() == false) {
-    LOG_ERROR("Failed to open estimate file for recording [%s]",
-              est_file_path.c_str());
-    return -1;
-  }
-
-  // Write header
-  const std::string gnd_header = "t,x,y,z,vx,vy,vz,roll,pitch,yaw";
-  gnd_file << gnd_header << std::endl;
-  const std::string mea_header = "t,ax_B,ay_B,az_B,wx_B,wy_B,wz_B";
-  mea_file << mea_header << std::endl;
-  const std::string est_header = "t,x,y,z,vx,vy,vz,roll,pitch,yaw";
-  est_file << est_header << std::endl;
-
-  return 0;
-}
-
-void record_timestep(const real_t t,
-                     const mav_model_t &mav,
-                     std::ofstream &gnd_file,
-                     std::ofstream &mea_file,
-                     std::ofstream &est_file) {
-  // Record mav ground truth
-  // -- Time
-  gnd_file << t << ",";
-  // -- Position
-  gnd_file << mav.position(0) << ",";
-  gnd_file << mav.position(1) << ",";
-  gnd_file << mav.position(2) << ",";
-  // -- Velocity
-  gnd_file << mav.linear_velocity(0) << ",";
-  gnd_file << mav.linear_velocity(1) << ",";
-  gnd_file << mav.linear_velocity(2) << ",";
-  // -- Attitude
-  gnd_file << mav.attitude(0) << ",";
-  gnd_file << mav.attitude(1) << ",";
-  gnd_file << mav.attitude(2) << std::endl;
-
-  // // Record mav body acceleration and angular velocity
-  // // -- Time
-  // mea_file << t << ",";
-  // // -- Body acceleration
-  // mea_file << mav.a_B(0) << ",";
-  // mea_file << mav.a_B(1) << ",";
-  // mea_file << mav.a_B(2) << ",";
-  // // -- Body angular velocity
-  // mea_file << mav.w_B(0) << ",";
-  // mea_file << mav.w_B(1) << ",";
-  // mea_file << mav.w_B(2) << std::endl;
-}
-
-int test_mav_model_constructor() {
-  mav_model_t mav;
-  return 0;
-}
-
-int test_mav_model_update() {
-  // Setup output files
-  std::ofstream gnd_file;
-  std::ofstream mea_file;
-  std::ofstream est_file;
-  int retval = setup_output_files(gnd_file, mea_file, est_file);
-  if (retval != 0) {
-    LOG_ERROR("Failed to setup output files!");
-    return -1;
-  }
-
-  // Setup mav model
-  mav_model_t mav;
-
-  // Record initial mav state
-  record_timestep(0.0, mav, gnd_file, mea_file, est_file);
-
-  // Set mav desired position
-  const vec3_t pos_desired{1.0, 0.0, 5.0};
-  mav.position = pos_desired;
-
-  // Simulate
-  const real_t dt = 0.01;
-  // for (real_t t = 0.0; t <= 30.0; t += dt) {
-  for (real_t t = 0.0; t <= 30.0; t += dt) {
-    // Update mav model
-    const vec4_t motor_inputs = zeros(4, 1);
-    mav_model_update(mav, motor_inputs, dt);
-
-    // Record
-    record_timestep(t, mav, gnd_file, mea_file, est_file);
-  }
-  gnd_file.close();
-  mea_file.close();
-  est_file.close();
-
-  return 0;
-}
+// void record_timestep(const real_t t,
+//                      const mav_model_t &mav,
+//                      std::ofstream &gnd_file,
+//                      std::ofstream &mea_file,
+//                      std::ofstream &est_file) {
+//   // Record mav ground truth
+//   // -- Time
+//   gnd_file << t << ",";
+//   // -- Position
+//   gnd_file << mav.position(0) << ",";
+//   gnd_file << mav.position(1) << ",";
+//   gnd_file << mav.position(2) << ",";
+//   // -- Velocity
+//   gnd_file << mav.linear_velocity(0) << ",";
+//   gnd_file << mav.linear_velocity(1) << ",";
+//   gnd_file << mav.linear_velocity(2) << ",";
+//   // -- Attitude
+//   gnd_file << mav.attitude(0) << ",";
+//   gnd_file << mav.attitude(1) << ",";
+//   gnd_file << mav.attitude(2) << std::endl;
+//
+//   // // Record mav body acceleration and angular velocity
+//   // // -- Time
+//   // mea_file << t << ",";
+//   // // -- Body acceleration
+//   // mea_file << mav.a_B(0) << ",";
+//   // mea_file << mav.a_B(1) << ",";
+//   // mea_file << mav.a_B(2) << ",";
+//   // // -- Body angular velocity
+//   // mea_file << mav.w_B(0) << ",";
+//   // mea_file << mav.w_B(1) << ",";
+//   // mea_file << mav.w_B(2) << std::endl;
+// }
+//
+// int test_mav_model_constructor() {
+//   mav_model_t mav;
+//   return 0;
+// }
+//
+// int test_mav_model_update() {
+//   // Setup output files
+//   std::ofstream gnd_file;
+//   std::ofstream mea_file;
+//   std::ofstream est_file;
+//   int retval = setup_output_files(gnd_file, mea_file, est_file);
+//   if (retval != 0) {
+//     LOG_ERROR("Failed to setup output files!");
+//     return -1;
+//   }
+//
+//   // Setup mav model
+//   mav_model_t mav;
+//
+//   // Record initial mav state
+//   record_timestep(0.0, mav, gnd_file, mea_file, est_file);
+//
+//   // Set mav desired position
+//   const vec3_t pos_desired{1.0, 0.0, 5.0};
+//   mav.position = pos_desired;
+//
+//   // Simulate
+//   const real_t dt = 0.01;
+//   // for (real_t t = 0.0; t <= 30.0; t += dt) {
+//   for (real_t t = 0.0; t <= 30.0; t += dt) {
+//     // Update mav model
+//     const vec4_t motor_inputs = zeros(4, 1);
+//     mav_model_update(mav, motor_inputs, dt);
+//
+//     // Record
+//     record_timestep(t, mav, gnd_file, mea_file, est_file);
+//   }
+//   gnd_file.close();
+//   mea_file.close();
+//   est_file.close();
+//
+//   return 0;
+// }
 
 // int test_sim_circle_trajectory() {
 //   vio_sim_data_t sim_data;
@@ -2219,7 +2256,7 @@ void test_suite() {
   MU_ADD_TEST(test_skewsq);
   MU_ADD_TEST(test_enforce_psd);
   MU_ADD_TEST(test_nullspace);
-  MU_ADD_TEST(test_covar_recover);
+  // MU_ADD_TEST(test_covar_recover);
 
   // Geometry
   MU_ADD_TEST(test_deg2rad_rad2deg);
@@ -2259,6 +2296,7 @@ void test_suite() {
   // MU_ADD_TEST(test_lerp_data2);
   // MU_ADD_TEST(test_lerp_data3);
   MU_ADD_TEST(test_ctraj);
+  MU_ADD_TEST(test_ctraj_sandbox);
   MU_ADD_TEST(test_ctraj_get_pose);
   MU_ADD_TEST(test_ctraj_get_velocity);
   MU_ADD_TEST(test_ctraj_get_acceleration);
@@ -2266,15 +2304,15 @@ void test_suite() {
   MU_ADD_TEST(test_sim_imu_measurement);
 
   // Control
-  MU_ADD_TEST(test_pid_construct);
-  MU_ADD_TEST(test_pid_setup);
-  MU_ADD_TEST(test_pid_update);
-  MU_ADD_TEST(test_pid_reset);
-  MU_ADD_TEST(test_carrot_ctrl_constructor);
-  MU_ADD_TEST(test_carrot_ctrl_configure);
-  MU_ADD_TEST(test_carrot_ctrl_closest_point);
-  MU_ADD_TEST(test_carrot_ctrl_carrot_point);
-  MU_ADD_TEST(test_carrot_ctrl_update);
+  // MU_ADD_TEST(test_pid_construct);
+  // MU_ADD_TEST(test_pid_setup);
+  // MU_ADD_TEST(test_pid_update);
+  // MU_ADD_TEST(test_pid_reset);
+  // MU_ADD_TEST(test_carrot_ctrl_constructor);
+  // MU_ADD_TEST(test_carrot_ctrl_configure);
+  // MU_ADD_TEST(test_carrot_ctrl_closest_point);
+  // MU_ADD_TEST(test_carrot_ctrl_carrot_point);
+  // MU_ADD_TEST(test_carrot_ctrl_update);
 
   // Measurements
   MU_ADD_TEST(test_imu_meas);
@@ -2284,14 +2322,14 @@ void test_suite() {
   MU_ADD_TEST(test_imu_data_last_ts);
   MU_ADD_TEST(test_imu_data_clear);
 
-  // Model
-  MU_ADD_TEST(test_two_wheel_constructor);
-  MU_ADD_TEST(test_two_wheel_update);
-  MU_ADD_TEST(test_mav_model_constructor);
-  MU_ADD_TEST(test_mav_model_update);
+  // // Model
+  // MU_ADD_TEST(test_two_wheel_constructor);
+  // MU_ADD_TEST(test_two_wheel_update);
+  // MU_ADD_TEST(test_mav_model_constructor);
+  // MU_ADD_TEST(test_mav_model_update);
 
   // Simulation
-  MU_ADD_TEST(test_sim_circle_trajectory);
+  // MU_ADD_TEST(test_sim_circle_trajectory);
 }
 
 } // namespace yac

@@ -174,48 +174,11 @@ int test_nbv_draw() {
   return 0;
 }
 
-int test_nbv_test_grid() {
-  // Setup Camera
-  const int img_w = 752;
-  const int img_h = 480;
-  const int cam_res[2] = {img_w, img_h};
-  const double lens_hfov = 90.0;
-  const double lens_vfov = 90.0;
-  const double fx = pinhole_focal(img_w, lens_hfov);
-  const double fy = pinhole_focal(img_h, lens_vfov);
-  const double cx = img_w / 2.0;
-  const double cy = img_h / 2.0;
-  const std::string proj_model = "pinhole";
-  const std::string dist_model = "radtan4";
-  const vec4_t proj_params{fx, fy, cx, cy};
-  const vec4_t dist_params{0.01, 0.0001, 0.0001, 0.0001};
-  const pinhole_radtan4_t cam_geom;
-  camera_params_t camera{0,
-                         cam_res,
-                         proj_model,
-                         dist_model,
-                         proj_params,
-                         dist_params};
-
-  // NBV test grid
-  nbv_test_grid_t test_grid(&cam_geom, camera);
-
-  for (size_t i = 0; i < test_grid.nb_points; i++) {
-    const vec3_t p = test_grid.object_points[i];
-    const vec2_t z = test_grid.keypoints[i];
-    printf("r_FFi: [%f, %f, %f] ", p(0), p(1), p(2));
-    printf("z: [%f, %f]\n", z(0), z(1));
-  }
-
-  return 0;
-}
-
 void test_suite() {
   MU_ADD_TEST(test_calib_target_origin);
   MU_ADD_TEST(test_calib_init_poses);
   MU_ADD_TEST(test_calib_nbv_poses);
   MU_ADD_TEST(test_nbv_draw);
-  MU_ADD_TEST(test_nbv_test_grid);
 }
 
 } // namespace yac

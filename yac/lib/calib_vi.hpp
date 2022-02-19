@@ -70,7 +70,7 @@ struct calib_vi_t {
   int batch_max_iter = 20;
   bool enable_outlier_rejection = false;
   double outlier_threshold = 4.0;
-  bool enable_marginalization = true;
+  bool enable_marginalization = false;
   int window_size = 10;
 
   // State-Variables
@@ -141,8 +141,8 @@ struct calib_vi_t {
   void add_measurement(const timestamp_t imu_ts,
                        const vec3_t &a_m,
                        const vec3_t &w_m);
-  // int recover_calib_covar(matx_t &calib_covar);
-  void marginalize_oldest_view();
+  int recover_calib_covar(matx_t &calib_covar);
+  void marginalize();
 
   void solve();
   void show_results();

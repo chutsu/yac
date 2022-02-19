@@ -568,13 +568,13 @@ void calib_vi_t::add_measurement(const timestamp_t imu_ts,
   if (enable_marginalization && calib_views.size() > window_size) {
     // Solve then marginalize
     ceres::Solver::Options options;
-    options.minimizer_progress_to_stdout = false;
+    options.minimizer_progress_to_stdout = true;
     options.max_num_iterations = batch_max_iter;
     ceres::Solver::Summary summary;
     ceres::Solve(options, problem, &summary);
 
     // Marginalize oldest view
-    marginalize_oldest_view();
+    marginalize();
   }
 }
 
@@ -672,51 +672,41 @@ void calib_vi_t::show_results() {
   print_matrix("T_cam0_imu0", get_imu_extrinsics(), "  ");
 }
 
-// int calib_vi_t::recover_calib_covar(matx_t &calib_covar) {
-//   // Recover calibration covariance
-//   auto T_BS = imu_exts->param.data();
-//   auto td = time_delay->param.data();
-//
-//   // -- Setup covariance blocks to estimate
-//   std::vector<std::pair<const double *, const
-//   double *>> covar_blocks;
-//   covar_blocks.push_back({T_BS, T_BS});
-//   covar_blocks.push_back({td, td});
-//
-//   // -- Estimate covariance
-//   ::ceres::Covariance::Options options;
-//   ::ceres::Covariance covar_est(options);
-//   if (covar_est.Compute(covar_blocks, problem) ==
-//   false) {
-//     LOG_ERROR("Failed to estimate covariance!");
-//     LOG_ERROR("Maybe Hessian is not full rank?");
-//     return -1;
-//   }
-//
-//   // -- Extract covariances sub-blocks
-//   Eigen::Matrix<double, 6, 6, Eigen::RowMajor>
-//   T_BS_covar; Eigen::Matrix<double, 1, 1,
-//   Eigen::RowMajor> td_covar;
-//   covar_est.GetCovarianceBlockInTangentSpace(T_BS,
-//   T_BS, T_BS_covar.data());
-//   covar_est.GetCovarianceBlock(td, td,
-//   td_covar.data());
-//
-//   // -- Form covariance matrix block
-//   calib_covar = zeros(7, 7);
-//   calib_covar.block(0, 0, 6, 6) = T_BS_covar;
-//   calib_covar.block(6, 6, 1, 1) = td_covar;
-//
-//   // -- Check if calib_covar is full-rank?
-//   if (rank(calib_covar) != calib_covar.rows()) {
-//     LOG_ERROR("calib_covar is not full rank!");
-//     return -1;
-//   }
-//
-//   return 0;
-// }
+int calib_vi_t::recover_calib_covar(matx_t &calib_covar) {
+  // Recover calibration covariance
+  auto T_BS = imu_exts->param.data();
 
-void calib_vi_t::marginalize_oldest_view() {
+  // -- Setup covariance blocks to estimate
+  std::vector<std::pair<const double *, const double *>> covar_blocks;
+  covar_blocks.push_back({T_BS, T_BS});
+
+  // -- Estimate covariance
+  ::ceres::Covariance::Options options;
+  ::ceres::Covariance covar_est(options);
+  if (covar_est.Compute(covar_blocks, problem) == false) {
+    LOG_ERROR("Failed to estimate covariance!");
+    LOG_ERROR("Maybe Hessian is not full rank?");
+    return -1;
+  }
+
+  // -- Extract covariances sub-blocks
+  Eigen::Matrix<double, 6, 6, Eigen::RowMajor> T_BS_covar;
+  covar_est.GetCovarianceBlockInTangentSpace(T_BS, T_BS, T_BS_covar.data());
+
+  // -- Form covariance matrix block
+  calib_covar = zeros(6, 6);
+  calib_covar.block(0, 0, 6, 6) = T_BS_covar;
+
+  // -- Check if calib_covar is full-rank?
+  if (rank(calib_covar) != calib_covar.rows()) {
+    LOG_ERROR("calib_covar is not full rank!");
+    return -1;
+  }
+
+  return 0;
+}
+
+void calib_vi_t::marginalize() {
   // Mark the pose to be marginalized
   auto view = calib_views.front();
   view->pose.marginalize = true;
@@ -764,20 +754,19 @@ int calib_vi_t::save_results(const std::string &save_path) const {
   }
 
   // Calibration metrics
-  fprintf(outfile, "calib_metrics:\n");
-  fprintf(outfile, "  total_reproj_error:\n");
-  fprintf(outfile, "    rmse:   %f # [px]\n", rmse(reproj_errors_all));
-  fprintf(outfile, "    mean:   %f # [px]\n", mean(reproj_errors_all));
-  fprintf(outfile, "    median: %f # [px]\n", median(reproj_errors_all));
-  fprintf(outfile, "    stddev: %f # [px]\n", stddev(reproj_errors_all));
+  fprintf(outfile, "total_reproj_error:\n");
+  fprintf(outfile, "  rmse:   %.4f # [px]\n", rmse(reproj_errors_all));
+  fprintf(outfile, "  mean:   %.4f # [px]\n", mean(reproj_errors_all));
+  fprintf(outfile, "  median: %.4f # [px]\n", median(reproj_errors_all));
+  fprintf(outfile, "  stddev: %.4f # [px]\n", stddev(reproj_errors_all));
   fprintf(outfile, "\n");
   for (const auto &[cam_idx, errors] : get_reproj_errors()) {
     const auto cam_str = "cam" + std::to_string(cam_idx);
-    fprintf(outfile, "  %s_reproj_error:\n", cam_str.c_str());
-    fprintf(outfile, "    rmse:   %f # [px]\n", rmse(errors));
-    fprintf(outfile, "    mean:   %f # [px]\n", mean(errors));
-    fprintf(outfile, "    median: %f # [px]\n", median(errors));
-    fprintf(outfile, "    stddev: %f # [px]\n", stddev(errors));
+    fprintf(outfile, "%s_reproj_error:\n", cam_str.c_str());
+    fprintf(outfile, "  rmse:   %.4f # [px]\n", rmse(errors));
+    fprintf(outfile, "  mean:   %.4f # [px]\n", mean(errors));
+    fprintf(outfile, "  median: %.4f # [px]\n", median(errors));
+    fprintf(outfile, "  stddev: %.4f # [px]\n", stddev(errors));
     fprintf(outfile, "\n");
   }
   fprintf(outfile, "\n");
@@ -789,8 +778,8 @@ int calib_vi_t::save_results(const std::string &save_path) const {
     const int *cam_res = cam->resolution;
     const char *proj_model = cam->proj_model.c_str();
     const char *dist_model = cam->dist_model.c_str();
-    const std::string proj_params = vec2str(cam->proj_params(), 4);
-    const std::string dist_params = vec2str(cam->dist_params(), 4);
+    const std::string proj_params = vec2str(cam->proj_params(), true, true);
+    const std::string dist_params = vec2str(cam->dist_params(), true, true);
 
     fprintf(outfile, "cam%d:\n", cam_idx);
     fprintf(outfile, "  resolution: [%d, %d]\n", cam_res[0], cam_res[1]);
@@ -838,7 +827,7 @@ int calib_vi_t::save_results(const std::string &save_path) const {
       fprintf(outfile, "  rows: 4\n");
       fprintf(outfile, "  cols: 4\n");
       fprintf(outfile, "  data: [\n");
-      fprintf(outfile, "%s\n", mat2str(T_C0Ci, "    ").c_str());
+      fprintf(outfile, "%s\n", mat2str(T_C0Ci, "    ", true).c_str());
       fprintf(outfile, "  ]\n");
       fprintf(outfile, "\n");
     }
@@ -853,7 +842,7 @@ int calib_vi_t::save_results(const std::string &save_path) const {
   fprintf(outfile, "  rows: 4\n");
   fprintf(outfile, "  cols: 4\n");
   fprintf(outfile, "  data: [\n");
-  fprintf(outfile, "%s\n", mat2str(T_SCi, "    ").c_str());
+  fprintf(outfile, "%s\n", mat2str(T_SCi, "    ", true).c_str());
   fprintf(outfile, "  ]\n");
   fprintf(outfile, "\n");
 

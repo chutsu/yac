@@ -333,6 +333,7 @@ int test_calib_vi_online() {
 
   // Setup VI calibrator
   calib_vi_t calib;
+  calib.enable_marginalization = true;
   calib.add_imu(imu_params, T_BS);
   calib.add_camera(0,
                    res,

@@ -3,7 +3,7 @@
 
 namespace yac {
 
-static std::vector<camera_params_t> setup_cameras() {
+static void setup_cameras(std::map<int, camera_params_t> &cams) {
   const int img_w = 640;
   const int img_h = 480;
   const int cam_res[2] = {img_w, img_h};
@@ -22,7 +22,21 @@ static std::vector<camera_params_t> setup_cameras() {
   camera_params_t cam1{1, cam_res, proj_model, dist_model, proj_params, dist_params};
   // clang-format on
 
-  return {cam0, cam1};
+  cams[0] = cam0;
+  cams[1] = cam1;
+}
+
+static void setup_imu_extrinsics(extrinsics_t &imu_exts) {
+  // clang-format off
+  mat4_t T_C0S;
+  T_C0S <<
+    0.014727, 0.999692, -0.019988, 0.066885,
+    -0.999882, 0.014810, 0.004013, -0.017887,
+    0.004308, 0.019927, 0.999792, -0.002524,
+    0.000000, 0.000000, 0.000000, 1.000000;
+  // clang-format on
+
+  imu_exts = extrinsics_t{T_C0S};
 }
 
 static void setup_calib_target(const camera_params_t &cam,
@@ -42,9 +56,195 @@ static void setup_calib_target(const camera_params_t &cam,
   }
 }
 
+static void setup_test(std::map<int, camera_params_t> &cameras,
+                       extrinsics_t &imu_exts,
+                       calib_target_t &target,
+                       mat4_t &T_FO,
+                       mat4_t &T_WF) {
+  setup_cameras(cameras);
+  setup_imu_extrinsics(imu_exts);
+  setup_calib_target(cameras[0], target, T_FO, &T_WF);
+}
+
+int test_calib_trajs(const ctrajs_t &trajs,
+                     const timestamp_t ts_start,
+                     const timestamp_t ts_end) {
+  // Save trajectories
+  remove_dir("/tmp/nbt/traj");
+  dir_create("/tmp/nbt/traj");
+  for (size_t index = 0; index < trajs.size(); index++) {
+    const auto &traj = trajs[index];
+    char buffer[1024];
+    snprintf(buffer, sizeof(buffer), "/tmp/nbt/traj/traj_%ld.csv", index);
+    printf("saving trajectory to [%s]\n", buffer);
+    ctraj_save(traj, std::string{buffer});
+  }
+
+  // -- Simulate imu measurements
+  std::default_random_engine rndeng;
+
+  sim_imu_t imu;
+  imu.rate = 400;
+  imu.tau_a = 3600;
+  imu.tau_g = 3600;
+  imu.sigma_g_c = 0.0;
+  imu.sigma_a_c = 0.0;
+  imu.sigma_gw_c = 0;
+  imu.sigma_aw_c = 0;
+  imu.g = 9.81007;
+
+  int index = 0;
+  const timestamp_t dt = (1 / imu.rate) * 1e9;
+  for (auto traj : trajs) {
+    // Initialize position, velocity and attidue
+    auto T_WS = ctraj_get_pose(traj, 0);
+    vec3_t r_WS = tf_trans(T_WS);
+    mat3_t C_WS = tf_rot(T_WS);
+    vec3_t v_WS = ctraj_get_velocity(traj, 0);
+
+    timestamp_t ts_k = 0;
+    while (ts_k <= ts_end) {
+      const auto T_WS_W = ctraj_get_pose(traj, ts_k);
+      const auto w_WS_W = ctraj_get_angular_velocity(traj, ts_k);
+      const auto a_WS_W = ctraj_get_acceleration(traj, ts_k);
+      vec3_t a_WS_S;
+      vec3_t w_WS_S;
+      sim_imu_measurement(imu,
+                          rndeng,
+                          ts_k,
+                          T_WS_W,
+                          w_WS_W,
+                          a_WS_W,
+                          a_WS_S,
+                          w_WS_S);
+
+      // Propagate simulated IMU measurements
+      const real_t dt_s = ts2sec(dt);
+      const real_t dt_s_sq = dt_s * dt_s;
+      const vec3_t g{0.0, 0.0, -imu.g};
+      // -- Position at time k
+      const vec3_t b_a = ones(3, 1) * imu.b_a;
+      const vec3_t n_a = ones(3, 1) * imu.sigma_a_c;
+      r_WS += v_WS * dt_s;
+      r_WS += 0.5 * g * dt_s_sq;
+      r_WS += 0.5 * C_WS * (a_WS_S - b_a - n_a) * dt_s_sq;
+      // -- velocity at time k
+      v_WS += C_WS * (a_WS_S - b_a - n_a) * dt_s + g * dt_s;
+      // -- Attitude at time k
+      const vec3_t b_g = ones(3, 1) * imu.b_g;
+      const vec3_t n_g = ones(3, 1) * imu.sigma_g_c;
+      C_WS = C_WS * lie::Exp((w_WS_S - b_g - n_g) * ts2sec(dt));
+      // -- Normalize rotation
+      quat_t q = quat_t{C_WS};
+      q.normalize();
+      C_WS = q.toRotationMatrix();
+
+      // Update
+      ts_k += dt;
+    }
+    index++;
+
+    T_WS = tf(C_WS, r_WS);
+    const vec3_t r_est = tf_trans(T_WS);
+    const vec3_t r_gnd = tf_trans(ctraj_get_pose(traj, ts_end));
+    const vec3_t rpy_est = quat2euler(tf_quat(T_WS));
+    const vec3_t rpy_gnd = quat2euler(tf_quat(ctraj_get_pose(traj, ts_end)));
+    printf("index: %d  ", index);
+    printf("trans diff: %f\t", (r_est - r_gnd).norm());
+    printf("rot   diff: %f\n", (rpy_est - rpy_gnd).norm());
+  }
+
+  return 0;
+}
+
+int test_calib_orbit_trajs() {
+  // Setup test
+  std::map<int, camera_params_t> cameras;
+  extrinsics_t imu_exts;
+  calib_target_t target;
+  mat4_t T_FO;
+  mat4_t T_WF;
+  setup_test(cameras, imu_exts, target, T_FO, T_WF);
+
+  // Generate trajectories
+  ctrajs_t trajs;
+  const timestamp_t ts_start = 0;
+  const timestamp_t ts_end = 5e9;
+  pinhole_radtan4_t cam_geom;
+  calib_orbit_trajs(ts_start,
+                    ts_end,
+                    target,
+                    &cam_geom,
+                    &cameras[0],
+                    &imu_exts,
+                    T_WF,
+                    T_FO,
+                    trajs);
+  test_calib_trajs(trajs, ts_start, ts_end);
+
+  return 0;
+}
+
+int test_calib_pan_trajs() {
+  // Setup test
+  std::map<int, camera_params_t> cameras;
+  extrinsics_t imu_exts;
+  calib_target_t target;
+  mat4_t T_FO;
+  mat4_t T_WF;
+  setup_test(cameras, imu_exts, target, T_FO, T_WF);
+
+  // Generate trajectories
+  ctrajs_t trajs;
+  const timestamp_t ts_start = 0;
+  const timestamp_t ts_end = 5e9;
+  pinhole_radtan4_t cam_geom;
+  calib_pan_trajs(ts_start,
+                  ts_end,
+                  target,
+                  &cam_geom,
+                  &cameras[0],
+                  &imu_exts,
+                  T_WF,
+                  T_FO,
+                  trajs);
+  test_calib_trajs(trajs, ts_start, ts_end);
+
+  return 0;
+}
+
+int test_calib_figure8_trajs() {
+  // Setup test
+  std::map<int, camera_params_t> cameras;
+  extrinsics_t imu_exts;
+  calib_target_t target;
+  mat4_t T_FO;
+  mat4_t T_WF;
+  setup_test(cameras, imu_exts, target, T_FO, T_WF);
+
+  // Generate trajectories
+  ctrajs_t trajs;
+  const timestamp_t ts_start = 0;
+  const timestamp_t ts_end = 5e9;
+  pinhole_radtan4_t cam_geom;
+  calib_figure8_trajs(ts_start,
+                      ts_end,
+                      target,
+                      &cam_geom,
+                      &cameras[0],
+                      &imu_exts,
+                      T_WF,
+                      T_FO,
+                      trajs);
+  test_calib_trajs(trajs, ts_start, ts_end);
+
+  return 0;
+}
+
 int test_simulate_cameras() {
   // Cameras
-  auto cameras = setup_cameras();
+  std::map<int, camera_params_t> cameras;
+  setup_cameras(cameras);
   const mat4_t T_C0C1 = tf(I(3), vec3_t{0.1, 0.0, 0.0});
   const mat4_t T_BC0 = tf(I(3), zeros(3, 1));
   const mat4_t T_BC1 = T_BC0 * T_C0C1;
@@ -55,412 +255,99 @@ int test_simulate_cameras() {
   mat4_t T_WF;
   setup_calib_target(cameras[0], target, T_FO, &T_WF);
 
-  // // Generate trajectory
-  // const timestamp_t ts_start = 0;
-  // const timestamp_t ts_end = 5e9;
-  // ctrajs_t trajs;
-  // calib_orbit_trajs<pinhole_radtan4_t>(target,
-  //                                      cameras[0],
-  //                                      cameras[1],
-  //                                      T_BC0,
-  //                                      T_BC1,
-  //                                      T_WF,
-  //                                      T_FO,
-  //                                      ts_start,
-  //                                      ts_end,
-  //                                      trajs);
-  //
-  // // Save trajectories
-  // int index = 0;
-  // std::string base_path = "/tmp/nbt";
-  // remove_dir(base_path);
-  // dir_create(base_path);
-  //
-  // for (const auto &traj : trajs) {
-  //   const auto traj_dir = base_path + "/traj_" + std::to_string(index);
-  //   dir_create(traj_dir);
-  //   const auto save_path = traj_dir + "/traj.csv";
-  //   printf("saving trajectory to [%s]\n", save_path.c_str());
-  //   ctraj_save(traj, save_path);
-  //   index++;
-  // }
-  //
-  // // clang-format off
-  // // const auto traj_idx = 0;
-  // for (size_t traj_idx = 0; traj_idx < trajs.size(); traj_idx++) {
-  //   const double cam_rate = 15.0;
-  //   aprilgrids_t grids0;
-  //   aprilgrids_t grids1;
-  //   mat4s_t T_WC0;
-  //   simulate_cameras<pinhole_radtan4_t>(trajs[traj_idx], target,
-  //                                                cameras[0], cameras[1],
-  //                                                cam_rate, T_WF, T_BC0,
-  //                                                T_BC1, ts_start, ts_end,
-  //                                                grids0, grids1,
-  //                                                T_WC0);
-  //   MU_CHECK(T_WC0.size() == grids0.size());
-  //   MU_CHECK(T_WC0.size() == grids1.size());
-  //   // clang-format on
-  //
-  //   // const auto nb_tags = target.tag_rows * target.tag_cols;
-  //   // const auto nb_points = nb_tags * 4;
-  //   // for (const auto &grid : grids0) {
-  //   //   EXPECT_EQ(grid.nb_detections, nb_tags);
-  //   //   EXPECT_EQ(grid.ids.size(), nb_tags);
-  //   //   EXPECT_EQ(grid.keypoints.size(), nb_points);
-  //   //   EXPECT_EQ(grid.points_CF.size(), nb_points);
-  //   // }
-  //   // for (const auto &grid : grids1) {
-  //   //   EXPECT_EQ(grid.nb_detections, nb_tags);
-  //   //   EXPECT_EQ(grid.ids.size(), nb_tags);
-  //   //   EXPECT_EQ(grid.keypoints.size(), nb_points);
-  //   //   EXPECT_EQ(grid.points_CF.size(), nb_points);
-  //   // }
-  //
-  //   // Save data
-  //   for (const auto &grid : grids0) {
-  //     const auto ts = grid.timestamp;
-  //     auto save_path = base_path;
-  //     save_path += "/traj_" + std::to_string(traj_idx);
-  //     save_path += "/cam0/" + std::to_string(ts) + ".csv";
-  //     printf("saving grid to [%s]\n", save_path.c_str());
-  //     grid.save(save_path);
-  //   }
-  //
-  //   for (const auto &grid : grids1) {
-  //     const auto ts = grid.timestamp;
-  //     auto save_path = base_path;
-  //     save_path += "/traj_" + std::to_string(traj_idx);
-  //     save_path += "/cam1/" + std::to_string(ts) + ".csv";
-  //     printf("saving grid to [%s]\n", save_path.c_str());
-  //     grid.save(save_path);
-  //   }
-  //
-  //   // EXPECT_EQ(grids0.size(), 5 * nbt.cam0_.rate - 1);
-  //   // EXPECT_EQ(grids1.size(), 5 * nbt.cam1_.rate - 1);
-  // }
-
   return 0;
 }
 
-// int test_simulate_imu() {
-//   // Cameras
-//   auto cameras = setup_cameras();
-//   const mat4_t T_C0C1 = tf(I(3), vec3_t{0.1, 0.0, 0.0});
-//   const mat4_t T_BC0 = tf(I(3), zeros(3, 1));
-//   const mat4_t T_BC1 = T_BC0 * T_C0C1;
-//
-//   // Calibration target
-//   calib_target_t target;
-//   mat4_t T_FO;
-//   mat4_t T_WF;
-//   setup_calib_target(cameras[0], target, T_FO, &T_WF);
-//
-//   // Generate trajectory
-//   const timestamp_t ts_start = 0;
-//   const timestamp_t ts_end = 5e9;
-//   ctrajs_t trajs;
-//   calib_orbit_trajs<pinhole_radtan4_t>(target,
-//                                        cameras[0],
-//                                        cameras[1],
-//                                        T_BC0,
-//                                        T_BC1,
-//                                        T_WF,
-//                                        T_FO,
-//                                        ts_start,
-//                                        ts_end,
-//                                        trajs);
-//
-//   // Simulate IMU
-//   imu_params_t imu_params;
-//   imu_params.rate = 250.0;
-//   imu_params.sigma_g_c = 0.0;
-//   imu_params.sigma_bg = 0.0;
-//   imu_params.sigma_a_c = 0.0;
-//   imu_params.sigma_ba = 0.0;
-//   imu_params.sigma_gw_c = 0.0;
-//   imu_params.sigma_aw_c = 0.0;
-//   // imu_params.tau = 0.0;
-//
-//   // const auto rpy_SC = deg2rad(vec3_t{-90.0, 0.0, -90.0});
-//   const auto rpy_BS = deg2rad(vec3_t{0.0, 0.0, 0.0});
-//   const auto C_BS = euler321(rpy_BS);
-//   mat4_t T_BS = tf(C_BS, zeros(3, 1));
-//
-//   // const int traj_idx = 0;
-//   for (size_t traj_idx = 0; traj_idx < trajs.size(); traj_idx++) {
-//     timestamps_t imu_time;
-//     vec3s_t imu_accel;
-//     vec3s_t imu_gyro;
-//     mat4s_t imu_poses;
-//     vec3s_t imu_vels;
-//     simulate_imu(trajs[traj_idx],
-//                  ts_start,
-//                  ts_end,
-//                  T_BC0,
-//                  T_BS,
-//                  imu_params,
-//                  imu_time,
-//                  imu_accel,
-//                  imu_gyro,
-//                  imu_poses,
-//                  imu_vels);
-//
-//     // autocal::ImuMeasurementDeque imu_meas;
-//     // for (size_t i = 0; i < imu_accel.size(); i++) {
-//     //   Time ts{ts2sec(imu_time[i])};
-//     //   vec3_t gyr = imu_gyro[i];
-//     //   vec3_t acc = imu_accel[i];
-//     //   imu_meas.emplace_back(ts, ImuSensorReadings{gyr, acc});
-//     // }
-//     //
-//     // autocal::Transformation T_WS{imu_poses[0]};
-//     // autocal::SpeedAndBias sb;
-//     // sb << imu_vels.front(), 0, 0, 0, 0, 0, 0;
-//     //
-//     // Time t_start{ts2sec(ts_start)};
-//     // Time t_end{ts2sec(ts_end)};
-//     // ImuError::propagation(imu_meas, imu_params, T_WS, sb, t_start, t_end);
-//     //
-//     // print_matrix("pose at the end           ", imu_poses.back());
-//     // print_matrix("propagated pose at the end", T_WS.T());
-//
-//     // Save data
-//     auto base_path = "/tmp/nbt/traj_" + std::to_string(traj_idx) + "/imu";
-//     remove_dir(base_path);
-//     dir_create(base_path);
-//     save_data(base_path + "/accel.csv", imu_time, imu_accel);
-//     save_data(base_path + "/gyro.csv", imu_time, imu_gyro);
-//     save_poses(base_path + "/poses.csv", imu_time, imu_poses);
-//
-//     // EXPECT_EQ(imu_time.size(), 5 * imu_params.rate + 1);
-//     // EXPECT_EQ(imu_accel.size(), 5 * imu_params.rate + 1);
-//     // EXPECT_EQ(imu_gyro.size(), 5 * imu_params.rate + 1);
-//   }
-//
-//   return 0;
-// }
-//
-
-int test_calib_orbit_trajs() {
-  // Cameras
-  auto cameras = setup_cameras();
-
-  // Calibration target
+int test_simulate_imu() {
+  // Setup test
+  std::map<int, camera_params_t> cameras;
+  extrinsics_t imu_exts;
   calib_target_t target;
   mat4_t T_FO;
   mat4_t T_WF;
-  setup_calib_target(cameras[0], target, T_FO, &T_WF);
+  setup_test(cameras, imu_exts, target, T_FO, T_WF);
 
-  // Stereo camera extrinsics
-  const mat4_t T_BC0 = tf(I(3), vec3_t{0.0, 0.0, 0.0});
-  const mat4_t T_BC1 = tf(I(3), vec3_t{0.1, 0.0, 0.0});
+  // Form circle trajectory
+  const auto imu_rate = 200.0;
+  const auto circle_r = 5.0;
+  const auto circle_v = 2.0;
+  const auto circle_dist = 2.0 * M_PI * circle_r;
+  const auto time_taken = circle_dist / circle_v;
+  const auto w = -2.0 * M_PI * (1.0 / time_taken);
+  const auto dt = time_taken / 10;
 
-  // Generate trajectories
-  ctrajs_t trajs;
-  const timestamp_t ts_start = 0;
-  const timestamp_t ts_end = 5e9;
-  pinhole_radtan4_t cam_geom;
-  // calib_orbit_trajs(target,
-  //                   &cam_geom,
-  //                   cameras[0],
-  //                   &cam_geom,
-  //                   cameras[1],
-  //                   T_BC0,
-  //                   T_BC1,
-  //                   T_WF,
-  //                   T_FO,
-  //                   ts_start,
-  //                   ts_end,
-  //                   trajs);
-  // -- Simulate imu measurements
-  // std::default_random_engine rndeng;
-  //
-  // sim_imu_t imu;
-  // imu.rate = 400;
-  // imu.tau_a = 3600;
-  // imu.tau_g = 3600;
-  // imu.sigma_g_c = 0.0;
-  // imu.sigma_a_c = 0.0;
-  // imu.sigma_gw_c = 0;
-  // imu.sigma_aw_c = 0;
-  // imu.g = 9.81007;
-  //
-  // const timestamp_t dt = (1 / imu.rate) * 1e9;
-  // // auto traj = trajs[0];
-  // for (auto traj : trajs) {
-  //   // Initialize position, velocity and attidue
-  //   auto T_WS = ctraj_get_pose(traj, 0);
-  //   vec3_t r_WS = tf_trans(T_WS);
-  //   mat3_t C_WS = tf_rot(T_WS);
-  //   vec3_t v_WS = ctraj_get_velocity(traj, 0);
-  //
-  //   timestamp_t ts_k = 0;
-  //   int index = 0;
-  //   while (ts_k <= ts_end) {
-  //     const auto T_WS_W = ctraj_get_pose(traj, ts_k);
-  //     const auto w_WS_W = ctraj_get_angular_velocity(traj, ts_k);
-  //     const auto a_WS_W = ctraj_get_acceleration(traj, ts_k);
-  //     vec3_t a_WS_S;
-  //     vec3_t w_WS_S;
-  //     sim_imu_measurement(imu,
-  //                         rndeng,
-  //                         ts_k,
-  //                         T_WS_W,
-  //                         w_WS_W,
-  //                         a_WS_W,
-  //                         a_WS_S,
-  //                         w_WS_S);
-  //
-  //     // Propagate simulated IMU measurements
-  //     const real_t dt_s = ts2sec(dt);
-  //     const real_t dt_s_sq = dt_s * dt_s;
-  //     const vec3_t g{0.0, 0.0, -imu.g};
-  //     // -- Position at time k
-  //     const vec3_t b_a = ones(3, 1) * imu.b_a;
-  //     const vec3_t n_a = ones(3, 1) * imu.sigma_a_c;
-  //     r_WS += v_WS * dt_s;
-  //     r_WS += 0.5 * g * dt_s_sq;
-  //     r_WS += 0.5 * C_WS * (a_WS_S - b_a - n_a) * dt_s_sq;
-  //     // -- velocity at time k
-  //     v_WS += C_WS * (a_WS_S - b_a - n_a) * dt_s + g * dt_s;
-  //     // -- Attitude at time k
-  //     const vec3_t b_g = ones(3, 1) * imu.b_g;
-  //     const vec3_t n_g = ones(3, 1) * imu.sigma_g_c;
-  //     C_WS = C_WS * lie::Exp((w_WS_S - b_g - n_g) * ts2sec(dt));
-  //
-  //     // Reocord IMU measurments
-  //     // pos_prop.push_back(r_WS);
-  //     // vel_prop.push_back(v_WS);
-  //     // att_prop.emplace_back(quat_t{C_WS});
-  //     // imu_ts.push_back(ts_k);
-  //     // imu_accel.push_back(a_WS_S);
-  //     // imu_gyro.push_back(w_WS_S);
-  //
-  //     ts_k += dt;
-  //     index++;
-  //   }
-  //
-  //   T_WS = tf(C_WS, r_WS);
-  //   // print_matrix("[ctraj] T_WS", ctraj_get_pose(traj, ts_end));
-  //   // print_matrix("[imu]   T_WS", T_WS);
-  //   printf("[%d] ", index);
-  //   printf("trans diff: %f\t",
-  //          (tf_trans(T_WS) - tf_trans(ctraj_get_pose(traj, ts_end))).norm());
-  //   printf("rot   diff: %f\n",
-  //          (quat2euler(tf_quat(T_WS)) -
-  //           quat2euler(tf_quat(ctraj_get_pose(traj, ts_end))))
-  //              .norm());
-  // }
-  //
-  // // Save trajectories
-  // int index = 0;
-  // remove_dir("/tmp/nbt/traj");
-  // dir_create("/tmp/nbt/traj");
-  // for (const auto &traj : trajs) {
-  //   char buffer[1024];
-  //   snprintf(buffer, sizeof(buffer), "/tmp/nbt/traj/traj_%d.csv", index);
-  //   printf("saving trajectory to [%s]\n", buffer);
-  //   ctraj_save(traj, std::string{buffer});
-  //   index++;
-  // }
+  auto time = 0.0;
+  auto theta = 0.0;
+  timestamps_t timestamps;
+  vec3s_t positions;
+  quats_t attitudes;
+
+  while (time <= time_taken) {
+    const auto x = circle_r * sin(theta);
+    const auto y = circle_r * cos(theta);
+    const auto z = 0.0;
+
+    timestamps.push_back(sec2ts(time));
+    positions.emplace_back(x, y, z);
+    attitudes.emplace_back(1.0, 0.0, 0.0, 0.0);
+
+    time += dt;
+    theta += w * dt;
+  }
+  ctraj_t traj{timestamps, positions, attitudes};
+
+  // Simulate IMU measurements
+  imu_params_t imu_params;
+  imu_params.rate = 200.0;
+
+  const timestamp_t ts_start = sec2ts(1.0);
+  const timestamp_t ts_end = sec2ts(15.0);
+  timestamps_t imu_time;
+  vec3s_t imu_accel;
+  vec3s_t imu_gyro;
+  mat4s_t imu_poses;
+  vec3s_t imu_vels;
+
+  simulate_imu(ts_start,
+               ts_end,
+               traj,
+               imu_params,
+               imu_time,
+               imu_accel,
+               imu_gyro,
+               imu_poses,
+               imu_vels);
+
+  // Save imu measurements
+  FILE *data_csv = fopen("/tmp/imu_data.csv", "w");
+
+  fprintf(data_csv, "ts,");
+  fprintf(data_csv, "ax,ay,az,");
+  fprintf(data_csv, "wx,wy,wz,");
+  fprintf(data_csv, "rx,ry,rz,");
+  fprintf(data_csv, "qx,qy,qz,qw,");
+  fprintf(data_csv, "vx,vy,vz\n");
+
+  for (size_t k = 0; k < imu_time.size(); k++) {
+    const auto ts = imu_time[k];
+    const auto acc = imu_accel[k];
+    const auto gyr = imu_gyro[k];
+    const auto pose = imu_poses[k];
+    const auto vel = imu_vels[k];
+    const vec3_t pos = tf_trans(pose);
+    const quat_t rot = tf_quat(pose);
+
+    fprintf(data_csv, "%ld,", ts);
+    fprintf(data_csv, "%f,%f,%f,", acc.x(), acc.y(), acc.z());
+    fprintf(data_csv, "%f,%f,%f,", gyr.x(), gyr.y(), gyr.z());
+    fprintf(data_csv, "%f,%f,%f,", pos.x(), pos.y(), pos.z());
+    fprintf(data_csv, "%f,%f,%f,%f,", rot.x(), rot.y(), rot.z(), rot.w());
+    fprintf(data_csv, "%f,%f,%f\n", vel.x(), vel.y(), vel.z());
+  }
+  fclose(data_csv);
 
   return 0;
 }
-
-// int test_calib_pan_trajs() {
-//   // Cameras
-//   auto cameras = setup_cameras();
-//
-//   // Calibration target
-//   calib_target_t target;
-//   mat4_t T_FO;
-//   mat4_t T_WF;
-//   setup_calib_target(cameras[0], target, T_FO, &T_WF);
-//
-//   // Stereo camera extrinsics
-//   const mat4_t T_BC0 = tf(I(3), vec3_t{0.0, 0.0, 0.0});
-//   const mat4_t T_BC1 = tf(I(3), vec3_t{0.1, 0.0, 0.0});
-//
-//   // Generate trajectories
-//   ctrajs_t trajs;
-//   const timestamp_t ts_start = 0;
-//   const timestamp_t ts_end = 5e9;
-//   pinhole_radtan4_t cam_geom;
-//   calib_pan_trajs(target,
-//                   &cam_geom,
-//                   cameras[0],
-//                   &cam_geom,
-//                   cameras[1],
-//                   T_BC0,
-//                   T_BC1,
-//                   T_WF,
-//                   T_FO,
-//                   ts_start,
-//                   ts_end,
-//                   trajs);
-//
-//   // Save trajectories
-//   int index = 0;
-//   remove_dir("/tmp/nbt/traj");
-//   dir_create("/tmp/nbt/traj");
-//   for (const auto &traj : trajs) {
-//     char buffer[1024];
-//     snprintf(buffer, sizeof(buffer), "/tmp/nbt/traj/traj_%d.csv", index);
-//     printf("saving trajectory to [%s]\n", buffer);
-//     ctraj_save(traj, std::string{buffer});
-//     index++;
-//   }
-//
-//   return 0;
-// }
-//
-// int test_calib_figure8_trajs() {
-//   // Cameras
-//   auto cameras = setup_cameras();
-//
-//   // Calibration target
-//   calib_target_t target;
-//   mat4_t T_FO;
-//   mat4_t T_WF;
-//   setup_calib_target(cameras[0], target, T_FO, &T_WF);
-//
-//   // Stereo camera extrinsics
-//   const mat4_t T_BC0 = tf(I(3), vec3_t{0.0, 0.0, 0.0});
-//   const mat4_t T_BC1 = tf(I(3), vec3_t{0.1, 0.0, 0.0});
-//
-//   // Generate trajectories
-//   ctrajs_t trajs;
-//   const timestamp_t ts_start = 0;
-//   const timestamp_t ts_end = 5e9;
-//   pinhole_radtan4_t cam_geom;
-//   calib_figure8_trajs(target,
-//                       &cam_geom,
-//                       cameras[0],
-//                       &cam_geom,
-//                       cameras[1],
-//                       T_BC0,
-//                       T_BC1,
-//                       T_WF,
-//                       T_FO,
-//                       ts_start,
-//                       ts_end,
-//                       trajs);
-//
-//   // Save trajectories
-//   int index = 0;
-//   remove_dir("/tmp/nbt/traj");
-//   dir_create("/tmp/nbt/traj");
-//   for (const auto &traj : trajs) {
-//     char buffer[1024];
-//     snprintf(buffer, sizeof(buffer), "/tmp/nbt/traj/traj_%d.csv", index);
-//     printf("saving trajectory to [%s]\n", buffer);
-//     ctraj_save(traj, std::string{buffer});
-//     index++;
-//   }
-//
-//   return 0;
-// }
 
 // int test_nbt_eval_traj() {
 //   // Cameras
@@ -534,11 +421,11 @@ int test_calib_orbit_trajs() {
 // }
 
 void test_suite() {
-  MU_ADD_TEST(test_simulate_cameras);
-  // MU_ADD_TEST(test_simulate_imu);
   MU_ADD_TEST(test_calib_orbit_trajs);
-  // MU_ADD_TEST(test_calib_pan_trajs);
-  // MU_ADD_TEST(test_calib_figure8_trajs);
+  MU_ADD_TEST(test_calib_pan_trajs);
+  MU_ADD_TEST(test_calib_figure8_trajs);
+  MU_ADD_TEST(test_simulate_cameras);
+  MU_ADD_TEST(test_simulate_imu);
   // MU_ADD_TEST(test_nbt_eval_traj);
 }
 

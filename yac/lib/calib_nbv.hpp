@@ -8,62 +8,65 @@
 
 namespace yac {
 
-struct nbv_test_grid_t {
-  const int grid_rows = 5;
-  const int grid_cols = 5;
-  const double grid_depth = 1.5;
-  const size_t nb_points = grid_rows * grid_cols;
-  vec3s_t object_points;
-  vec2s_t keypoints;
-
-  nbv_test_grid_t(const camera_geometry_t *cam_geom,
-                  const camera_params_t &cam) {
-    const int img_w = cam.resolution[0];
-    const int img_h = cam.resolution[1];
-    const double dx = img_w / (grid_cols + 1);
-    const double dy = img_h / (grid_rows + 1);
-    double kp_x = 0;
-    double kp_y = 0;
-
-    for (int i = 1; i < (grid_cols + 1); i++) {
-      kp_y += dy;
-      for (int j = 1; j < (grid_rows + 1); j++) {
-        kp_x += dx;
-
-        // Keypoint
-        const vec2_t kp{kp_x, kp_y};
-        keypoints.push_back(kp);
-
-        // Object point
-        vec3_t ray;
-        cam_geom->back_project(cam.param, kp, ray);
-        object_points.push_back(ray * grid_depth);
-      }
-      kp_x = 0;
-    }
-  }
-};
-
+/**
+ * Shannon Entropy
+ * @param[in] covar Covariance matrix
+ * @returns Shannon entropy
+ */
 double shannon_entropy(const matx_t &covar);
 
+/**
+ * Check if AprilGrid was fully observable
+ * @param[in] cam_geom Camera geometry
+ * @param[in] cam_params Camera parameters
+ * @param[in] T_FC Fiducial-camera relative pose
+ * @returns true or false
+ */
 bool check_fully_observable(const calib_target_t &target,
                             const camera_geometry_t *cam_geom,
                             const camera_params_t *cam_params,
                             const mat4_t &T_FC);
 
-mat4_t calib_target_origin(const calib_target_t &target,
-                           const vec2_t &cam_res,
-                           const double hfov);
-
+/**
+ * Calibration target origin
+ *
+ * @param[in] target Calibration target configuration
+ * @param[in] cam_geom Camera Geometry
+ * @param[in] cam_params Camera parameters
+ * @param[in] target_scale Target scale
+ *
+ * @returns Calibration target origin
+ */
 mat4_t calib_target_origin(const calib_target_t &target,
                            const camera_geometry_t *cam_geom,
                            const camera_params_t *cam_params,
                            const double target_scale = 0.5);
 
+/**
+ * Calibration initial poses
+ *
+ * @param[in] target Calibration target configuration
+ * @param[in] cam_geom Camera Geometry
+ * @param[in] cam_params Camera parameters
+ *
+ * @returns Calibration initial poses
+ */
 mat4s_t calib_init_poses(const calib_target_t &target,
                          const camera_geometry_t *cam_geom,
                          const camera_params_t *cam_params);
 
+/**
+ * Calibration NBV poses
+ *
+ * @param[in] target Calibration target configuration
+ * @param[in] cam_geom Camera Geometry
+ * @param[in] cam_params Camera parameters
+ * @param[in] range_x_size Range sizes in x-axis
+ * @param[in] range_y_size Range sizes in y-axis
+ * @param[in] range_z_size Range sizes in z-axis
+ *
+ * @returns Calibration NBV poses
+ */
 mat4s_t calib_nbv_poses(const calib_target_t &target,
                         const camera_geometry_t *cam_geom,
                         const camera_params_t *cam_params,
@@ -71,21 +74,55 @@ mat4s_t calib_nbv_poses(const calib_target_t &target,
                         const int range_y_size = 5,
                         const int range_z_size = 2);
 
-std::map<int, mat4s_t>
-calib_nbv_poses(const calib_target_t &target,
-                const std::map<int, camera_geometry_t *> &cam_geoms,
-                const std::map<int, camera_params_t *> &cam_params,
-                const std::map<int, extrinsics_t *> &cam_exts,
-                const int range_x_size = 5,
-                const int range_y_size = 5,
-                const int range_z_size = 2);
+/**
+ * Calibration NBV poses
+ *
+ * @param[in] target Calibration target configuration
+ * @param[in] cam_geoms Camera Geometry
+ * @param[in] cam_params Camera parameters
+ * @param[in] cam_exts Camera extrinsics
+ * @param[in] range_x_size Range sizes in x-axis
+ * @param[in] range_y_size Range sizes in y-axis
+ * @param[in] range_z_size Range sizes in z-axis
+ *
+ * @returns Calibration NBV poses
+ */
+std::map<int, mat4s_t> calib_nbv_poses(const calib_target_t &target,
+                                       const CamIdx2Geometry &cam_geoms,
+                                       const CamIdx2Parameters &cam_params,
+                                       const CamIdx2Extrinsics &cam_exts,
+                                       const int range_x_size = 5,
+                                       const int range_y_size = 5,
+                                       const int range_z_size = 2);
 
+/**
+ * NBV Target Grid
+ *
+ * @param[in] target Calibration target configuration
+ * @param[in] cam_geoms Camera Geometry
+ * @param[in] cam_params Camera parameters
+ * @param[in] nbv_ts NBV timestamp
+ * @param[in] nbv_poses NBV poses
+ *
+ * @return AprilGrid
+ */
 aprilgrid_t nbv_target_grid(const calib_target_t &target,
                             const camera_geometry_t *cam_geom,
                             const camera_params_t *cam_params,
                             const timestamp_t nbv_ts,
                             const mat4_t &nbv_pose);
 
+/**
+ * Draw NBV
+ *
+ * @param[in] target Calibration target configuration
+ * @param[in] cam_geoms Camera Geometry
+ * @param[in] cam_params Camera parameters
+ * @param[in] T_FC Fiducial-camera relative pose
+ * @param[in,out] image Image to draw on
+ *
+ * @returns Four corners of the AprilGrid in image coordinates
+ */
 vec2s_t nbv_draw(const calib_target_t &target,
                  const camera_geometry_t *cam_geom,
                  const camera_params_t *cam_params,

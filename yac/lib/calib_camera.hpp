@@ -127,10 +127,6 @@ struct calib_camera_t {
   real_t info_k = 0.0;
   real_t valid_error_k = 0.0;
 
-  // Sliding window
-  std::deque<timestamp_t> window;
-  std::deque<calib_view_t *> calib_views;
-
   // Temporary storage
   std::map<int, vec2s_t> batch_residuals;
   std::map<int, vecx_t> cam_params_tmp;
@@ -153,12 +149,16 @@ struct calib_camera_t {
   CamIdx2Extrinsics cam_exts;
   std::map<timestamp_t, pose_t *> poses;
 
+  // Sliding window
+  std::deque<calib_view_t *> calib_views;
+
   // Camera geometries
   pinhole_radtan4_t pinhole_radtan4;
   pinhole_equi4_t pinhole_equi4;
 
   // Constructor / Destructor
   calib_camera_t() = delete;
+  calib_camera_t(const calib_camera_t &calib_);
   calib_camera_t(const calib_target_t &calib_target_);
   calib_camera_t(const std::string &config_path);
   ~calib_camera_t();

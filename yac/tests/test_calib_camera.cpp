@@ -186,7 +186,7 @@ int test_calib_camera_add_and_remove_view() {
     break;
   }
   MU_CHECK(calib.poses.count(view_ts));
-  MU_CHECK(calib.window.size() == 1);
+  MU_CHECK(calib.calib_views.size() == 1);
   MU_CHECK(calib.calib_views.size() == 1);
   MU_CHECK(calib.calib_views.front()->get_camera_indices().size() == 2);
   MU_CHECK(calib.problem->NumResidualBlocks() > 0);
@@ -196,7 +196,7 @@ int test_calib_camera_add_and_remove_view() {
   // Remove view
   calib.remove_view(view_ts);
   MU_CHECK(calib.poses.count(view_ts) == 0);
-  MU_CHECK(calib.window.size() == 0);
+  MU_CHECK(calib.calib_views.size() == 0);
   MU_CHECK(calib.calib_views.size() == 0);
   MU_CHECK(calib.problem->NumResidualBlocks() == 0);
   MU_CHECK(calib.problem->NumParameterBlocks() == 148);

@@ -814,7 +814,6 @@ bool calib_camera_t::add_view(const std::map<int, aprilgrid_t> &cam_grids) {
   }
 
   // Add calibration view
-  window.push_back(ts);
   calib_views.push_back(new calib_view_t{ts,
                                          cam_grids,
                                          &corners,
@@ -828,10 +827,6 @@ bool calib_camera_t::add_view(const std::map<int, aprilgrid_t> &cam_grids) {
 }
 
 void calib_camera_t::remove_view(const timestamp_t ts) {
-  // Remove timestamp from window
-  const auto it = std::remove(window.begin(), window.end(), ts);
-  window.erase(it, window.end());
-
   // Remove view
   auto view_it = calib_views.begin();
   while (view_it != calib_views.end()) {
@@ -871,7 +866,7 @@ void calib_camera_t::remove_all_views() {
 
 void calib_camera_t::marginalize() {
   // Mark the pose to be marginalized
-  const auto marg_ts = window.front();
+  const auto marg_ts = calib_views.front()->ts;
   poses[marg_ts]->marginalize = true;
 
   // Form new marg_error_t
@@ -896,7 +891,7 @@ void calib_camera_t::marginalize() {
   marg_error_id = view->marginalize(marg_error);
 
   // Remove timestamp from window
-  window.pop_front();
+  // window.pop_front();
 
   // Remove view
   calib_views.pop_front();
@@ -1590,7 +1585,7 @@ void calib_camera_t::_solve_inc() {
     }
 
     // Solve
-    if (window.size() > 5) {
+    if (calib_views.size() > 5) {
       marginalize();
     }
     ceres::Solve(options, problem, &summary);
@@ -1651,7 +1646,7 @@ void calib_camera_t::_solve_nbv() {
     }
 
     // Marginalize oldest view
-    if (enable_marginalization && window.size() > sliding_window_size) {
+    if (enable_marginalization && calib_views.size() > sliding_window_size) {
       marginalize();
     }
 

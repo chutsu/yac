@@ -27,7 +27,7 @@ set -e
 # RUN_CMD="rosrun yac test_calib_errors --target test_imu_error"
 
 # YAC - CAMERA CALIBRATION
-RUN_CMD="rosrun yac test_calib_camera"
+# RUN_CMD="rosrun yac test_calib_camera"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_view"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_add_camera_data"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_add_camera"
@@ -55,9 +55,9 @@ RUN_CMD="rosrun yac test_calib_camera"
 
 # YAC - VISUAL-INERTIAL CALIBRATION
 # RUN_CMD="rosrun yac test_calib_vi"
-# RUN_CMD="rosrun yac test_calib_vi --target test_calib_vi_online"
 # RUN_CMD="rosrun yac test_calib_vi --target test_calib_vi"
-# RUN_CMD="rosrun yac test_calib_vi --target test_marg_error"
+# RUN_CMD="rosrun yac test_calib_vi --target test_calib_vi_online"
+RUN_CMD="rosrun yac test_calib_vi --target test_calib_vi_copy_constructor"
 
 # # YAC - NBT
 # RUN_CMD="rosrun yac test_calib_nbt"

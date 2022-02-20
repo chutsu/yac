@@ -355,6 +355,7 @@ int test_calib_vi_online() {
                    true);
 
   LOG_INFO("Adding data to problem ...");
+  int nb_margs = 0;
   for (const auto &ts : timeline.timestamps) {
     const auto kv = timeline.data.equal_range(ts);
 
@@ -383,11 +384,152 @@ int test_calib_vi_online() {
   return 0;
 }
 
+int test_calib_vi_copy_constructor() {
+  const auto timeline = setup_test_data();
+
+  // Camera
+  const int res[2] = {752, 480};
+  const std::string proj_model = "pinhole";
+  const std::string dist_model = "radtan4";
+  vec4_t cam0_proj_params;
+  vec4_t cam0_dist_params;
+  vec4_t cam1_proj_params;
+  vec4_t cam1_dist_params;
+  mat4_t T_C0C1;
+  mat4_t T_BC0;
+  mat4_t T_BC1;
+  // // -- Custom calibration values
+  // config_t config{"/tmp/calib-results.yaml"};
+  // veci2_t cam_res;
+  // parse(config, "cam0.resolution", cam_res);
+  // parse(config, "cam0.proj_params", cam0_proj_params);
+  // parse(config, "cam0.dist_params", cam0_dist_params);
+  // parse(config, "cam1.proj_params", cam1_proj_params);
+  // parse(config, "cam1.dist_params", cam1_dist_params);
+  // parse(config, "T_cam0_cam1", T_C0C1);
+  // -- Euroc Calibration values
+  cam0_proj_params << 458.654, 457.296, 367.215, 248.375;
+  cam0_dist_params << -0.28340811, 0.07395907, 0.00019359, 1.76187114e-05;
+  cam1_proj_params << 457.587, 456.134, 379.999, 255.238;
+  cam1_dist_params << -0.28368365, 0.07451284, -0.00010473, -3.555e-05;
+  // clang-format off
+  T_BC0 << 0.0148655429818, -0.999880929698, 0.00414029679422, -0.0216401454975,
+          0.999557249008, 0.0149672133247, 0.025715529948, -0.064676986768,
+          -0.0257744366974, 0.00375618835797, 0.999660727178, 0.00981073058949,
+          0.0, 0.0, 0.0, 1.0;
+  T_BC1 << 0.0125552670891, -0.999755099723, 0.0182237714554, -0.0198435579556,
+          0.999598781151, 0.0130119051815, 0.0251588363115, 0.0453689425024,
+          -0.0253898008918, 0.0179005838253, 0.999517347078, 0.00786212447038,
+          0.0, 0.0, 0.0, 1.0;
+  T_C0C1 = T_BC0.inverse() * T_BC1; // Camera-Camera extrinsics
+  // clang-format on
+  T_BC0 = I(4);   // Set cam0 as body frame
+  T_BC1 = T_C0C1; // Cam1 extrinsics
+
+  // Imu
+  imu_params_t imu_params;
+  imu_params.rate = 200.0;
+  imu_params.sigma_a_c = 0.002;
+  imu_params.sigma_g_c = 1.6968e-04;
+  imu_params.sigma_aw_c = 0.003;
+  imu_params.sigma_gw_c = 1.9393e-05;
+  imu_params.g = 9.81007;
+  // clang-format off
+  mat4_t T_BS;
+  T_BS << 1.0, 0.0, 0.0, 0.0,
+          0.0, 1.0, 0.0, 0.0,
+          0.0, 0.0, 1.0, 0.0,
+          0.0, 0.0, 0.0, 1.0;
+  // clang-format on
+
+  // Setup VI calibrator
+  calib_vi_t calib;
+  calib.window_size = 10;
+  calib.enable_marginalization = true;
+  calib.add_imu(imu_params, T_BS);
+  calib.add_camera(0,
+                   res,
+                   proj_model,
+                   dist_model,
+                   cam0_proj_params,
+                   cam0_dist_params,
+                   T_BC0,
+                   true,
+                   true);
+  calib.add_camera(1,
+                   res,
+                   proj_model,
+                   dist_model,
+                   cam1_proj_params,
+                   cam1_dist_params,
+                   T_BC1,
+                   true,
+                   true);
+
+  LOG_INFO("Adding data to problem ...");
+  int nb_margs = 0;
+  for (const auto &ts : timeline.timestamps) {
+    const auto kv = timeline.data.equal_range(ts);
+
+    // Handle multiple events in the same timestamp
+    for (auto it = kv.first; it != kv.second; it++) {
+      const auto event = it->second;
+
+      // Aprilgrid event
+      if (auto grid_event = dynamic_cast<aprilgrid_event_t *>(event)) {
+        auto cam_idx = grid_event->cam_idx;
+        auto &grid = grid_event->grid;
+        calib.add_measurement(cam_idx, grid);
+      }
+
+      // Imu event
+      if (auto imu_event = dynamic_cast<imu_event_t *>(event)) {
+        const auto ts = imu_event->ts;
+        const auto &acc = imu_event->acc;
+        const auto &gyr = imu_event->gyr;
+        calib.add_measurement(ts, acc, gyr);
+      }
+    }
+
+    // Test copy-constructor
+    if (calib.marg_error != nullptr) {
+      matx_t calib_covar_orig;
+      calib.recover_calib_covar(calib_covar_orig);
+      printf("original\n");
+      printf("nb_views: %ld\n", calib.calib_views.size());
+      printf("nb_params: %d\n", calib.problem->NumParameterBlocks());
+      printf("nb_residuals: %d\n", calib.problem->NumResidualBlocks());
+      printf("det(covar): %e\n\n", calib_covar_orig.determinant());
+
+      matx_t calib_covar_copy;
+      calib_vi_t copy{calib};
+      copy.recover_calib_covar(calib_covar_copy);
+      printf("copy\n");
+      printf("nb_views: %ld\n", copy.calib_views.size());
+      printf("nb_params: %d\n", copy.problem->NumParameterBlocks());
+      printf("nb_residuals: %d\n", copy.problem->NumResidualBlocks());
+      printf("det(covar): %e\n\n", calib_covar_copy.determinant());
+
+      // clang-format off
+      MU_CHECK(calib.calib_views.size() == copy.calib_views.size());
+      MU_CHECK(calib.problem->NumParameterBlocks() == copy.problem->NumParameterBlocks());
+      MU_CHECK(calib.problem->NumResidualBlocks() == copy.problem->NumResidualBlocks());
+      MU_CHECK((calib_covar_orig -calib_covar_copy).norm() < 1e-4);
+      // clang-format on
+
+      break;
+    }
+  }
+
+  return 0;
+}
+
 void test_suite() {
   MU_ADD_TEST(test_calib_vi_add_imu);
   MU_ADD_TEST(test_calib_vi_add_camera);
   MU_ADD_TEST(test_calib_vi);
   MU_ADD_TEST(test_calib_vi_online);
+  MU_ADD_TEST(test_calib_vi_copy_constructor);
 }
 
 } // namespace yac

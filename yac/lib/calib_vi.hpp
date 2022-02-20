@@ -66,12 +66,17 @@ struct calib_vi_view_t {
 struct calib_vi_t {
   // Settings
   bool verbose = true;
-  double sigma_vision = 1.0;
-  int batch_max_iter = 20;
+  int batch_max_iter = 30;
   bool enable_outlier_rejection = false;
   double outlier_threshold = 4.0;
   bool enable_marginalization = false;
-  int window_size = 10;
+  int window_size = 4;
+
+  // Optimization
+  PoseLocalParameterization pose_plus;
+  ceres::Problem::Options prob_options;
+  ceres::Problem *problem = nullptr;
+  ceres::LossFunction *loss = nullptr;
 
   // State-Variables
   CamIdx2Geometry cam_geoms;
@@ -90,17 +95,10 @@ struct calib_vi_t {
   imu_params_t imu_params;
   imu_data_t imu_buf;
 
-  // Optimization
-  PoseLocalParameterization pose_plus;
-  ceres::Problem::Options prob_options;
-  ceres::Problem *problem = nullptr;
-  ceres::LossFunction *loss = nullptr;
+  // Problem data
+  std::deque<calib_vi_view_t *> calib_views;
   ceres::ResidualBlockId marg_error_id;
   marg_error_t *marg_error = nullptr;
-
-  // Window
-  std::deque<timestamp_t> window;
-  std::deque<calib_vi_view_t *> calib_views;
 
   // Camera geometries
   pinhole_radtan4_t pinhole_radtan4;
@@ -108,6 +106,7 @@ struct calib_vi_t {
 
   // Constructor
   calib_vi_t();
+  calib_vi_t(const calib_vi_t &calib);
   ~calib_vi_t();
 
   void add_imu(const imu_params_t &imu_params_,
@@ -127,11 +126,15 @@ struct calib_vi_t {
 
   int nb_cams() const;
   int nb_views() const;
+  std::vector<int> get_cam_indices() const;
   veci2_t get_cam_resolution(const int cam_idx) const;
   vecx_t get_cam_params(const int cam_idx) const;
   mat4_t get_cam_extrinsics(const int cam_idx) const;
   mat4_t get_imu_extrinsics() const;
+  real_t get_imucam_time_delay() const;
   mat4_t get_fiducial_pose() const;
+  param_t *get_pose_param(const timestamp_t ts) const;
+  param_t *get_sb_param(const timestamp_t ts) const;
   std::map<int, std::vector<real_t>> get_reproj_errors() const;
 
   mat4_t estimate_sensor_pose(const CamIdx2Grids &grids);

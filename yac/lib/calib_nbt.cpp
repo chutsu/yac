@@ -403,107 +403,78 @@ void nbt_create_timeline(const camera_data_t &cam_grids,
   }
 }
 
-int nbt_eval(const calib_vi_t &calib, const ctraj_t &traj, real_t *info) {
-  // // Simulate camera frames
-  // const timestamp_t ts_start;
-  // const timestamp_t ts_end;
-  // const calib_target_t target;
-  // const CamIdx2Geometry cam_geoms;
-  // const CamIdx2Parameters cam_params;
-  // const CamIdx2Extrinsics cam_exts;
-  // const double cam_rate;
-  // const mat4_t T_WF;
-  // camera_data_t cam_grids;
-  // std::map<timestamp_t, mat4_t> T_WC0_sim;
-  // simulate_cameras(ts_start,
-  //                  ts_end,
-  //                  traj,
-  //                  target,
-  //                  cam_geoms,
-  //                  cam_params,
-  //                  cam_exts,
-  //                  cam_rate,
-  //                  T_WF,
-  //                  cam_grids,
-  //                  T_WC0_sim);
-  //
-  // // Simulate imu measurements
-  // timestamps_t imu_time;
-  // vec3s_t imu_accel;
-  // vec3s_t imu_gyro;
-  // mat4s_t imu_poses;
-  // vec3s_t imu_vels;
-  // simulate_imu(ts_start,
-  //              ts_end,
-  //              traj,
-  //              imu_params,
-  //              imu_time,
-  //              imu_accel,
-  //              imu_gyro,
-  //              imu_poses,
-  //              imu_vels);
+int nbt_eval(const ctraj_t &traj, calib_vi_t &calib, matx_t &calib_covar) {
+  // Setup
+  const timestamp_t ts_start = calib.calib_views.back()->ts;
+  const timestamp_t ts_end = ts_start + sec2ts(2.0);
+  const double cam_rate = 20.0;
 
-  //   // Create timeline
-  //   timeline_t timeline;
-  //   nbt_create_timeline(imu_time,
-  //                       imu_gyro,
-  //                       imu_accel,
-  //                       {grids0, grids1},
-  //                       timeline);
+  // Copy calibrator
+
+  // Simulate imu measurements
+  timestamps_t imu_time;
+  vec3s_t imu_accel;
+  vec3s_t imu_gyro;
+  mat4s_t imu_poses;
+  vec3s_t imu_vels;
+  simulate_imu(ts_start,
+               ts_end,
+               traj,
+               calib.imu_params,
+               imu_time,
+               imu_accel,
+               imu_gyro,
+               imu_poses,
+               imu_vels);
+
+  // Simulate camera frames
+  calib_target_t calib_target;
+  camera_data_t cam_grids;
+  std::map<timestamp_t, mat4_t> T_WC0_sim;
+  simulate_cameras(ts_start,
+                   ts_end,
+                   traj,
+                   calib_target,
+                   calib.cam_geoms,
+                   calib.cam_params,
+                   calib.cam_exts,
+                   cam_rate,
+                   calib.get_fiducial_pose(),
+                   cam_grids,
+                   T_WC0_sim);
+
+  // Add NBT data into calibrator
+  // timeline_t timeline;
+  // nbt_create_timeline(cam_grids, imu_ts, imu_acc, imu_gyr, timeline);
   //
-  //   // Setup calibration
-  //   calib_vi_t calib;
-  //   calib.batch_max_iter = 1;
-  //   calib.enable_outlier_rejection = false;
-  //   // -- Add imu
-  //   calib.add_imu(imu_params);
-  //   // -- Add cameras
-  //   {
-  //     const int res[2] = {cam0.resolution[0], cam0.resolution[1]};
-  //     const auto proj_model = cam0.proj_model;
-  //     const auto dist_model = cam0.dist_model;
-  //     const auto proj = cam0.proj_params();
-  //     const auto dist = cam0.dist_params();
-  //     const auto fix = true;
-  //     calib.add_camera(0, res, proj_model, dist_model, proj, dist, fix);
-  //   }
-  //   {
-  //     const int res[2] = {cam1.resolution[0], cam1.resolution[1]};
-  //     const auto proj_model = cam1.proj_model;
-  //     const auto dist_model = cam1.dist_model;
-  //     const auto proj = cam1.proj_params();
-  //     const auto dist = cam1.dist_params();
-  //     const auto fix = true;
-  //     calib.add_camera(1, res, proj_model, dist_model, proj, dist, fix);
-  //   }
-  //   // -- Add extrinsics
-  //   calib.add_cam_extrinsics(0, T_BC0, true);
-  //   calib.add_cam_extrinsics(1, T_BC1, true);
-  //   calib.add_imu_extrinsics(T_BS);
+  // for (const auto &ts : timeline.timestamps) {
+  //   const auto kv = timeline.data.equal_range(ts);
   //
-  //   for (const auto &ts : timeline.timestamps) {
-  //     const auto result = timeline.data.equal_range(ts);
-  //     // -- Loop through events at timestamp ts since there could be two
-  //     events
-  //     // at the same timestamp
-  //     for (auto it = result.first; it != result.second; it++) {
-  //       const auto event = it->second;
-  //       // Camera event
-  //       if (event.type == APRILGRID_EVENT) {
-  //         calib.add_measurement(event.camera_index, event.grid);
-  //       }
+  //   // Handle multiple events in the same timestamp
+  //   for (auto it = kv.first; it != kv.second; it++) {
+  //     const auto event = it->second;
   //
-  //       // Imu event
-  //       if (event.type == IMU_EVENT) {
-  //         const auto ts = event.ts;
-  //         const vec3_t w_m = event.w_m;
-  //         const vec3_t a_m = event.a_m;
-  //         calib.add_measurement(ts, a_m, w_m);
-  //       }
+  //     // Aprilgrid event
+  //     if (auto grid_event = dynamic_cast<aprilgrid_event_t *>(event)) {
+  //       auto cam_idx = grid_event->cam_idx;
+  //       auto &grid = grid_event->grid;
+  //       calib.add_measurement(cam_idx, grid);
+  //     }
+  //
+  //     // Imu event
+  //     if (auto imu_event = dynamic_cast<imu_event_t *>(event)) {
+  //       const auto ts = imu_event->ts;
+  //       const auto &acc = imu_event->acc;
+  //       const auto &gyr = imu_event->gyr;
+  //       calib.add_measurement(ts, acc, gyr);
   //     }
   //   }
-  //   calib.solve(false);
-  //   return calib.recover_calib_covar(calib_covar);
+  // }
+
+  // Estimate calibration covariance
+  if (calib.recover_calib_covar(calib_covar) != 0) {
+    return -1;
+  }
 
   return 0;
 }

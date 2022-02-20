@@ -349,76 +349,50 @@ int test_simulate_imu() {
   return 0;
 }
 
-// int test_nbt_eval_traj() {
-//   // Cameras
-//   auto cameras = setup_cameras();
-//   auto cam0 = cameras[0];
-//   auto cam1 = cameras[1];
-//   auto cam_rate = 20.0;
-//   const mat4_t T_C0C1 = tf(I(3), vec3_t{0.1, 0.0, 0.0});
-//   const mat4_t T_BC0 = tf(I(3), zeros(3, 1));
-//   const mat4_t T_BC1 = T_BC0 * T_C0C1;
-//
-//   // Imu
-//   // const auto rpy_SC = deg2rad(vec3_t{-90.0, 0.0, -90.0});
-//   const auto rpy_BS = deg2rad(vec3_t{0.0, 0.0, 0.0});
-//   const auto C_BS = euler321(rpy_BS);
-//   const mat4_t T_BS = tf(C_BS, zeros(3, 1));
-//
-//   // Calibration target
-//   calib_target_t target;
-//   mat4_t T_FO;
-//   mat4_t T_WF;
-//   setup_calib_target(cameras[0], target, T_FO, &T_WF);
-//
-//   // Generate trajectory
-//   const timestamp_t ts_start = 0;
-//   const timestamp_t ts_end = 2e9;
-//   ctrajs_t trajs;
-//   calib_orbit_trajs<pinhole_radtan4_t>(target,
-//                                        cameras[0],
-//                                        cameras[1],
-//                                        T_BC0,
-//                                        T_BC1,
-//                                        T_WF,
-//                                        T_FO,
-//                                        ts_start,
-//                                        ts_end,
-//                                        trajs);
-//
-//   // Simulate IMU
-//   imu_params_t imu_params;
-//   imu_params.rate = 250.0;
-//   imu_params.sigma_g_c = 0.00278;
-//   imu_params.sigma_a_c = 0.0252;
-//   imu_params.sigma_bg = 0.03;
-//   imu_params.sigma_ba = 0.1;
-//   imu_params.sigma_gw_c = 1.65e-05;
-//   imu_params.sigma_aw_c = 0.000441;
-//
-// #pragma omp parallel for
-//   for (size_t traj_idx = 0; traj_idx < trajs.size(); traj_idx++) {
-//     matx_t calib_covar;
-//     int retval = nbt_eval_traj<pinhole_radtan4_t>(trajs[traj_idx],
-//                                                   target,
-//                                                   ts_start,
-//                                                   ts_end,
-//                                                   imu_params,
-//                                                   cam0,
-//                                                   cam1,
-//                                                   cam_rate,
-//                                                   T_WF,
-//                                                   T_BC0,
-//                                                   T_BC1,
-//                                                   T_BS,
-//                                                   calib_covar);
-//     printf("retval: %d, full_rank(calib_covar): %d\n",
-//            retval,
-//            full_rank(calib_covar));
-//   }
-//
-//   return 0;
-// }
+int test_nbt_eval() {
+  // Setup test
+  std::map<int, camera_params_t> cameras;
+  extrinsics_t imu_exts;
+  calib_target_t target;
+  mat4_t T_FO;
+  mat4_t T_WF;
+  setup_test(cameras, imu_exts, target, T_FO, T_WF);
+
+  // Generate trajectories
+  ctrajs_t trajs;
+  const timestamp_t ts_start = 0;
+  const timestamp_t ts_end = 5e9;
+  pinhole_radtan4_t cam_geom;
+  calib_orbit_trajs(ts_start,
+                    ts_end,
+                    target,
+                    &cam_geom,
+                    &cameras[0],
+                    &imu_exts,
+                    T_WF,
+                    T_FO,
+                    trajs);
+
+  // #pragma omp parallel for
+
+  for (size_t traj_idx = 0; traj_idx < trajs.size(); traj_idx++) {
+    // int retval = nbt_eval(trajs[traj_idx],
+    //                       target,
+    //                       ts_start,
+    //                       ts_end,
+    //                       imu_params,
+    //                       cam0,
+    //                       cam1,
+    //                       cam_rate,
+    //                       T_WF,
+    //                       T_BC0,
+    //                       T_BC1,
+    //                       T_BS,
+    //                       calib_covar);
+  }
+
+  return 0;
+}
 
 void test_suite() {
   MU_ADD_TEST(test_calib_orbit_trajs);
@@ -426,7 +400,7 @@ void test_suite() {
   MU_ADD_TEST(test_calib_figure8_trajs);
   MU_ADD_TEST(test_simulate_cameras);
   MU_ADD_TEST(test_simulate_imu);
-  // MU_ADD_TEST(test_nbt_eval_traj);
+  MU_ADD_TEST(test_nbt_eval);
 }
 
 } // namespace yac

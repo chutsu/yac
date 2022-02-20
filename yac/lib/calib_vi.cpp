@@ -191,7 +191,7 @@ ceres::ResidualBlockId calib_vi_view_t::marginalize(marg_error_t *marg_error) {
   pose.marginalize = true;
   sb.marginalize = true;
 
-  // Transfer residuals to marginalization error
+  // Transfer residual ownership to marginalization error
   marg_error->add(imu_error);
   for (auto &[cam_idx, errors] : fiducial_errors) {
     for (auto &error : errors) {
@@ -219,6 +219,135 @@ calib_vi_t::calib_vi_t() {
   prob_options.loss_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
   prob_options.enable_fast_removal = true;
   problem = new ceres::Problem{prob_options};
+}
+
+calib_vi_t::calib_vi_t(const calib_vi_t &calib) {
+  // Settings
+  verbose = calib.verbose;
+  batch_max_iter = calib.batch_max_iter;
+  enable_outlier_rejection = calib.enable_outlier_rejection;
+  outlier_threshold = calib.outlier_threshold;
+  enable_marginalization = calib.enable_marginalization;
+  window_size = calib.window_size;
+
+  // Optimization
+  prob_options = calib.prob_options;
+  problem = new ceres::Problem{prob_options};
+  loss = nullptr;
+
+  // State-Variables
+  // -- Cameras
+  for (const auto &cam_idx : calib.get_cam_indices()) {
+    add_camera(cam_idx,
+               calib.cam_params.at(cam_idx)->resolution,
+               calib.cam_params.at(cam_idx)->proj_model,
+               calib.cam_params.at(cam_idx)->dist_model,
+               calib.cam_params.at(cam_idx)->proj_params(),
+               calib.cam_params.at(cam_idx)->dist_params(),
+               calib.cam_exts.at(cam_idx)->tf(),
+               calib.cam_params.at(cam_idx)->fixed,
+               calib.cam_exts.at(cam_idx)->fixed);
+  }
+  // -- IMU extrinsics and time delay
+  add_imu(calib.imu_params,
+          calib.get_imu_extrinsics(),
+          calib.get_imucam_time_delay(),
+          calib.imu_exts->fixed,
+          calib.time_delay->fixed);
+  // -- Fiducial
+  fiducial = new fiducial_t{calib.get_fiducial_pose()};
+  problem->AddParameterBlock(fiducial->param.data(), FIDUCIAL_PARAMS_SIZE);
+  if (fiducial->param.size() == 7) {
+    problem->SetParameterization(fiducial->param.data(), &pose_plus);
+  }
+
+  // Data
+  initialized = calib.initialized;
+  // -- Vision data
+  grid_buf = calib.grid_buf;
+  prev_grids = calib.prev_grids;
+  // -- Imu data
+  imu_params = calib.imu_params;
+  imu_buf = calib.imu_buf;
+
+  // Problem data
+  // -- Calibration views
+  for (const auto view : calib.calib_views) {
+    calib_views.push_back(new calib_vi_view_t{view->ts,
+                                              view->grids,
+                                              view->pose.tf(),
+                                              view->sb.param,
+                                              cam_geoms,
+                                              cam_params,
+                                              cam_exts,
+                                              imu_exts,
+                                              fiducial,
+                                              problem,
+                                              &pose_plus});
+  }
+  for (size_t k = 0; k < calib_views.size(); k++) {
+    auto view_k = calib.calib_views[k];
+    if (view_k->imu_error == nullptr) {
+      continue;
+    }
+
+    auto view_kp1 = calib.calib_views[k + 1];
+    auto imu_data = view_k->imu_error->imu_data_;
+    auto pose_j = &calib_views[k + 1]->pose;
+    auto sb_j = &calib_views[k + 1]->sb;
+    calib_views[k]->form_imu_error(imu_params, imu_data, pose_j, sb_j);
+  }
+  // -- Marginalization Error
+  // Note: The following approach to deep-copying the Marginalization Error
+  // is not ideal, however there isn't an easier way because the
+  // marginalization error from the source were referencing parameters and
+  // residual blocks from the original calibrator.
+  if (calib.marg_error != nullptr) {
+    // New marginalization error
+    marg_error_t *marg_error = new marg_error_t();
+    marg_error->marginalized_ = calib.marg_error->marginalized_;
+    marg_error->m_ = calib.marg_error->m_;
+    marg_error->r_ = calib.marg_error->r_;
+
+    // Residuals and parameter blocks
+    marg_error->set_residual_size(calib.marg_error->num_residuals());
+    for (auto param_block : calib.marg_error->param_blocks) {
+      // Obtain the corresponding deep-copy parameter
+      param_t *remain_param = nullptr;
+      if (param_block->type == "pose_t") {
+        remain_param = get_pose_param(param_block->ts);
+      } else if (param_block->type == "sb_params_t") {
+        remain_param = get_sb_param(param_block->ts);
+      } else if (param_block->type == "extrinsics_t") {
+        // Note: This only works because the only extrinsics the calibrator
+        // is trying to solve is te CAM-IMU extrinsics
+        remain_param = imu_exts;
+      } else if (param_block->type == "fiducial_t") {
+        remain_param = fiducial;
+      } else if (param_block->type == "time_delay_t") {
+        remain_param = time_delay;
+      } else {
+        FATAL("Implementation Error! Not supposed to reach here!");
+      }
+
+      // Add corresponding deep-copied parameter into marginalization error
+      marg_error->add_remain_param(remain_param);
+      marg_error->param_index_[remain_param] =
+          calib.marg_error->param_index_.at(param_block);
+
+      // Linearization point x0
+      marg_error->x0_[remain_param->data()] = remain_param->param;
+    }
+
+    // Linearized residuals and jacobians
+    marg_error->r0_ = calib.marg_error->r0_;
+    marg_error->J0_ = calib.marg_error->J0_;
+
+    // Add to ceres::problem
+    marg_error_id = problem->AddResidualBlock(marg_error,
+                                              NULL,
+                                              marg_error->get_param_ptrs());
+  }
 }
 
 calib_vi_t::~calib_vi_t() {
@@ -328,6 +457,14 @@ int calib_vi_t::nb_cams() const { return cam_params.size(); }
 
 int calib_vi_t::nb_views() const { return calib_views.size(); }
 
+std::vector<int> calib_vi_t::get_cam_indices() const {
+  std::vector<int> cam_idxs;
+  for (const auto &[cam_idx, cam] : cam_params) {
+    cam_idxs.push_back(cam_idx);
+  }
+  return cam_idxs;
+}
+
 veci2_t calib_vi_t::get_cam_resolution(const int cam_idx) const {
   auto cam_res = cam_params.at(cam_idx)->resolution;
   return veci2_t{cam_res[0], cam_res[1]};
@@ -343,7 +480,33 @@ mat4_t calib_vi_t::get_cam_extrinsics(const int cam_idx) const {
 
 mat4_t calib_vi_t::get_imu_extrinsics() const { return imu_exts->tf(); }
 
+real_t calib_vi_t::get_imucam_time_delay() const {
+  return time_delay->param[0];
+}
+
 mat4_t calib_vi_t::get_fiducial_pose() const { return fiducial->estimate(); }
+
+param_t *calib_vi_t::get_pose_param(const timestamp_t ts) const {
+  for (auto view : calib_views) {
+    if (view->ts == ts) {
+      return &view->pose;
+      break;
+    }
+  }
+
+  return nullptr;
+}
+
+param_t *calib_vi_t::get_sb_param(const timestamp_t ts) const {
+  for (auto view : calib_views) {
+    if (view->ts == ts) {
+      return &view->sb;
+      break;
+    }
+  }
+
+  return nullptr;
+}
 
 std::map<int, std::vector<real_t>> calib_vi_t::get_reproj_errors() const {
   std::map<int, std::vector<real_t>> errors;
@@ -572,6 +735,7 @@ void calib_vi_t::add_measurement(const timestamp_t imu_ts,
     options.max_num_iterations = batch_max_iter;
     ceres::Solver::Summary summary;
     ceres::Solve(options, problem, &summary);
+    printf("\n");
 
     // Marginalize oldest view
     marginalize();
@@ -591,6 +755,7 @@ void calib_vi_t::solve() {
     ceres::Solve(options, problem, &summary);
     if (verbose) {
       std::cout << summary.BriefReport() << std::endl << std::endl;
+      // std::cout << summary.FullReport() << std::endl << std::endl;
       show_results();
     }
   }
@@ -674,12 +839,10 @@ void calib_vi_t::show_results() {
 
 int calib_vi_t::recover_calib_covar(matx_t &calib_covar) {
   // Recover calibration covariance
-  auto T_BS = imu_exts->param.data();
-
   // -- Setup covariance blocks to estimate
+  auto T_BS = imu_exts->param.data();
   std::vector<std::pair<const double *, const double *>> covar_blocks;
   covar_blocks.push_back({T_BS, T_BS});
-
   // -- Estimate covariance
   ::ceres::Covariance::Options options;
   ::ceres::Covariance covar_est(options);
@@ -688,15 +851,12 @@ int calib_vi_t::recover_calib_covar(matx_t &calib_covar) {
     LOG_ERROR("Maybe Hessian is not full rank?");
     return -1;
   }
-
   // -- Extract covariances sub-blocks
   Eigen::Matrix<double, 6, 6, Eigen::RowMajor> T_BS_covar;
   covar_est.GetCovarianceBlockInTangentSpace(T_BS, T_BS, T_BS_covar.data());
-
   // -- Form covariance matrix block
   calib_covar = zeros(6, 6);
   calib_covar.block(0, 0, 6, 6) = T_BS_covar;
-
   // -- Check if calib_covar is full-rank?
   if (rank(calib_covar) != calib_covar.rows()) {
     LOG_ERROR("calib_covar is not full rank!");

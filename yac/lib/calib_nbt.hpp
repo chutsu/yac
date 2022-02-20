@@ -176,7 +176,7 @@ void nbt_create_timeline(const camera_data_t &cam_grids,
  *
  * @returns 0 for success or -1 for failure
  */
-int nbt_eval(const calib_vi_t &calib, const ctraj_t &traj, real_t *info);
+int nbt_eval(const ctraj_t &traj, calib_vi_t &calib, matx_t &calib_covar);
 
 } //  namespace yac
 #endif // YAC_CALIB_NBT_HPP

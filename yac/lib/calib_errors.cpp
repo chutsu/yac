@@ -1325,6 +1325,8 @@ marg_error_t::~marg_error_t() {
 
 size_t marg_error_t::get_residual_size() const { return r_; }
 
+void marg_error_t::set_residual_size(size_t size) { set_num_residuals(size); }
+
 std::vector<param_t *> marg_error_t::get_params() { return remain_param_ptrs_; }
 
 std::vector<double *> marg_error_t::get_param_ptrs() {
@@ -1340,37 +1342,13 @@ void marg_error_t::add(calib_error_t *res_block) {
   if (res_block == nullptr) {
     FATAL("res_block == nullptr!");
   }
-
-  // Make sure param blocks are valid
-  for (auto param_block : res_block->param_blocks) {
-    if (param_block == nullptr) {
-      FATAL("Param block is NULL! Implementation Error!");
-    }
-
-    // Seen parameter block already
-    if (params_seen_.count(param_block)) {
-      continue;
-    }
-
-    // Keep track of parameter block
-    if (param_block->marginalize) {
-      marg_param_ptrs_.push_back(param_block);
-    } else if (param_block->type == "pose_t") {
-      remain_pose_param_ptrs_.push_back(param_block);
-    } else if (param_block->type == "sb_params_t") {
-      remain_sb_param_ptrs_.push_back(param_block);
-    } else if (param_block->type == "camera_params_t") {
-      remain_camera_param_ptrs_.push_back(param_block);
-    } else if (param_block->type == "extrinsics_t") {
-      remain_extrinsics_ptrs_.push_back(param_block);
-    } else if (param_block->type == "fiducial_t") {
-      remain_fiducial_ptrs_.push_back(param_block);
-    }
-    params_seen_[param_block] = true;
-  }
-
-  // Keep track
   res_blocks_.push_back(res_block);
+}
+
+void marg_error_t::add_remain_param(param_t *param) {
+  param_blocks.push_back(param);
+  remain_param_ptrs_.push_back(param);
+  mutable_parameter_block_sizes()->push_back(param->global_size);
 }
 
 void marg_error_t::form_hessian(matx_t &H, vecx_t &b) {
@@ -1378,6 +1356,42 @@ void marg_error_t::form_hessian(matx_t &H, vecx_t &b) {
   param_blocks.clear(); // <- calib_error_t::param_blocks
   mutable_parameter_block_sizes()->clear();
   set_num_residuals(0);
+
+  // Track parameter blocks
+  std::map<param_t *, bool> params_seem;
+  std::vector<param_t *> remain_pose_param_ptrs;
+  std::vector<param_t *> remain_sb_param_ptrs;
+  std::vector<param_t *> remain_camera_param_ptrs;
+  std::vector<param_t *> remain_extrinsics_ptrs;
+  std::vector<param_t *> remain_fiducial_ptrs;
+  for (auto res_block : res_blocks_) {
+    for (auto param_block : res_block->param_blocks) {
+      if (param_block == nullptr) {
+        FATAL("Param block is NULL! Implementation Error!");
+      }
+
+      // Seen parameter block already
+      if (params_seem.count(param_block)) {
+        continue;
+      }
+
+      // Keep track of parameter block
+      if (param_block->marginalize) {
+        marg_param_ptrs_.push_back(param_block);
+      } else if (param_block->type == "pose_t") {
+        remain_pose_param_ptrs.push_back(param_block);
+      } else if (param_block->type == "sb_params_t") {
+        remain_sb_param_ptrs.push_back(param_block);
+      } else if (param_block->type == "camera_params_t") {
+        remain_camera_param_ptrs.push_back(param_block);
+      } else if (param_block->type == "extrinsics_t") {
+        remain_extrinsics_ptrs.push_back(param_block);
+      } else if (param_block->type == "fiducial_t") {
+        remain_fiducial_ptrs.push_back(param_block);
+      }
+      params_seem[param_block] = true;
+    }
+  }
 
   // Determine parameter block column indicies for Hessian matrix H
   size_t H_idx = 0; // Column / row index of Hessian matrix H
@@ -1389,11 +1403,11 @@ void marg_error_t::form_hessian(matx_t &H, vecx_t &b) {
   }
   // -- Column indices for parameter blocks to remain
   std::vector<std::vector<param_t *> *> remain_params = {
-      &remain_pose_param_ptrs_,
-      &remain_sb_param_ptrs_,
-      &remain_fiducial_ptrs_,
-      &remain_extrinsics_ptrs_,
-      &remain_camera_param_ptrs_,
+      &remain_pose_param_ptrs,
+      &remain_sb_param_ptrs,
+      &remain_fiducial_ptrs,
+      &remain_extrinsics_ptrs,
+      &remain_camera_param_ptrs,
   };
   for (const auto &param_ptrs : remain_params) {
     for (const auto &param_block : *param_ptrs) {
@@ -1610,7 +1624,9 @@ ceres::ResidualBlockId marg_error_t::marginalize(ceres::Problem *problem,
   // Remove parameter blocks from problem, which in turn ceres will remove
   // residual blocks linked to the parameter.
   for (const auto &marg_param : marg_param_ptrs_) {
-    problem->RemoveParameterBlock(marg_param->param.data());
+    if (problem->HasParameterBlock(marg_param->param.data())) {
+      problem->RemoveParameterBlock(marg_param->param.data());
+    }
   }
 
   // Delete residual blocks - no longer needed

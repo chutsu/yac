@@ -291,15 +291,8 @@ public:
   size_t m_ = 0; // Size of params to marginalize
   size_t r_ = 0; // Size of params to remain
   std::vector<calib_error_t *> res_blocks_;
-  std::map<param_t *, bool> params_seen_;
   std::vector<param_t *> marg_param_ptrs_;
   std::vector<param_t *> remain_param_ptrs_;
-  std::vector<param_t *> remain_pose_param_ptrs_;
-  std::vector<param_t *> remain_sb_param_ptrs_;
-  std::vector<param_t *> remain_camera_param_ptrs_;
-  std::vector<param_t *> remain_extrinsics_ptrs_;
-  std::vector<param_t *> remain_fiducial_ptrs_;
-  std::unordered_map<param_t *, int> param_blocks_;
   std::unordered_map<param_t *, int> param_index_;
 
   std::unordered_map<real_t *, vecx_t> x0_; // Linearization point x0
@@ -315,6 +308,9 @@ public:
   /* Get Residual Size */
   size_t get_residual_size() const;
 
+  /* Set Residual Size */
+  void set_residual_size(size_t size);
+
   /* Get Parameters */
   std::vector<param_t *> get_params();
 
@@ -323,6 +319,9 @@ public:
 
   /* Add Cost Function */
   void add(calib_error_t *error);
+
+  /* Add Parameter block */
+  void add_remain_param(param_t *param);
 
   /* Form Hessian */
   void form_hessian(matx_t &H, vecx_t &b);

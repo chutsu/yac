@@ -57,10 +57,10 @@ set -e
 # RUN_CMD="rosrun yac test_calib_vi"
 # RUN_CMD="rosrun yac test_calib_vi --target test_calib_vi"
 # RUN_CMD="rosrun yac test_calib_vi --target test_calib_vi_online"
-RUN_CMD="rosrun yac test_calib_vi --target test_calib_vi_copy_constructor"
+# RUN_CMD="rosrun yac test_calib_vi --target test_calib_vi_copy_constructor"
 
 # # YAC - NBT
-# RUN_CMD="rosrun yac test_calib_nbt"
+RUN_CMD="rosrun yac test_calib_nbt"
 
 # YAC - NBV
 # RUN_CMD="rosrun yac test_calib_nbv"

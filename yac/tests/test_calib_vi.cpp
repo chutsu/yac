@@ -495,7 +495,7 @@ int test_calib_vi_copy_constructor() {
     if (calib.marg_error != nullptr) {
       matx_t calib_covar_orig;
       calib.recover_calib_covar(calib_covar_orig);
-      printf("original\n");
+      printf("Original:\n");
       printf("nb_views: %ld\n", calib.calib_views.size());
       printf("nb_params: %d\n", calib.problem->NumParameterBlocks());
       printf("nb_residuals: %d\n", calib.problem->NumResidualBlocks());
@@ -504,7 +504,7 @@ int test_calib_vi_copy_constructor() {
       matx_t calib_covar_copy;
       calib_vi_t copy{calib};
       copy.recover_calib_covar(calib_covar_copy);
-      printf("copy\n");
+      printf("Copy:\n");
       printf("nb_views: %ld\n", copy.calib_views.size());
       printf("nb_params: %d\n", copy.problem->NumParameterBlocks());
       printf("nb_residuals: %d\n", copy.problem->NumResidualBlocks());

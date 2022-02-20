@@ -4,15 +4,15 @@ namespace yac {
 
 /** TRAJECTORY GENERATION ****************************************************/
 
-void calib_orbit_trajs(const timestamp_t &ts_start,
-                       const timestamp_t &ts_end,
-                       const calib_target_t &target,
-                       const camera_geometry_t *cam0_geom,
-                       const camera_params_t *cam0_params,
-                       const extrinsics_t *imu_exts,
-                       const mat4_t &T_WF,
-                       const mat4_t &T_FO,
-                       ctrajs_t &trajs) {
+void nbt_orbit_trajs(const timestamp_t &ts_start,
+                     const timestamp_t &ts_end,
+                     const calib_target_t &target,
+                     const camera_geometry_t *cam0_geom,
+                     const camera_params_t *cam0_params,
+                     const extrinsics_t *imu_exts,
+                     const mat4_t &T_WF,
+                     const mat4_t &T_FO,
+                     ctrajs_t &trajs) {
   // Calculate target width and height
   const double tag_rows = target.tag_rows;
   const double tag_cols = target.tag_cols;
@@ -96,15 +96,15 @@ start:
   }
 }
 
-void calib_pan_trajs(const timestamp_t &ts_start,
-                     const timestamp_t &ts_end,
-                     const calib_target_t &target,
-                     const camera_geometry_t *cam0_geom,
-                     const camera_params_t *cam0_params,
-                     const extrinsics_t *imu_exts,
-                     const mat4_t &T_WF,
-                     const mat4_t &T_FO,
-                     ctrajs_t &trajs) {
+void nbt_pan_trajs(const timestamp_t &ts_start,
+                   const timestamp_t &ts_end,
+                   const calib_target_t &target,
+                   const camera_geometry_t *cam0_geom,
+                   const camera_params_t *cam0_params,
+                   const extrinsics_t *imu_exts,
+                   const mat4_t &T_WF,
+                   const mat4_t &T_FO,
+                   ctrajs_t &trajs) {
   // Calculate target width and height
   const double tag_rows = target.tag_rows;
   const double tag_cols = target.tag_cols;
@@ -174,15 +174,15 @@ start:
   }
 }
 
-void calib_figure8_trajs(const timestamp_t &ts_start,
-                         const timestamp_t &ts_end,
-                         const calib_target_t &target,
-                         const camera_geometry_t *cam0_geom,
-                         const camera_params_t *cam0_params,
-                         const extrinsics_t *imu_exts,
-                         const mat4_t &T_WF,
-                         const mat4_t &T_FO,
-                         ctrajs_t &trajs) {
+void nbt_figure8_trajs(const timestamp_t &ts_start,
+                       const timestamp_t &ts_end,
+                       const calib_target_t &target,
+                       const camera_geometry_t *cam0_geom,
+                       const camera_params_t *cam0_params,
+                       const extrinsics_t *imu_exts,
+                       const mat4_t &T_WF,
+                       const mat4_t &T_FO,
+                       ctrajs_t &trajs) {
   // Calculate target width and height
   const double tag_rows = target.tag_rows;
   const double tag_cols = target.tag_cols;
@@ -403,27 +403,30 @@ void nbt_create_timeline(const camera_data_t &cam_grids,
   }
 }
 
-int nbt_eval(const ctraj_t &traj, calib_vi_t &calib, matx_t &calib_covar) {
+int nbt_eval(const ctraj_t &traj,
+             const calib_vi_t &calib,
+             matx_t &calib_covar) {
   // Setup
-  const timestamp_t ts_start = calib.calib_views.back()->ts;
-  const timestamp_t ts_end = ts_start + sec2ts(2.0);
-  const double cam_rate = 20.0;
+  const timestamp_t ts_start = traj.timestamps.front();
+  const timestamp_t ts_end = traj.timestamps.back();
+  const double cam_rate = calib.get_cam_rate();
 
-  // Copy calibrator
+  // Make a copy of the calibrator
+  calib_vi_t calib_{calib};
 
   // Simulate imu measurements
-  timestamps_t imu_time;
-  vec3s_t imu_accel;
-  vec3s_t imu_gyro;
+  timestamps_t imu_ts;
+  vec3s_t imu_acc;
+  vec3s_t imu_gyr;
   mat4s_t imu_poses;
   vec3s_t imu_vels;
   simulate_imu(ts_start,
                ts_end,
                traj,
-               calib.imu_params,
-               imu_time,
-               imu_accel,
-               imu_gyro,
+               calib_.imu_params,
+               imu_ts,
+               imu_acc,
+               imu_gyr,
                imu_poses,
                imu_vels);
 
@@ -435,48 +438,82 @@ int nbt_eval(const ctraj_t &traj, calib_vi_t &calib, matx_t &calib_covar) {
                    ts_end,
                    traj,
                    calib_target,
-                   calib.cam_geoms,
-                   calib.cam_params,
-                   calib.cam_exts,
+                   calib_.cam_geoms,
+                   calib_.cam_params,
+                   calib_.cam_exts,
                    cam_rate,
-                   calib.get_fiducial_pose(),
+                   calib_.get_fiducial_pose(),
                    cam_grids,
                    T_WC0_sim);
 
   // Add NBT data into calibrator
-  // timeline_t timeline;
-  // nbt_create_timeline(cam_grids, imu_ts, imu_acc, imu_gyr, timeline);
-  //
-  // for (const auto &ts : timeline.timestamps) {
-  //   const auto kv = timeline.data.equal_range(ts);
-  //
-  //   // Handle multiple events in the same timestamp
-  //   for (auto it = kv.first; it != kv.second; it++) {
-  //     const auto event = it->second;
-  //
-  //     // Aprilgrid event
-  //     if (auto grid_event = dynamic_cast<aprilgrid_event_t *>(event)) {
-  //       auto cam_idx = grid_event->cam_idx;
-  //       auto &grid = grid_event->grid;
-  //       calib.add_measurement(cam_idx, grid);
-  //     }
-  //
-  //     // Imu event
-  //     if (auto imu_event = dynamic_cast<imu_event_t *>(event)) {
-  //       const auto ts = imu_event->ts;
-  //       const auto &acc = imu_event->acc;
-  //       const auto &gyr = imu_event->gyr;
-  //       calib.add_measurement(ts, acc, gyr);
-  //     }
-  //   }
-  // }
+  timeline_t timeline;
+  nbt_create_timeline(cam_grids, imu_ts, imu_acc, imu_gyr, timeline);
+
+  for (const auto &ts : timeline.timestamps) {
+    const auto kv = timeline.data.equal_range(ts);
+
+    // Handle multiple events in the same timestamp
+    for (auto it = kv.first; it != kv.second; it++) {
+      const auto event = it->second;
+
+      // Aprilgrid event
+      if (auto grid_event = dynamic_cast<aprilgrid_event_t *>(event)) {
+        auto cam_idx = grid_event->cam_idx;
+        auto &grid = grid_event->grid;
+        calib_.add_measurement(cam_idx, grid);
+      }
+
+      // Imu event
+      if (auto imu_event = dynamic_cast<imu_event_t *>(event)) {
+        const auto ts = imu_event->ts;
+        const auto &acc = imu_event->acc;
+        const auto &gyr = imu_event->gyr;
+        calib_.add_measurement(ts, acc, gyr);
+      }
+    }
+  }
 
   // Estimate calibration covariance
-  if (calib.recover_calib_covar(calib_covar) != 0) {
+  calib_covar.setZero();
+  if (calib_.recover_calib_covar(calib_covar) != 0) {
     return -1;
   }
 
   return 0;
+}
+
+int nbt_find(const ctrajs_t &trajs, const calib_vi_t &calib) {
+  // Calculate info_k
+  matx_t calib_covar;
+  if (calib.recover_calib_covar(calib_covar) != 0) {
+    return -1;
+  }
+  const real_t info_k = calib_covar.determinant();
+
+  // Evaluate trajectories
+  std::vector<real_t> info_kp1;
+  for (const auto &traj : trajs) {
+    matx_t calib_covar;
+    if (nbt_eval(traj, calib, calib_covar) != 0) {
+      info_kp1.push_back(0.0);
+      continue;
+    }
+    info_kp1.push_back(calib_covar.determinant());
+  }
+
+  // Find max information gain
+  int best_idx = -1;
+  real_t best_gain = 0.0;
+  for (size_t i = 0; i < trajs.size(); i++) {
+    const auto info_gain = 0.5 * (info_k - info_kp1[i]);
+    if (info_gain > best_gain) {
+      best_idx = i;
+      best_gain = info_gain;
+    }
+  }
+
+  return best_idx;
 }
 
 } // namespace yac

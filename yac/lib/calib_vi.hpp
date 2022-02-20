@@ -127,6 +127,7 @@ struct calib_vi_t {
   int nb_cams() const;
   int nb_views() const;
   std::vector<int> get_cam_indices() const;
+  real_t get_cam_rate() const;
   veci2_t get_cam_resolution(const int cam_idx) const;
   vecx_t get_cam_params(const int cam_idx) const;
   mat4_t get_cam_extrinsics(const int cam_idx) const;
@@ -144,7 +145,7 @@ struct calib_vi_t {
   void add_measurement(const timestamp_t imu_ts,
                        const vec3_t &a_m,
                        const vec3_t &w_m);
-  int recover_calib_covar(matx_t &calib_covar);
+  int recover_calib_covar(matx_t &calib_covar) const;
   void marginalize();
 
   void solve();

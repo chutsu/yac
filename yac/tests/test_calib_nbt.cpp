@@ -66,9 +66,9 @@ static void setup_test(std::map<int, camera_params_t> &cameras,
   setup_calib_target(cameras[0], target, T_FO, &T_WF);
 }
 
-int test_calib_trajs(const ctrajs_t &trajs,
-                     const timestamp_t ts_start,
-                     const timestamp_t ts_end) {
+int test_nbt_trajs(const ctrajs_t &trajs,
+                   const timestamp_t ts_start,
+                   const timestamp_t ts_end) {
   // Save trajectories
   remove_dir("/tmp/nbt/traj");
   dir_create("/tmp/nbt/traj");
@@ -157,7 +157,7 @@ int test_calib_trajs(const ctrajs_t &trajs,
   return 0;
 }
 
-int test_calib_orbit_trajs() {
+int test_nbt_orbit_trajs() {
   // Setup test
   std::map<int, camera_params_t> cameras;
   extrinsics_t imu_exts;
@@ -171,35 +171,7 @@ int test_calib_orbit_trajs() {
   const timestamp_t ts_start = 0;
   const timestamp_t ts_end = 5e9;
   pinhole_radtan4_t cam_geom;
-  calib_orbit_trajs(ts_start,
-                    ts_end,
-                    target,
-                    &cam_geom,
-                    &cameras[0],
-                    &imu_exts,
-                    T_WF,
-                    T_FO,
-                    trajs);
-  test_calib_trajs(trajs, ts_start, ts_end);
-
-  return 0;
-}
-
-int test_calib_pan_trajs() {
-  // Setup test
-  std::map<int, camera_params_t> cameras;
-  extrinsics_t imu_exts;
-  calib_target_t target;
-  mat4_t T_FO;
-  mat4_t T_WF;
-  setup_test(cameras, imu_exts, target, T_FO, T_WF);
-
-  // Generate trajectories
-  ctrajs_t trajs;
-  const timestamp_t ts_start = 0;
-  const timestamp_t ts_end = 5e9;
-  pinhole_radtan4_t cam_geom;
-  calib_pan_trajs(ts_start,
+  nbt_orbit_trajs(ts_start,
                   ts_end,
                   target,
                   &cam_geom,
@@ -208,12 +180,12 @@ int test_calib_pan_trajs() {
                   T_WF,
                   T_FO,
                   trajs);
-  test_calib_trajs(trajs, ts_start, ts_end);
+  test_nbt_trajs(trajs, ts_start, ts_end);
 
   return 0;
 }
 
-int test_calib_figure8_trajs() {
+int test_nbt_pan_trajs() {
   // Setup test
   std::map<int, camera_params_t> cameras;
   extrinsics_t imu_exts;
@@ -227,16 +199,44 @@ int test_calib_figure8_trajs() {
   const timestamp_t ts_start = 0;
   const timestamp_t ts_end = 5e9;
   pinhole_radtan4_t cam_geom;
-  calib_figure8_trajs(ts_start,
-                      ts_end,
-                      target,
-                      &cam_geom,
-                      &cameras[0],
-                      &imu_exts,
-                      T_WF,
-                      T_FO,
-                      trajs);
-  test_calib_trajs(trajs, ts_start, ts_end);
+  nbt_pan_trajs(ts_start,
+                ts_end,
+                target,
+                &cam_geom,
+                &cameras[0],
+                &imu_exts,
+                T_WF,
+                T_FO,
+                trajs);
+  test_nbt_trajs(trajs, ts_start, ts_end);
+
+  return 0;
+}
+
+int test_nbt_figure8_trajs() {
+  // Setup test
+  std::map<int, camera_params_t> cameras;
+  extrinsics_t imu_exts;
+  calib_target_t target;
+  mat4_t T_FO;
+  mat4_t T_WF;
+  setup_test(cameras, imu_exts, target, T_FO, T_WF);
+
+  // Generate trajectories
+  ctrajs_t trajs;
+  const timestamp_t ts_start = 0;
+  const timestamp_t ts_end = 5e9;
+  pinhole_radtan4_t cam_geom;
+  nbt_figure8_trajs(ts_start,
+                    ts_end,
+                    target,
+                    &cam_geom,
+                    &cameras[0],
+                    &imu_exts,
+                    T_WF,
+                    T_FO,
+                    trajs);
+  test_nbt_trajs(trajs, ts_start, ts_end);
 
   return 0;
 }
@@ -361,43 +361,37 @@ int test_nbt_eval() {
   // Generate trajectories
   ctrajs_t trajs;
   const timestamp_t ts_start = 0;
-  const timestamp_t ts_end = 5e9;
+  const timestamp_t ts_end = 2e9;
   pinhole_radtan4_t cam_geom;
-  calib_orbit_trajs(ts_start,
-                    ts_end,
-                    target,
-                    &cam_geom,
-                    &cameras[0],
-                    &imu_exts,
-                    T_WF,
-                    T_FO,
-                    trajs);
+  nbt_orbit_trajs(ts_start,
+                  ts_end,
+                  target,
+                  &cam_geom,
+                  &cameras[0],
+                  &imu_exts,
+                  T_WF,
+                  T_FO,
+                  trajs);
+
+  // Calibrator
+  calib_vi_t calib;
 
   // #pragma omp parallel for
 
   for (size_t traj_idx = 0; traj_idx < trajs.size(); traj_idx++) {
-    // int retval = nbt_eval(trajs[traj_idx],
-    //                       target,
-    //                       ts_start,
-    //                       ts_end,
-    //                       imu_params,
-    //                       cam0,
-    //                       cam1,
-    //                       cam_rate,
-    //                       T_WF,
-    //                       T_BC0,
-    //                       T_BC1,
-    //                       T_BS,
-    //                       calib_covar);
+    matx_t calib_covar;
+    if (nbt_eval(trajs[traj_idx], calib, calib_covar) != 0) {
+      return -1;
+    }
   }
 
   return 0;
 }
 
 void test_suite() {
-  MU_ADD_TEST(test_calib_orbit_trajs);
-  MU_ADD_TEST(test_calib_pan_trajs);
-  MU_ADD_TEST(test_calib_figure8_trajs);
+  MU_ADD_TEST(test_nbt_orbit_trajs);
+  MU_ADD_TEST(test_nbt_pan_trajs);
+  MU_ADD_TEST(test_nbt_figure8_trajs);
   MU_ADD_TEST(test_simulate_cameras);
   MU_ADD_TEST(test_simulate_imu);
   MU_ADD_TEST(test_nbt_eval);

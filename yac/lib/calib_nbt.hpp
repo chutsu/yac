@@ -11,7 +11,7 @@ namespace yac {
 /** TRAJECTORY GENERATION ****************************************************/
 
 /**
- * Calibration Orbit Trajectories
+ * NBT Orbit Trajectories
  *
  * @param[in] ts_start Start timestamp
  * @param[in] ts_end End timestamp
@@ -23,30 +23,7 @@ namespace yac {
  * @param[in] T_FO Fiducial-Calibration origin relative pose
  * @param[out] trajs Simulated trajectories
  */
-void calib_orbit_trajs(const timestamp_t &ts_start,
-                       const timestamp_t &ts_end,
-                       const calib_target_t &target,
-                       const camera_geometry_t *cam0_geoms,
-                       const camera_params_t *cam0_params,
-                       const extrinsics_t *imu_exts,
-                       const mat4_t &T_WF,
-                       const mat4_t &T_FO,
-                       ctrajs_t &trajs);
-
-/**
- * Calibration Pan Trajectories
- *
- * @param[in] ts_start Start timestamp
- * @param[in] ts_end End timestamp
- * @param[in] target Calibration target configuration
- * @param[in] cam0_geoms Camera0 geometry
- * @param[in] cam0_params Camera0 parameters
- * @param[in] imu_exts Imu-Camera extrinsics T_C0S
- * @param[in] T_WF Fiducial world pose
- * @param[in] T_FO Fiducial-Calibration origin relative pose
- * @param[out] trajs Simulated trajectories
- */
-void calib_pan_trajs(const timestamp_t &ts_start,
+void nbt_orbit_trajs(const timestamp_t &ts_start,
                      const timestamp_t &ts_end,
                      const calib_target_t &target,
                      const camera_geometry_t *cam0_geoms,
@@ -57,7 +34,7 @@ void calib_pan_trajs(const timestamp_t &ts_start,
                      ctrajs_t &trajs);
 
 /**
- * Calibration Figure-8 Trajectories
+ * NBT Pan Trajectories
  *
  * @param[in] ts_start Start timestamp
  * @param[in] ts_end End timestamp
@@ -69,15 +46,38 @@ void calib_pan_trajs(const timestamp_t &ts_start,
  * @param[in] T_FO Fiducial-Calibration origin relative pose
  * @param[out] trajs Simulated trajectories
  */
-void calib_figure8_trajs(const timestamp_t &ts_start,
-                         const timestamp_t &ts_end,
-                         const calib_target_t &target,
-                         const camera_geometry_t *cam0_geoms,
-                         const camera_params_t *cam0_params,
-                         const extrinsics_t *imu_exts,
-                         const mat4_t &T_WF,
-                         const mat4_t &T_FO,
-                         ctrajs_t &trajs);
+void nbt_pan_trajs(const timestamp_t &ts_start,
+                   const timestamp_t &ts_end,
+                   const calib_target_t &target,
+                   const camera_geometry_t *cam0_geoms,
+                   const camera_params_t *cam0_params,
+                   const extrinsics_t *imu_exts,
+                   const mat4_t &T_WF,
+                   const mat4_t &T_FO,
+                   ctrajs_t &trajs);
+
+/**
+ * NBT Figure-8 Trajectories
+ *
+ * @param[in] ts_start Start timestamp
+ * @param[in] ts_end End timestamp
+ * @param[in] target Calibration target configuration
+ * @param[in] cam0_geoms Camera0 geometry
+ * @param[in] cam0_params Camera0 parameters
+ * @param[in] imu_exts Imu-Camera extrinsics T_C0S
+ * @param[in] T_WF Fiducial world pose
+ * @param[in] T_FO Fiducial-Calibration origin relative pose
+ * @param[out] trajs Simulated trajectories
+ */
+void nbt_figure8_trajs(const timestamp_t &ts_start,
+                       const timestamp_t &ts_end,
+                       const calib_target_t &target,
+                       const camera_geometry_t *cam0_geoms,
+                       const camera_params_t *cam0_params,
+                       const extrinsics_t *imu_exts,
+                       const mat4_t &T_WF,
+                       const mat4_t &T_FO,
+                       ctrajs_t &trajs);
 
 /** SIMULATION ****************************************************************/
 
@@ -172,11 +172,21 @@ void nbt_create_timeline(const camera_data_t &cam_grids,
  *
  * @param[in] calib Calibrator
  * @param[in] traj NBT Trajectory
- * @param[out] info Information
+ * @param[out] calib_covar Calibration covariance matrix
  *
  * @returns 0 for success or -1 for failure
  */
-int nbt_eval(const ctraj_t &traj, calib_vi_t &calib, matx_t &calib_covar);
+int nbt_eval(const ctraj_t &traj, const calib_vi_t &calib, matx_t &calib_covar);
+
+/**
+ * Find NBT
+ *
+ * @param[in] calib Calibrator
+ * @param[in] traj NBT Trajectory
+ *
+ * @returns 0 for success or -1 for failure
+ */
+int nbt_find(const ctrajs_t &trajs, const calib_vi_t &calib);
 
 } //  namespace yac
 #endif // YAC_CALIB_NBT_HPP

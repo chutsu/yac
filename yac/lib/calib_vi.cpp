@@ -465,6 +465,24 @@ std::vector<int> calib_vi_t::get_cam_indices() const {
   return cam_idxs;
 }
 
+real_t calib_vi_t::get_cam_rate() const {
+  // Pre-check
+  if (calib_views.size() < 2) {
+    FATAL("calib_views.size() < 2");
+  }
+
+  // Calculate time difference in seconds between views
+  std::vector<real_t> time_diff;
+  for (size_t k = 1; k < calib_views.size(); k++) {
+    auto ts_km1 = calib_views[k - 1]->ts;
+    auto ts_k = calib_views[k]->ts;
+    time_diff.push_back(ts2sec(ts_k - ts_km1));
+  }
+
+  // Return camera rate in Hz
+  return 1.0 / median(time_diff);
+}
+
 veci2_t calib_vi_t::get_cam_resolution(const int cam_idx) const {
   auto cam_res = cam_params.at(cam_idx)->resolution;
   return veci2_t{cam_res[0], cam_res[1]};
@@ -837,7 +855,7 @@ void calib_vi_t::show_results() {
   print_matrix("T_cam0_imu0", get_imu_extrinsics(), "  ");
 }
 
-int calib_vi_t::recover_calib_covar(matx_t &calib_covar) {
+int calib_vi_t::recover_calib_covar(matx_t &calib_covar) const {
   // Recover calibration covariance
   // -- Setup covariance blocks to estimate
   auto T_BS = imu_exts->param.data();

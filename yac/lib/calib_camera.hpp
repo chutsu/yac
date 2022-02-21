@@ -77,7 +77,6 @@ struct calib_view_t {
   vec2s_t get_residuals(const int cam_idx) const;
   std::vector<real_t> get_reproj_errors() const;
   std::vector<real_t> get_reproj_errors(const int cam_idx) const;
-  int filter_view(const real_t reproj_threshold);
   int filter_view(const vec2_t &residual_threshold);
   ceres::ResidualBlockId marginalize(marg_error_t *marg_error);
 };
@@ -109,7 +108,7 @@ struct calib_camera_t {
   bool enable_outlier_filter = true;
   bool enable_marginalization = false;
   bool enable_early_stopping = false;
-  int min_nbv_views = 10;
+  int min_nbv_views = 40;
   real_t outlier_threshold = 3.0;
   real_t info_gain_threshold = 0.2;
   int sliding_window_size = 10;
@@ -152,13 +151,15 @@ struct calib_camera_t {
   // Sliding window
   std::deque<calib_view_t *> calib_views;
 
+  // AprilGrid detector
+  std::unique_ptr<aprilgrid_detector_t> detector;
+
   // Camera geometries
   pinhole_radtan4_t pinhole_radtan4;
   pinhole_equi4_t pinhole_equi4;
 
   // Constructor / Destructor
   calib_camera_t() = delete;
-  calib_camera_t(const calib_camera_t &calib_);
   calib_camera_t(const calib_target_t &calib_target_);
   calib_camera_t(const std::string &config_path);
   ~calib_camera_t();
@@ -237,9 +238,6 @@ struct calib_camera_t {
   int save_stats(const std::string &save_path);
   real_t inspect(const std::map<int, aprilgrids_t> &cam_data);
 };
-
-/** Solve Camera Calibration Problem */
-int calib_camera_solve(const std::string &config_path);
 
 } //  namespace yac
 #endif // YAC_CALIB_CAMERA_HPP

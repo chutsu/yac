@@ -286,37 +286,6 @@ std::vector<real_t> calib_view_t::get_reproj_errors(const int cam_idx) const {
   return reproj_errors;
 }
 
-int calib_view_t::filter_view(const real_t reproj_threshold) {
-  // Filter
-  int nb_inliers = 0;
-  int nb_outliers = 0;
-
-  for (auto cam_idx : get_camera_indices()) {
-    auto res_fns_it = res_fns[cam_idx].begin();
-    auto res_ids_it = res_ids[cam_idx].begin();
-
-    while (res_fns_it != res_fns[cam_idx].end()) {
-      auto res = *res_fns_it;
-      auto res_id = *res_ids_it;
-
-      real_t err = 0.0;
-      if (res->get_reproj_error(err) == 0 && err > reproj_threshold) {
-        problem->RemoveResidualBlock(res_id);
-        delete res;
-        res_fns_it = res_fns[cam_idx].erase(res_fns_it);
-        res_ids_it = res_ids[cam_idx].erase(res_ids_it);
-        nb_outliers++;
-      } else {
-        ++res_fns_it;
-        ++res_ids_it;
-        nb_inliers++;
-      }
-    }
-  }
-
-  return nb_outliers;
-}
-
 int calib_view_t::filter_view(const vec2_t &residual_threshold) {
   // Filter
   const real_t th_x = residual_threshold.x();
@@ -393,6 +362,12 @@ calib_camera_t::calib_camera_t(const calib_target_t &calib_target_)
       problem->SetParameterBlockConstant(corner->data());
     }
   }
+
+  // AprilGrid detector
+  detector = std::make_unique<aprilgrid_detector_t>(calib_target.tag_rows,
+                                                    calib_target.tag_cols,
+                                                    calib_target.tag_size,
+                                                    calib_target.tag_spacing);
 }
 
 calib_camera_t::calib_camera_t(const std::string &config_path)
@@ -497,6 +472,12 @@ calib_camera_t::calib_camera_t(const std::string &config_path)
       problem->SetParameterBlockConstant(corner->data());
     }
   }
+
+  // AprilGrid detector
+  detector = std::make_unique<aprilgrid_detector_t>(calib_target.tag_rows,
+                                                    calib_target.tag_cols,
+                                                    calib_target.tag_size,
+                                                    calib_target.tag_spacing);
 }
 
 calib_camera_t::~calib_camera_t() {
@@ -1412,9 +1393,25 @@ int calib_camera_t::_eval_nbv(const timestamp_t nbv_ts) {
   // Solve with new view
   ceres::Solver::Options options;
   options.minimizer_progress_to_stdout = false;
-  options.max_num_iterations = 10;
+  options.max_num_iterations = 5;
   ceres::Solver::Summary summary;
   ceres::Solve(options, problem, &summary);
+
+  {
+    // Calculate information gain
+    real_t info_kp1 = 0.0;
+    if (_calc_info(&info_kp1) != 0) {
+      return -1;
+    }
+    const real_t info_gain = 0.5 * (info_k - info_kp1);
+
+    // Remove view?
+    if (info_gain < info_gain_threshold) {
+      _restore_estimates();
+      remove_view(nbv_ts);
+      return -2;
+    }
+  }
 
   // Filter last view and optimize again
   int removed = 0;
@@ -1422,28 +1419,24 @@ int calib_camera_t::_eval_nbv(const timestamp_t nbv_ts) {
     if (filter_views_init == false) {
       // Filter all views and solve again
       removed = _filter_all_views();
-      ceres::Solve(options, problem, &summary);
       filter_views_init = true;
-
-      // Recalculate info_k
-      _calc_info(&info_k);
-      removed_outliers += removed;
-      return 0;
 
     } else {
       // Filter last view
       // -- Calculate reprojection threshold on a per-camera basis
       std::map<int, vec2_t> cam_thresholds;
+      std::map<int, vec2s_t> cam_residuals = get_residuals();
+      // std::map<int, vec2s_t> cam_residuals = batch_residuals;
       for (const auto cam_idx : get_camera_indices()) {
-        const vec2s_t cam_r = batch_residuals[cam_idx];
+        const vec2s_t cam_r = cam_residuals[cam_idx];
         const vec2_t cam_stddev = stddev(cam_r);
         cam_thresholds[cam_idx] = outlier_threshold * cam_stddev;
       }
       // -- Filter and solve again
       removed = _filter_view(nbv_ts, cam_thresholds);
-      ceres::Solve(options, problem, &summary);
     }
   }
+  ceres::Solve(options, problem, &summary);
 
   // Calculate information gain
   real_t info_kp1 = 0.0;
@@ -1499,15 +1492,16 @@ int calib_camera_t::_eval_nbv(const timestamp_t nbv_ts) {
 
 void calib_camera_t::_print_stats(const size_t ts_idx,
                                   const size_t nb_timestamps) {
+  // Show general stats
   const real_t progress = ((real_t)ts_idx / nb_timestamps) * 100.0;
   const auto reproj_errors_all = get_all_reproj_errors();
   printf("[%.2f%%] ", progress);
   printf("nb_views: %d  ", nb_views());
-  printf("reproj_error: %.2f ", rmse(reproj_errors_all));
-  printf("info_k: %f ", info_k);
-  printf("valid_error_k: %f ", valid_error_k);
+  printf("reproj_error: %.4f  ", rmse(reproj_errors_all));
+  printf("info_k: %.4f  ", info_k);
   printf("\n");
 
+  // Show current calibration estimates
   if ((ts_idx % 10) == 0) {
     printf("\n");
     const mat4_t T_BC0 = get_camera_extrinsics(0);
@@ -2023,14 +2017,6 @@ real_t calib_camera_t::inspect(const std::map<int, aprilgrids_t> &valid_data) {
   }
 
   return rmse(reproj_errors_all);
-}
-
-int calib_camera_solve(const std::string &config_path) {
-  calib_camera_t calib{config_path};
-  calib.solve();
-  calib.save_results("/tmp/calib-results.yaml");
-  calib.save_stats("/tmp/calib-stats.csv");
-  return 0;
 }
 
 } //  namespace yac

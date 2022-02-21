@@ -374,9 +374,8 @@ int test_nbt_eval() {
                   trajs);
 
   // Calibrator
-  calib_vi_t calib;
-
-  // #pragma omp parallel for
+  calib_target_t calib_target;
+  calib_vi_t calib{calib_target};
 
   for (size_t traj_idx = 0; traj_idx < trajs.size(); traj_idx++) {
     matx_t calib_covar;

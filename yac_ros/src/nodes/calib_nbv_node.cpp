@@ -18,8 +18,8 @@ struct calib_nbv_t {
   // Calibration state
   enum CALIB_STATE {
     INITIALIZE = 0,
-    NBV = 2,
-    BATCH = 3,
+    NBV = 1,
+    BATCH = 2,
   };
   int state = INITIALIZE;
 
@@ -34,11 +34,8 @@ struct calib_nbv_t {
   std::mutex calib_mutex;
   bool keep_running = true;
   bool find_nbv_event = false;
-  // struct termios term_config_orig;
 
   // Calibration
-  calib_target_t calib_target;
-  std::unique_ptr<aprilgrid_detector_t> detector;
   std::unique_ptr<calib_camera_t> calib;
 
   // Data
@@ -67,86 +64,19 @@ struct calib_nbv_t {
   calib_nbv_t(const std::string &node_name_) : node_name{node_name_} {
     std::string config_file;
     ROS_PARAM(ros_nh, node_name + "/config_file", config_file);
-    setup_calib_target(config_file);
-    setup_calibrator(config_file);
-    setup_aprilgrid_detector();
-    setup_ros_topics(config_file);
-  }
-
-  /* Destructor */
-  ~calib_nbv_t() = default;
-
-  /** Setup Calibration Target */
-  void setup_calib_target(const std::string &config_file) {
-    config_t config{config_file};
-    if (calib_target.load(config_file, "calib_target") != 0) {
-      FATAL("Failed to parse calib_target in [%s]!", config_file.c_str());
-    }
-  }
-
-  /** Setup Camera Calibrator */
-  void setup_calibrator(const std::string &config_file) {
-    // Load configuration
-    config_t config{config_file};
-    // -- Parse camera settings
-    std::map<int, veci2_t> cam_res;
-    std::map<int, std::string> cam_proj_models;
-    std::map<int, std::string> cam_dist_models;
-    for (int cam_idx = 0; cam_idx < 100; cam_idx++) {
-      // Check if key exists
-      const std::string cam_str = "cam" + std::to_string(cam_idx);
-      if (yaml_has_key(config, cam_str) == 0) {
-        continue;
-      }
-
-      // Parse
-      veci2_t resolution;
-      std::string proj_model;
-      std::string dist_model;
-      parse(config, cam_str + ".resolution", resolution);
-      parse(config, cam_str + ".proj_model", proj_model);
-      parse(config, cam_str + ".dist_model", dist_model);
-      cam_res[cam_idx] = resolution;
-      cam_proj_models[cam_idx] = proj_model;
-      cam_dist_models[cam_idx] = dist_model;
-    }
-    if (cam_res.size() == 0) {
-      FATAL("Failed to parse any camera parameters...");
-    }
 
     // Setup calibrator
     LOG_INFO("Setting up camera calibrator ...");
-    calib = std::make_unique<calib_camera_t>(calib_target);
-    for (auto &[cam_idx, _] : cam_res) {
-      LOG_INFO("Adding [cam%d] params", cam_idx);
-      calib->add_camera(cam_idx,
-                        cam_res[cam_idx].data(),
-                        cam_proj_models[cam_idx],
-                        cam_dist_models[cam_idx]);
-      calib->add_camera_extrinsics(cam_idx,
-                                   I(4),
-                                   (cam_idx == 0) ? true : false);
-    }
-  }
+    calib = std::make_unique<calib_camera_t>(config_file);
 
-  /** Setup AprilGrid detector */
-  void setup_aprilgrid_detector() {
-    detector = std::make_unique<aprilgrid_detector_t>(calib_target.tag_rows,
-                                                      calib_target.tag_cols,
-                                                      calib_target.tag_size,
-                                                      calib_target.tag_spacing);
-  }
-
-  /** Setup ROS Topics */
-  void setup_ros_topics(const std::string &config_file) {
-    // Parse camera ros topics
+    // Setup ROS topics
+    LOG_INFO("Setting up ROS subscribers ...");
     config_t config{config_file};
     parse_camera_topics(config, mcam_topics);
     if (mcam_topics.size() == 0) {
       FATAL("No camera topics found in [%s]!", config_file.c_str());
     }
-
-    // Subscribe
+    // -- Subscribe
     for (const auto [cam_idx, topic] : mcam_topics) {
       LOG_INFO("Subscribing to cam%d @ [%s]", cam_idx, topic.c_str());
       auto _1 = std::placeholders::_1;
@@ -154,6 +84,9 @@ struct calib_nbv_t {
       mcam_subs[cam_idx] = img_trans.subscribe(topic, 1, cb);
     }
   }
+
+  /* Destructor */
+  ~calib_nbv_t() = default;
 
   /**
    * Update image buffer
@@ -187,7 +120,7 @@ struct calib_nbv_t {
     for (auto &[cam_idx, data] : img_buffer) {
       const auto img_ts = data.first;
       const auto &img = data.second;
-      const auto grid = detector->detect(img_ts, img);
+      const auto grid = calib->detector->detect(img_ts, img);
       if (grid.detected) {
         grid_buffer[cam_idx] = grid;
       }
@@ -215,7 +148,7 @@ struct calib_nbv_t {
     const mat4_t T_FC0 = nbv_poses.at(nbv_cam_idx).at(nbv_idx);
     const mat4_t T_C0Ci = calib->cam_exts[nbv_cam_idx]->tf();
     const mat4_t T_FCi = T_FC0 * T_C0Ci;
-    nbv_draw(calib_target, cam_geom, cam_params, T_FCi, img);
+    nbv_draw(calib->calib_target, cam_geom, cam_params, T_FCi, img);
 
     // Show NBV Reproj Error
     draw_nbv_reproj_error(nbv_reproj_err, img);
@@ -391,7 +324,7 @@ struct calib_nbv_t {
     }
 
     // Create NBV poses based on current calibrations
-    nbv_poses = calib_nbv_poses(calib_target,
+    nbv_poses = calib_nbv_poses(calib->calib_target,
                                 calib->cam_geoms,
                                 calib->cam_params,
                                 calib->cam_exts);
@@ -404,7 +337,7 @@ struct calib_nbv_t {
       const mat4_t T_FC0 = nbv_poses.at(nbv_cam_idx).at(nbv_idx);
       const mat4_t T_C0Ci = calib->cam_exts[nbv_cam_idx]->tf();
       const mat4_t T_FCi = T_FC0 * T_C0Ci;
-      nbv_target = nbv_target_grid(calib_target,
+      nbv_target = nbv_target_grid(calib->calib_target,
                                    calib->cam_geoms[nbv_cam_idx],
                                    calib->cam_params[nbv_cam_idx],
                                    0,

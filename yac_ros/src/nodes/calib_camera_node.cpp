@@ -80,9 +80,10 @@ int main(int argc, char *argv[]) {
   process_rosbag(config_file);
 
   // Calibrate camera intrinsics
-  if (calib_camera_solve(config_file) != 0) {
-    FATAL("Failed to calibrate camera!");
-  }
+  calib_camera_t calib{config_file};
+  calib.solve();
+  calib.save_results("/tmp/calib-results.yaml");
+  calib.save_stats("/tmp/calib-stats.csv");
 
   return 0;
 }

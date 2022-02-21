@@ -394,7 +394,7 @@ void test_suite() {
   MU_ADD_TEST(test_nbt_figure8_trajs);
   MU_ADD_TEST(test_simulate_cameras);
   MU_ADD_TEST(test_simulate_imu);
-  MU_ADD_TEST(test_nbt_eval);
+  // MU_ADD_TEST(test_nbt_eval);
 }
 
 } // namespace yac

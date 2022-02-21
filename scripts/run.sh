@@ -91,7 +91,7 @@ RUN_CMD="rosrun yac test_calib_nbt"
 
 tmux send-keys -t dev -R "\
 cd ~/projects/yac \
-&& make lib \
+&& make release \
 && source ~/catkin_ws/devel/setup.bash \
 && ${RUN_CMD}
 " C-m C-m

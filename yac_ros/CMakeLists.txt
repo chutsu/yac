@@ -82,30 +82,10 @@ CATKIN_PACKAGE(
 )
 
 # LINK
-SET(
-  DEPS
-  yac_ros
-  ${catkin_LIBRARIES}
-  ${YAC_DEPS}
-)
+SET(DEPS yac_ros ${catkin_LIBRARIES} ${YAC_DEPS})
 
 # YAC ROS
-ADD_LIBRARY(yac_ros
-            src/calib_vi/common/Duration.cpp
-            src/calib_vi/common/operators.cpp
-            src/calib_vi/common/Time.cpp
-            src/calib_vi/common/Transformation.cpp
-            src/calib_vi/cv/CameraBase.cpp
-            src/calib_vi/cv/EquidistantDistortion.cpp
-            src/calib_vi/cv/RadialTangentialDistortion.cpp
-            src/calib_vi/param/LocalParamizationAdditionalInterfaces.cpp
-            src/calib_vi/error/MarginalizationError.cpp
-            src/calib_vi/error/PoseError.cpp
-            src/calib_vi/error/SpeedAndBiasError.cpp
-            src/calib_vi/Calibrator.cpp
-            src/calib_vi/Map.cpp
-            src/ros_calib.cpp
-            src/ros_utils.cpp)
+ADD_LIBRARY(yac_ros src/ros_calib.cpp src/ros_utils.cpp)
 INSTALL(
   DIRECTORY launch/
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/launch
@@ -118,8 +98,8 @@ TARGET_LINK_LIBRARIES(calib_camera_node ${DEPS})
 # ADD_EXECUTABLE(calib_mocap_node src/nodes/calib_mocap_node.cpp)
 # TARGET_LINK_LIBRARIES(calib_mocap_node ${DEPS})
 
-# ADD_EXECUTABLE(calib_vi_smart_node src/nodes/calib_vi_smart_node.cpp)
-# TARGET_LINK_LIBRARIES(calib_vi_smart_node ${DEPS})
+ADD_EXECUTABLE(calib_nbt_node src/nodes/calib_nbt_node.cpp)
+TARGET_LINK_LIBRARIES(calib_nbt_node ${DEPS})
 
 ADD_EXECUTABLE(calib_nbv_node src/nodes/calib_nbv_node.cpp)
 TARGET_LINK_LIBRARIES(calib_nbv_node ${DEPS})

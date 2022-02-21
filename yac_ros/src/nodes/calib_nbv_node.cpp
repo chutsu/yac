@@ -278,33 +278,10 @@ struct calib_nbv_t {
     }
 
     // NBV reached! Now add measurements to calibrator
-    for (const auto &[cam_idx, grid] : grid_buffer) {
-      // Double-check
-      if (grid.detected == false) {
-        continue;
-      }
-
-      // Add pose
-      auto ts = grid.timestamp;
-      if (calib->poses.count(ts) == 0) {
-        calib->add_pose(cam_idx, grid);
-      }
-
-      // Add calibration view
-      calib->add_view(grid,
-                      calib->problem,
-                      calib->loss,
-                      cam_idx,
-                      calib->cam_geoms[cam_idx],
-                      calib->cam_params[cam_idx],
-                      calib->cam_exts[cam_idx],
-                      calib->poses[ts]);
-
-      // Solve current calibration
-      calib->enable_nbv = false;
-      calib->enable_outlier_filter = false;
-      calib->solve();
-    }
+    calib->add_view(grid_buffer);
+    calib->enable_nbv = false;
+    calib->enable_outlier_filter = false;
+    calib->solve();
 
     return true;
   }

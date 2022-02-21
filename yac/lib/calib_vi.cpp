@@ -213,7 +213,8 @@ ceres::ResidualBlockId calib_vi_view_t::marginalize(marg_error_t *marg_error) {
 
 // VISUAL INERTIAL CALIBRATOR //////////////////////////////////////////////////
 
-calib_vi_t::calib_vi_t() {
+calib_vi_t::calib_vi_t(const calib_target_t &calib_target_)
+    : calib_target{calib_target_} {
   prob_options.local_parameterization_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
   prob_options.cost_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
   prob_options.loss_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
@@ -348,6 +349,12 @@ calib_vi_t::calib_vi_t(const calib_vi_t &calib) {
                                               NULL,
                                               marg_error->get_param_ptrs());
   }
+
+  // AprilGrid detector
+  detector = std::make_unique<aprilgrid_detector_t>(calib_target.tag_rows,
+                                                    calib_target.tag_cols,
+                                                    calib_target.tag_size,
+                                                    calib_target.tag_spacing);
 }
 
 calib_vi_t::~calib_vi_t() {

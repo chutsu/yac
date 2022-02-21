@@ -89,6 +89,7 @@ struct calib_vi_t {
   // Data
   bool initialized = false;
   // -- Vision data
+  calib_target_t calib_target;
   std::map<int, std::deque<aprilgrid_t>> grid_buf;
   CamIdx2Grids prev_grids;
   // -- Imu data
@@ -100,12 +101,15 @@ struct calib_vi_t {
   ceres::ResidualBlockId marg_error_id;
   marg_error_t *marg_error = nullptr;
 
+  // AprilGrid detector
+  std::unique_ptr<aprilgrid_detector_t> detector;
+
   // Camera geometries
   pinhole_radtan4_t pinhole_radtan4;
   pinhole_equi4_t pinhole_equi4;
 
-  // Constructor
-  calib_vi_t();
+  // Constructor / Destructor
+  calib_vi_t(const calib_target_t &calib_target_);
   calib_vi_t(const calib_vi_t &calib);
   ~calib_vi_t();
 

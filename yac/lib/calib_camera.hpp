@@ -78,6 +78,7 @@ struct calib_view_t {
   std::vector<real_t> get_reproj_errors() const;
   std::vector<real_t> get_reproj_errors(const int cam_idx) const;
   int filter_view(const vec2_t &residual_threshold);
+  int filter_view(const std::map<int, vec2_t> &residual_thresholds);
   ceres::ResidualBlockId marginalize(marg_error_t *marg_error);
 };
 
@@ -150,7 +151,8 @@ struct calib_camera_t {
   std::map<timestamp_t, pose_t *> poses;
 
   // Sliding window
-  std::deque<calib_view_t *> calib_views;
+  timestamps_t calib_view_timestamps;
+  std::map<timestamp_t, calib_view_t *> calib_views;
 
   // AprilGrid detector
   std::unique_ptr<aprilgrid_detector_t> detector;
@@ -215,8 +217,6 @@ struct calib_camera_t {
 
   void _initialize_intrinsics();
   void _initialize_extrinsics();
-  int _filter_view(const timestamp_t ts,
-                   const std::map<int, vec2_t> &cam_thresholds);
   int _filter_all_views();
   void _cache_estimates();
   void _restore_estimates();

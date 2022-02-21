@@ -303,6 +303,51 @@ int calib_view_t::filter_view(const vec2_t &residual_threshold) {
 
       vec2_t r{0.0, 0.0};
       if (res->get_residual(r) == 0 && (r.x() > th_x || r.y() > th_y)) {
+        // Remove grid measurement
+        auto tag_id = res->p_FFi->tag_id;
+        auto corner_idx = res->p_FFi->tag_id;
+        grids[cam_idx].remove(tag_id, corner_idx);
+        if (grids[cam_idx].has(tag_id, corner_idx)) {
+          FATAL("tag_id: %d and corner_idx: %d should not exist!",
+                tag_id,
+                corner_idx);
+        }
+
+        // Remove residual block from ceres::Problem
+        problem->RemoveResidualBlock(res_id);
+        delete res;
+
+        res_fns_it = res_fns[cam_idx].erase(res_fns_it);
+        res_ids_it = res_ids[cam_idx].erase(res_ids_it);
+        nb_outliers++;
+      } else {
+        ++res_fns_it;
+        ++res_ids_it;
+        nb_inliers++;
+      }
+    }
+  }
+
+  return nb_outliers;
+}
+
+int calib_view_t::filter_view(
+    const std::map<int, vec2_t> &residual_thresholds) {
+  int nb_inliers = 0;
+  int nb_outliers = 0;
+
+  for (const auto cam_idx : get_camera_indices()) {
+    const real_t th_x = residual_thresholds.at(cam_idx).x();
+    const real_t th_y = residual_thresholds.at(cam_idx).y();
+    auto res_fns_it = res_fns[cam_idx].begin();
+    auto res_ids_it = res_ids[cam_idx].begin();
+
+    while (res_fns_it != res_fns[cam_idx].end()) {
+      auto res = *res_fns_it;
+      auto res_id = *res_ids_it;
+
+      vec2_t r{0.0, 0.0};
+      if (res->get_residual(r) == 0 && (r.x() > th_x || r.y() > th_y)) {
         problem->RemoveResidualBlock(res_id);
         delete res;
         res_fns_it = res_fns[cam_idx].erase(res_fns_it);
@@ -475,7 +520,7 @@ calib_camera_t::calib_camera_t(const std::string &config_path)
 }
 
 calib_camera_t::~calib_camera_t() {
-  for (auto &view : calib_views) {
+  for (auto &[ts, view] : calib_views) {
     delete view;
   }
 
@@ -558,7 +603,7 @@ mat4_t calib_camera_t::get_camera_extrinsics(const int cam_idx) const {
 
 std::vector<real_t> calib_camera_t::get_all_reproj_errors() {
   std::vector<real_t> reproj_errors_all;
-  for (auto &view : calib_views) {
+  for (auto &[ts, view] : calib_views) {
     extend(reproj_errors_all, view->get_reproj_errors());
   }
   return reproj_errors_all;
@@ -567,7 +612,7 @@ std::vector<real_t> calib_camera_t::get_all_reproj_errors() {
 std::map<int, std::vector<real_t>> calib_camera_t::get_reproj_errors() {
   std::map<int, std::vector<real_t>> reproj_errors;
 
-  for (auto &view : calib_views) {
+  for (auto &[ts, view] : calib_views) {
     for (auto &cam_idx : view->get_camera_indices()) {
       for (const auto &error : view->get_reproj_errors(cam_idx)) {
         reproj_errors[cam_idx].push_back(error);
@@ -581,7 +626,7 @@ std::map<int, std::vector<real_t>> calib_camera_t::get_reproj_errors() {
 std::map<int, vec2s_t> calib_camera_t::get_residuals() {
   std::map<int, vec2s_t> residuals;
 
-  for (auto &view : calib_views) {
+  for (auto &[ts, view] : calib_views) {
     for (auto &cam_idx : view->get_camera_indices()) {
       for (const auto &r : view->get_residuals(cam_idx)) {
         residuals[cam_idx].push_back(r);
@@ -790,15 +835,16 @@ bool calib_camera_t::add_view(const std::map<int, aprilgrid_t> &cam_grids,
   }
 
   // Add calibration view
-  calib_views.push_back(new calib_view_t{ts,
-                                         cam_grids,
-                                         &corners,
-                                         problem,
-                                         loss,
-                                         &cam_geoms,
-                                         &cam_params,
-                                         &cam_exts,
-                                         poses[ts]});
+  calib_view_timestamps.push_back(ts);
+  calib_views[ts] = new calib_view_t{ts,
+                                     cam_grids,
+                                     &corners,
+                                     problem,
+                                     loss,
+                                     &cam_geoms,
+                                     &cam_params,
+                                     &cam_exts,
+                                     poses[ts]};
   if (solve == false) {
     return true;
   }
@@ -858,24 +904,6 @@ bool calib_camera_t::add_view(const std::map<int, aprilgrid_t> &cam_grids,
 }
 
 void calib_camera_t::remove_view(const timestamp_t ts) {
-  // Remove view
-  auto view_it = calib_views.begin();
-  while (view_it != calib_views.end()) {
-    auto view = *view_it;
-    if (view->ts != ts) {
-      view_it++;
-      continue;
-    }
-
-    for (auto &[cam_idx, res_ids] : view->res_ids) {
-      for (auto &res_id : res_ids) {
-        problem->RemoveResidualBlock(res_id);
-      }
-    }
-    delete view;
-    view_it = calib_views.erase(view_it);
-  }
-
   // Remove pose
   if (poses.count(ts)) {
     auto pose_ptr = poses[ts];
@@ -885,19 +913,39 @@ void calib_camera_t::remove_view(const timestamp_t ts) {
     poses.erase(ts);
     delete pose_ptr;
   }
+
+  // Remove view
+  if (calib_views.count(ts)) {
+    auto view_it = calib_views.find(ts);
+    delete view_it->second;
+    calib_views.erase(view_it);
+
+    auto ts_it = std::find(calib_view_timestamps.begin(),
+                           calib_view_timestamps.end(),
+                           ts);
+    calib_view_timestamps.erase(ts_it);
+  }
 }
 
 void calib_camera_t::remove_all_views() {
-  for (const auto ts : timestamps) {
+  timestamps_t view_timestamps;
+  for (const auto &[ts, _] : calib_views) {
+    UNUSED(_);
+    view_timestamps.push_back(ts);
+  }
+
+  for (const auto ts : view_timestamps) {
     remove_view(ts);
   }
+
   problem_init = false;
   removed_outliers = 0;
 }
 
 void calib_camera_t::marginalize() {
   // Mark the pose to be marginalized
-  const auto marg_ts = calib_views.front()->ts;
+  auto marg_ts = calib_view_timestamps[0];
+  auto view = calib_views[marg_ts];
   poses[marg_ts]->marginalize = true;
 
   // Form new marg_error_t
@@ -918,19 +966,10 @@ void calib_camera_t::marginalize() {
   }
 
   // Marginalize view
-  auto view = calib_views.front();
   marg_error_id = view->marginalize(marg_error);
 
   // Remove view
-  calib_views.pop_front();
-  delete view;
-
-  // Remove pose
-  if (poses.count(marg_ts)) {
-    auto pose_ptr = poses[marg_ts];
-    poses.erase(marg_ts);
-    delete pose_ptr;
-  }
+  remove_view(marg_ts);
 }
 
 real_t calib_camera_t::_estimate_calib_info() {
@@ -941,7 +980,7 @@ real_t calib_camera_t::_estimate_calib_info() {
   std::vector<param_t *> remain_camera_param_ptrs;
   std::vector<param_t *> remain_extrinsics_ptrs;
   std::vector<param_t *> remain_fiducial_ptrs;
-  for (auto &view : calib_views) {
+  for (auto &[ts, view] : calib_views) {
     for (auto &[cam_idx, cam_residuals] : view->res_fns) {
       for (auto &res_block : cam_residuals) {
         for (auto param_block : res_block->param_blocks) {
@@ -1340,23 +1379,6 @@ void calib_camera_t::_initialize_extrinsics() {
   }
 }
 
-int calib_camera_t::_filter_view(const timestamp_t ts,
-                                 const std::map<int, vec2_t> &cam_thresholds) {
-  int removed = 0;
-  for (auto &view : calib_views) {
-    if (view->ts != ts) {
-      continue;
-    }
-
-    for (const int cam_idx : view->get_camera_indices()) {
-      removed += view->filter_view(cam_thresholds.at(cam_idx));
-    }
-    break;
-  }
-
-  return removed;
-}
-
 int calib_camera_t::_filter_all_views() {
   int removed = 0;
 
@@ -1365,16 +1387,13 @@ int calib_camera_t::_filter_all_views() {
   std::map<int, vec2s_t> cam_residuals = get_residuals();
   for (const auto cam_idx : get_camera_indices()) {
     const vec2s_t cam_r = cam_residuals[cam_idx];
-    const vec2_t cam_mean = mean(cam_r);
     const vec2_t cam_stddev = stddev(cam_r);
     cam_thresholds[cam_idx] = outlier_threshold * cam_stddev;
   }
 
   // Filter views
-  for (auto &view : calib_views) {
-    for (const int cam_idx : view->get_camera_indices()) {
-      removed += view->filter_view(cam_thresholds[cam_idx]);
-    }
+  for (auto &[ts, view] : calib_views) {
+    removed += view->filter_view(cam_thresholds);
   }
 
   return removed;
@@ -1431,26 +1450,54 @@ int calib_camera_t::_calc_info(real_t *info) {
 void calib_camera_t::_remove_outliers() {
   int removed = 0;
 
+  // if (filter_views_init == false) {
+  //   // Filter all views
+  //   for (size_t k = calib_views.size() - 1; k >= 0; k--) {
+  //     // Calculate reprojection threshold on a per-camera basis
+  //     std::map<int, vec2_t> cam_thresholds;
+  //     std::map<int, vec2s_t> cam_residuals = get_residuals();
+  //     for (const auto cam_idx : get_camera_indices()) {
+  //       const vec2s_t cam_r = cam_residuals[cam_idx];
+  //       const vec2_t cam_stddev = stddev(cam_r);
+  //       cam_thresholds[cam_idx] = outlier_threshold * cam_stddev;
+  //     }
+  //
+  //     // Filter view
+  //     auto &view = calib_views[k];
+  //     view->filter_view(cam_thresholds);
+  //
+  //     // Estimate info after filter
+  //     real_t info_kp1 = 0.0;
+  //     if (_calc_info(&info_kp1) != 0) {
+  //       continue;
+  //     }
+  //
+  //     // Temporarily store filtered data
+  //     auto ts = view->ts;
+  //     auto grids = view->grids;
+  //     auto corners = view->corners;
+  //     auto res_fns = view->res_fns;
+  //     auto T_C0F = view->T_C0F;
+  //
+  //     // Remove view from problem completely
+  //     for (auto &[cam_idx, res_ids] : view->res_ids) {
+  //       for (auto &res_id : res_ids) {
+  //         problem->RemoveResidualBlock(res_id);
+  //       }
+  //     }
+  //   }
+  //
+  //   filter_views_init = true;
+  // }
+
   // Filter last view and optimize again
   // if (enable_nbv_filter && nb_views() > min_nbv_views) {
-  //   if (filter_views_init == false) {
   //     // Filter all views and solve again
   //     removed = _filter_all_views();
   //     filter_views_init = true;
   //
   //   } else {
   //     // Filter last view
-  //     // -- Calculate reprojection threshold on a per-camera basis
-  //     std::map<int, vec2_t> cam_thresholds;
-  //     std::map<int, vec2s_t> cam_residuals = get_residuals();
-  //     // std::map<int, vec2s_t> cam_residuals = batch_residuals;
-  //     for (const auto cam_idx : get_camera_indices()) {
-  //       const vec2s_t cam_r = cam_residuals[cam_idx];
-  //       const vec2_t cam_stddev = stddev(cam_r);
-  //       cam_thresholds[cam_idx] = outlier_threshold * cam_stddev;
-  //     }
-  //     // -- Filter and solve again
-  //     removed = _filter_view(nbv_ts, cam_thresholds);
   //   }
   // }
 
@@ -1877,10 +1924,9 @@ int calib_camera_t::save_stats(const std::string &save_path) {
   fprintf(outfile, "ry\n");
 
   // Calib views
-  for (const auto &cam_view : calib_views) {
+  for (const auto &[ts, cam_view] : calib_views) {
     for (const auto &[cam_idx, res_fns] : cam_view->res_fns) {
       for (const auto &res_fn : res_fns) {
-        const auto ts = cam_view->ts;
         const auto corner = res_fn->p_FFi;
         const vec2_t z = res_fn->z;
         const int tag_id = corner->tag_id;

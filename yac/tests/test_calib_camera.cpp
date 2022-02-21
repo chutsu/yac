@@ -187,8 +187,7 @@ int test_calib_camera_add_and_remove_view() {
   }
   MU_CHECK(calib.poses.count(view_ts));
   MU_CHECK(calib.calib_views.size() == 1);
-  MU_CHECK(calib.calib_views.size() == 1);
-  MU_CHECK(calib.calib_views.front()->get_camera_indices().size() == 2);
+  MU_CHECK(calib.calib_views.begin()->second->get_camera_indices().size() == 2);
   MU_CHECK(calib.problem->NumResidualBlocks() > 0);
   MU_CHECK(calib.problem->NumParameterBlocks() == 149);
   // 144 corners + 2 camera parameters + 2 camera extrinsics + 1 pose
@@ -196,7 +195,6 @@ int test_calib_camera_add_and_remove_view() {
   // Remove view
   calib.remove_view(view_ts);
   MU_CHECK(calib.poses.count(view_ts) == 0);
-  MU_CHECK(calib.calib_views.size() == 0);
   MU_CHECK(calib.calib_views.size() == 0);
   MU_CHECK(calib.problem->NumResidualBlocks() == 0);
   MU_CHECK(calib.problem->NumParameterBlocks() == 148);
@@ -281,40 +279,6 @@ int test_calib_camera_find_nbv() {
   printf("cam_idx: %d\n", cam_idx);
   printf("nbv_idx: %d\n", nbv_idx);
   calib.solve();
-
-  return 0;
-}
-
-int test_calib_camera_filter_view() {
-  const int cam_res[2] = {752, 480};
-  const std::string proj_model = "pinhole";
-  const std::string dist_model = "radtan4";
-  const calib_target_t calib_target;
-
-  calib_camera_t calib{calib_target};
-  calib.add_camera(0, cam_res, proj_model, dist_model);
-  calib.add_camera(1, cam_res, proj_model, dist_model);
-  calib.add_camera_extrinsics(0);
-  calib.add_camera_extrinsics(1);
-  calib.add_camera_data(0, test_data.at(0));
-  calib.add_camera_data(1, test_data.at(1));
-
-  timestamp_t last_ts = 0;
-  for (const auto ts : calib.timestamps) {
-    last_ts = ts;
-    calib.add_view(calib.calib_data[ts]);
-    if (calib.nb_views() > 10) {
-      break;
-    }
-  }
-
-  std::map<int, vec2_t> cam_thresholds = {{0, vec2_t{1.0, 1.0}},
-                                          {1, vec2_t{1.0, 1.0}}};
-  calib._filter_view(last_ts, cam_thresholds);
-  ceres::Solver::Options options;
-  options.minimizer_progress_to_stdout = true;
-  ceres::Solver::Summary summary;
-  ceres::Solve(options, calib.problem, &summary);
 
   return 0;
 }
@@ -505,7 +469,7 @@ int test_marg_error() {
   int nb_res_blocks = calib.problem->NumResidualBlocks();
   int nb_param_blocks = calib.problem->NumParameterBlocks();
   marg_error_t marg_error;
-  auto view = calib.calib_views.front();
+  auto view = calib.calib_views.begin()->second;
   view->marginalize(&marg_error);
   // -- Asserts
   MU_CHECK(nb_res_blocks > calib.problem->NumResidualBlocks());
@@ -601,7 +565,6 @@ void test_suite() {
   MU_ADD_TEST(test_calib_camera_add_and_remove_view);
   MU_ADD_TEST(test_calib_camera_recover_calib_covar);
   MU_ADD_TEST(test_calib_camera_find_nbv);
-  MU_ADD_TEST(test_calib_camera_filter_view);
   MU_ADD_TEST(test_calib_camera_filter_all_views);
   MU_ADD_TEST(test_calib_camera_remove_outliers);
   MU_ADD_TEST(test_calib_camera_solve_batch);

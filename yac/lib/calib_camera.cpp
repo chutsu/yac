@@ -397,21 +397,15 @@ calib_camera_t::calib_camera_t(const std::string &config_path)
     veci2_t cam_res;
     std::string proj_model;
     std::string dist_model;
-    vecx_t proj_params;
-    vecx_t dist_params;
     parse(config, cam_str + ".resolution", cam_res);
     parse(config, cam_str + ".proj_model", proj_model);
     parse(config, cam_str + ".dist_model", dist_model);
 
     if (yaml_has_key(config, cam_str + ".proj_params")) {
-      parse(config, cam_str + ".proj_params", proj_params);
-      parse(config, cam_str + ".dist_params", dist_params);
-      add_camera(cam_idx,
-                 cam_res.data(),
-                 proj_model,
-                 dist_model,
-                 proj_params,
-                 dist_params);
+      vecx_t k, d;
+      parse(config, cam_str + ".proj_params", k);
+      parse(config, cam_str + ".dist_params", d);
+      add_camera(cam_idx, cam_res.data(), proj_model, dist_model, k, d);
     } else {
       add_camera(cam_idx, cam_res.data(), proj_model, dist_model);
     }
@@ -774,7 +768,8 @@ void calib_camera_t::add_pose(const int cam_idx,
   add_pose(grid.timestamp, fixed);
 }
 
-bool calib_camera_t::add_view(const std::map<int, aprilgrid_t> &cam_grids) {
+bool calib_camera_t::add_view(const std::map<int, aprilgrid_t> &cam_grids,
+                              const bool solve) {
   // Check if AprilGrid was detected
   bool detected = false;
   timestamp_t ts = 0;
@@ -804,6 +799,61 @@ bool calib_camera_t::add_view(const std::map<int, aprilgrid_t> &cam_grids) {
                                          &cam_params,
                                          &cam_exts,
                                          poses[ts]});
+  if (solve == false) {
+    return true;
+  }
+
+  // Keep track of initial values
+  _cache_estimates();
+
+  // Solve with new view
+  ceres::Solver::Options options;
+  options.minimizer_progress_to_stdout = false;
+  options.max_num_iterations = 5;
+  ceres::Solver::Summary summary;
+  ceres::Solve(options, problem, &summary);
+
+  // Calculate information gain
+  real_t info_kp1 = 0.0;
+  if (_calc_info(&info_kp1) != 0) {
+    return -1;
+  }
+  const real_t info_gain = 0.5 * (info_k - info_kp1);
+
+  // Remove view?
+  if (info_gain < info_gain_threshold) {
+    _restore_estimates();
+    remove_view(ts);
+    return false;
+  }
+
+  // Double check with validation set
+  if (enable_cross_validation && validation_data.size()) {
+    calib_camera_t valid{calib_target};
+    valid.verbose = false;
+    for (const auto cam_idx : get_camera_indices()) {
+      const auto cam_param = cam_params[cam_idx];
+      const int *cam_res = cam_param->resolution;
+      const std::string &proj_model = cam_param->proj_model;
+      const std::string &dist_model = cam_param->dist_model;
+      const vecx_t &k = cam_param->proj_params();
+      const vecx_t &d = cam_param->dist_params();
+      valid.add_camera(cam_idx, cam_res, proj_model, dist_model, k, d, true);
+      valid.add_camera_extrinsics(cam_idx, cam_exts[cam_idx]->tf());
+    }
+
+    const auto valid_error_kp1 = valid.inspect(validation_data);
+    if (fltcmp(valid_error_k, 0.0) == 0 || (valid_error_kp1 < valid_error_k)) {
+      valid_error_k = valid_error_kp1;
+    } else {
+      _restore_estimates();
+      remove_view(ts);
+      return false;
+    }
+  }
+
+  // Update
+  info_k = info_kp1;
   return true;
 }
 
@@ -870,9 +920,6 @@ void calib_camera_t::marginalize() {
   // Marginalize view
   auto view = calib_views.front();
   marg_error_id = view->marginalize(marg_error);
-
-  // Remove timestamp from window
-  // window.pop_front();
 
   // Remove view
   calib_views.pop_front();
@@ -1247,18 +1294,13 @@ void calib_camera_t::_initialize_intrinsics() {
     const aprilgrids_t grids = get_camera_data(cam_idx);
     auto cam_param = cam_params[cam_idx];
     const auto cam_res = cam_param->resolution;
-    const std::string proj_model = cam_param->proj_model;
-    const std::string dist_model = cam_param->dist_model;
-    const vecx_t proj_params = cam_param->proj_params();
-    const vecx_t dist_params = cam_param->dist_params();
+    const auto proj_model = cam_param->proj_model;
+    const auto dist_model = cam_param->dist_model;
+    const vecx_t k = cam_param->proj_params();
+    const vecx_t d = cam_param->dist_params();
 
     calib_camera_t calib{calib_target};
-    calib.add_camera(0,
-                     cam_res,
-                     proj_model,
-                     dist_model,
-                     proj_params,
-                     dist_params);
+    calib.add_camera(0, cam_res, proj_model, dist_model, k, d);
     calib.add_camera_extrinsics(0);
     calib.add_camera_data(0, grids);
     calib.verbose = false;
@@ -1386,108 +1428,51 @@ int calib_camera_t::_calc_info(real_t *info) {
   return 0;
 }
 
-int calib_camera_t::_eval_nbv(const timestamp_t nbv_ts) {
-  // Keep track of initial values
-  _cache_estimates();
-
-  // Solve with new view
-  ceres::Solver::Options options;
-  options.minimizer_progress_to_stdout = false;
-  options.max_num_iterations = 5;
-  ceres::Solver::Summary summary;
-  ceres::Solve(options, problem, &summary);
-
-  {
-    // Calculate information gain
-    real_t info_kp1 = 0.0;
-    if (_calc_info(&info_kp1) != 0) {
-      return -1;
-    }
-    const real_t info_gain = 0.5 * (info_k - info_kp1);
-
-    // Remove view?
-    if (info_gain < info_gain_threshold) {
-      _restore_estimates();
-      remove_view(nbv_ts);
-      return -2;
-    }
-  }
+void calib_camera_t::_remove_outliers() {
+  int removed = 0;
 
   // Filter last view and optimize again
-  int removed = 0;
-  if (enable_nbv_filter && nb_views() > min_nbv_views) {
-    if (filter_views_init == false) {
-      // Filter all views and solve again
-      removed = _filter_all_views();
-      filter_views_init = true;
+  // if (enable_nbv_filter && nb_views() > min_nbv_views) {
+  //   if (filter_views_init == false) {
+  //     // Filter all views and solve again
+  //     removed = _filter_all_views();
+  //     filter_views_init = true;
+  //
+  //   } else {
+  //     // Filter last view
+  //     // -- Calculate reprojection threshold on a per-camera basis
+  //     std::map<int, vec2_t> cam_thresholds;
+  //     std::map<int, vec2s_t> cam_residuals = get_residuals();
+  //     // std::map<int, vec2s_t> cam_residuals = batch_residuals;
+  //     for (const auto cam_idx : get_camera_indices()) {
+  //       const vec2s_t cam_r = cam_residuals[cam_idx];
+  //       const vec2_t cam_stddev = stddev(cam_r);
+  //       cam_thresholds[cam_idx] = outlier_threshold * cam_stddev;
+  //     }
+  //     // -- Filter and solve again
+  //     removed = _filter_view(nbv_ts, cam_thresholds);
+  //   }
+  // }
 
-    } else {
-      // Filter last view
-      // -- Calculate reprojection threshold on a per-camera basis
-      std::map<int, vec2_t> cam_thresholds;
-      std::map<int, vec2s_t> cam_residuals = get_residuals();
-      // std::map<int, vec2s_t> cam_residuals = batch_residuals;
-      for (const auto cam_idx : get_camera_indices()) {
-        const vec2s_t cam_r = cam_residuals[cam_idx];
-        const vec2_t cam_stddev = stddev(cam_r);
-        cam_thresholds[cam_idx] = outlier_threshold * cam_stddev;
-      }
-      // -- Filter and solve again
-      removed = _filter_view(nbv_ts, cam_thresholds);
-    }
-  }
-  ceres::Solve(options, problem, &summary);
+  // Check
+  // ceres::Solve(options, problem, &summary);
 
-  // Calculate information gain
-  real_t info_kp1 = 0.0;
-  if (_calc_info(&info_kp1) != 0) {
-    return -1;
-  }
-  const real_t info_gain = 0.5 * (info_k - info_kp1);
-
-  // Remove view?
-  if (info_gain < info_gain_threshold) {
-    _restore_estimates();
-    remove_view(nbv_ts);
-    return -2;
-  }
-
-  // Double check with validation set
-  if (validation_data.size()) {
-    calib_camera_t valid{calib_target};
-    valid.verbose = false;
-    for (const auto cam_idx : get_camera_indices()) {
-      const auto cam_param = cam_params[cam_idx];
-      const int *cam_res = cam_param->resolution;
-      const std::string &proj_model = cam_param->proj_model;
-      const std::string &dist_model = cam_param->dist_model;
-      const vecx_t &proj_params = cam_param->proj_params();
-      const vecx_t &dist_params = cam_param->dist_params();
-      valid.add_camera(cam_idx,
-                       cam_res,
-                       proj_model,
-                       dist_model,
-                       proj_params,
-                       dist_params,
-                       true);
-      valid.add_camera_extrinsics(cam_idx, cam_exts[cam_idx]->tf());
-    }
-
-    const auto valid_error_kp1 = valid.inspect(validation_data);
-    if (fltcmp(valid_error_k, 0.0) == 0 || (valid_error_kp1 < valid_error_k)) {
-      valid_error_k = valid_error_kp1;
-    } else {
-      _restore_estimates();
-      remove_view(nbv_ts);
-      return -2;
-    }
-  }
+  // // Calculate information gain
+  // real_t info_kp1 = 0.0;
+  // if (_calc_info(&info_kp1) != 0) {
+  //   return -1;
+  // }
+  // const real_t info_gain = 0.5 * (info_k - info_kp1);
+  //
+  // // Remove view?
+  // if (info_gain < info_gain_threshold) {
+  //   _restore_estimates();
+  //   remove_view(nbv_ts);
+  //   return -2;
+  // }
 
   // Update
-  info_k = info_kp1;
-  removed_outliers += removed;
-
-  return 0;
+  // removed_outliers += removed;
 }
 
 void calib_camera_t::_print_stats(const size_t ts_idx,
@@ -1527,7 +1512,7 @@ void calib_camera_t::_solve_batch(const bool filter_outliers) {
   // Setup batch problem
   if (problem_init == false) {
     for (const auto ts : timestamps) {
-      add_view(calib_data[ts]);
+      add_view(calib_data[ts], false);
     }
     problem_init = true;
   }
@@ -1629,24 +1614,25 @@ void calib_camera_t::_solve_nbv() {
   for (const auto &ts : nbv_timestamps) {
     // Add view
     if (add_view(calib_data[ts]) == false) {
+      early_stop_counter++;
+      _print_stats(ts_idx++, nbv_timestamps.size());
       continue;
     }
+    early_stop_counter = 0;
 
-    // Evaluate NBV
-    if (_eval_nbv(ts) != 0) {
-      early_stop_counter++;
-    } else {
-      early_stop_counter = 0;
+    // Remove outliers
+    if (enable_nbv_filter) {
+      _remove_outliers();
+    }
+
+    // Print stats
+    if (verbose) {
+      _print_stats(ts_idx++, nbv_timestamps.size());
     }
 
     // Marginalize oldest view
     if (enable_marginalization && calib_views.size() > sliding_window_size) {
       marginalize();
-    }
-
-    // Print stats
-    if (verbose) {
-      _print_stats(ts_idx, nbv_timestamps.size());
     }
 
     // Stop early?
@@ -1655,7 +1641,6 @@ void calib_camera_t::_solve_nbv() {
     }
 
     // Update
-    ts_idx++;
     problem_init = true;
   }
 
@@ -1729,6 +1714,7 @@ void calib_camera_t::print_settings(FILE *out) {
   fprintf(out, "  enable_nbv_filter: %d\n", enable_nbv_filter);
   fprintf(out, "  enable_outlier_filter: %d\n", enable_outlier_filter);
   fprintf(out, "  enable_marginalization: %d\n", enable_marginalization);
+  fprintf(out, "  enable_cross_validation: %d\n", enable_cross_validation);
   fprintf(out, "  enable_early_stopping: %d\n", enable_early_stopping);
   fprintf(out, "  min_nbv_views: %d\n", min_nbv_views);
   fprintf(out, "  outlier_threshold: %f\n", outlier_threshold);

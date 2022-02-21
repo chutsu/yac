@@ -348,7 +348,7 @@ int test_calib_camera_filter_all_views() {
   return 0;
 }
 
-int test_calib_camera_eval_nbv() {
+int test_calib_camera_remove_outliers() {
   const int cam_res[2] = {752, 480};
   const std::string proj_model = "pinhole";
   const std::string dist_model = "radtan4";
@@ -369,7 +369,7 @@ int test_calib_camera_eval_nbv() {
       break;
     }
   }
-  calib._eval_nbv(last_ts);
+  calib._remove_outliers();
 
   return 0;
 }
@@ -603,7 +603,7 @@ void test_suite() {
   MU_ADD_TEST(test_calib_camera_find_nbv);
   MU_ADD_TEST(test_calib_camera_filter_view);
   MU_ADD_TEST(test_calib_camera_filter_all_views);
-  MU_ADD_TEST(test_calib_camera_eval_nbv);
+  MU_ADD_TEST(test_calib_camera_remove_outliers);
   MU_ADD_TEST(test_calib_camera_solve_batch);
   MU_ADD_TEST(test_calib_camera_solve_inc);
   MU_ADD_TEST(test_calib_camera_mono);

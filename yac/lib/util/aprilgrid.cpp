@@ -192,8 +192,10 @@ void aprilgrid_t::remove(const int tag_id, const int corner_idx) {
   const int data_row = (tag_id * 4) + corner_idx;
   if (data(data_row, 0) > 0) {
     data.block(data_row, 0, 1, 6).setZero();
-    nb_detections = (nb_detections > 0) ? (nb_detections - 1) : 0;
+    nb_detections = std::max(nb_detections - 1, 0);
     detected = (nb_detections == 0) ? false : true;
+  } else {
+    FATAL("tag_id: %d, corner_idx: %d does not exist", tag_id, corner_idx);
   }
 }
 
@@ -640,8 +642,8 @@ aprilgrid_detector_t::aprilgrid_detector_t(const int tag_rows_,
 }
 
 aprilgrid_detector_t::~aprilgrid_detector_t() {
-  tag36h11_destroy(tf);
   apriltag_detector_destroy(det_v3);
+  tag36h11_destroy(tf);
 }
 
 void aprilgrid_detector_t::filter_tags(

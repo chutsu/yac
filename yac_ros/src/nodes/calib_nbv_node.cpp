@@ -243,7 +243,7 @@ struct calib_nbv_t {
       }
 
       // Check current grid against previous grid to see if the view has
-      // changed enought via reprojection error
+      // changed enough via reprojection error
       if (cam_grids[cam_idx].size()) {
         const auto &grid_km1 = cam_grids[cam_idx].back();
         const vec2s_t kps_km1 = grid_km1.keypoints();
@@ -278,12 +278,11 @@ struct calib_nbv_t {
     }
 
     // Initialize camera intrinsics + extrinsics
-    for (const auto [cam_idx, grids] : cam_grids) {
-      calib->add_camera_data(cam_idx, grids);
-    }
+    calib->add_camera_data(cam_grids);
     calib->enable_nbv = false;
     calib->enable_outlier_filter = false;
     calib->solve();
+    calib->show_results();
     calib->enable_outlier_filter = true;
 
     {

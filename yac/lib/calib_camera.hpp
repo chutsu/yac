@@ -91,7 +91,7 @@ struct calib_camera_t {
   // Flags
   bool initialized = false;
   bool problem_init = false;
-  bool filter_all = false;
+  bool filter_all = true;
 
   // Settings
   // -- General
@@ -104,7 +104,7 @@ struct calib_camera_t {
   bool enable_shuffle_views = true;
   bool enable_nbv_filter = true;
   bool enable_outlier_filter = true;
-  bool enable_marginalization = true;
+  bool enable_marginalization = false;
   bool enable_cross_validation = false;
   bool enable_early_stopping = false;
   int min_nbv_views = 40;

@@ -33,7 +33,7 @@ int main() {
 
   // Calibrate
   yac::calib_camera_t calib{target};
-  calib.add_camera_data(test_data);
+  calib.add_camera_data(test_data, valid_data);
   calib.add_camera(0, cam_res, proj_model, dist_model);
   calib.add_camera(1, cam_res, proj_model, dist_model);
   calib.solve();

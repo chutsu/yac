@@ -97,8 +97,6 @@ struct calib_camera_t {
   // -- General
   bool verbose = true;
   int max_num_threads = 8;
-  // -- Extrinsics initialization
-  bool enable_extrinsics_outlier_filter = true;
   // -- Final stage settings
   bool enable_nbv = true;
   bool enable_shuffle_views = true;

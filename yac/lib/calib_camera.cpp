@@ -411,26 +411,24 @@ calib_camera_t::calib_camera_t(const std::string &config_path)
   config_t config{config_path};
   // -- Parse settings
   // clang-format off
-  parse(config, "settings.verbose", verbose);
-  parse(config, "settings.max_num_threads", max_num_threads);
-  parse(config, "settings.enable_extrinsics_outlier_filter", enable_extrinsics_outlier_filter);
-  parse(config, "settings.enable_nbv", enable_nbv);
-  parse(config, "settings.enable_shuffle_views", enable_shuffle_views);
-  parse(config, "settings.enable_nbv_filter", enable_nbv_filter);
-  parse(config, "settings.enable_marginalization", enable_marginalization);
-  parse(config, "settings.enable_cross_validation", enable_cross_validation);
-  parse(config, "settings.enable_early_stopping", enable_early_stopping);
-  parse(config, "settings.min_nbv_views", min_nbv_views);
-  parse(config, "settings.outlier_threshold", outlier_threshold);
-  parse(config, "settings.info_gain_threshold", info_gain_threshold);
-  parse(config, "settings.sliding_window_size", sliding_window_size);
-  parse(config, "settings.early_stop_threshold", early_stop_threshold);
+  parse(config, "settings.verbose", verbose, true);
+  parse(config, "settings.max_num_threads", max_num_threads, true);
+  parse(config, "settings.enable_nbv", enable_nbv, true);
+  parse(config, "settings.enable_shuffle_views", enable_shuffle_views, true);
+  parse(config, "settings.enable_nbv_filter", enable_nbv_filter, true);
+  parse(config, "settings.enable_marginalization", enable_marginalization, true);
+  parse(config, "settings.enable_cross_validation", enable_cross_validation, true);
+  parse(config, "settings.enable_early_stopping", enable_early_stopping, true);
+  parse(config, "settings.min_nbv_views", min_nbv_views, true);
+  parse(config, "settings.outlier_threshold", outlier_threshold, true);
+  parse(config, "settings.info_gain_threshold", info_gain_threshold, true);
+  parse(config, "settings.sliding_window_size", sliding_window_size, true);
+  parse(config, "settings.early_stop_threshold", early_stop_threshold, true);
   // clang-format on
   // -- Parse calibration target
   if (calib_target.load(config_path, "calib_target") != 0) {
     FATAL("Failed to parse calib_target in [%s]!", config_path.c_str());
   }
-  printf("calib_target.tag_size: %f\n", calib_target.tag_size);
   // -- Parse camera settings
   for (int cam_idx = 0; cam_idx < 100; cam_idx++) {
     // Check if key exists
@@ -851,6 +849,8 @@ bool calib_camera_t::add_view(const std::map<int, aprilgrid_t> &cam_grids,
   options.max_num_iterations = 10;
   options.num_threads = max_num_threads;
   ceres::Solver::Summary summary;
+  ceres::Solve(options, problem, &summary);
+  // std::cout << summary.FullReport() << std::endl;
 
   // Calculate information gain
   real_t info_kp1 = 0.0;
@@ -859,8 +859,6 @@ bool calib_camera_t::add_view(const std::map<int, aprilgrid_t> &cam_grids,
     return -1;
   }
   const real_t info_gain = 0.5 * (info_k - info_kp1);
-
-  ceres::Solve(options, problem, &summary);
 
   // Remove view?
   if (info_gain < info_gain_threshold) {
@@ -1420,7 +1418,7 @@ void calib_camera_t::_initialize_extrinsics() {
 
   // Initialize
   if (enable_nbv) {
-    _solve_batch(enable_extrinsics_outlier_filter);
+    _solve_batch(true);
     remove_all_views();
   }
 }
@@ -1692,13 +1690,6 @@ void calib_camera_t::_solve_inc() {
 }
 
 void calib_camera_t::_solve_nbv() {
-  // Solver options and summary
-  ceres::Solver::Options options;
-  options.minimizer_progress_to_stdout = false;
-  options.max_num_iterations = 100;
-  options.num_threads = max_num_threads;
-  ceres::Solver::Summary summary;
-
   // Pre-process timestamps
   timestamps_t nbv_timestamps;
   for (const auto ts : timestamps) {
@@ -1765,59 +1756,16 @@ void calib_camera_t::_solve_nbv() {
   }
 
   // Final Solve
+  ceres::Solver::Options options;
+  options.minimizer_progress_to_stdout = false;
+  options.max_num_iterations = 100;
+  options.num_threads = max_num_threads;
+  ceres::Solver::Summary summary;
   ceres::Solve(options, problem, &summary);
   if (verbose) {
     std::cout << summary.BriefReport() << std::endl;
     std::cout << std::endl;
   }
-
-  // Write estimates to file
-  FILE *cam0 = fopen("/tmp/cam0.csv", "w");
-  FILE *cam1 = fopen("/tmp/cam1.csv", "w");
-  FILE *exts = fopen("/tmp/exts.csv", "w");
-  for (const auto ts : nbv_timestamps) {
-    auto cam0_param = vec2str(cam_estimates[ts][0], false);
-    auto cam1_param = vec2str(cam_estimates[ts][1], false);
-    auto exts_param = vec2str(tf_vec(exts_estimates[ts][1]), false);
-    fprintf(cam0, "%ld,%s\n", ts, cam0_param.c_str());
-    fprintf(cam1, "%ld,%s\n", ts, cam1_param.c_str());
-    fprintf(exts, "%ld,%s\n", ts, exts_param.c_str());
-  }
-  fclose(cam0);
-  fclose(cam1);
-  fclose(exts);
-
-  // Write convergence to file
-  FILE *progress = fopen("/tmp/calib-progress.csv", "w");
-  fprintf(progress, "ts,num_iter,cost_start,cost_end,");
-  fprintf(progress, "cam0_rmse,cam0_mean,cam0_median,cam0_std,");
-  fprintf(progress, "cam1_rmse,cam1_mean,cam1_median,cam1_std,");
-  fprintf(progress, "accepted\n");
-  for (const auto ts : nbv_timestamps) {
-    const auto cost_init = std::get<0>(nbv_costs[ts]);
-    const auto cost_final = std::get<1>(nbv_costs[ts]);
-    const auto cost_iter = std::get<2>(nbv_costs[ts]);
-    const auto reproj_errors = nbv_reproj_errors[ts];
-    const auto accepted = nbv_accepted[ts];
-
-    fprintf(progress, "%ld,", ts);
-    fprintf(progress, "%d,", cost_iter);
-    fprintf(progress, "%f,", cost_init);
-    fprintf(progress, "%f,", cost_final);
-
-    fprintf(progress, "%f,", rmse(reproj_errors.at(0)));
-    fprintf(progress, "%f,", mean(reproj_errors.at(0)));
-    fprintf(progress, "%f,", median(reproj_errors.at(0)));
-    fprintf(progress, "%f,", stddev(reproj_errors.at(0)));
-
-    fprintf(progress, "%f,", rmse(reproj_errors.at(1)));
-    fprintf(progress, "%f,", mean(reproj_errors.at(1)));
-    fprintf(progress, "%f,", median(reproj_errors.at(1)));
-    fprintf(progress, "%f,", stddev(reproj_errors.at(1)));
-
-    fprintf(progress, "%d\n", accepted);
-  }
-  fclose(progress);
 }
 
 void calib_camera_t::solve() {
@@ -1856,20 +1804,17 @@ void calib_camera_t::print_settings(FILE *out) {
   // clang-format off
   fprintf(out, "settings:\n");
   fprintf(out, "  # General\n");
-  fprintf(out, "  verbose: %d\n", verbose);
+  fprintf(out, "  verbose: %s\n", verbose ? "true" : "false");
   fprintf(out, "  max_num_threads: %d\n", max_num_threads);
   fprintf(out, "\n");
-  fprintf(out, "  # Extrinsics initialization\n");
-  fprintf(out, "  enable_extrinsics_outlier_filter: %d\n", enable_extrinsics_outlier_filter);
-  fprintf(out, "\n");
   fprintf(out, "  # NBV settings\n");
-  fprintf(out, "  enable_nbv: %d\n", enable_nbv);
-  fprintf(out, "  enable_shuffle_views: %d\n", enable_shuffle_views);
-  fprintf(out, "  enable_nbv_filter: %d\n", enable_nbv_filter);
-  fprintf(out, "  enable_outlier_filter: %d\n", enable_outlier_filter);
-  fprintf(out, "  enable_marginalization: %d\n", enable_marginalization);
-  fprintf(out, "  enable_cross_validation: %d\n", enable_cross_validation);
-  fprintf(out, "  enable_early_stopping: %d\n", enable_early_stopping);
+  fprintf(out, "  enable_nbv: %s\n", enable_nbv ? "true" : "false");
+  fprintf(out, "  enable_shuffle_views: %s\n", enable_shuffle_views ? "true" : "false");
+  fprintf(out, "  enable_nbv_filter: %s\n", enable_nbv_filter ? "true" : "false");
+  fprintf(out, "  enable_outlier_filter: %s\n", enable_outlier_filter ? "true" : "false");
+  fprintf(out, "  enable_marginalization: %s\n", enable_marginalization ? "true" : "false");
+  fprintf(out, "  enable_cross_validation: %s\n", enable_cross_validation ? "true" : "false");
+  fprintf(out, "  enable_early_stopping: %s\n", enable_early_stopping ? "true" : "false");
   fprintf(out, "  min_nbv_views: %d\n", min_nbv_views);
   fprintf(out, "  outlier_threshold: %f\n", outlier_threshold);
   fprintf(out, "  info_gain_threshold: %f\n", info_gain_threshold);
@@ -1978,6 +1923,54 @@ int calib_camera_t::save_results(const std::string &save_path) {
   print_metrics(outfile, reproj_errors, reproj_errors_all);
   print_calib_target(outfile);
   print_estimates(outfile);
+
+  // Write estimates to file
+  FILE *cam0 = fopen("/tmp/cam0.csv", "w");
+  FILE *cam1 = fopen("/tmp/cam1.csv", "w");
+  FILE *exts = fopen("/tmp/exts.csv", "w");
+  for (const auto ts : nbv_timestamps) {
+    auto cam0_param = vec2str(cam_estimates[ts][0], false);
+    auto cam1_param = vec2str(cam_estimates[ts][1], false);
+    auto exts_param = vec2str(tf_vec(exts_estimates[ts][1]), false);
+    fprintf(cam0, "%ld,%s\n", ts, cam0_param.c_str());
+    fprintf(cam1, "%ld,%s\n", ts, cam1_param.c_str());
+    fprintf(exts, "%ld,%s\n", ts, exts_param.c_str());
+  }
+  fclose(cam0);
+  fclose(cam1);
+  fclose(exts);
+
+  // Write convergence to file
+  FILE *progress = fopen("/tmp/calib-progress.csv", "w");
+  fprintf(progress, "ts,num_iter,cost_start,cost_end,");
+  fprintf(progress, "cam0_rmse,cam0_mean,cam0_median,cam0_std,");
+  fprintf(progress, "cam1_rmse,cam1_mean,cam1_median,cam1_std,");
+  fprintf(progress, "accepted\n");
+  for (const auto ts : nbv_timestamps) {
+    const auto cost_init = std::get<0>(nbv_costs[ts]);
+    const auto cost_final = std::get<1>(nbv_costs[ts]);
+    const auto cost_iter = std::get<2>(nbv_costs[ts]);
+    const auto reproj_errors = nbv_reproj_errors[ts];
+    const auto accepted = nbv_accepted[ts];
+
+    fprintf(progress, "%ld,", ts);
+    fprintf(progress, "%d,", cost_iter);
+    fprintf(progress, "%f,", cost_init);
+    fprintf(progress, "%f,", cost_final);
+
+    fprintf(progress, "%f,", rmse(reproj_errors.at(0)));
+    fprintf(progress, "%f,", mean(reproj_errors.at(0)));
+    fprintf(progress, "%f,", median(reproj_errors.at(0)));
+    fprintf(progress, "%f,", stddev(reproj_errors.at(0)));
+
+    fprintf(progress, "%f,", rmse(reproj_errors.at(1)));
+    fprintf(progress, "%f,", mean(reproj_errors.at(1)));
+    fprintf(progress, "%f,", median(reproj_errors.at(1)));
+    fprintf(progress, "%f,", stddev(reproj_errors.at(1)));
+
+    fprintf(progress, "%d\n", accepted);
+  }
+  fclose(progress);
 
   return 0;
 }

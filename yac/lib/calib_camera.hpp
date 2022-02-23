@@ -148,7 +148,7 @@ struct calib_camera_t {
   PoseLocalParameterization pose_plus;
 
   // State variables
-  fiducial_corners_t corners{calib_target};
+  fiducial_corners_t *corners;
   CamIdx2Geometry cam_geoms;
   CamIdx2Parameters cam_params;
   CamIdx2Extrinsics cam_exts;
@@ -212,7 +212,7 @@ struct calib_camera_t {
   void marginalize();
 
   real_t _estimate_calib_info();
-  int recover_calib_covar(matx_t &calib_covar, bool verbose = true);
+  int recover_calib_covar(matx_t &calib_covar, bool verbose = false);
   int find_nbv(const std::map<int, mat4s_t> &nbv_poses,
                int &cam_idx,
                int &nbv_idx);

@@ -408,7 +408,24 @@ calib_camera_t::calib_camera_t(const std::string &config_path)
 
   // Load configuration
   config_t config{config_path};
-  // -- Parse calibration target settings
+  // -- Parse settings
+  // clang-format off
+  parse(config, "settings.verbose", verbose);
+  parse(config, "settings.max_num_threads", max_num_threads);
+  parse(config, "settings.enable_extrinsics_outlier_filter", enable_extrinsics_outlier_filter);
+  parse(config, "settings.enable_nbv", enable_nbv);
+  parse(config, "settings.enable_shuffle_views", enable_shuffle_views);
+  parse(config, "settings.enable_nbv_filter", enable_nbv_filter);
+  parse(config, "settings.enable_marginalization", enable_marginalization);
+  parse(config, "settings.enable_cross_validation", enable_cross_validation);
+  parse(config, "settings.enable_early_stopping", enable_early_stopping);
+  parse(config, "settings.min_nbv_views", min_nbv_views);
+  parse(config, "settings.outlier_threshold", outlier_threshold);
+  parse(config, "settings.info_gain_threshold", info_gain_threshold);
+  parse(config, "settings.sliding_window_size", sliding_window_size);
+  parse(config, "settings.early_stop_threshold", early_stop_threshold);
+  // clang-format on
+  // -- Parse calibration target
   if (calib_target.load(config_path, "calib_target") != 0) {
     FATAL("Failed to parse calib_target in [%s]!", config_path.c_str());
   }
@@ -623,26 +640,10 @@ std::map<int, vec2s_t> calib_camera_t::get_residuals() {
 void calib_camera_t::add_camera_data(const int cam_idx,
                                      const aprilgrids_t &grids) {
   std::vector<real_t> focal_lengths;
-
   for (const auto &grid : grids) {
     const auto ts = grid.timestamp;
     timestamps.insert(ts);
     calib_data[ts][cam_idx] = grid;
-
-    double focal = 0.0;
-    if (grid.detected && grid.fully_observable()) {
-      if (focal_init(grid, 0, focal) == 0) {
-        focal_lengths.push_back(focal);
-      }
-    }
-  }
-
-  if (cam_params.count(cam_idx)) {
-    if (focal_lengths.size()) {
-      focal_length_init[cam_idx] = median(focal_lengths);
-      cam_params[cam_idx]->param[0] = focal_length_init[cam_idx];
-      cam_params[cam_idx]->param[1] = focal_length_init[cam_idx];
-    }
   }
 }
 
@@ -834,14 +835,16 @@ bool calib_camera_t::add_view(const std::map<int, aprilgrid_t> &cam_grids,
   options.max_num_iterations = 10;
   options.num_threads = max_num_threads;
   ceres::Solver::Summary summary;
-  ceres::Solve(options, problem, &summary);
 
   // Calculate information gain
   real_t info_kp1 = 0.0;
   if (_calc_info(&info_kp1) != 0) {
+    _restore_estimates();
     return -1;
   }
   const real_t info_gain = 0.5 * (info_k - info_kp1);
+
+  ceres::Solve(options, problem, &summary);
 
   // Remove view?
   if (info_gain < info_gain_threshold) {

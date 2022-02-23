@@ -43,7 +43,7 @@ set -e
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_mono"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_stereo"
 # RUN_CMD="rosrun yac test_calib_camera --target test_marg_error"
-RUN_CMD="rosrun yac calib_euroc"
+# RUN_CMD="rosrun yac calib_euroc"
 # RUN_CMD="rosrun yac calib_inspect '/data/euroc_results/configs/euroc/euroc.yaml'"
 # RUN_CMD="rosrun --prefix 'gdb -ex run -args' yac test_calib_camera --target test_marg_error"
 # RUN_CMD="rosrun --prefix 'gdb -ex run -args' yac test_calib_camera"
@@ -85,8 +85,8 @@ RUN_CMD="rosrun yac calib_euroc"
 # RUN_CMD="roslaunch yac_ros record_mocap.launch"
 # RUN_CMD="roslaunch yac_ros calib_camera.launch \
 #   config_file:=/home/chutsu/projects/yac/yac_ros/config/calib_euroc.yaml"
-# RUN_CMD="roslaunch yac_ros calib_intel_d435i.launch \
-#   config_file:=/home/chutsu/projects/yac/yac_ros/config/calib_intel_d435i.yaml"
+RUN_CMD="roslaunch yac_ros calib_intel_d435i.launch \
+  config_file:=/home/chutsu/projects/yac/yac_ros/config/calib_intel_d435i.yaml"
 # RUN_CMD="roslaunch yac_ros calib_mocap.launch"
 
 tmux send-keys -t dev -R C-l C-m

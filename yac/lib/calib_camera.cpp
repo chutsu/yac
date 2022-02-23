@@ -381,10 +381,11 @@ calib_camera_t::calib_camera_t(const calib_target_t &calib_target_)
   problem = new ceres::Problem(prob_options);
 
   // Add fiducial corners to problem
+  corners = new fiducial_corners_t(calib_target);
   const int nb_tags = calib_target.tag_rows * calib_target.tag_cols;
   for (int tag_id = 0; tag_id < nb_tags; tag_id++) {
     for (int corner_idx = 0; corner_idx < 4; corner_idx++) {
-      auto corner = corners.get_corner(tag_id, corner_idx);
+      auto corner = corners->get_corner(tag_id, corner_idx);
       problem->AddParameterBlock(corner->data(), 3);
       problem->SetParameterBlockConstant(corner->data());
     }
@@ -429,6 +430,7 @@ calib_camera_t::calib_camera_t(const std::string &config_path)
   if (calib_target.load(config_path, "calib_target") != 0) {
     FATAL("Failed to parse calib_target in [%s]!", config_path.c_str());
   }
+  printf("calib_target.tag_size: %f\n", calib_target.tag_size);
   // -- Parse camera settings
   for (int cam_idx = 0; cam_idx < 100; cam_idx++) {
     // Check if key exists
@@ -503,10 +505,11 @@ calib_camera_t::calib_camera_t(const std::string &config_path)
   }
 
   // Add fiducial corners to problem
+  corners = new fiducial_corners_t(calib_target);
   const int nb_tags = calib_target.tag_rows * calib_target.tag_cols;
   for (int tag_id = 0; tag_id < nb_tags; tag_id++) {
     for (int corner_idx = 0; corner_idx < 4; corner_idx++) {
-      auto corner = corners.get_corner(tag_id, corner_idx);
+      auto corner = corners->get_corner(tag_id, corner_idx);
       problem->AddParameterBlock(corner->data(), 3);
       problem->SetParameterBlockConstant(corner->data());
     }
@@ -532,6 +535,10 @@ calib_camera_t::~calib_camera_t() {
   for (auto &[cam_idx, exts] : cam_exts) {
     UNUSED(cam_idx);
     delete exts;
+  }
+
+  if (corners) {
+    delete corners;
   }
 
   for (auto &[ts, pose] : poses) {
@@ -806,6 +813,15 @@ bool calib_camera_t::add_view(const std::map<int, aprilgrid_t> &cam_grids,
     return false;
   }
 
+  // Add to calib data if it does not exist
+  if (calib_data.count(ts) == 0) {
+    for (const auto &[cam_idx, grid] : cam_grids) {
+      if (grid.detected) {
+        calib_data[ts][cam_idx] = grid;
+      }
+    }
+  }
+
   // Add pose
   if (poses.count(ts) == 0) {
     add_pose(ts, cam_grids);
@@ -815,7 +831,7 @@ bool calib_camera_t::add_view(const std::map<int, aprilgrid_t> &cam_grids,
   calib_view_timestamps.push_back(ts);
   calib_views[ts] = new calib_view_t{ts,
                                      cam_grids,
-                                     &corners,
+                                     corners,
                                      problem,
                                      loss,
                                      &cam_geoms,
@@ -1329,10 +1345,16 @@ int calib_camera_t::find_nbv(const std::map<int, mat4s_t> &nbv_poses,
         best_idx = i;
         best_info = info_kp1;
       }
+      const auto gain = 0.5 * (info_k - info_kp1);
+      printf("[cam%d-traj%d] info_kp1: %f, gain: %f\n",
+             nbv_cam_idx,
+             i,
+             info_kp1,
+             gain);
 
       // Remove view and update
       remove_view(nbv_ts);
-      bar.update();
+      // bar.update();
     }
   }
   printf("\n");

@@ -37,9 +37,10 @@ int main(int argc, char *argv[]) {
 
   // Load timestamps
   int nb_rows = 0;
-  FILE *fp = yac::file_open("/tmp/yac_data/timestamps.csv", "r", &nb_rows);
+  const auto ts_file = "/tmp/yac_data/views.csv";
+  FILE *fp = yac::file_open(ts_file, "r", &nb_rows);
   if (fp == NULL) {
-    FATAL("Failed to open[%s]!", "/tmp/yac_data/timestamps.csv");
+    FATAL("Failed to open[%s]!", ts_file);
   }
 
   std::set<yac::timestamp_t> timestamps;
@@ -59,31 +60,11 @@ int main(int argc, char *argv[]) {
   calib.add_camera_data(1, cam_grids[1]);
   calib.validation_data = inspect_data;
   calib.timestamps = timestamps;
+  calib.initialized = true;
+  calib.print_estimates(stdout);
   calib.solve();
-  // calib.print_estimates(stdout);
-
-  // size_t ts_idx = 0;
-  // int early_stop_counter = 0;
-  // int nb_timestamps = timestamps.size();
-  //
-  // for (const auto &ts : timestamps) {
-  //   // Add view
-  //   if (calib.add_view(calib.calib_data[ts], false) == false) {
-  //     early_stop_counter++;
-  //     calib._print_stats(ts_idx++, nb_timestamps);
-  //     continue;
-  //   }
-  //   early_stop_counter = 0;
-  //
-  //   // Remove outliers
-  //   if (calib.nb_views() >= calib.min_nbv_views) {
-  //     calib._remove_outliers(calib.filter_all);
-  //     calib.filter_all = false;
-  //   }
-  //
-  //   // Print stats
-  //   calib._print_stats(ts_idx++, nb_timestamps);
-  // }
+  calib.inspect(inspect_data);
+  calib.save_results("/tmp/calib-yac_with_kalibr_views_with_nbv_filter.csv");
 
   return 0;
 }

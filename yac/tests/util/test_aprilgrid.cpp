@@ -283,13 +283,16 @@ int test_aprilgrid_intersect2() {
 
   // Randomly remove between 2 to 10 tags from grid0, grid1 and grid2
   for (int i = 0; i < randi(2, 10); i++) {
-    grid0.remove(randi(0, 35));
+    const auto tag_id = randi(0, 35);
+    grid0.remove(tag_id);
   }
   for (int i = 0; i < randi(2, 10); i++) {
-    grid1.remove(randi(0, 35));
+    const auto tag_id = randi(0, 35);
+    grid1.remove(tag_id);
   }
   for (int i = 0; i < randi(2, 10); i++) {
-    grid2.remove(randi(0, 35));
+    const auto tag_id = randi(0, 35);
+    grid2.remove(tag_id);
   }
   MU_CHECK(grid0.nb_detections < (36 * 4));
   MU_CHECK(grid1.nb_detections < (36 * 4));

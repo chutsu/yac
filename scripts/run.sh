@@ -27,7 +27,7 @@ set -e
 # RUN_CMD="rosrun yac test_calib_errors --target test_imu_error"
 
 # YAC - CAMERA CALIBRATION
-RUN_CMD="rosrun yac test_calib_camera"
+# RUN_CMD="rosrun yac test_calib_camera"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_view"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_add_camera_data"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_add_camera"

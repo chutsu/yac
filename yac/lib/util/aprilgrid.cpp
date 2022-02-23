@@ -195,7 +195,7 @@ void aprilgrid_t::remove(const int tag_id, const int corner_idx) {
     nb_detections = std::max(nb_detections - 1, 0);
     detected = (nb_detections == 0) ? false : true;
   } else {
-    FATAL("tag_id: %d, corner_idx: %d does not exist", tag_id, corner_idx);
+    // FATAL("tag_id: %d, corner_idx: %d does not exist", tag_id, corner_idx);
   }
 }
 

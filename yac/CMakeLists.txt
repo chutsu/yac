@@ -6,7 +6,7 @@ PROJECT(yac)
 
 # GENERAL SETTINGS
 SET(USE_OPENMP ON)
-SET(USE_CATKIN OFF)
+SET(USE_CATKIN ON)
 SET(apriltag3_DIR "../deps/share/apriltag3/cmake")  # Use custom AprilTag3
 
 # COMPILATION SETTINGS

@@ -35,16 +35,16 @@ set -e
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_add_pose"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_add_and_remove_view"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_recover_calib_covar"
-# RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_find_nbv"
-# RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_filter_view"
+RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_find_nbv"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_filter_all_views"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_solve_batch"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_solve_inc"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_mono"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_stereo"
 # RUN_CMD="rosrun yac test_calib_camera --target test_marg_error"
-RUN_CMD="rosrun yac calib_euroc"
+# RUN_CMD="rosrun yac calib_euroc"
 # RUN_CMD="rosrun yac calib_inspect '/data/euroc_results/configs/euroc/euroc.yaml'"
+# RUN_CMD="rosrun yac calib_sandbox '/tmp/yac_data/calib.yaml'"
 # RUN_CMD="rosrun --prefix 'gdb -ex run -args' yac test_calib_camera --target test_marg_error"
 # RUN_CMD="rosrun --prefix 'gdb -ex run -args' yac test_calib_camera"
 # RUN_CMD="rosrun --prefix 'gdb -ex run -args' yac test_calib_camera --target test_calib_camera_kalibr_data"
@@ -92,7 +92,7 @@ RUN_CMD="rosrun yac calib_euroc"
 tmux send-keys -t dev -R C-l C-m
 tmux send-keys -t dev -R "\
 cd ~/projects/yac \
-&& make release \
+&& make lib_relwithdeb \
 && source ~/catkin_ws/devel/setup.bash \
 && ${RUN_CMD}
 " C-m C-m

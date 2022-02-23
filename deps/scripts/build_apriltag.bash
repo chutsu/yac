@@ -13,7 +13,6 @@ fi
 # Build
 cd src/apriltag
 
-make deps
 git submodule init
 git submodule update
 

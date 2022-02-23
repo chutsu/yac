@@ -5,9 +5,17 @@ ENDIF (POLICY CMP0048)
 PROJECT(yac)
 
 # GENERAL SETTINGS
-SET(USE_OPENMP ON)
-SET(USE_CATKIN ON)
-SET(apriltag3_DIR "../deps/share/apriltag3/cmake")  # Use custom AprilTag3
+IF (NOT DEFINED USE_CATKIN)
+  SET(USE_OPENMP ON)
+ENDIF()
+
+IF (NOT DEFINED USE_CATKIN)
+  SET(USE_CATKIN ON)
+ENDIF()
+
+IF (NOT DEFINED apriltag3_DIR)
+  SET(apriltag3_DIR "../deps/share/apriltag3/cmake")  # Use custom AprilTag3
+ENDIF()
 
 # COMPILATION SETTINGS
 SET(CMAKE_CXX_STANDARD 17)

@@ -1333,45 +1333,6 @@ void generate_trajectory(timestamps_t &timestamps,
   }
 }
 
-void save_data(const std::string &save_path,
-               const timestamps_t &ts,
-               const vec3s_t &y) {
-  std::ofstream file{save_path};
-  if (file.good() != true) {
-    printf("Failed to open file for output!");
-    exit(-1);
-  }
-
-  for (size_t i = 0; i < ts.size(); i++) {
-    file << ts[i] << ",";
-    file << y[i](0) << ",";
-    file << y[i](1) << ",";
-    file << y[i](2) << std::endl;
-  }
-
-  file.close();
-}
-
-void save_data(const std::string &save_path,
-               const timestamps_t &ts,
-               const quats_t &y) {
-  std::ofstream file{save_path};
-  if (file.good() != true) {
-    printf("Failed to open file for output!");
-    exit(-1);
-  }
-
-  for (size_t i = 0; i < ts.size(); i++) {
-    file << ts[i] << ",";
-    file << y[i].w() << ",";
-    file << y[i].x() << ",";
-    file << y[i].y() << ",";
-    file << y[i].z() << std::endl;
-  }
-
-  file.close();
-}
-
 int test_ctraj() {
   timestamps_t timestamps;
   vec3s_t positions;

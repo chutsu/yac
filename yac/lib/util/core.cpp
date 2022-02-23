@@ -960,13 +960,6 @@ vec3_t rmse(const vec3s_t &vecs) {
   return vec3_t{rmse(x), rmse(y), rmse(z)};
 }
 
-real_t shannon_entropy(const matx_t &covar) {
-  const real_t n = covar.rows();
-  const real_t covar_det = covar.determinant();
-  const real_t entropy = 0.5 * log(pow(2 * M_PI * exp(1), n) * covar_det);
-  return entropy;
-}
-
 vec3_t mvn(std::default_random_engine &engine,
            const vec3_t &mu,
            const vec3_t &stdev) {

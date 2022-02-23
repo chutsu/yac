@@ -965,11 +965,6 @@ vec2_t rmse(const vec2s_t &vecs);
 vec3_t rmse(const vec3s_t &vecs);
 
 /**
- * Shannon Entropy of a given covariance matrix `covar`.
- */
-real_t shannon_entropy(const matx_t &covar);
-
-/**
  * Multivariate normal.
  */
 vec3_t mvn(std::default_random_engine &engine,

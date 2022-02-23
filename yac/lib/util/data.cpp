@@ -485,7 +485,27 @@ void save_data(const std::string &save_path,
   }
 
   file.close();
-};
+}
+
+void save_data(const std::string &save_path,
+               const timestamps_t &ts,
+               const quats_t &y) {
+  std::ofstream file{save_path};
+  if (file.good() != true) {
+    printf("Failed to open file for output!");
+    exit(-1);
+  }
+
+  for (size_t i = 0; i < ts.size(); i++) {
+    file << ts[i] << ",";
+    file << y[i].w() << ",";
+    file << y[i].x() << ",";
+    file << y[i].y() << ",";
+    file << y[i].z() << std::endl;
+  }
+
+  file.close();
+}
 
 void save_features(const std::string &path, const vec3s_t &features) {
   FILE *csv = fopen(path.c_str(), "w");

@@ -332,6 +332,11 @@ void save_data(const std::string &save_path,
                const timestamps_t &ts,
                const vec3s_t &y);
 
+/* Save quaternions with timestamps `ts` to `save_path`. */
+void save_data(const std::string &save_path,
+               const timestamps_t &ts,
+               const quats_t &y);
+
 /**
  * Save 3D features to csv file defined in `path`.
  */

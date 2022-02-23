@@ -1346,15 +1346,10 @@ int calib_camera_t::find_nbv(const std::map<int, mat4s_t> &nbv_poses,
         best_info = info_kp1;
       }
       const auto gain = 0.5 * (info_k - info_kp1);
-      printf("[cam%d-traj%d] info_kp1: %f, gain: %f\n",
-             nbv_cam_idx,
-             i,
-             info_kp1,
-             gain);
 
       // Remove view and update
       remove_view(nbv_ts);
-      // bar.update();
+      bar.update();
     }
   }
   printf("\n");

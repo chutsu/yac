@@ -27,7 +27,7 @@ set -e
 # RUN_CMD="rosrun yac test_calib_errors --target test_imu_error"
 
 # YAC - CAMERA CALIBRATION
-# RUN_CMD="rosrun yac test_calib_camera"
+RUN_CMD="rosrun yac test_calib_camera"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_view"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_add_camera_data"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_add_camera"
@@ -35,7 +35,7 @@ set -e
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_add_pose"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_add_and_remove_view"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_recover_calib_covar"
-RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_find_nbv"
+# RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_find_nbv"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_filter_all_views"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_solve_batch"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_solve_inc"
@@ -85,8 +85,8 @@ RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_find_nbv"
 # RUN_CMD="roslaunch yac_ros record_mocap.launch"
 # RUN_CMD="roslaunch yac_ros calib_camera.launch \
 #   config_file:=/home/chutsu/projects/yac/yac_ros/config/calib_euroc.yaml"
-RUN_CMD="roslaunch yac_ros calib_intel_d435i.launch \
-  config_file:=/home/chutsu/projects/yac/yac_ros/config/calib_intel_d435i.yaml"
+# RUN_CMD="roslaunch yac_ros calib_intel_d435i.launch \
+#   config_file:=/home/chutsu/projects/yac/yac_ros/config/calib_intel_d435i.yaml"
 # RUN_CMD="roslaunch yac_ros calib_mocap.launch"
 
 tmux send-keys -t dev -R C-l C-m

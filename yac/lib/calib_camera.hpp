@@ -61,6 +61,8 @@ struct calib_view_t {
   CamIdx2Extrinsics *cam_exts = nullptr;
   pose_t *T_C0F = nullptr;
 
+  // Constructor / Destructor
+  calib_view_t() = delete;
   calib_view_t(const timestamp_t ts_,
                const CamIdx2Grids &grids_,
                fiducial_corners_t *corners_,
@@ -77,8 +79,8 @@ struct calib_view_t {
   vec2s_t get_residuals(const int cam_idx) const;
   std::vector<real_t> get_reproj_errors() const;
   std::vector<real_t> get_reproj_errors(const int cam_idx) const;
-  int filter_view(const vec2_t &residual_threshold);
-  int filter_view(const std::map<int, vec2_t> &residual_thresholds);
+  int filter_view(const vec2_t &threshold);
+  int filter_view(const std::map<int, vec2_t> &thresholds);
   ceres::ResidualBlockId marginalize(marg_error_t *marg_error);
 };
 
@@ -89,17 +91,12 @@ struct calib_camera_t {
   // Flags
   bool initialized = false;
   bool problem_init = false;
-  bool filter_views_init = false;
+  bool filter_all = false;
 
   // Settings
   // -- General
   bool verbose = true;
-  // -- Intrinsics initialization
-  bool enable_intrinsics_nbv = false;
-  bool enable_intrinsics_outlier_filter = true;
-  real_t intrinsics_outlier_threshold = 3.0;
-  real_t intrinsics_info_gain_threshold = 0.05;
-  int intrinsics_min_nbv_views = 20;
+  int max_num_threads = 8;
   // -- Extrinsics initialization
   bool enable_extrinsics_outlier_filter = true;
   // -- Final stage settings
@@ -107,11 +104,11 @@ struct calib_camera_t {
   bool enable_shuffle_views = true;
   bool enable_nbv_filter = true;
   bool enable_outlier_filter = true;
-  bool enable_marginalization = false;
+  bool enable_marginalization = true;
   bool enable_cross_validation = false;
   bool enable_early_stopping = false;
   int min_nbv_views = 40;
-  real_t outlier_threshold = 3.0;
+  real_t outlier_threshold = 4.0;
   real_t info_gain_threshold = 0.2;
   int sliding_window_size = 10;
   int early_stop_threshold = 30;
@@ -128,8 +125,15 @@ struct calib_camera_t {
   real_t info_k = 0.0;
   real_t valid_error_k = 0.0;
 
+  std::map<timestamp_t, std::map<int, vecx_t>> cam_estimates;
+  std::map<timestamp_t, std::map<int, mat4_t>> exts_estimates;
+
+  std::set<timestamp_t> nbv_timestamps;
+  std::map<timestamp_t, std::tuple<real_t, real_t, int>> nbv_costs;
+  std::map<timestamp_t, std::map<int, std::vector<real_t>>> nbv_reproj_errors;
+  std::map<timestamp_t, bool> nbv_accepted;
+
   // Temporary storage
-  std::map<int, vec2s_t> batch_residuals;
   std::map<int, vecx_t> cam_params_tmp;
   std::map<int, vecx_t> cam_exts_tmp;
   std::map<timestamp_t, vecx_t> poses_tmp;
@@ -199,12 +203,10 @@ struct calib_camera_t {
   void add_camera_extrinsics(const int cam_idx,
                              const mat4_t &ext = I(4),
                              const bool fixed = false);
-  void add_pose(const timestamp_t ts, const bool fixed = false);
-  void add_pose(const int cam_idx,
-                const aprilgrid_t &grid,
+  void add_pose(const timestamp_t ts,
+                const std::map<int, aprilgrid_t> &cam_grids,
                 const bool fixed = false);
-  bool add_view(const std::map<int, aprilgrid_t> &cam_grids,
-                const bool solve = true);
+  bool add_view(const std::map<int, aprilgrid_t> &cam_grids, const bool force);
   void remove_view(const timestamp_t ts);
   void remove_all_views();
   void marginalize();
@@ -221,13 +223,13 @@ struct calib_camera_t {
   void _cache_estimates();
   void _restore_estimates();
   int _calc_info(real_t *info);
-  void _remove_outliers();
+  int _remove_outliers(const bool filter_all);
   void _print_stats(const size_t ts_idx, const size_t nb_timestamps);
   void _solve_batch(const bool filter_outliers);
   void _solve_inc();
   void _solve_nbv();
-
   void solve();
+
   void print_settings(FILE *out);
   void print_metrics(FILE *out,
                      const std::map<int, std::vector<real_t>> &reproj_errors,
@@ -235,9 +237,11 @@ struct calib_camera_t {
   void print_calib_target(FILE *out);
   void print_estimates(FILE *out);
   void show_results();
+
   int save_results(const std::string &save_path);
   int save_estimates(const std::string &save_path);
   int save_stats(const std::string &save_path);
+
   real_t inspect(const std::map<int, aprilgrids_t> &cam_data);
 };
 

@@ -1,0 +1,17 @@
+calib_target:
+  target_type: 'aprilgrid'  # Target type
+  tag_rows: 6               # Number of rows
+  tag_cols: 6               # Number of cols
+  tag_size: 0.088           # Size of apriltag, edge to edge [m]
+  tag_spacing: 0.3          # Ratio of space between tags to tagSize
+                            # Example: tagSize=2m, spacing=0.5m --> tagSpacing=0.25[-]
+
+cam0:
+  proj_model: "pinhole"
+  dist_model: "radtan4"
+  resolution: [752, 480]
+
+cam1:
+  proj_model: "pinhole"
+  dist_model: "radtan4"
+  resolution: [752, 480]

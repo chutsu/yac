@@ -7,7 +7,9 @@ namespace yac {
 #define TEST_PATH "."
 #endif
 
-#define TEST_CAM_DATA TEST_PATH "/test_data/calib/cam_april"
+#define TEST_CAM_CALIB_PATH TEST_PATH "/test_data/calib/cam_april"
+#define MONO_CONF TEST_PATH "/test_data/calib/cam_april/mono_config.yaml"
+#define STEREO_CONF TEST_PATH "/test_data/calib/cam_april/stereo_config.yaml"
 #define TEST_IMUCAM_DATA TEST_PATH "/test_data/calib/imu_april"
 
 // GLOBAL VARIABLES
@@ -17,15 +19,15 @@ std::map<int, aprilgrids_t> valid_data;
 void load_test_dataset() {
   std::vector<std::string> cam0_files;
   std::vector<std::string> cam1_files;
-  list_files(TEST_CAM_DATA "/cam0", cam0_files);
-  list_files(TEST_CAM_DATA "/cam1", cam1_files);
+  list_files(TEST_CAM_CALIB_PATH "/cam0", cam0_files);
+  list_files(TEST_CAM_CALIB_PATH "/cam1", cam1_files);
 
   for (auto grid_path : cam0_files) {
-    grid_path = std::string(TEST_CAM_DATA "/cam0/") + grid_path;
+    grid_path = std::string(TEST_CAM_CALIB_PATH "/cam0/") + grid_path;
     test_data[0].emplace_back(grid_path);
   }
   for (auto grid_path : cam1_files) {
-    grid_path = std::string(TEST_CAM_DATA "/cam1/") + grid_path;
+    grid_path = std::string(TEST_CAM_CALIB_PATH "/cam1/") + grid_path;
     test_data[1].emplace_back(grid_path);
   }
 }
@@ -147,10 +149,10 @@ int test_calib_camera_add_pose() {
   calib_camera_t calib{calib_target};
   calib.add_camera(0, cam_res, proj_model, dist_model);
   calib.add_camera_extrinsics(0);
-  calib.add_pose(0, test_grid, false);
-  MU_CHECK(calib.timestamps.count(test_grid.timestamp));
-  MU_CHECK(calib.calib_data.count(test_grid.timestamp));
-  MU_CHECK(calib.calib_data[test_grid.timestamp].count(0));
+
+  const timestamp_t ts = test_grid.timestamp;
+  const std::map<int, aprilgrid_t> cam_grids = {{0, test_grid}};
+  calib.add_pose(ts, cam_grids);
   MU_CHECK(calib.poses.count(test_grid.timestamp));
 
   return 0;
@@ -181,7 +183,7 @@ int test_calib_camera_add_and_remove_view() {
       continue;
     }
 
-    calib.add_view(calib.calib_data[ts]);
+    calib.add_view(calib.calib_data[ts], true);
     view_ts = ts;
     break;
   }
@@ -218,7 +220,7 @@ int test_calib_camera_recover_calib_covar() {
   calib.add_camera_data(1, test_data.at(1));
 
   for (const auto ts : calib.timestamps) {
-    calib.add_view(calib.calib_data[ts]);
+    calib.add_view(calib.calib_data[ts], true);
     if (calib.nb_views() > 10) {
       break;
     }
@@ -298,7 +300,7 @@ int test_calib_camera_filter_all_views() {
   calib.add_camera_data(1, test_data.at(1));
 
   for (const auto ts : calib.timestamps) {
-    calib.add_view(calib.calib_data[ts]);
+    calib.add_view(calib.calib_data[ts], true);
     if (calib.nb_views() > 10) {
       break;
     }
@@ -328,12 +330,12 @@ int test_calib_camera_remove_outliers() {
 
   timestamp_t last_ts = 0;
   for (const auto ts : calib.timestamps) {
-    calib.add_view(calib.calib_data[ts]);
+    calib.add_view(calib.calib_data[ts], true);
     if (calib.nb_views() > 10) {
       break;
     }
   }
-  calib._remove_outliers();
+  calib._remove_outliers(true);
 
   return 0;
 }
@@ -379,35 +381,19 @@ int test_calib_camera_solve_inc() {
 }
 
 int test_calib_camera_mono() {
-  // Setup
-  const calib_target_t calib_target{"aprilgrid", 6, 6, 0.088, 0.3};
-  const int cam_res[2] = {752, 480};
-  const std::string proj_model = "pinhole";
-  const std::string dist_model = "radtan4";
-
-  // Calibrate
-  calib_camera_t calib{calib_target};
+  calib_camera_t calib{MONO_CONF};
   calib.enable_nbv = false;
   calib.add_camera_data(0, test_data.at(0));
-  calib.add_camera(0, cam_res, proj_model, dist_model);
   calib.solve();
 
   return 0;
 }
 
 int test_calib_camera_stereo() {
-  // Load training data
-  const calib_target_t target{"aprilgrid", 6, 6, 0.088, 0.3};
-  const int cam_res[2] = {752, 480};
-  const std::string proj_model = "pinhole";
-  const std::string dist_model = "radtan4";
-
   // Calibrate
-  calib_camera_t calib{target};
-  calib.enable_nbv = false;
+  calib_camera_t calib{STEREO_CONF};
+  calib.enable_nbv = true;
   calib.add_camera_data(test_data);
-  calib.add_camera(0, cam_res, proj_model, dist_model);
-  calib.add_camera(1, cam_res, proj_model, dist_model);
   calib.solve();
   calib.save_results("/tmp/calib-results.yaml");
   calib.save_estimates("/tmp/calib-estimates.yaml");
@@ -459,7 +445,7 @@ int test_marg_error() {
       continue;
     }
 
-    calib.add_view(calib.calib_data[ts]);
+    calib.add_view(calib.calib_data[ts], true);
     if (calib.nb_views() > max_num_views) {
       break;
     }

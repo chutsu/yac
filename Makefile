@@ -25,32 +25,32 @@ deps: ## Install dependencies
 lib_debug: ${CATKIN_WS} ${YAC_PATH}  ## Build libyac in debug mode
 	@cd ${CATKIN_WS} \
 		&& . /opt/ros/${ROS_VERSION}/setup.sh \
-		&& catkin build yac -DCMAKE_BUILD_TYPE=Debug -j4
+		&& catkin build yac -DCMAKE_BUILD_TYPE=Debug -j8
 
 lib_relwithdeb: ${CATKIN_WS} ${YAC_PATH}  ## Build libyac in release with debug mode
 	@cd ${CATKIN_WS} \
 		&& . /opt/ros/${ROS_VERSION}/setup.sh \
-		&& catkin build yac -DCMAKE_BUILD_TYPE=RelWithDebInfo -j4
+		&& catkin build yac -DCMAKE_BUILD_TYPE=RelWithDebInfo -j8
 
 lib: ${CATKIN_WS} ${YAC_PATH}  ## Build libyac in release mode
 	@cd ${CATKIN_WS} \
 		&& . /opt/ros/${ROS_VERSION}/setup.sh \
-		&& catkin build yac -DCMAKE_BUILD_TYPE=Release -j4
+		&& catkin build yac -DCMAKE_BUILD_TYPE=Release -j8
 
 debug: ${CATKIN_WS} ${YAC_PATH} ## Build libyac and yac_ros in debug mode
 	@cd ${CATKIN_WS} \
 		&& . /opt/ros/${ROS_VERSION}/setup.sh \
-		&& catkin build yac yac_ros -DCMAKE_BUILD_TYPE=Debug -j4
+		&& catkin build yac yac_ros -DCMAKE_BUILD_TYPE=Debug -j8
 
 relwithdeb: ${CATKIN_WS} ${YAC_PATH} ## Build libyac and yac_ros in release with debug mode
 	@cd ${CATKIN_WS} \
 		&& . /opt/ros/${ROS_VERSION}/setup.sh \
-		&& catkin build yac yac_ros -DCMAKE_BUILD_TYPE=RelWithDebInfo -j4
+		&& catkin build yac yac_ros -DCMAKE_BUILD_TYPE=RelWithDebInfo -j8
 
 release: ${CATKIN_WS} ${YAC_PATH} ## Build libyac and yac_ros in release mode
 	cd ${CATKIN_WS} \
 		&& . /opt/ros/${ROS_VERSION}/setup.sh \
-		&& catkin build yac yac_ros -DCMAKE_BUILD_TYPE=Release -j4
+		&& catkin build yac yac_ros -DCMAKE_BUILD_TYPE=Release -j8
 
 download_test_data: ## Download test data
 	@bash ./scripts/download_test_data.bash

@@ -46,7 +46,9 @@ int main(int argc, char *argv[]) {
   std::set<yac::timestamp_t> timestamps;
   for (int i = 0; i < nb_rows; i++) {
     yac::timestamp_t ts = 0;
-    fscanf(fp, "%ld", &ts);
+    if (fscanf(fp, "%ld", &ts) != 1) {
+      FATAL("Failed to parse timestamp!");
+    }
     timestamps.insert(ts);
   }
 

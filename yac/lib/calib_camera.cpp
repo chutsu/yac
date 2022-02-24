@@ -210,6 +210,14 @@ calib_view_t::~calib_view_t() {
   }
 }
 
+int calib_view_t::nb_detections() const {
+  int nb_detections = 0;
+  for (const auto &[cam_idx, grid] : grids) {
+    nb_detections += grid.nb_detections;
+  }
+  return nb_detections;
+}
+
 std::vector<int> calib_view_t::get_camera_indices() const {
   std::vector<int> camera_indices;
   for (const auto &[cam_idx, cam_param] : *cam_params) {
@@ -836,11 +844,13 @@ bool calib_camera_t::add_view(const std::map<int, aprilgrid_t> &cam_grids,
                                      &cam_params,
                                      &cam_exts,
                                      poses[ts]};
+
+  // When **not** doing NBV add the view and return early
   if (force) {
     return true;
   }
 
-  // Keep track of initial values
+  // Keep track of initial values - incase view is rejected
   _cache_estimates();
 
   // Solve with new view
@@ -946,7 +956,7 @@ bool calib_camera_t::add_view(const std::map<int, aprilgrid_t> &cam_grids,
   return true;
 }
 
-void calib_camera_t::remove_view(const timestamp_t ts) {
+void calib_camera_t::remove_view(const timestamp_t ts, const bool skip_solve) {
   // Remove pose
   if (poses.count(ts)) {
     auto pose_ptr = poses[ts];
@@ -967,6 +977,25 @@ void calib_camera_t::remove_view(const timestamp_t ts) {
                            calib_view_timestamps.end(),
                            ts);
     calib_view_timestamps.erase(ts_it);
+  }
+
+  // Skip solving
+  if (skip_solve) {
+    return;
+  }
+
+  // Update info_k
+  ceres::Solver::Options options;
+  options.minimizer_progress_to_stdout = false;
+  options.max_num_iterations = 10;
+  options.num_threads = max_num_threads;
+  ceres::Solver::Summary summary;
+
+  _cache_estimates();
+  ceres::Solve(options, problem, &summary);
+
+  if (_calc_info(&info_k) != 0) {
+    _restore_estimates();
   }
 }
 
@@ -1012,7 +1041,7 @@ void calib_camera_t::marginalize() {
   marg_error_id = view->marginalize(marg_error);
 
   // Remove view
-  remove_view(marg_ts);
+  remove_view(marg_ts, false);
 }
 
 real_t calib_camera_t::_estimate_calib_info() {
@@ -1227,7 +1256,6 @@ int calib_camera_t::recover_calib_covar(matx_t &calib_covar, bool verbose) {
 
   // Estimate covariance
   ::ceres::Covariance::Options options;
-  // options.algorithm_type = ceres::DENSE_SVD;
   ::ceres::Covariance covar_est(options);
   if (covar_est.Compute(covar_blocks, problem) == false) {
     if (verbose) {
@@ -1346,7 +1374,7 @@ int calib_camera_t::find_nbv(const std::map<int, mat4s_t> &nbv_poses,
       const auto gain = 0.5 * (info_k - info_kp1);
 
       // Remove view and update
-      remove_view(nbv_ts);
+      remove_view(nbv_ts, true);
       bar.update();
     }
   }
@@ -1357,9 +1385,6 @@ int calib_camera_t::find_nbv(const std::map<int, mat4s_t> &nbv_poses,
   nbv_idx = best_idx;
 
   const auto info_gain = 0.5 * (info_k - best_info);
-  printf("info_k: %f  ", info_k);
-  printf("best_info: %f  ", best_info);
-  printf("info_gain: %f\n", info_gain);
   if (info_gain < info_gain_threshold) {
     return -1;
   }
@@ -1527,10 +1552,7 @@ int calib_camera_t::_remove_outliers(const bool filter_all) {
     const auto grids = view->grids; // Make a copy of the grids
 
     // Remove view and check info
-    remove_view(ts);
-    if (_calc_info(&info_k) != 0) {
-      continue;
-    }
+    remove_view(ts, false);
 
     // Add the view back
     const auto tmp = enable_cross_validation;
@@ -1669,10 +1691,10 @@ void calib_camera_t::_solve_inc() {
     }
 
     // Solve
-    if (calib_views.size() > 5) {
+    if (calib_views.size() >= sliding_window_size) {
+      ceres::Solve(options, problem, &summary);
       marginalize();
     }
-    ceres::Solve(options, problem, &summary);
 
     // Print stats
     if (verbose) {
@@ -1803,11 +1825,8 @@ void calib_camera_t::solve() {
 void calib_camera_t::print_settings(FILE *out) {
   // clang-format off
   fprintf(out, "settings:\n");
-  fprintf(out, "  # General\n");
   fprintf(out, "  verbose: %s\n", verbose ? "true" : "false");
   fprintf(out, "  max_num_threads: %d\n", max_num_threads);
-  fprintf(out, "\n");
-  fprintf(out, "  # NBV settings\n");
   fprintf(out, "  enable_nbv: %s\n", enable_nbv ? "true" : "false");
   fprintf(out, "  enable_shuffle_views: %s\n", enable_shuffle_views ? "true" : "false");
   fprintf(out, "  enable_nbv_filter: %s\n", enable_nbv_filter ? "true" : "false");

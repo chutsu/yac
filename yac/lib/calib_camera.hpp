@@ -74,6 +74,7 @@ struct calib_view_t {
                pose_t *T_C0F_);
   ~calib_view_t();
 
+  int nb_detections() const;
   std::vector<int> get_camera_indices() const;
   vec2s_t get_residuals() const;
   vec2s_t get_residuals(const int cam_idx) const;
@@ -97,7 +98,6 @@ struct calib_camera_t {
   // -- General
   bool verbose = true;
   int max_num_threads = 8;
-  // -- Final stage settings
   bool enable_nbv = true;
   bool enable_shuffle_views = true;
   bool enable_nbv_filter = true;
@@ -205,7 +205,7 @@ struct calib_camera_t {
                 const std::map<int, aprilgrid_t> &cam_grids,
                 const bool fixed = false);
   bool add_view(const std::map<int, aprilgrid_t> &cam_grids, const bool force);
-  void remove_view(const timestamp_t ts);
+  void remove_view(const timestamp_t ts, const bool skip_solve = true);
   void remove_all_views();
   void marginalize();
 

@@ -27,6 +27,7 @@ struct calib_nbt_t {
   const std::string node_name;
   ros::NodeHandle ros_nh;
   image_transport::ImageTransport img_trans{ros_nh};
+  std::string imu_topic;
   std::map<int, std::string> mcam_topics;
   std::map<int, image_transport::Subscriber> mcam_subs;
 
@@ -34,7 +35,6 @@ struct calib_nbt_t {
   std::mutex calib_mutex;
   bool keep_running = true;
   bool find_nbv_event = false;
-  // struct termios term_config_orig;
 
   // Calibration
   std::unique_ptr<calib_vi_t> calib;
@@ -53,10 +53,7 @@ struct calib_nbt_t {
   struct timespec nbv_hold_tic = (struct timespec){0, 0};
 
   // NBT Settings
-  int min_intrinsics_views = 5;
-  real_t min_intrinsics_view_diff = 10.0;
-  double nbv_reproj_error_threshold = 10.0;
-  double nbv_hold_threshold = 1.0;
+  int min_init_views = 100;
 
   /* Constructor */
   calib_nbt_t() = delete;
@@ -65,6 +62,9 @@ struct calib_nbt_t {
   calib_nbt_t(const std::string &node_name_) : node_name{node_name_} {
     std::string config_file;
     ROS_PARAM(ros_nh, node_name + "/config_file", config_file);
+
+    // Setup Calibrator
+    calib = std::make_unique<calib_vi_t>(config_file);
 
     // Parse camera ros topics
     config_t config{config_file};
@@ -80,9 +80,6 @@ struct calib_nbt_t {
       auto cb = std::bind(&calib_nbt_t::image_callback, this, _1, cam_idx);
       mcam_subs[cam_idx] = img_trans.subscribe(topic, 1, cb);
     }
-
-    // Calibrator
-    calib = std::make_unique<calib_vi_t>(config_file);
   }
 
   /* Destructor */
@@ -117,20 +114,24 @@ struct calib_nbt_t {
   void detect() {
     grid_buffer.clear();
 
-    for (auto &[cam_idx, data] : img_buffer) {
+    // Make a copy of camera indices
+    std::vector<int> cam_indices;
+    for (const auto &[cam_idx, _] : img_buffer) {
+      cam_indices.push_back(cam_idx);
+    }
+
+    // Detect aprilgrid in each camera
+#pragma omp parallel for shared(grid_buffer)
+    for (size_t i = 0; i < cam_indices.size(); i++) {
+      const auto cam_idx = cam_indices[i];
+      const auto &data = img_buffer[cam_idx];
+
       const auto img_ts = data.first;
       const auto &img = data.second;
       const auto grid = calib->detector->detect(img_ts, img);
       if (grid.detected) {
         grid_buffer[cam_idx] = grid;
       }
-    }
-
-    if (img_buffer.count(0)) {
-      printf(".");
-      fflush(stdout);
-      cv::imshow("cam0", img_buffer[0].first);
-      cv::waitKey(1);
     }
   }
 
@@ -147,9 +148,9 @@ struct calib_nbt_t {
     }
   }
 
-  // /** Draw NBV */
+  // /** Draw NBT */
   // void draw_nbv(cv::Mat &img) {
-  //   // Draw NBV
+  //   // Draw NBT
   //   const auto cam_geom = calib->cam_geoms[nbv_cam_idx];
   //   const auto cam_params = calib->cam_params[nbv_cam_idx];
   //   const mat4_t T_FC0 = nbv_poses.at(nbv_cam_idx).at(nbv_idx);
@@ -157,10 +158,10 @@ struct calib_nbt_t {
   //   const mat4_t T_FCi = T_FC0 * T_C0Ci;
   //   nbv_draw(calib_target, cam_geom, cam_params, T_FCi, img);
   //
-  //   // Show NBV Reproj Error
+  //   // Show NBT Reproj Error
   //   draw_nbv_reproj_error(nbv_reproj_err, img);
   //
-  //   // Show NBV status
+  //   // Show NBT status
   //   if (nbv_reproj_err < (nbv_reproj_error_threshold * 1.5)) {
   //     std::string text = "Nearly There!";
   //     if (nbv_reproj_err <= nbv_reproj_error_threshold) {
@@ -169,160 +170,61 @@ struct calib_nbt_t {
   //     draw_status_text(text, img);
   //   }
   // }
-  //
-  // /** Check if reached NBV */
-  // bool nbv_reached() {
-  //   // Pre-check
-  //   if (state != NBV || find_nbv_event || grid_buffer.size() == 0 ||
-  //       grid_buffer.count(nbv_cam_idx) == 0) {
-  //     return false;
-  //   }
-  //
-  //   // Get current detected grid measurements
-  //   const aprilgrid_t &grid = grid_buffer[nbv_cam_idx];
-  //   std::vector<int> tag_ids;
-  //   std::vector<int> corner_indicies;
-  //   vec2s_t keypoints;
-  //   vec3s_t object_points;
-  //   grid.get_measurements(tag_ids, corner_indicies, keypoints,
-  //   object_points);
-  //
-  //   // See if measured grid matches any NBV grid keypoints
-  //   std::vector<double> reproj_errors;
-  //   for (size_t i = 0; i < tag_ids.size(); i++) {
-  //     const int tag_id = tag_ids[i];
-  //     const int corner_idx = corner_indicies[i];
-  //     if (nbv_target.has(tag_id, corner_idx) == false) {
-  //       continue;
-  //     }
-  //
-  //     const vec2_t z_measured = keypoints[i];
-  //     const vec2_t z_desired = nbv_target.keypoint(tag_id, corner_idx);
-  //     reproj_errors.push_back((z_desired - z_measured).norm());
-  //   }
-  //
-  //   // Check if NBV is reached using reprojection errors
-  //   nbv_reproj_err = mean(reproj_errors);
-  //   if (nbv_reproj_err > nbv_reproj_error_threshold) {
-  //     nbv_hold_tic = (struct timespec){0, 0}; // Reset hold timer
-  //     return false;
-  //   }
-  //
-  //   // Start NBV hold timer
-  //   if (nbv_hold_tic.tv_sec == 0) {
-  //     nbv_hold_tic = tic();
-  //   }
-  //
-  //   // If hold threshold not met
-  //   if (toc(&nbv_hold_tic) < nbv_hold_threshold) {
-  //     return false;
-  //   }
-  //
-  //   // NBV reached! Now add measurements to calibrator
-  //   calib->add_view(grid_buffer);
-  //   calib->enable_nbv = false;
-  //   calib->enable_outlier_filter = false;
-  //   calib->solve();
-  //
-  //   return true;
-  // }
-  //
-  // /** Initialize Intrinsics + Extrinsics Mode */
-  // int mode_init() {
-  //   // Pre-check
-  //   if (grid_buffer.size() == 0) {
-  //     goto viz_init;
-  //   }
-  //
-  //   // Form calibration data
-  //   for (auto &[cam_idx, data] : img_buffer) {
-  //     // Check if have enough grids already
-  //     if (cam_grids[cam_idx].size() >= min_intrinsics_views) {
-  //       continue;
-  //     }
-  //
-  //     // Check if aprilgrid is detected and fully observable
-  //     if (grid_buffer.count(cam_idx) == 0) {
-  //       continue;
-  //     }
-  //     const auto &grid_k = grid_buffer[cam_idx];
-  //     if (grid_k.detected == false || grid_k.fully_observable() == false) {
-  //       continue;
-  //     }
-  //
-  //     // Check current grid against previous grid to see if the view has
-  //     // changed enought via reprojection error
-  //     if (cam_grids[cam_idx].size()) {
-  //       const auto &grid_km1 = cam_grids[cam_idx].back();
-  //       const vec2s_t kps_km1 = grid_km1.keypoints();
-  //       const vec2s_t kps_k = grid_k.keypoints();
-  //
-  //       std::vector<real_t> errors;
-  //       for (size_t i = 0; i < kps_km1.size(); i++) {
-  //         const vec2_t diff = kps_km1[i] - kps_k[i];
-  //         errors.push_back(diff.norm());
-  //       }
-  //
-  //       if (rmse(errors) < min_intrinsics_view_diff) {
-  //         continue;
-  //       }
-  //     }
-  //
-  //     // Add to calibration data
-  //     const auto views_left = min_intrinsics_views -
-  //     cam_grids[cam_idx].size(); if (views_left) {
-  //       LOG_INFO("Adding cam%d data - still needs %ld views",
-  //                cam_idx,
-  //                views_left);
-  //       cam_grids[cam_idx].push_back(grid_k);
-  //     }
-  //   }
-  //
-  //   // Check if we have enough grids for all cameras
-  //   for (const auto [cam_idx, grids] : cam_grids) {
-  //     if (grids.size() < min_intrinsics_views) {
-  //       goto viz_init;
-  //     }
-  //   }
-  //
-  //   // Initialize camera intrinsics + extrinsics
-  //   for (const auto [cam_idx, grids] : cam_grids) {
-  //     calib->add_camera_data(cam_idx, grids);
-  //   }
-  //   calib->enable_nbv = false;
-  //   calib->enable_outlier_filter = false;
-  //   calib->solve();
-  //   calib->enable_outlier_filter = true;
-  //
-  //   // Transition to NBV mode
-  //   state = NBV;
-  //   find_nbv_event = true;
-  //
-  // viz_init:
-  //   // Visualize Initialization mode
-  //   cv::Mat viz;
-  //   for (auto [cam_idx, data] : img_buffer) {
-  //     // Convert image gray to rgb
-  //     auto img_gray = data.second;
-  //     auto img = gray2rgb(img_gray);
-  //
-  //     // Draw "detected" if AprilGrid was observed
-  //     if (grid_buffer.count(cam_idx)) {
-  //       draw_detected(grid_buffer[cam_idx], img);
-  //     }
-  //
-  //     // Stack the images up
-  //     if (viz.empty()) {
-  //       viz = img;
-  //       continue;
-  //     }
-  //     cv::hconcat(viz, img, viz);
-  //   }
-  //   cv::imshow("Viz", viz);
-  //   event_handler(cv::waitKey(1));
-  //
-  //   return 0;
-  // }
+
+  /** Initialize Intrinsics + Extrinsics Mode */
+  int mode_init() {
+    // Pre-check
+    if (grid_buffer.size() != 0) {
+      for (auto &[cam_idx, data] : img_buffer) {
+        // Check if aprilgrid is detected
+        if (grid_buffer.count(cam_idx) == 0) {
+          continue;
+        }
+        const auto &grid_k = grid_buffer[cam_idx];
+        if (grid_k.detected == false) {
+          continue;
+        }
+
+        // Add camera data
+        calib->add_measurement(cam_idx, grid_k);
+      }
+    }
+
+    // Check if we have enough grids for all cameras
+    const int views_left = min_init_views - calib->nb_views();
+    if (views_left > 0) {
+      LOG_INFO("Still need %d views", views_left);
+      // Visualize Initialization mode
+      cv::Mat viz;
+      for (auto [cam_idx, data] : img_buffer) {
+        // Convert image gray to rgb
+        auto img_gray = data.second;
+        auto img = gray2rgb(img_gray);
+
+        // Draw "detected" if AprilGrid was observed
+        if (grid_buffer.count(cam_idx)) {
+          draw_detected(grid_buffer[cam_idx], img);
+        }
+
+        // Stack the images up
+        if (viz.empty()) {
+          viz = img;
+          continue;
+        }
+        cv::hconcat(viz, img, viz);
+      }
+      cv::imshow("Viz", viz);
+      event_handler(cv::waitKey(1));
+      return 0;
+    }
+
+    // Transition to NBT mode
+    calib->solve();
+    state = NBT;
+    find_nbv_event = true;
+
+    return 0;
+  }
 
   /**
    * IMU Callback
@@ -353,21 +255,15 @@ struct calib_nbt_t {
     // Detect Calibration Target
     detect();
 
-    // Aprilgrid event
-    // calib.add_measurement(cam_idx, grid);
-
-    // // States
-    // switch (state) {
-    //   case INITIALIZE:
-    //     mode_init();
-    //     break;
-    //   case NBT:
-    //     mode_nbv();
-    //     break;
-    //   default:
-    //     FATAL("Implementation Error!");
-    //     break;
-    // }
+    // States
+    switch (state) {
+      case INITIALIZE:
+        mode_init();
+        break;
+      default:
+        FATAL("Implementation Error!");
+        break;
+    }
   }
 
   void loop() {

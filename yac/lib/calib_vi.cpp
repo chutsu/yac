@@ -801,7 +801,13 @@ void calib_vi_t::add_view(const CamIdx2Grids &grids) {
 }
 
 void calib_vi_t::add_measurement(const int cam_idx, const aprilgrid_t &grid) {
+  // Do not add vision data before first imu measurement
+  if (imu_started == false) {
+    return;
+  }
+
   grid_buf[cam_idx].push_back(grid);
+  vision_started = true;
 }
 
 void calib_vi_t::add_measurement(const timestamp_t imu_ts,
@@ -845,6 +851,8 @@ void calib_vi_t::add_measurement(const timestamp_t imu_ts,
     // Marginalize oldest view
     marginalize();
   }
+
+  imu_started = true;
 }
 
 void calib_vi_t::load_data(const std::string &data_path) {

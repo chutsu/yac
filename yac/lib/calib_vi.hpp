@@ -64,6 +64,10 @@ struct calib_vi_view_t {
 // VISUAL INERTIAL CALIBRATOR //////////////////////////////////////////////////
 
 struct calib_vi_t {
+  // Flags
+  bool imu_started = false;
+  bool vision_started = false;
+
   // Settings
   bool verbose = true;
   int max_num_threads = 4;

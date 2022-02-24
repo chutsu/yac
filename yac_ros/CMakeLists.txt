@@ -95,6 +95,9 @@ INSTALL(
 ADD_EXECUTABLE(calib_camera_node src/nodes/calib_camera_node.cpp)
 TARGET_LINK_LIBRARIES(calib_camera_node ${DEPS})
 
+ADD_EXECUTABLE(calib_imucam_node src/nodes/calib_imucam_node.cpp)
+TARGET_LINK_LIBRARIES(calib_imucam_node ${DEPS})
+
 # ADD_EXECUTABLE(calib_mocap_node src/nodes/calib_mocap_node.cpp)
 # TARGET_LINK_LIBRARIES(calib_mocap_node ${DEPS})
 

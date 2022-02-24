@@ -328,50 +328,6 @@ std::ofstream gyro_init_output_file(const std::string &output_path) {
   return data_file;
 }
 
-void load_imu_data(const std::string &csv_file,
-                   timestamps_t &timestamps,
-                   vec3s_t &gyro,
-                   vec3s_t &accel) {
-  // Open file for loading
-  int nb_rows = 0;
-  FILE *fp = file_open(csv_file, "r", &nb_rows);
-  if (fp == nullptr) {
-    LOG_ERROR("Failed to open [%s]!", csv_file.c_str());
-    return;
-  }
-
-  // Parse file
-  for (int i = 0; i < nb_rows; i++) {
-    // Skip first line
-    if (i == 0) {
-      skip_line(fp);
-      continue;
-    }
-
-    // Parse line
-    timestamp_t ts = 0;
-    double w_x, w_y, w_z = 0.0;
-    double a_x, a_y, a_z = 0.0;
-    const int retval = fscanf(fp,
-                              "%" SCNu64 ",%lf,%lf,%lf,%lf,%lf,%lf",
-                              &ts,
-                              &a_x,
-                              &a_y,
-                              &a_z,
-                              &w_x,
-                              &w_y,
-                              &w_z);
-    if (retval != 6) {
-      LOG_ERROR("Failed to parse line [%d] in [%s]!", i, csv_file.c_str());
-      return;
-    }
-    timestamps.push_back(ts);
-    gyro.emplace_back(w_x, w_y, w_z);
-    accel.emplace_back(a_x, a_y, a_z);
-  }
-  fclose(fp);
-}
-
 void pose_message_handler(const rosbag::MessageInstance &msg,
                           std::ofstream &pose_data) {
   const auto pose_msg = msg.instantiate<geometry_msgs::PoseStamped>();
@@ -434,13 +390,13 @@ void imu_message_handler(const rosbag::MessageInstance &msg,
   // -- Timestamp [ns]
   imu_data << ts.toNSec() << ",";
   // -- Accelerometer [m s^-2]
-  imu_data << accel(0) << ",";
-  imu_data << accel(1) << ",";
-  imu_data << accel(2) << ",";
+  imu_data << accel.x() << ",";
+  imu_data << accel.y() << ",";
+  imu_data << accel.z() << ",";
   // -- Angular velocity [rad s^-1]
-  imu_data << gyro(0) << ",";
-  imu_data << gyro(1) << ",";
-  imu_data << gyro(2) << std::endl;
+  imu_data << gyro.x() << ",";
+  imu_data << gyro.y() << ",";
+  imu_data << gyro.z() << std::endl;
 }
 
 void accel_message_handler(const rosbag::MessageInstance &msg,
@@ -458,9 +414,9 @@ void accel_message_handler(const rosbag::MessageInstance &msg,
   // -- Timestamp [ns]
   accel_csv << ts.toNSec() << ",";
   // -- Accelerometer [m s^-2]
-  accel_csv << accel(0) << ",";
-  accel_csv << accel(1) << ",";
-  accel_csv << accel(2) << std::endl;
+  accel_csv << accel.x() << ",";
+  accel_csv << accel.y() << ",";
+  accel_csv << accel.z() << std::endl;
 
   // Keep track of accel data
   accel_ts.push_back(ts.toNSec());
@@ -482,9 +438,9 @@ void gyro_message_handler(const rosbag::MessageInstance &msg,
   // -- Timestamp [ns]
   gyro_csv << ts.toNSec() << ",";
   // -- Angular velocity [rad s^-1]
-  gyro_csv << gyro(0) << ",";
-  gyro_csv << gyro(1) << ",";
-  gyro_csv << gyro(2) << std::endl;
+  gyro_csv << gyro.x() << ",";
+  gyro_csv << gyro.y() << ",";
+  gyro_csv << gyro.z() << std::endl;
 
   // Keep track of gyro data
   gyro_ts.push_back(ts.toNSec());

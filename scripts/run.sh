@@ -27,7 +27,7 @@ set -e
 # RUN_CMD="rosrun yac test_calib_errors --target test_imu_error"
 
 # YAC - CAMERA CALIBRATION
-RUN_CMD="rosrun yac test_calib_camera"
+# RUN_CMD="rosrun yac test_calib_camera"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_view"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_add_camera_data"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_add_camera"
@@ -58,6 +58,7 @@ RUN_CMD="rosrun yac test_calib_camera"
 # YAC - VISUAL-INERTIAL CALIBRATION
 # RUN_CMD="rosrun yac test_calib_vi"
 # RUN_CMD="rosrun yac test_calib_vi --target test_calib_vi"
+# RUN_CMD="rosrun yac test_calib_vi --target test_calib_vi_batch"
 # RUN_CMD="rosrun yac test_calib_vi --target test_calib_vi_online"
 # RUN_CMD="rosrun yac test_calib_vi --target test_calib_vi_copy_constructor"
 
@@ -85,16 +86,18 @@ RUN_CMD="rosrun yac test_calib_camera"
 # YAC - ROS NODES
 # RUN_CMD="roslaunch yac_ros record_camera.launch"
 # RUN_CMD="roslaunch yac_ros record_mocap.launch"
-# RUN_CMD="roslaunch yac_ros calib_camera.launch \
-#   config_file:=/home/chutsu/projects/yac/yac_ros/config/calib_euroc.yaml"
+# RUN_CMD="roslaunch yac_ros calib_mocap.launch"
 # RUN_CMD="roslaunch yac_ros calib_intel_d435i.launch \
 #   config_file:=/home/chutsu/projects/yac/yac_ros/config/calib_intel_d435i.yaml"
-# RUN_CMD="roslaunch yac_ros calib_mocap.launch"
+# RUN_CMD="roslaunch yac_ros calib_camera.launch \
+#   config_file:=/home/chutsu/projects/yac/yac_ros/config/calib_cameras-euroc.yaml"
+# RUN_CMD="roslaunch yac_ros calib_imucam.launch \
+#   config_file:=/home/chutsu/projects/yac/yac_ros/config/calib_imucam-euroc.yaml"
 
 tmux send-keys -t dev -R C-l C-m
 tmux send-keys -t dev -R "\
 cd ~/projects/yac \
-&& make lib_relwithdeb \
+&& make release \
 && source ~/catkin_ws/devel/setup.bash \
 && ${RUN_CMD}
 " C-m C-m

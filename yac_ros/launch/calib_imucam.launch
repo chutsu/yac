@@ -1,0 +1,6 @@
+<launch>
+  <arg name="config_file"/>
+  <node pkg="yac_ros" type="calib_imucam_node" name="calib_imucam_node" required="true" output="screen">
+    <param name="config_file" value="$(arg config_file)" />
+  </node>
+</launch>

@@ -99,10 +99,6 @@ std::ofstream imu_init_output_file(const std::string &output_path);
 std::ofstream accel_init_output_file(const std::string &output_path);
 std::ofstream gyro_init_output_file(const std::string &output_path);
 
-void load_imu_data(const std::string &csv_file,
-                   timestamps_t &timestamps,
-                   vec3s_t &gyro,
-                   vec3s_t &accel);
 void pose_message_handler(const rosbag::MessageInstance &msg,
                           std::ofstream &pose_data);
 void image_message_handler(const rosbag::MessageInstance &msg,

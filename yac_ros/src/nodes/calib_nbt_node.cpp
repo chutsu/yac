@@ -37,8 +37,6 @@ struct calib_nbt_t {
   // struct termios term_config_orig;
 
   // Calibration
-  calib_target_t calib_target;
-  std::unique_ptr<aprilgrid_detector_t> detector;
   std::unique_ptr<calib_vi_t> calib;
 
   // Data
@@ -67,36 +65,7 @@ struct calib_nbt_t {
   calib_nbt_t(const std::string &node_name_) : node_name{node_name_} {
     std::string config_file;
     ROS_PARAM(ros_nh, node_name + "/config_file", config_file);
-    setup_calib_target(config_file);
-    setup_calibrator(config_file);
-    setup_aprilgrid_detector();
-    setup_ros_topics(config_file);
-  }
 
-  /* Destructor */
-  ~calib_nbt_t() = default;
-
-  /** Setup Calibration Target */
-  void setup_calib_target(const std::string &config_file) {
-    config_t config{config_file};
-    if (calib_target.load(config_file, "calib_target") != 0) {
-      FATAL("Failed to parse calib_target in [%s]!", config_file.c_str());
-    }
-  }
-
-  /** Setup Camera Calibrator */
-  void setup_calibrator(const std::string &config_file) {}
-
-  /** Setup AprilGrid detector */
-  void setup_aprilgrid_detector() {
-    detector = std::make_unique<aprilgrid_detector_t>(calib_target.tag_rows,
-                                                      calib_target.tag_cols,
-                                                      calib_target.tag_size,
-                                                      calib_target.tag_spacing);
-  }
-
-  /** Setup ROS Topics */
-  void setup_ros_topics(const std::string &config_file) {
     // Parse camera ros topics
     config_t config{config_file};
     parse_camera_topics(config, mcam_topics);
@@ -112,6 +81,9 @@ struct calib_nbt_t {
       mcam_subs[cam_idx] = img_trans.subscribe(topic, 1, cb);
     }
   }
+
+  /* Destructor */
+  ~calib_nbt_t() = default;
 
   /**
    * Update image buffer
@@ -145,7 +117,7 @@ struct calib_nbt_t {
     for (auto &[cam_idx, data] : img_buffer) {
       const auto img_ts = data.first;
       const auto &img = data.second;
-      const auto grid = detector->detect(img_ts, img);
+      const auto grid = calib->detector->detect(img_ts, img);
       if (grid.detected) {
         grid_buffer[cam_idx] = grid;
       }
@@ -343,6 +315,19 @@ struct calib_nbt_t {
   // }
 
   /**
+   * IMU Callback
+   * @param[in] msg Imu message
+   */
+  void imu_callback(const sensor_msgs::ImuConstPtr &msg) {
+    const auto gyr = msg->angular_velocity;
+    const auto acc = msg->linear_acceleration;
+    const vec3_t a_m{acc.x, acc.y, acc.z};
+    const vec3_t w_m{gyr.x, gyr.y, gyr.z};
+    const timestamp_t ts = msg->header.stamp.toNSec();
+    calib->add_measurement(ts, a_m, w_m);
+  }
+
+  /**
    * Camera Image Callback
    * @param[in] msg Image message
    * @param[in] cam_idx Camera index
@@ -357,6 +342,17 @@ struct calib_nbt_t {
 
     // Detect Calibration Target
     detect();
+
+    // Aprilgrid event
+    // calib.add_measurement(cam_idx, grid);
+
+    // // Imu event
+    // if (auto imu_event = dynamic_cast<imu_event_t *>(event)) {
+    //   const auto ts = imu_event->ts;
+    //   const auto &acc = imu_event->acc;
+    //   const auto &gyr = imu_event->gyr;
+    //   calib.add_measurement(ts, acc, gyr);
+    // }
 
     // // States
     // switch (state) {

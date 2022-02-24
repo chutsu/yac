@@ -96,6 +96,7 @@ void load_imu_data(const std::string &csv_path,
                         &wy,
                         &wz);
     if (retval != 7) {
+      LOG_ERROR("Invalid line: %d", i);
       FATAL("Failed to parse line in [%s]", csv_path.c_str());
     }
 

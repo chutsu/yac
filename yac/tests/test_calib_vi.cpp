@@ -10,49 +10,6 @@ namespace yac {
 #define TEST_IMUCAM_DATA TEST_PATH "/test_data/calib/imu_april"
 #define CALIB_CONFIG TEST_PATH "/test_data/calib/imu_april/config.yaml"
 
-void load_imu_data(const std::string &csv_path,
-                   timestamps_t &timestamps,
-                   vec3s_t &a_B,
-                   vec3s_t &w_B) {
-  // Open file for loading
-  int nb_rows = 0;
-  FILE *fp = file_open(csv_path, "r", &nb_rows);
-  if (fp == nullptr) {
-    FATAL("Failed to open [%s]!", csv_path.c_str());
-  }
-
-  // Parse file
-  for (int i = 0; i < nb_rows; i++) {
-    // Skip first line
-    if (i == 0) {
-      skip_line(fp);
-      continue;
-    }
-
-    // Parse line
-    timestamp_t ts = 0;
-    double w_x, w_y, w_z = 0.0;
-    double a_x, a_y, a_z = 0.0;
-    int retval = fscanf(fp,
-                        "%" SCNu64 ",%lf,%lf,%lf,%lf,%lf,%lf",
-                        &ts,
-                        &w_x,
-                        &w_y,
-                        &w_z,
-                        &a_x,
-                        &a_y,
-                        &a_z);
-    if (retval != 7) {
-      FATAL("Failed to parse line in [%s]", csv_path.c_str());
-    }
-
-    timestamps.push_back(ts);
-    a_B.emplace_back(a_x, a_y, a_z);
-    w_B.emplace_back(w_x, w_y, w_z);
-  }
-  fclose(fp);
-}
-
 timeline_t setup_test_data() {
   // Load grid data
   timeline_t timeline;

@@ -847,6 +847,57 @@ void calib_vi_t::add_measurement(const timestamp_t imu_ts,
   }
 }
 
+void calib_vi_t::load_data(const std::string &data_path) {
+  // Form timeline
+  timeline_t timeline;
+  // -- Load camera data
+  std::map<int, std::string> cam_paths;
+  for (const auto cam_idx : get_camera_indices()) {
+    const auto cam_str = "cam" + std::to_string(cam_idx);
+    cam_paths[cam_idx] = data_path + "/" + cam_str + "/data";
+  }
+  const auto grids_path = data_path + "/grid0";
+  auto cam_grids = calib_data_preprocess(calib_target, cam_paths, grids_path);
+  for (const auto cam_idx : get_camera_indices()) {
+    for (const auto grid : cam_grids[cam_idx]) {
+      timeline.add(grid.timestamp, cam_idx, grid);
+    }
+  }
+  // -- Load imu data
+  timestamps_t imu_ts;
+  vec3s_t imu_acc;
+  vec3s_t imu_gyr;
+  load_imu_data(data_path + "/imu0/data.csv", imu_ts, imu_acc, imu_gyr);
+  for (size_t k = 0; k < imu_ts.size(); k++) {
+    timeline.add(imu_ts[k], imu_acc[k], imu_gyr[k]);
+  }
+
+  // Process data
+  for (const auto &ts : timeline.timestamps) {
+    const auto kv = timeline.data.equal_range(ts);
+
+    // Handle multiple events in the same timestamp
+    for (auto it = kv.first; it != kv.second; it++) {
+      const auto event = it->second;
+
+      // Aprilgrid event
+      if (auto grid_event = dynamic_cast<aprilgrid_event_t *>(event)) {
+        auto cam_idx = grid_event->cam_idx;
+        auto &grid = grid_event->grid;
+        add_measurement(cam_idx, grid);
+      }
+
+      // Imu event
+      if (auto imu_event = dynamic_cast<imu_event_t *>(event)) {
+        const auto ts = imu_event->ts;
+        const auto &acc = imu_event->acc;
+        const auto &gyr = imu_event->gyr;
+        add_measurement(ts, acc, gyr);
+      }
+    }
+  }
+}
+
 void calib_vi_t::solve() {
   // Solver options
   ceres::Solver::Options options;

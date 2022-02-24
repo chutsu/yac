@@ -154,6 +154,7 @@ struct calib_vi_t {
   int recover_calib_covar(matx_t &calib_covar) const;
   void marginalize();
 
+  void load_data(const std::string &data_path);
   void solve();
   void show_results();
   int save_results(const std::string &save_path) const;

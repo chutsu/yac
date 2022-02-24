@@ -87,12 +87,18 @@ set -e
 # RUN_CMD="roslaunch yac_ros record_camera.launch"
 # RUN_CMD="roslaunch yac_ros record_mocap.launch"
 # RUN_CMD="roslaunch yac_ros calib_mocap.launch"
-# RUN_CMD="roslaunch yac_ros calib_intel_d435i.launch \
-#   config_file:=/home/chutsu/projects/yac/yac_ros/config/calib_intel_d435i.yaml"
 # RUN_CMD="roslaunch yac_ros calib_camera.launch \
-#   config_file:=/home/chutsu/projects/yac/yac_ros/config/calib_cameras-euroc.yaml"
+#   config_file:=/home/chutsu/projects/yac/yac_ros/config/euroc-calib_cameras.yaml"
 # RUN_CMD="roslaunch yac_ros calib_imucam.launch \
-#   config_file:=/home/chutsu/projects/yac/yac_ros/config/calib_imucam-euroc.yaml"
+#   config_file:=/home/chutsu/projects/yac/yac_ros/config/euroc-calib_imucam.yaml"
+
+# RUN_CMD="roslaunch yac_ros intel_d435i-calib_camera.launch \
+#   config_file:=/home/chutsu/projects/yac/yac_ros/config/intel_d435i-calib_camera.yaml"
+
+# RUN_CMD="roslaunch yac_ros intel_d435i-calib_imucam.launch \
+#   config_file:=/home/chutsu/projects/yac/yac_ros/config/intel_d435i-calib_imucam.yaml"
+
+RUN_CMD="roslaunch yac_ros calib_imucam.launch"
 
 tmux send-keys -t dev -R C-l C-m
 tmux send-keys -t dev -R "\

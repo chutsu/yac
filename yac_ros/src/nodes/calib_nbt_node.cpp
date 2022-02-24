@@ -80,6 +80,9 @@ struct calib_nbt_t {
       auto cb = std::bind(&calib_nbt_t::image_callback, this, _1, cam_idx);
       mcam_subs[cam_idx] = img_trans.subscribe(topic, 1, cb);
     }
+
+    // Calibrator
+    calib = std::make_unique<calib_vi_t>(config_file);
   }
 
   /* Destructor */
@@ -121,6 +124,13 @@ struct calib_nbt_t {
       if (grid.detected) {
         grid_buffer[cam_idx] = grid;
       }
+    }
+
+    if (img_buffer.count(0)) {
+      printf(".");
+      fflush(stdout);
+      cv::imshow("cam0", img_buffer[0].first);
+      cv::waitKey(1);
     }
   }
 
@@ -345,14 +355,6 @@ struct calib_nbt_t {
 
     // Aprilgrid event
     // calib.add_measurement(cam_idx, grid);
-
-    // // Imu event
-    // if (auto imu_event = dynamic_cast<imu_event_t *>(event)) {
-    //   const auto ts = imu_event->ts;
-    //   const auto &acc = imu_event->acc;
-    //   const auto &gyr = imu_event->gyr;
-    //   calib.add_measurement(ts, acc, gyr);
-    // }
 
     // // States
     // switch (state) {

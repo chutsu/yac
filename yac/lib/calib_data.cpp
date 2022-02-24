@@ -63,6 +63,49 @@ void lerp_body_poses(const aprilgrids_t &grids,
   }
 }
 
+void load_imu_data(const std::string &csv_path,
+                   timestamps_t &timestamps,
+                   vec3s_t &a_B,
+                   vec3s_t &w_B) {
+  // Open file for loading
+  int nb_rows = 0;
+  FILE *fp = file_open(csv_path, "r", &nb_rows);
+  if (fp == nullptr) {
+    FATAL("Failed to open [%s]!", csv_path.c_str());
+  }
+
+  // Parse file
+  for (int i = 0; i < nb_rows; i++) {
+    // Skip first line
+    if (i == 0) {
+      skip_line(fp);
+      continue;
+    }
+
+    // Parse line
+    timestamp_t ts = 0;
+    double ax, ay, az = 0.0;
+    double wx, wy, wz = 0.0;
+    int retval = fscanf(fp,
+                        "%" SCNu64 ",%lf,%lf,%lf,%lf,%lf,%lf",
+                        &ts,
+                        &ax,
+                        &ay,
+                        &az,
+                        &wx,
+                        &wy,
+                        &wz);
+    if (retval != 7) {
+      FATAL("Failed to parse line in [%s]", csv_path.c_str());
+    }
+
+    timestamps.push_back(ts);
+    a_B.emplace_back(ax, ay, az);
+    w_B.emplace_back(wx, wy, wz);
+  }
+  fclose(fp);
+}
+
 // CALIB TARGET ////////////////////////////////////////////////////////////////
 
 calib_target_t::calib_target_t(const std::string target_type_,

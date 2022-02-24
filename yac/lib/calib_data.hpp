@@ -17,6 +17,11 @@ void lerp_body_poses(const aprilgrids_t &grids,
                      mat4s_t &lerped_poses,
                      timestamp_t ts_offset = 0);
 
+void load_imu_data(const std::string &csv_path,
+                   timestamps_t &timestamps,
+                   vec3s_t &a_B,
+                   vec3s_t &w_B);
+
 // CALIB TARGET ////////////////////////////////////////////////////////////////
 
 /** Calibration target */

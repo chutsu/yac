@@ -409,7 +409,7 @@ int nbt_eval(const ctraj_t &traj,
   // Setup
   const timestamp_t ts_start = traj.timestamps.front();
   const timestamp_t ts_end = traj.timestamps.back();
-  const double cam_rate = calib.get_cam_rate();
+  const double cam_rate = calib.get_camera_rate();
 
   // Make a copy of the calibrator
   calib_vi_t calib_{calib};

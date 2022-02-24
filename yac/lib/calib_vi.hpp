@@ -49,7 +49,7 @@ struct calib_vi_view_t {
                   PoseLocalParameterization *pose_plus);
   ~calib_vi_view_t();
 
-  std::vector<int> get_cam_indices() const;
+  std::vector<int> get_camera_indices() const;
   std::vector<real_t> get_reproj_errors(const int cam_idx) const;
   std::map<int, std::vector<real_t>> get_reproj_errors() const;
   std::vector<real_t> get_imu_errors() const;
@@ -66,10 +66,11 @@ struct calib_vi_view_t {
 struct calib_vi_t {
   // Settings
   bool verbose = true;
-  int batch_max_iter = 30;
+  int max_num_threads = 4;
+  int max_iter = 30;
   bool enable_outlier_rejection = false;
-  double outlier_threshold = 4.0;
   bool enable_marginalization = false;
+  double outlier_threshold = 4.0;
   int window_size = 4;
 
   // Optimization
@@ -111,6 +112,7 @@ struct calib_vi_t {
   // Constructor / Destructor
   calib_vi_t(const calib_target_t &calib_target_);
   calib_vi_t(const calib_vi_t &calib);
+  calib_vi_t(const std::string &config_path);
   ~calib_vi_t();
 
   void add_imu(const imu_params_t &imu_params_,
@@ -130,11 +132,11 @@ struct calib_vi_t {
 
   int nb_cams() const;
   int nb_views() const;
-  std::vector<int> get_cam_indices() const;
-  real_t get_cam_rate() const;
-  veci2_t get_cam_resolution(const int cam_idx) const;
-  vecx_t get_cam_params(const int cam_idx) const;
-  mat4_t get_cam_extrinsics(const int cam_idx) const;
+  std::vector<int> get_camera_indices() const;
+  real_t get_camera_rate() const;
+  veci2_t get_camera_resolution(const int cam_idx) const;
+  vecx_t get_camera_params(const int cam_idx) const;
+  mat4_t get_camera_extrinsics(const int cam_idx) const;
   mat4_t get_imu_extrinsics() const;
   real_t get_imucam_time_delay() const;
   mat4_t get_fiducial_pose() const;

@@ -28,6 +28,14 @@ calib_target:
   tag_spacing: 0.3          # Ratio of space between tags to tagSize
                             # Example: tagSize=2m, spacing=0.5m --> tagSpacing=0.25[-]
 
+imu0:
+  rate: 200.0
+  sigma_a_c: 0.002
+  sigma_g_c: 1.6968e-04
+  sigma_aw_c: 0.003
+  sigma_gw_c: 1.9393e-05
+  g: 9.81007
+
 cam0:
   resolution: [752, 480]
   proj_model: "pinhole"

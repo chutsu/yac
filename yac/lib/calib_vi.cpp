@@ -85,7 +85,7 @@ calib_vi_view_t::~calib_vi_view_t() {
   }
 }
 
-std::vector<int> calib_vi_view_t::get_cam_indices() const {
+std::vector<int> calib_vi_view_t::get_camera_indices() const {
   std::vector<int> cam_idxs;
   for (const auto &[cam_idx, params] : cam_params) {
     UNUSED(params);
@@ -142,7 +142,7 @@ int calib_vi_view_t::filter_view(const real_t outlier_threshold) {
 
   int nb_inliers = 0;
   int nb_outliers = 0;
-  for (const auto cam_idx : get_cam_indices()) {
+  for (const auto cam_idx : get_camera_indices()) {
     auto &cam_errors = fiducial_errors[cam_idx];
     auto &cam_error_ids = fiducial_error_ids[cam_idx];
     auto err_it = cam_errors.begin();
@@ -215,20 +215,28 @@ ceres::ResidualBlockId calib_vi_view_t::marginalize(marg_error_t *marg_error) {
 
 calib_vi_t::calib_vi_t(const calib_target_t &calib_target_)
     : calib_target{calib_target_} {
+  // Ceres-Problem
   prob_options.local_parameterization_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
   prob_options.cost_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
   prob_options.loss_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
   prob_options.enable_fast_removal = true;
   problem = new ceres::Problem{prob_options};
+
+  // AprilGrid detector
+  detector = std::make_unique<aprilgrid_detector_t>(calib_target.tag_rows,
+                                                    calib_target.tag_cols,
+                                                    calib_target.tag_size,
+                                                    calib_target.tag_spacing);
 }
 
 calib_vi_t::calib_vi_t(const calib_vi_t &calib) {
   // Settings
   verbose = calib.verbose;
-  batch_max_iter = calib.batch_max_iter;
+  max_num_threads = calib.max_num_threads;
+  max_iter = calib.max_iter;
   enable_outlier_rejection = calib.enable_outlier_rejection;
-  outlier_threshold = calib.outlier_threshold;
   enable_marginalization = calib.enable_marginalization;
+  outlier_threshold = calib.outlier_threshold;
   window_size = calib.window_size;
 
   // Optimization
@@ -238,7 +246,7 @@ calib_vi_t::calib_vi_t(const calib_vi_t &calib) {
 
   // State-Variables
   // -- Cameras
-  for (const auto &cam_idx : calib.get_cam_indices()) {
+  for (const auto &cam_idx : calib.get_camera_indices()) {
     add_camera(cam_idx,
                calib.cam_params.at(cam_idx)->resolution,
                calib.cam_params.at(cam_idx)->proj_model,
@@ -357,6 +365,84 @@ calib_vi_t::calib_vi_t(const calib_vi_t &calib) {
                                                     calib_target.tag_spacing);
 }
 
+calib_vi_t::calib_vi_t(const std::string &config_path) {
+  // Ceres-Problem
+  prob_options.local_parameterization_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
+  prob_options.cost_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
+  prob_options.loss_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
+  prob_options.enable_fast_removal = true;
+  problem = new ceres::Problem(prob_options);
+
+  // Load configuration
+  config_t config{config_path};
+  // -- Parse settings
+  // clang-format off
+  parse(config, "settings.verbose", verbose, true);
+  parse(config, "settings.max_num_threads", max_num_threads, true);
+  parse(config, "settings.max_iter", max_iter, true);
+  parse(config, "settings.enable_outlier_rejection", enable_outlier_rejection, true);
+  parse(config, "settings.enable_marginalization", enable_marginalization, true);
+  parse(config, "settings.outlier_threshold", outlier_threshold, true);
+  parse(config, "settings.window_size", window_size, true);
+  // clang-format on
+  // -- Parse calibration target
+  if (calib_target.load(config_path, "calib_target") != 0) {
+    FATAL("Failed to parse calib_target in [%s]!", config_path.c_str());
+  }
+  // -- Parse imu settings
+  parse(config, "imu0.rate", imu_params.rate);
+  parse(config, "imu0.sigma_g_c", imu_params.sigma_g_c);
+  parse(config, "imu0.sigma_a_c", imu_params.sigma_a_c);
+  parse(config, "imu0.sigma_gw_c", imu_params.sigma_gw_c);
+  parse(config, "imu0.sigma_aw_c", imu_params.sigma_aw_c);
+  parse(config, "imu0.sigma_bg", imu_params.sigma_bg, true);
+  parse(config, "imu0.sigma_ba", imu_params.sigma_ba, true);
+  parse(config, "imu0.g", imu_params.g);
+  add_imu(imu_params, I(4), 0.0, false, false);
+  // -- Parse camera settings
+  for (int cam_idx = 0; cam_idx < 100; cam_idx++) {
+    // Check if key exists
+    const std::string cam_str = "cam" + std::to_string(cam_idx);
+    if (yaml_has_key(config, cam_str) == 0) {
+      continue;
+    }
+
+    // Add camera intrinsics + extrinsics
+    veci2_t cam_res;
+    std::string proj_model;
+    std::string dist_model;
+    vecx_t proj_params;
+    vecx_t dist_params;
+    mat4_t T_C0Ci = I(4);
+    parse(config, cam_str + ".resolution", cam_res);
+    parse(config, cam_str + ".proj_model", proj_model);
+    parse(config, cam_str + ".dist_model", dist_model);
+    parse(config, cam_str + ".proj_params", proj_params);
+    parse(config, cam_str + ".dist_params", dist_params);
+    if (cam_idx != 0) {
+      parse(config, "T_cam0_" + cam_str, T_C0Ci);
+    }
+    add_camera(cam_idx,
+               cam_res.data(),
+               proj_model,
+               dist_model,
+               proj_params,
+               dist_params,
+               T_C0Ci,
+               true,
+               true);
+  }
+  if (cam_params.size() == 0) {
+    FATAL("Failed to parse any camera parameters...");
+  }
+
+  // AprilGrid detector
+  detector = std::make_unique<aprilgrid_detector_t>(calib_target.tag_rows,
+                                                    calib_target.tag_cols,
+                                                    calib_target.tag_size,
+                                                    calib_target.tag_spacing);
+}
+
 calib_vi_t::~calib_vi_t() {
   for (auto &[cam_idx, cam] : cam_params) {
     UNUSED(cam_idx);
@@ -464,7 +550,7 @@ int calib_vi_t::nb_cams() const { return cam_params.size(); }
 
 int calib_vi_t::nb_views() const { return calib_views.size(); }
 
-std::vector<int> calib_vi_t::get_cam_indices() const {
+std::vector<int> calib_vi_t::get_camera_indices() const {
   std::vector<int> cam_idxs;
   for (const auto &[cam_idx, cam] : cam_params) {
     cam_idxs.push_back(cam_idx);
@@ -472,7 +558,7 @@ std::vector<int> calib_vi_t::get_cam_indices() const {
   return cam_idxs;
 }
 
-real_t calib_vi_t::get_cam_rate() const {
+real_t calib_vi_t::get_camera_rate() const {
   // Pre-check
   if (calib_views.size() < 2) {
     FATAL("calib_views.size() < 2");
@@ -490,16 +576,16 @@ real_t calib_vi_t::get_cam_rate() const {
   return 1.0 / median(time_diff);
 }
 
-veci2_t calib_vi_t::get_cam_resolution(const int cam_idx) const {
+veci2_t calib_vi_t::get_camera_resolution(const int cam_idx) const {
   auto cam_res = cam_params.at(cam_idx)->resolution;
   return veci2_t{cam_res[0], cam_res[1]};
 }
 
-vecx_t calib_vi_t::get_cam_params(const int cam_idx) const {
+vecx_t calib_vi_t::get_camera_params(const int cam_idx) const {
   return cam_params.at(cam_idx)->param;
 }
 
-mat4_t calib_vi_t::get_cam_extrinsics(const int cam_idx) const {
+mat4_t calib_vi_t::get_camera_extrinsics(const int cam_idx) const {
   return cam_exts.at(cam_idx)->tf();
 }
 
@@ -536,7 +622,7 @@ param_t *calib_vi_t::get_sb_param(const timestamp_t ts) const {
 std::map<int, std::vector<real_t>> calib_vi_t::get_reproj_errors() const {
   std::map<int, std::vector<real_t>> errors;
   for (const auto &view : calib_views) {
-    for (const auto cam_idx : view->get_cam_indices()) {
+    for (const auto cam_idx : view->get_camera_indices()) {
       extend(errors[cam_idx], view->get_reproj_errors(cam_idx));
     }
   }
@@ -566,8 +652,8 @@ mat4_t calib_vi_t::estimate_sensor_pose(const CamIdx2Grids &grids) {
 
     // Estimate relative pose
     const camera_geometry_t *cam = cam_geoms.at(cam_idx);
-    const auto cam_res = get_cam_resolution(cam_idx).data();
-    const vecx_t cam_params = get_cam_params(cam_idx);
+    const auto cam_res = get_camera_resolution(cam_idx).data();
+    const vecx_t cam_params = get_camera_params(cam_idx);
     mat4_t T_CiF = I(4);
     if (grid.estimate(cam, cam_res, cam_params, T_CiF) != 0) {
       FATAL("Failed to estimate relative pose!");
@@ -575,7 +661,7 @@ mat4_t calib_vi_t::estimate_sensor_pose(const CamIdx2Grids &grids) {
 
     // Infer current pose T_WS using T_CiF, T_BCi and T_WF
     const mat4_t T_FCi_k = T_CiF.inverse();
-    const mat4_t T_BCi = get_cam_extrinsics(cam_idx);
+    const mat4_t T_BCi = get_camera_extrinsics(cam_idx);
     const mat4_t T_BS = get_imu_extrinsics();
     const mat4_t T_CiS = T_BCi.inverse() * T_BS;
     const mat4_t T_WF = get_fiducial_pose();
@@ -595,7 +681,7 @@ void calib_vi_t::initialize(const CamIdx2Grids &grids, imu_data_t &imu_buf) {
   // Estimate relative pose - T_C0F
   const camera_geometry_t *cam = cam_geoms.at(0);
   const int *cam_res = cam_params.at(0)->resolution;
-  const vecx_t params = get_cam_params(0);
+  const vecx_t params = get_camera_params(0);
   mat4_t T_C0F;
   if (grids.at(0).estimate(cam, cam_res, params, T_C0F) != 0) {
     FATAL("Failed to estimate relative pose!");
@@ -603,13 +689,13 @@ void calib_vi_t::initialize(const CamIdx2Grids &grids, imu_data_t &imu_buf) {
   }
 
   // Estimate initial IMU attitude
-  mat3_t C_WS = imu_buf.initial_attitude();
+  const mat3_t C_WS = imu_buf.initial_attitude();
 
   // Sensor pose - T_WS
   mat4_t T_WS = tf(C_WS, zeros(3, 1));
 
   // Fiducial pose - T_WF
-  const mat4_t T_BC0 = get_cam_extrinsics(0);
+  const mat4_t T_BC0 = get_camera_extrinsics(0);
   const mat4_t T_BS = get_imu_extrinsics();
   const mat4_t T_SC0 = T_BS.inverse() * T_BC0;
   mat4_t T_WF = T_WS * T_SC0 * T_C0F;
@@ -622,13 +708,6 @@ void calib_vi_t::initialize(const CamIdx2Grids &grids, imu_data_t &imu_buf) {
   const vec3_t r_WF{0.0, 0.0, 0.0};
   T_WF = tf(C_WF, r_WF);
   T_WS = tf(C_WS, offset);
-
-  LOG_INFO("Initialize:");
-  print_matrix("T_WS", T_WS);
-  print_matrix("T_WF", T_WF);
-  print_matrix("T_BS", T_BS);
-  print_matrix("T_BC0", get_cam_extrinsics(0));
-  print_matrix("T_BC1", get_cam_extrinsics(1));
 
   // Set fiducial
   fiducial = new fiducial_t{T_WF};
@@ -757,7 +836,8 @@ void calib_vi_t::add_measurement(const timestamp_t imu_ts,
     // Solve then marginalize
     ceres::Solver::Options options;
     options.minimizer_progress_to_stdout = true;
-    options.max_num_iterations = batch_max_iter;
+    options.max_num_iterations = max_iter;
+    options.num_threads = max_num_threads;
     ceres::Solver::Summary summary;
     ceres::Solve(options, problem, &summary);
     printf("\n");
@@ -771,7 +851,8 @@ void calib_vi_t::solve() {
   // Solver options
   ceres::Solver::Options options;
   options.minimizer_progress_to_stdout = verbose;
-  options.max_num_iterations = batch_max_iter;
+  options.max_num_iterations = max_iter;
+  options.num_threads = max_num_threads;
   ceres::Solver::Summary summary;
 
   // Optimize problem - first pass
@@ -854,7 +935,7 @@ void calib_vi_t::show_results() {
   // Camera Extrinsics
   for (int cam_idx = 1; cam_idx < nb_cams(); cam_idx++) {
     const auto key = "T_cam0_cam" + std::to_string(cam_idx);
-    const mat4_t T_C0Ci = get_cam_extrinsics(cam_idx);
+    const mat4_t T_C0Ci = get_camera_extrinsics(cam_idx);
     print_matrix(key, T_C0Ci, "  ");
   }
 
@@ -1001,11 +1082,11 @@ int calib_vi_t::save_results(const std::string &save_path) const {
   fprintf(outfile, "\n");
 
   // Camera-Camera extrinsics
-  const mat4_t T_BC0 = get_cam_extrinsics(0);
+  const mat4_t T_BC0 = get_camera_extrinsics(0);
   const mat4_t T_C0B = T_BC0.inverse();
   if (nb_cams() >= 2) {
     for (int i = 1; i < nb_cams(); i++) {
-      const mat4_t T_BCi = get_cam_extrinsics(i);
+      const mat4_t T_BCi = get_camera_extrinsics(i);
       const mat4_t T_C0Ci = T_C0B * T_BCi;
       const mat4_t T_CiC0 = T_C0Ci.inverse();
       fprintf(outfile, "T_cam0_cam%d:\n", i);
@@ -1021,7 +1102,7 @@ int calib_vi_t::save_results(const std::string &save_path) const {
   // Sensor-Camera extrinsics
   const mat4_t T_BS = get_imu_extrinsics();
   const mat4_t T_SB = T_BS.inverse();
-  const mat4_t T_BCi = get_cam_extrinsics(0);
+  const mat4_t T_BCi = get_camera_extrinsics(0);
   const mat4_t T_SCi = T_SB * T_BCi;
   fprintf(outfile, "T_imu0_cam%d:\n", 0);
   fprintf(outfile, "  rows: 4\n");

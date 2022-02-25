@@ -45,7 +45,7 @@ camchain_t::camchain_t(const camera_data_t &cam_data,
           FATAL("Failed to estimate relative pose!");
         }
 
-        const mat4_t T_CiCj = T_CiF * T_CjF.inverse();
+        const mat4_t T_CiCj = T_CiF * tf_inv(T_CjF);
         insert(cam_i, cam_j, T_CiCj);
       }
     }
@@ -79,7 +79,7 @@ void camchain_t::insert(const int cam_i,
   adj_list[cam_i].push_back(cam_j);
   adj_list[cam_j].push_back(cam_i);
   exts[cam_i][cam_j] = T_CiCj;
-  exts[cam_j][cam_i] = T_CiCj.inverse();
+  exts[cam_j][cam_i] = tf_inv(T_CiCj);
 }
 
 bool camchain_t::contains(const int cam_i, const int cam_j) const {
@@ -144,7 +144,7 @@ int camchain_t::find(const int cam_i, const int cam_j, mat4_t &T_CiCj) const {
     T_CjCi = T_CjCi * exts.at(child).at(parent);
     child = parent;
   }
-  T_CiCj = T_CjCi.inverse();
+  T_CiCj = tf_inv(T_CjCi);
 
   return 0;
 }
@@ -1345,7 +1345,7 @@ int calib_camera_t::find_nbv(const std::map<int, mat4s_t> &nbv_poses,
     for (size_t i = 0; i < nbv_cam_poses.size(); i++) {
       // Add NBV pose
       const mat4_t T_FC0 = nbv_cam_poses.at(i);
-      const mat4_t T_C0F = T_FC0.inverse();
+      const mat4_t T_C0F = tf_inv(T_FC0);
       if (poses.count(nbv_ts) == 0) {
         poses[nbv_ts] = new pose_t{nbv_ts, T_C0F};
         problem->AddParameterBlock(poses[nbv_ts]->data(), 7);
@@ -1616,7 +1616,7 @@ void calib_camera_t::_print_stats(const size_t ts_idx,
   if ((ts_idx % 10) == 0) {
     printf("\n");
     const mat4_t T_BC0 = get_camera_extrinsics(0);
-    const mat4_t T_C0B = T_BC0.inverse();
+    const mat4_t T_C0B = tf_inv(T_BC0);
     for (const auto cam_idx : get_camera_indices()) {
       const auto cam_res = cam_params[cam_idx]->resolution;
       const auto param = cam_params[cam_idx]->param;
@@ -1899,12 +1899,12 @@ void calib_camera_t::print_estimates(FILE *out) {
 
   // Camera-Camera extrinsics
   const mat4_t T_BC0 = get_camera_extrinsics(0);
-  const mat4_t T_C0B = T_BC0.inverse();
+  const mat4_t T_C0B = tf_inv(T_BC0);
   if (nb_cameras() >= 2) {
     for (int i = 1; i < nb_cameras(); i++) {
       const mat4_t T_BCi = get_camera_extrinsics(i);
       const mat4_t T_C0Ci = T_C0B * T_BCi;
-      const mat4_t T_CiC0 = T_C0Ci.inverse();
+      const mat4_t T_CiC0 = tf_inv(T_C0Ci);
       fprintf(out, "T_cam0_cam%d:\n", i);
       fprintf(out, "  rows: 4\n");
       fprintf(out, "  cols: 4\n");
@@ -2122,7 +2122,7 @@ real_t calib_camera_t::inspect(const std::map<int, aprilgrids_t> &valid_data) {
     const auto cam_geom = cam_geoms[cam_idx];
     const auto cam_param = cam_params[cam_idx];
     const auto cam_res = cam_param->resolution;
-    const mat4_t T_CiC0 = cam_exts[cam_idx]->tf().inverse();
+    const mat4_t T_CiC0 = tf_inv(cam_exts[cam_idx]->tf());
 
     for (const auto &grid : valid_data.at(cam_idx)) {
       // Make sure aprilgrid is detected

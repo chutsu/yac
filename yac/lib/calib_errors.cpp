@@ -209,7 +209,7 @@ int reproj_error_t::get_residual(vec2_t &z_hat, vec2_t &r) const {
 
   // Transform and project point to image plane
   // -- Transform point from fiducial frame to camera-n
-  const mat4_t T_CiC0_ = T_C0Ci_.inverse();
+  const mat4_t T_CiC0_ = tf_inv(T_C0Ci_);
   const vec3_t p_CiFi = tf_point(T_CiC0_ * T_C0F_, p_FFi_);
   // -- Project point from camera frame to image plane
   auto res = cam_params->resolution;
@@ -256,7 +256,7 @@ bool reproj_error_t::EvaluateWithMinimalJacobians(double const *const *params,
 
   // Transform and project point to image plane
   // -- Transform point from fiducial frame to camera-n
-  const mat4_t T_CiC0 = T_C0Ci.inverse();
+  const mat4_t T_CiC0 = tf_inv(T_C0Ci);
   const vec3_t p_CiFi = tf_point(T_CiC0 * T_C0F, p_FFi);
   // -- Project point from camera frame to image plane
   auto cam_res = cam_params->resolution;
@@ -391,8 +391,8 @@ int fiducial_error_t::get_residual(vec2_t &r) const {
 
   // Transform and project point to image plane
   const auto res = cam_params_->resolution;
-  const mat4_t T_CiB = T_BCi.inverse();
-  const mat4_t T_SW = T_WS.inverse();
+  const mat4_t T_CiB = tf_inv(T_BCi);
+  const mat4_t T_SW = tf_inv(T_WS);
   const vec3_t r_CiFi = tf_point(T_CiB * T_BS * T_SW * T_WF, r_FFi_);
   vec2_t z_hat;
   if (cam_geom_->project(res, params, r_CiFi, z_hat) != 0) {
@@ -446,8 +446,8 @@ bool fiducial_error_t::EvaluateWithMinimalJacobians(double const *const *params,
   // Transform and project point to image plane
   bool valid = true;
   const auto cam_res = cam_params_->resolution;
-  const mat4_t T_CiB = T_BCi.inverse();
-  const mat4_t T_SW = T_WS.inverse();
+  const mat4_t T_CiB = tf_inv(T_BCi);
+  const mat4_t T_SW = tf_inv(T_WS);
   const vec3_t r_CiFi = tf_point(T_CiB * T_BS * T_SW * T_WF, r_FFi_);
   vec2_t z_hat;
   if (cam_geom_->project(cam_res, cam_params, r_CiFi, z_hat) != 0) {
@@ -547,7 +547,7 @@ bool fiducial_error_t::EvaluateWithMinimalJacobians(double const *const *params,
     const mat3_t C_WS = tf_rot(T_WS);
     const mat3_t C_SW = C_WS.transpose();
     const mat3_t C_CiW = C_CiS * C_SW;
-    const mat4_t T_SW = T_WS.inverse();
+    const mat4_t T_SW = tf_inv(T_WS);
     const vec3_t r_SFi = tf_point(T_SW * T_WF, r_FFi_);
     matx_t J_min = zeros(2, 6);
     J_min.block(0, 0, 2, 3) = -1 * Jh_weighted * -C_CiW * I(3);

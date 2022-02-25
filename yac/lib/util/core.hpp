@@ -1019,6 +1019,11 @@ mat4_t tf(const mat3_t &C, const vec3_t &r);
 mat4_t tf(const quat_t &q, const vec3_t &r);
 
 /**
+ * Invert a 4x4 homogeneous transformation matrix
+ */
+mat4_t tf_inv(const mat4_t &T);
+
+/**
  * Form a 7x1 pose vector
  */
 vecx_t tf_vec(const mat4_t &T);

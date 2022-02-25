@@ -1021,6 +1021,12 @@ mat4_t tf(const quat_t &q, const vec3_t &r) {
   return tf(q.toRotationMatrix(), r);
 }
 
+mat4_t tf_inv(const mat4_t &T) {
+  const vec3_t r = tf_trans(T);
+  const mat3_t C = tf_rot(T);
+  return tf(C.transpose(), -C.transpose() * r);
+}
+
 vecx_t tf_vec(const mat4_t &T) {
   const vec3_t r = tf_trans(T);
   const quat_t q = tf_quat(T);

@@ -98,7 +98,7 @@ set -e
 # RUN_CMD="roslaunch yac_ros intel_d435i-calib_imucam.launch \
 #   config_file:=/home/chutsu/projects/yac/yac_ros/config/intel_d435i-calib_imucam.yaml"
 
-RUN_CMD="roslaunch yac_ros calib_imucam.launch"
+RUN_CMD="roslaunch yac_ros intel_d435i-calib_imucam.launch"
 
 tmux send-keys -t dev -R C-l C-m
 tmux send-keys -t dev -R "\

@@ -1,5 +1,5 @@
 <launch>
-  <arg name="config_file" default="$(find yac_ros)/config/calib_intel_d435i.yaml" />
+  <arg name="config_file" default="$(find yac_ros)/config/intel_d435i-calib_imucam.yaml" />
 
   <!-- Record ROS bag -->
   <!-- <node pkg="rosbag" type="record" name="record" output="screen" args="&#45;a &#45;o /tmp/calib_vi.bag"/> -->

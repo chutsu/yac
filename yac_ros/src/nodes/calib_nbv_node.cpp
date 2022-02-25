@@ -131,7 +131,7 @@ struct calib_nbv_t {
   void event_handler(int key) {
     if (key != EOF) {
       switch (key) {
-        case 113: // 'q' key
+        case 'q':
           LOG_INFO("User requested program termination!");
           LOG_INFO("Exiting ...");
           keep_running = false;

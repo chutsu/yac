@@ -213,7 +213,7 @@ struct calib_nbt_t {
   /** Initialize Intrinsics + Extrinsics Mode */
   void mode_init() {
     // Visualize
-    // visualize();
+    visualize();
 
     // Pre-check
     if (grid_buffer.size() == 0) {

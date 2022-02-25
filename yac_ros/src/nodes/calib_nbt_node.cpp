@@ -21,20 +21,27 @@ struct calib_nbt_t {
     NBT = 1,
     BATCH = 2,
   };
+
+  // Flags
   int state = INITIALIZE;
+  std::mutex calib_mutex;
+  bool keep_running = true;
+  bool find_nbv_event = false;
+
+  // Settings
+  bool use_apriltags3 = false;
+  int min_init_views = 5;
 
   // ROS
   const std::string node_name;
   ros::NodeHandle ros_nh;
+  // -- IMU
+  std::string imu0_topic;
+  ros::Subscriber imu0_sub;
+  // -- Cameras
   image_transport::ImageTransport img_trans{ros_nh};
-  std::string imu_topic;
   std::map<int, std::string> mcam_topics;
   std::map<int, image_transport::Subscriber> mcam_subs;
-
-  // Flags
-  std::mutex calib_mutex;
-  bool keep_running = true;
-  bool find_nbv_event = false;
 
   // Calibration
   std::unique_ptr<calib_vi_t> calib;
@@ -42,18 +49,6 @@ struct calib_nbt_t {
   // Data
   std::map<int, std::pair<timestamp_t, cv::Mat>> img_buffer;
   std::map<int, aprilgrid_t> grid_buffer;
-  std::map<int, aprilgrids_t> cam_grids;
-
-  // NBT Data
-  std::map<int, mat4s_t> nbv_poses;
-  int nbv_cam_idx = 0;
-  int nbv_idx = 0;
-  aprilgrid_t nbv_target;
-  double nbv_reproj_err = std::numeric_limits<double>::max();
-  struct timespec nbv_hold_tic = (struct timespec){0, 0};
-
-  // NBT Settings
-  int min_init_views = 100;
 
   /* Constructor */
   calib_nbt_t() = delete;
@@ -63,17 +58,35 @@ struct calib_nbt_t {
     std::string config_file;
     ROS_PARAM(ros_nh, node_name + "/config_file", config_file);
 
-    // Setup Calibrator
+    // Setup calibrator
     calib = std::make_unique<calib_vi_t>(config_file);
+    calib->max_iter = 5;
 
-    // Parse camera ros topics
+    // Setup ROS
+    setup_ros(config_file);
+  }
+
+  /* Destructor */
+  ~calib_nbt_t() {}
+
+  /** Setup ROS */
+  void setup_ros(const std::string &config_file) {
+    // Parse ros topics
     config_t config{config_file};
+    // -- IMU topic
+    parse(config, "ros.imu0_topic", imu0_topic);
+    // -- Camera topics
     parse_camera_topics(config, mcam_topics);
     if (mcam_topics.size() == 0) {
       FATAL("No camera topics found in [%s]!", config_file.c_str());
     }
 
     // Subscribe
+    // -- IMU
+    LOG_INFO("Subscribing to imu0 @ [%s]", imu0_topic.c_str());
+    imu0_sub =
+        ros_nh.subscribe(imu0_topic, 1000, &calib_nbt_t::imu0_callback, this);
+    // -- Cameras
     for (const auto [cam_idx, topic] : mcam_topics) {
       LOG_INFO("Subscribing to cam%d @ [%s]", cam_idx, topic.c_str());
       auto _1 = std::placeholders::_1;
@@ -81,9 +94,6 @@ struct calib_nbt_t {
       mcam_subs[cam_idx] = img_trans.subscribe(topic, 1, cb);
     }
   }
-
-  /* Destructor */
-  ~calib_nbt_t() = default;
 
   /**
    * Update image buffer
@@ -111,7 +121,8 @@ struct calib_nbt_t {
   }
 
   /** Detect AprilGrids */
-  void detect() {
+  void detect_aprilgrid() {
+    // Clear previous detected grids
     grid_buffer.clear();
 
     // Make a copy of camera indices
@@ -121,14 +132,13 @@ struct calib_nbt_t {
     }
 
     // Detect aprilgrid in each camera
-#pragma omp parallel for shared(grid_buffer)
     for (size_t i = 0; i < cam_indices.size(); i++) {
       const auto cam_idx = cam_indices[i];
       const auto &data = img_buffer[cam_idx];
 
       const auto img_ts = data.first;
       const auto &img = data.second;
-      const auto grid = calib->detector->detect(img_ts, img);
+      const auto grid = calib->detector->detect(img_ts, img, use_apriltags3);
       if (grid.detected) {
         grid_buffer[cam_idx] = grid;
       }
@@ -148,89 +158,74 @@ struct calib_nbt_t {
     }
   }
 
-  // /** Draw NBT */
-  // void draw_nbv(cv::Mat &img) {
-  //   // Draw NBT
-  //   const auto cam_geom = calib->cam_geoms[nbv_cam_idx];
-  //   const auto cam_params = calib->cam_params[nbv_cam_idx];
-  //   const mat4_t T_FC0 = nbv_poses.at(nbv_cam_idx).at(nbv_idx);
-  //   const mat4_t T_C0Ci = calib->cam_exts[nbv_cam_idx]->tf();
-  //   const mat4_t T_FCi = T_FC0 * T_C0Ci;
-  //   nbv_draw(calib_target, cam_geom, cam_params, T_FCi, img);
-  //
-  //   // Show NBT Reproj Error
-  //   draw_nbv_reproj_error(nbv_reproj_err, img);
-  //
-  //   // Show NBT status
-  //   if (nbv_reproj_err < (nbv_reproj_error_threshold * 1.5)) {
-  //     std::string text = "Nearly There!";
-  //     if (nbv_reproj_err <= nbv_reproj_error_threshold) {
-  //       text = "HOLD IT!";
-  //     }
-  //     draw_status_text(text, img);
-  //   }
-  // }
+  void visualize() {
+    // Visualize Initialization mode
+    cv::Mat viz;
+    for (auto [cam_idx, data] : img_buffer) {
+      // Convert image gray to rgb
+      auto img_gray = data.second;
+      auto img = gray2rgb(img_gray);
+
+      // Draw "detected" if AprilGrid was observed
+      if (grid_buffer.count(cam_idx)) {
+        draw_detected(grid_buffer[cam_idx], img);
+      }
+
+      // Stack the images up
+      if (viz.empty()) {
+        viz = img;
+        continue;
+      }
+      cv::hconcat(viz, img, viz);
+    }
+    cv::imshow("Viz", viz);
+    event_handler(cv::waitKey(1));
+  }
 
   /** Initialize Intrinsics + Extrinsics Mode */
-  int mode_init() {
-    // Pre-check
-    if (grid_buffer.size() != 0) {
-      for (auto &[cam_idx, data] : img_buffer) {
-        // Check if aprilgrid is detected
-        if (grid_buffer.count(cam_idx) == 0) {
-          continue;
-        }
-        const auto &grid_k = grid_buffer[cam_idx];
-        if (grid_k.detected == false) {
-          continue;
-        }
+  void mode_init() {
+    // Visualize
+    // visualize();
 
-        // Add camera data
-        calib->add_measurement(cam_idx, grid_k);
-      }
+    // Pre-check
+    if (grid_buffer.size() == 0) {
+      return;
+    }
+
+    // Add to camera data to calibrator
+    for (const auto &[cam_idx, grid] : grid_buffer) {
+      calib->add_measurement(cam_idx, grid);
     }
 
     // Check if we have enough grids for all cameras
     const int views_left = min_init_views - calib->nb_views();
     if (views_left > 0) {
-      LOG_INFO("Still need %d views", views_left);
-      // Visualize Initialization mode
-      cv::Mat viz;
-      for (auto [cam_idx, data] : img_buffer) {
-        // Convert image gray to rgb
-        auto img_gray = data.second;
-        auto img = gray2rgb(img_gray);
-
-        // Draw "detected" if AprilGrid was observed
-        if (grid_buffer.count(cam_idx)) {
-          draw_detected(grid_buffer[cam_idx], img);
-        }
-
-        // Stack the images up
-        if (viz.empty()) {
-          viz = img;
-          continue;
-        }
-        cv::hconcat(viz, img, viz);
-      }
-      cv::imshow("Viz", viz);
-      event_handler(cv::waitKey(1));
-      return 0;
+      return;
     }
 
-    // Transition to NBT mode
+    // Solve initial views
     calib->solve();
+    calib->enable_marginalization = true;
+    calib->window_size = 5;
+
+    // Transition to NBT mode
+    LOG_INFO("Transition to NBT mode");
     state = NBT;
     find_nbv_event = true;
+  }
 
-    return 0;
+  void mode_nbt() {
+    for (const auto &[cam_idx, grid] : grid_buffer) {
+      calib->add_measurement(cam_idx, grid);
+    }
+    calib->show_results();
   }
 
   /**
    * IMU Callback
    * @param[in] msg Imu message
    */
-  void imu_callback(const sensor_msgs::ImuConstPtr &msg) {
+  void imu0_callback(const sensor_msgs::ImuConstPtr &msg) {
     const auto gyr = msg->angular_velocity;
     const auto acc = msg->linear_acceleration;
     const vec3_t a_m{acc.x, acc.y, acc.z};
@@ -246,19 +241,21 @@ struct calib_nbt_t {
    */
   void image_callback(const sensor_msgs::ImageConstPtr &msg,
                       const int cam_idx) {
-    // Update image buffer
-    std::lock_guard<std::mutex> guard(calib_mutex);
+    // Add image to buffer
     if (update_image_buffer(cam_idx, msg) == false) {
       return;
     }
 
-    // Detect Calibration Target
-    detect();
+    // Detect
+    detect_aprilgrid();
 
     // States
     switch (state) {
       case INITIALIZE:
         mode_init();
+        break;
+      case NBT:
+        mode_nbt();
         break;
       default:
         FATAL("Implementation Error!");

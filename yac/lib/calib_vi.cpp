@@ -398,7 +398,16 @@ calib_vi_t::calib_vi_t(const std::string &config_path) {
   parse(config, "imu0.sigma_bg", imu_params.sigma_bg, true);
   parse(config, "imu0.sigma_ba", imu_params.sigma_ba, true);
   parse(config, "imu0.g", imu_params.g);
-  add_imu(imu_params, I(4), 0.0, false, false);
+
+  // clang-format off
+  mat4_t T_BS;
+  T_BS <<  0.0, 1.0, 0.0, 0.0,
+          -1.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 1.0, 0.0,
+            0.0, 0.0, 0.0, 1.0;
+  // clang-format on
+  add_imu(imu_params, T_BS, 0.0, false, false);
+
   // -- Parse camera settings
   for (int cam_idx = 0; cam_idx < 100; cam_idx++) {
     // Check if key exists
@@ -815,6 +824,7 @@ void calib_vi_t::add_measurement(const timestamp_t imu_ts,
                                  const vec3_t &w_m) {
   // Add imu measuremrent
   imu_buf.add(imu_ts, a_m, w_m);
+  imu_started = true;
 
   // Check if we have enough aprilgrids
   if (static_cast<int>(grid_buf.size()) != nb_cams()) {

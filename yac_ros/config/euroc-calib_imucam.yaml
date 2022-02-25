@@ -7,7 +7,6 @@ ros:
 settings:
   data_path: "/tmp/imu_april"
   results_path: "/tmp/imu_april/calib_results.yaml"
-  imshow: true
 
 calib_target:
   target_type: 'aprilgrid'  # Target type

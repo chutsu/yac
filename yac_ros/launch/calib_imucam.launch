@@ -2,7 +2,7 @@
   <arg name="config_file" default="$(find yac_ros)/config/euroc-calib_imucam.yaml" />
 
   <!-- Play ROS bag -->
-  <node pkg="rosbag" type="play" name="record" output="screen" args="&#45;q /data/euroc/rosbags/imu_april.bag"/>
+  <node pkg="rosbag" type="play" name="record" output="screen" args="-r 0.3 -q /data/euroc/rosbags/imu_april.bag"/>
 
   <!-- &#60;&#33;&#45;&#45; RVIZ &#45;&#45;&#62; -->
   <!-- <node type="rviz" name="rviz" pkg="rviz" -->

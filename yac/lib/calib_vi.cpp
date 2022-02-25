@@ -74,12 +74,22 @@ calib_vi_view_t::calib_vi_view_t(const timestamp_t ts_,
 }
 
 calib_vi_view_t::~calib_vi_view_t() {
+  // Remove all residual blocks in ceres::Problem associated with this pose
+  if (problem->HasParameterBlock(pose.param.data())) {
+    problem->RemoveParameterBlock(pose.param.data());
+  }
+  if (problem->HasParameterBlock(sb.param.data())) {
+    problem->RemoveParameterBlock(sb.param.data());
+  }
+
+  // Delete fiducial errors
   for (auto &[cam_idx, errors] : fiducial_errors) {
     for (auto error : errors) {
       delete error;
     }
   }
 
+  // Delete IMU Error
   if (imu_error) {
     delete imu_error;
   }
@@ -839,7 +849,7 @@ void calib_vi_t::add_measurement(const timestamp_t imu_ts,
   imu_buf.add(imu_ts, a_m, w_m);
   imu_started = true;
 
-  // Check if we have enough aprilgrids
+  // Check if AprilGrid buffer is filled
   if (static_cast<int>(grid_buf.size()) != nb_cams()) {
     return;
   }
@@ -852,6 +862,9 @@ void calib_vi_t::add_measurement(const timestamp_t imu_ts,
   grid_buf.clear();
 
   // Initialize T_WS and T_WF
+  // Conditions:
+  // - Aprilgrid was observed by cam0
+  // - There are more than 2 IMU measurements
   if (initialized == false && grids.at(0).detected && imu_buf.size() > 2) {
     initialize(grids, imu_buf);
     return;
@@ -864,15 +877,17 @@ void calib_vi_t::add_measurement(const timestamp_t imu_ts,
   if (enable_marginalization && calib_views.size() > window_size) {
     // Solve then marginalize
     ceres::Solver::Options options;
-    options.minimizer_progress_to_stdout = true;
     options.max_num_iterations = max_iter;
     options.num_threads = max_num_threads;
     ceres::Solver::Summary summary;
     ceres::Solve(options, problem, &summary);
-    printf("\n");
+    // if (verbose) {
+    //   std::cout << summary.BriefReport() << std::endl;
+    // }
 
     // Marginalize oldest view
     marginalize();
+    running = true;
   }
 
   imu_started = true;
@@ -1083,6 +1098,26 @@ void calib_vi_t::marginalize() {
   // Remove view
   calib_views.pop_front();
   delete view;
+}
+
+void calib_vi_t::reset() {
+  // Reset flags
+  imu_started = false;
+  vision_started = false;
+  initialized = false;
+
+  // Reset data
+  grid_buf.clear();
+  prev_grids.clear();
+  imu_buf.clear();
+
+  // Reset problem data
+  for (auto view : calib_views) {
+    delete view;
+  }
+  calib_views.clear();
+
+  delete marg_error;
 }
 
 int calib_vi_t::save_results(const std::string &save_path) const {

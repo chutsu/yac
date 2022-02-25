@@ -67,6 +67,8 @@ struct calib_vi_t {
   // Flags
   bool imu_started = false;
   bool vision_started = false;
+  bool initialized = false;
+  bool running = false;
 
   // Settings
   bool verbose = true;
@@ -77,12 +79,6 @@ struct calib_vi_t {
   double outlier_threshold = 4.0;
   int window_size = 4;
 
-  // Optimization
-  PoseLocalParameterization pose_plus;
-  ceres::Problem::Options prob_options;
-  ceres::Problem *problem = nullptr;
-  ceres::LossFunction *loss = nullptr;
-
   // State-Variables
   CamIdx2Geometry cam_geoms;
   CamIdx2Parameters cam_params;
@@ -92,7 +88,6 @@ struct calib_vi_t {
   time_delay_t *time_delay = nullptr;
 
   // Data
-  bool initialized = false;
   // -- Vision data
   calib_target_t calib_target;
   std::map<int, std::deque<aprilgrid_t>> grid_buf;
@@ -105,6 +100,12 @@ struct calib_vi_t {
   std::deque<calib_vi_view_t *> calib_views;
   ceres::ResidualBlockId marg_error_id;
   marg_error_t *marg_error = nullptr;
+
+  // Optimization
+  PoseLocalParameterization pose_plus;
+  ceres::Problem::Options prob_options;
+  ceres::Problem *problem = nullptr;
+  ceres::LossFunction *loss = nullptr;
 
   // AprilGrid detector
   std::unique_ptr<aprilgrid_detector_t> detector;
@@ -159,6 +160,7 @@ struct calib_vi_t {
                        const vec3_t &w_m);
   int recover_calib_covar(matx_t &calib_covar) const;
   void marginalize();
+  void reset();
 
   void load_data(const std::string &data_path);
   void solve();

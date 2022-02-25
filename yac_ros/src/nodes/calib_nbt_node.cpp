@@ -30,7 +30,7 @@ struct calib_nbt_t {
 
   // Settings
   bool use_apriltags3 = true;
-  int min_init_views = 30;
+  int min_init_views = 20;
 
   // ROS
   const std::string node_name;
@@ -56,6 +56,7 @@ struct calib_nbt_t {
   size_t frame_idx = 0;
   std::map<int, std::pair<timestamp_t, cv::Mat>> img_buffer;
   std::map<int, aprilgrid_t> grid_buffer;
+  profiler_t prof;
 
   /* Constructor */
   calib_nbt_t() = delete;
@@ -67,10 +68,10 @@ struct calib_nbt_t {
 
     // Setup calibrator
     calib = std::make_unique<calib_vi_t>(config_file);
-    // calib->max_iter = 30;
-    calib->enable_marginalization = true;
-    calib->max_iter = 5;
-    calib->window_size = 10;
+    calib->max_iter = 30;
+    // calib->enable_marginalization = true;
+    // calib->max_iter = 5;
+    // calib->window_size = 10;
 
     // Setup ROS
     setup_ros(config_file);
@@ -155,6 +156,7 @@ struct calib_nbt_t {
     }
 
     // Detect aprilgrid in each camera
+    prof.start("aprilgrid_detection");
     for (size_t i = 0; i < cam_indices.size(); i++) {
       const auto cam_idx = cam_indices[i];
       const auto &data = img_buffer[cam_idx];
@@ -166,16 +168,21 @@ struct calib_nbt_t {
         grid_buffer[cam_idx] = grid;
       }
     }
+    prof.stop("aprilgrid_detection");
   }
 
   /** Event Keyboard Handler */
   void event_handler(int key) {
     if (key != EOF) {
       switch (key) {
-        case 113: // 'q' key
+        case 'q':
           LOG_INFO("User requested program termination!");
           LOG_INFO("Exiting ...");
           keep_running = false;
+          break;
+        case 'r':
+          LOG_INFO("Resetting ...");
+          state = INITIALIZE;
           break;
       }
     }
@@ -206,7 +213,7 @@ struct calib_nbt_t {
   /** Initialize Intrinsics + Extrinsics Mode */
   void mode_init() {
     // Visualize
-    visualize();
+    // visualize();
 
     // Pre-check
     if (grid_buffer.size() == 0) {
@@ -226,13 +233,13 @@ struct calib_nbt_t {
 
     // Solve initial views
     calib->solve();
+    calib->show_results();
+
+    // Change settings for online execution
     calib->enable_marginalization = true;
     calib->max_iter = 5;
     calib->window_size = 10;
-
-    if (calib->nb_views() >= calib->window_size) {
-      calib->show_results();
-    }
+    calib->reset();
 
     // Transition to NBT mode
     LOG_INFO("Transition to NBT mode");
@@ -240,14 +247,41 @@ struct calib_nbt_t {
     find_nbv_event = true;
   }
 
+  /** NBT Mode **/
   void mode_nbt() {
     // Visualize
     visualize();
 
+    // Add camera data to calibrator
     for (const auto &[cam_idx, grid] : grid_buffer) {
       calib->add_measurement(cam_idx, grid);
     }
-    calib->show_results();
+  }
+
+  /** Publish Estimates */
+  void publish_estimates(const timestamp_t ts) {
+    // Pre-check
+    if (calib->nb_views() < calib->window_size) {
+      return;
+    }
+
+    // Publish
+    ros::Time ros_ts;
+    ros_ts.fromNSec(ts);
+    // -- Fiducial frame
+    const mat4_t T_WF = calib->get_fiducial_pose();
+    publish_fiducial_tf(ros_ts, calib->calib_target, T_WF, tf_br, rviz_pub);
+    // -- IMU frame
+    const mat4_t T_WS = calib->get_imu_pose();
+    publish_tf(ros_ts, "T_WS", T_WS, tf_br);
+    // -- Camera frames
+    const mat4_t T_BS = calib->get_imu_extrinsics();
+    const mat4_t T_SB = tf_inv(T_BS);
+    for (const auto cam_idx : calib->get_camera_indices()) {
+      const mat4_t T_BCi = calib->get_camera_extrinsics(cam_idx);
+      const mat4_t T_WCi = T_WS * T_SB * T_BCi;
+      publish_tf(ros_ts, "T_WC" + std::to_string(cam_idx), T_WCi, tf_br);
+    }
   }
 
   /**
@@ -260,7 +294,16 @@ struct calib_nbt_t {
     const vec3_t a_m{acc.x, acc.y, acc.z};
     const vec3_t w_m{gyr.x, gyr.y, gyr.z};
     const timestamp_t ts = msg->header.stamp.toNSec();
+
+    if (calib->running) {
+      prof.start("solve");
+    }
+
     calib->add_measurement(ts, a_m, w_m);
+
+    if (calib->running) {
+      prof.stop("solve");
+    }
   }
 
   /**
@@ -293,25 +336,7 @@ struct calib_nbt_t {
     }
 
     // Publish estimates
-    if (calib->nb_views() < calib->window_size) {
-      return;
-    }
-    ros::Time ros_ts;
-    ros_ts.fromNSec(ts);
-    // -- Fiducial frame
-    const mat4_t T_WF = calib->get_fiducial_pose();
-    publish_tf(ros_ts, "T_WF", T_WF, tf_br);
-    // -- IMU frame
-    const mat4_t T_WS = calib->get_imu_pose();
-    publish_tf(ros_ts, "T_WS", T_WS, tf_br);
-    // -- Camera frames
-    const mat4_t T_BS = calib->get_imu_extrinsics();
-    const mat4_t T_SB = T_BS.inverse();
-    for (const auto cam_idx : calib->get_camera_indices()) {
-      const mat4_t T_BCi = calib->get_camera_extrinsics(cam_idx);
-      const mat4_t T_WCi = T_WS * T_SB * T_BCi;
-      publish_tf(ros_ts, "T_WC" + std::to_string(cam_idx), T_WCi, tf_br);
-    }
+    publish_estimates(ts);
   }
 
   void loop() {

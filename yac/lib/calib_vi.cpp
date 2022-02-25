@@ -598,6 +598,21 @@ real_t calib_vi_t::get_imucam_time_delay() const {
 
 mat4_t calib_vi_t::get_fiducial_pose() const { return fiducial->estimate(); }
 
+mat4_t calib_vi_t::get_imu_pose(const timestamp_t ts) const {
+  for (const auto &view : calib_views) {
+    if (view->ts == ts) {
+      return view->pose.tf();
+    }
+  }
+
+  FATAL("No IMU pose at [%ld]!", ts);
+  return I(4);
+}
+
+mat4_t calib_vi_t::get_imu_pose() const {
+  return calib_views.back()->pose.tf();
+}
+
 param_t *calib_vi_t::get_pose_param(const timestamp_t ts) const {
   for (auto view : calib_views) {
     if (view->ts == ts) {

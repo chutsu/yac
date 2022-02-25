@@ -42,6 +42,12 @@ struct calib_nbt_t {
   image_transport::ImageTransport img_trans{ros_nh};
   std::map<int, std::string> mcam_topics;
   std::map<int, image_transport::Subscriber> mcam_subs;
+  // -- TF broadcaster
+  tf2_ros::TransformBroadcaster tf_br;
+  // -- Rviz marker publisher
+  ros::Publisher rviz_pub;
+  // -- NBT publisher
+  ros::Publisher nbt_pub;
 
   // Calibration
   std::unique_ptr<calib_vi_t> calib;
@@ -85,11 +91,17 @@ struct calib_nbt_t {
       FATAL("No camera topics found in [%s]!", config_file.c_str());
     }
 
-    // Subscribe
+    // Publishers
+    // clang-format off
+    rviz_pub = ros_nh.advertise<visualization_msgs::Marker>("/yac_ros/rviz", 0);
+    nbt_pub = ros_nh.advertise<nav_msgs::Path>("/yac_ros/nbt", 0);
+    // clang-format on
+
+    // Subscribers
+    // clang-format off
     // -- IMU
     LOG_INFO("Subscribing to imu0 @ [%s]", imu0_topic.c_str());
-    imu0_sub =
-        ros_nh.subscribe(imu0_topic, 1000, &calib_nbt_t::imu0_callback, this);
+    imu0_sub = ros_nh.subscribe(imu0_topic, 1000, &calib_nbt_t::imu0_callback, this);
     // -- Cameras
     for (const auto [cam_idx, topic] : mcam_topics) {
       LOG_INFO("Subscribing to cam%d @ [%s]", cam_idx, topic.c_str());
@@ -97,6 +109,7 @@ struct calib_nbt_t {
       auto cb = std::bind(&calib_nbt_t::image_callback, this, _1, cam_idx);
       mcam_subs[cam_idx] = img_trans.subscribe(topic, 1, cb);
     }
+    // clang-format on
   }
 
   /**
@@ -168,6 +181,7 @@ struct calib_nbt_t {
     }
   }
 
+  /** Visualize */
   void visualize() {
     // Pre-check
     const auto cam_idx = 0;
@@ -205,25 +219,25 @@ struct calib_nbt_t {
     }
 
     // Check if we have enough grids for all cameras
-    // const int views_left = min_init_views - calib->nb_views();
-    // if (views_left > 0) {
-    //   return;
-    // }
+    const int views_left = min_init_views - calib->nb_views();
+    if (views_left > 0) {
+      return;
+    }
 
     // Solve initial views
-    // calib->solve();
-    // calib->enable_marginalization = true;
-    // calib->max_iter = 5;
-    // calib->window_size = 10;
+    calib->solve();
+    calib->enable_marginalization = true;
+    calib->max_iter = 5;
+    calib->window_size = 10;
 
     if (calib->nb_views() >= calib->window_size) {
       calib->show_results();
     }
 
     // Transition to NBT mode
-    // LOG_INFO("Transition to NBT mode");
-    // state = NBT;
-    // find_nbv_event = true;
+    LOG_INFO("Transition to NBT mode");
+    state = NBT;
+    find_nbv_event = true;
   }
 
   void mode_nbt() {
@@ -257,6 +271,7 @@ struct calib_nbt_t {
   void image_callback(const sensor_msgs::ImageConstPtr &msg,
                       const int cam_idx) {
     // Add image to buffer
+    const timestamp_t ts = msg->header.stamp.toNSec();
     if (update_image_buffer(cam_idx, msg) == false) {
       return;
     }
@@ -275,6 +290,27 @@ struct calib_nbt_t {
       default:
         FATAL("Implementation Error!");
         break;
+    }
+
+    // Publish estimates
+    if (calib->nb_views() < calib->window_size) {
+      return;
+    }
+    ros::Time ros_ts;
+    ros_ts.fromNSec(ts);
+    // -- Fiducial frame
+    const mat4_t T_WF = calib->get_fiducial_pose();
+    publish_tf(ros_ts, "T_WF", T_WF, tf_br);
+    // -- IMU frame
+    const mat4_t T_WS = calib->get_imu_pose();
+    publish_tf(ros_ts, "T_WS", T_WS, tf_br);
+    // -- Camera frames
+    const mat4_t T_BS = calib->get_imu_extrinsics();
+    const mat4_t T_SB = T_BS.inverse();
+    for (const auto cam_idx : calib->get_camera_indices()) {
+      const mat4_t T_BCi = calib->get_camera_extrinsics(cam_idx);
+      const mat4_t T_WCi = T_WS * T_SB * T_BCi;
+      publish_tf(ros_ts, "T_WC" + std::to_string(cam_idx), T_WCi, tf_br);
     }
   }
 

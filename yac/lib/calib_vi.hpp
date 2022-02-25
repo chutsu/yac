@@ -144,6 +144,8 @@ struct calib_vi_t {
   mat4_t get_imu_extrinsics() const;
   real_t get_imucam_time_delay() const;
   mat4_t get_fiducial_pose() const;
+  mat4_t get_imu_pose(const timestamp_t ts) const;
+  mat4_t get_imu_pose() const;
   param_t *get_pose_param(const timestamp_t ts) const;
   param_t *get_sb_param(const timestamp_t ts) const;
   std::map<int, std::vector<real_t>> get_reproj_errors() const;

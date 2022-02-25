@@ -43,11 +43,11 @@
     <param name="accel_hz" type="double" value="250" />
   </node>
 
-  <!-- &#60;&#33;&#45;&#45; RVIZ &#45;&#45;&#62; -->
-  <!-- <node type="rviz" name="rviz" pkg="rviz" -->
-  <!--   args="-d $(find yac_ros)/config/yac.rviz" -->
-  <!--   required="true" -->
-  <!--   output="screen" /> -->
+  <!-- RVIZ -->
+  <node type="rviz" name="rviz" pkg="rviz"
+    args="-d $(find yac_ros)/config/yac.rviz"
+    required="true"
+    output="screen" />
 
   <!-- NBV -->
   <node pkg="yac_ros" type="calib_nbt_node" name="yac_node" required="true" output="screen">

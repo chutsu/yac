@@ -111,7 +111,9 @@ struct aprilgrid_t {
 };
 
 /* AprilGrids */
-using aprilgrids_t = std::vector<aprilgrid_t>;
+// clang-format off
+using aprilgrids_t = std::vector<aprilgrid_t, Eigen::aligned_allocator<aprilgrid_t>>;
+// clang-format on
 
 /* Load AprilGrids */
 aprilgrids_t load_aprilgrids(const std::string &dir_path);

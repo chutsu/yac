@@ -87,8 +87,10 @@ set -e
 # RUN_CMD="roslaunch yac_ros record_camera.launch"
 # RUN_CMD="roslaunch yac_ros record_mocap.launch"
 # RUN_CMD="roslaunch yac_ros calib_mocap.launch"
+
 # RUN_CMD="roslaunch yac_ros calib_camera.launch \
 #   config_file:=/home/chutsu/projects/yac/yac_ros/config/euroc-calib_cameras.yaml"
+
 # RUN_CMD="roslaunch yac_ros calib_imucam.launch \
 #   config_file:=/home/chutsu/projects/yac/yac_ros/config/euroc-calib_imucam.yaml"
 

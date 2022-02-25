@@ -17,9 +17,9 @@ namespace yac {
 struct calib_nbt_t {
   // Calibration state
   enum CALIB_STATE {
-    INITIALIZE = 0,
-    NBT = 1,
-    BATCH = 2,
+    INITIALIZE = 1,
+    NBT = 2,
+    BATCH = 3,
   };
 
   // Flags
@@ -29,8 +29,8 @@ struct calib_nbt_t {
   bool find_nbv_event = false;
 
   // Settings
-  bool use_apriltags3 = false;
-  int min_init_views = 5;
+  bool use_apriltags3 = true;
+  int min_init_views = 30;
 
   // ROS
   const std::string node_name;
@@ -47,6 +47,7 @@ struct calib_nbt_t {
   std::unique_ptr<calib_vi_t> calib;
 
   // Data
+  size_t frame_idx = 0;
   std::map<int, std::pair<timestamp_t, cv::Mat>> img_buffer;
   std::map<int, aprilgrid_t> grid_buffer;
 
@@ -60,7 +61,10 @@ struct calib_nbt_t {
 
     // Setup calibrator
     calib = std::make_unique<calib_vi_t>(config_file);
+    // calib->max_iter = 30;
+    calib->enable_marginalization = true;
     calib->max_iter = 5;
+    calib->window_size = 10;
 
     // Setup ROS
     setup_ros(config_file);
@@ -117,6 +121,12 @@ struct calib_nbt_t {
       }
     }
 
+    // Rate limit the images into the calibrator
+    if (ready && (frame_idx % 2 != 0)) {
+      img_buffer.clear();
+      return false;
+    }
+
     return ready;
   }
 
@@ -159,25 +169,22 @@ struct calib_nbt_t {
   }
 
   void visualize() {
-    // Visualize Initialization mode
-    cv::Mat viz;
-    for (auto [cam_idx, data] : img_buffer) {
-      // Convert image gray to rgb
-      auto img_gray = data.second;
-      auto img = gray2rgb(img_gray);
-
-      // Draw "detected" if AprilGrid was observed
-      if (grid_buffer.count(cam_idx)) {
-        draw_detected(grid_buffer[cam_idx], img);
-      }
-
-      // Stack the images up
-      if (viz.empty()) {
-        viz = img;
-        continue;
-      }
-      cv::hconcat(viz, img, viz);
+    // Pre-check
+    const auto cam_idx = 0;
+    if (img_buffer.count(cam_idx) == 0) {
+      return;
     }
+
+    // Convert image gray to rgb
+    const auto &img_gray = img_buffer[cam_idx].second;
+    auto viz = gray2rgb(img_gray);
+
+    // Draw "detected" if AprilGrid was observed
+    if (grid_buffer.count(cam_idx)) {
+      draw_detected(grid_buffer[cam_idx], viz);
+    }
+
+    // Show
     cv::imshow("Viz", viz);
     event_handler(cv::waitKey(1));
   }
@@ -185,7 +192,7 @@ struct calib_nbt_t {
   /** Initialize Intrinsics + Extrinsics Mode */
   void mode_init() {
     // Visualize
-    // visualize();
+    visualize();
 
     // Pre-check
     if (grid_buffer.size() == 0) {
@@ -198,23 +205,31 @@ struct calib_nbt_t {
     }
 
     // Check if we have enough grids for all cameras
-    const int views_left = min_init_views - calib->nb_views();
-    if (views_left > 0) {
-      return;
-    }
+    // const int views_left = min_init_views - calib->nb_views();
+    // if (views_left > 0) {
+    //   return;
+    // }
 
     // Solve initial views
-    calib->solve();
-    calib->enable_marginalization = true;
-    calib->window_size = 5;
+    // calib->solve();
+    // calib->enable_marginalization = true;
+    // calib->max_iter = 5;
+    // calib->window_size = 10;
+
+    if (calib->nb_views() >= calib->window_size) {
+      calib->show_results();
+    }
 
     // Transition to NBT mode
-    LOG_INFO("Transition to NBT mode");
-    state = NBT;
-    find_nbv_event = true;
+    // LOG_INFO("Transition to NBT mode");
+    // state = NBT;
+    // find_nbv_event = true;
   }
 
   void mode_nbt() {
+    // Visualize
+    visualize();
+
     for (const auto &[cam_idx, grid] : grid_buffer) {
       calib->add_measurement(cam_idx, grid);
     }

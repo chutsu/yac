@@ -398,15 +398,7 @@ calib_vi_t::calib_vi_t(const std::string &config_path) {
   parse(config, "imu0.sigma_bg", imu_params.sigma_bg, true);
   parse(config, "imu0.sigma_ba", imu_params.sigma_ba, true);
   parse(config, "imu0.g", imu_params.g);
-
-  // clang-format off
-  mat4_t T_BS;
-  T_BS <<  0.0, 1.0, 0.0, 0.0,
-          -1.0, 0.0, 0.0, 0.0,
-            0.0, 0.0, 1.0, 0.0,
-            0.0, 0.0, 0.0, 1.0;
-  // clang-format on
-  add_imu(imu_params, T_BS, 0.0, false, false);
+  add_imu(imu_params, I(4), 0.0, false, false);
 
   // -- Parse camera settings
   for (int cam_idx = 0; cam_idx < 100; cam_idx++) {
@@ -724,6 +716,12 @@ void calib_vi_t::initialize(const CamIdx2Grids &grids, imu_data_t &imu_buf) {
   if (fiducial->param.size() == 7) {
     problem->SetParameterization(fiducial->param.data(), &pose_plus);
   }
+
+  // Print to screen
+  printf("Initial estimates\n");
+  print_matrix("T_WF", T_WF);
+  print_matrix("T_WS", T_WS);
+  print_matrix("T_BS", T_BS);
 
   // First calibration view
   const timestamp_t ts = grids.at(0).timestamp;

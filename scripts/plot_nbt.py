@@ -2,6 +2,9 @@
 import os
 import glob
 
+import numpy as np
+from numpy import genfromtxt
+
 import matplotlib.pylab as plt
 from mpl_toolkits import mplot3d
 
@@ -10,9 +13,14 @@ from proto import load_poses
 from proto import plot_tf
 from proto import plot_set_axes_equal
 
+# Load fiducial pose
+T_WF = genfromtxt("/tmp/nbt/fiducial_pose.csv", delimiter=",")
+
+# Plot NBT
 plt.figure()
 ax = plt.axes(projection='3d')
 
+plot_tf(ax, T_WF, name="T_WF", size=0.1)
 for traj_path in glob.glob("/tmp/nbt/traj/*.csv"):
   for ts, pose in load_poses(traj_path):
     plot_tf(ax, pose, size=0.1)

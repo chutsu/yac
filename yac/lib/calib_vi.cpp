@@ -184,7 +184,7 @@ int calib_vi_view_t::filter_view(const real_t outlier_threshold) {
 }
 
 void calib_vi_view_t::form_imu_error(const imu_params_t &imu_params,
-                                     const imu_data_t &imu_buf,
+                                     imu_data_t &imu_buf,
                                      pose_t *pose_j,
                                      sb_params_t *sb_j) {
   imu_error = new imu_error_t(imu_params, imu_buf, &pose, &sb, pose_j, sb_j);
@@ -194,6 +194,7 @@ void calib_vi_view_t::form_imu_error(const imu_params_t &imu_params,
                                            sb.param.data(),
                                            pose_j->param.data(),
                                            sb_j->param.data());
+  imu_buf.trim(pose_j->ts);
 }
 
 ceres::ResidualBlockId calib_vi_view_t::marginalize(marg_error_t *marg_error) {

@@ -55,7 +55,7 @@ struct calib_vi_view_t {
   std::vector<real_t> get_imu_errors() const;
   int filter_view(const real_t outlier_threshold);
   void form_imu_error(const imu_params_t &imu_params,
-                      const imu_data_t &imu_buf,
+                      imu_data_t &imu_buf,
                       pose_t *pose_j,
                       sb_params_t *sb_j);
   ceres::ResidualBlockId marginalize(marg_error_t *marg_error);

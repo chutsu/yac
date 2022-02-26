@@ -26,7 +26,7 @@ struct calib_nbt_t {
   int state = INITIALIZE;
   std::mutex calib_mutex;
   bool keep_running = true;
-  bool find_nbv_event = false;
+  bool finding_nbt = false;
 
   // Settings
   bool use_apriltags3 = true;
@@ -57,6 +57,9 @@ struct calib_nbt_t {
   std::map<int, std::pair<timestamp_t, cv::Mat>> img_buffer;
   std::map<int, aprilgrid_t> grid_buffer;
   profiler_t prof;
+
+  // Threads
+  std::thread nbt_thread;
 
   /* Constructor */
   calib_nbt_t() = delete;
@@ -210,6 +213,55 @@ struct calib_nbt_t {
     event_handler(cv::waitKey(1));
   }
 
+  /** Find NBT thread */
+  void find_nbt_thread() {
+    finding_nbt = true;
+
+    // Pre-check
+    if (calib->running == false) {
+      return;
+    }
+
+    // Generate NBTs
+    LOG_INFO("Generate NBTs");
+    const int cam_idx = 0;
+    ctrajs_t trajs;
+    const timestamp_t ts_start = calib->calib_views.back()->ts + 1;
+    const timestamp_t ts_end = ts_start + sec2ts(2.0);
+    const mat4_t T_FO = calib_target_origin(calib->calib_target,
+                                            calib->cam_geoms[cam_idx],
+                                            calib->cam_params[cam_idx]);
+    nbt_orbit_trajs(ts_start,
+                    ts_end,
+                    calib->calib_target,
+                    calib->cam_geoms[cam_idx],
+                    calib->cam_params[cam_idx],
+                    calib->imu_exts,
+                    calib->get_fiducial_pose(),
+                    T_FO,
+                    trajs);
+
+    // Evaluate NBT trajectories
+    LOG_INFO("Evaluate NBTs");
+    prof.start("find_nbt");
+    const int best_index = nbt_find(trajs, *calib, true);
+    prof.print("find_nbt");
+
+    finding_nbt = false;
+  }
+
+  /** Find NBT */
+  void find_nbt() {
+    if (finding_nbt == false) {
+      if (nbt_thread.joinable()) {
+        nbt_thread.join();
+      }
+      nbt_thread = std::thread(&calib_nbt_t::find_nbt_thread, this);
+    } else {
+      LOG_WARN("Already finding NBT!");
+    }
+  }
+
   /** Initialize Intrinsics + Extrinsics Mode */
   void mode_init() {
     // Visualize
@@ -244,7 +296,7 @@ struct calib_nbt_t {
     // Transition to NBT mode
     LOG_INFO("Transition to NBT mode");
     state = NBT;
-    find_nbv_event = true;
+    // find_nbt_event = true;
   }
 
   /** NBT Mode **/

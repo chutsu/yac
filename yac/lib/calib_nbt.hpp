@@ -183,10 +183,13 @@ int nbt_eval(const ctraj_t &traj, const calib_vi_t &calib, matx_t &calib_covar);
  *
  * @param[in] calib Calibrator
  * @param[in] traj NBT Trajectory
+ * @param[in] verbose Verbose
  *
  * @returns 0 for success or -1 for failure
  */
-int nbt_find(const ctrajs_t &trajs, const calib_vi_t &calib);
+int nbt_find(const ctrajs_t &trajs,
+             const calib_vi_t &calib,
+             const bool verbose = false);
 
 } //  namespace yac
 #endif // YAC_CALIB_NBT_HPP

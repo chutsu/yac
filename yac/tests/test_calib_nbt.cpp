@@ -10,7 +10,7 @@ namespace yac {
 #define TEST_IMUCAM_DATA TEST_PATH "/test_data/calib/imu_april"
 #define CALIB_CONFIG TEST_PATH "/test_data/calib/imu_april/config.yaml"
 
-static void setup_cameras(std::map<int, camera_params_t> &cams) {
+static void setup_cameras(std::map<int, camera_params_t> &cam_params) {
   const int img_w = 640;
   const int img_h = 480;
   const int cam_res[2] = {img_w, img_h};
@@ -29,8 +29,8 @@ static void setup_cameras(std::map<int, camera_params_t> &cams) {
   camera_params_t cam1{1, cam_res, proj_model, dist_model, proj_params, dist_params};
   // clang-format on
 
-  cams[0] = cam0;
-  cams[1] = cam1;
+  cam_params[0] = cam0;
+  cam_params[1] = cam1;
 }
 
 static void setup_imu_extrinsics(extrinsics_t &imu_exts) {
@@ -63,14 +63,14 @@ static void setup_calib_target(const camera_params_t &cam,
   }
 }
 
-static void setup_test(std::map<int, camera_params_t> &cameras,
+static void setup_test(std::map<int, camera_params_t> &cam_params,
                        extrinsics_t &imu_exts,
                        calib_target_t &target,
                        mat4_t &T_FO,
                        mat4_t &T_WF) {
-  setup_cameras(cameras);
+  setup_cameras(cam_params);
   setup_imu_extrinsics(imu_exts);
-  setup_calib_target(cameras[0], target, T_FO, &T_WF);
+  setup_calib_target(cam_params[0], target, T_FO, &T_WF);
 }
 
 static timeline_t setup_test_data() {
@@ -127,7 +127,8 @@ static timeline_t setup_test_data() {
 
 int test_nbt_trajs(const ctrajs_t &trajs,
                    const timestamp_t ts_start,
-                   const timestamp_t ts_end) {
+                   const timestamp_t ts_end,
+                   const mat4_t &T_WF) {
   // Save trajectories
   remove_dir("/tmp/nbt/traj");
   dir_create("/tmp/nbt/traj");
@@ -138,6 +139,9 @@ int test_nbt_trajs(const ctrajs_t &trajs,
     printf("saving trajectory to [%s]\n", buffer);
     ctraj_save(traj, std::string{buffer});
   }
+
+  // Save fiducial pose
+  mat2csv("/tmp/nbt/fiducial_pose.csv", T_WF);
 
   // -- Simulate imu measurements
   std::default_random_engine rndeng;
@@ -218,12 +222,12 @@ int test_nbt_trajs(const ctrajs_t &trajs,
 
 int test_nbt_orbit_trajs() {
   // Setup test
-  std::map<int, camera_params_t> cameras;
+  std::map<int, camera_params_t> cam_params;
   extrinsics_t imu_exts;
   calib_target_t target;
   mat4_t T_FO;
   mat4_t T_WF;
-  setup_test(cameras, imu_exts, target, T_FO, T_WF);
+  setup_test(cam_params, imu_exts, target, T_FO, T_WF);
 
   // Generate trajectories
   ctrajs_t trajs;
@@ -234,24 +238,24 @@ int test_nbt_orbit_trajs() {
                   ts_end,
                   target,
                   &cam_geom,
-                  &cameras[0],
+                  &cam_params[0],
                   &imu_exts,
                   T_WF,
                   T_FO,
                   trajs);
-  test_nbt_trajs(trajs, ts_start, ts_end);
+  test_nbt_trajs(trajs, ts_start, ts_end, T_WF);
 
   return 0;
 }
 
 int test_nbt_pan_trajs() {
   // Setup test
-  std::map<int, camera_params_t> cameras;
+  std::map<int, camera_params_t> cam_params;
   extrinsics_t imu_exts;
   calib_target_t target;
   mat4_t T_FO;
   mat4_t T_WF;
-  setup_test(cameras, imu_exts, target, T_FO, T_WF);
+  setup_test(cam_params, imu_exts, target, T_FO, T_WF);
 
   // Generate trajectories
   ctrajs_t trajs;
@@ -262,24 +266,24 @@ int test_nbt_pan_trajs() {
                 ts_end,
                 target,
                 &cam_geom,
-                &cameras[0],
+                &cam_params[0],
                 &imu_exts,
                 T_WF,
                 T_FO,
                 trajs);
-  test_nbt_trajs(trajs, ts_start, ts_end);
+  test_nbt_trajs(trajs, ts_start, ts_end, T_WF);
 
   return 0;
 }
 
 int test_nbt_figure8_trajs() {
   // Setup test
-  std::map<int, camera_params_t> cameras;
+  std::map<int, camera_params_t> cam_params;
   extrinsics_t imu_exts;
   calib_target_t target;
   mat4_t T_FO;
   mat4_t T_WF;
-  setup_test(cameras, imu_exts, target, T_FO, T_WF);
+  setup_test(cam_params, imu_exts, target, T_FO, T_WF);
 
   // Generate trajectories
   ctrajs_t trajs;
@@ -290,44 +294,80 @@ int test_nbt_figure8_trajs() {
                     ts_end,
                     target,
                     &cam_geom,
-                    &cameras[0],
+                    &cam_params[0],
                     &imu_exts,
                     T_WF,
                     T_FO,
                     trajs);
-  test_nbt_trajs(trajs, ts_start, ts_end);
+  test_nbt_trajs(trajs, ts_start, ts_end, T_WF);
 
   return 0;
 }
 
 int test_simulate_cameras() {
-  // Cameras
-  std::map<int, camera_params_t> cameras;
-  setup_cameras(cameras);
-  const mat4_t T_C0C1 = tf(I(3), vec3_t{0.1, 0.0, 0.0});
-  const mat4_t T_BC0 = tf(I(3), zeros(3, 1));
-  const mat4_t T_BC1 = T_BC0 * T_C0C1;
+  // Setup
+  calib_vi_t calib{CALIB_CONFIG};
 
-  // Calibration target
-  calib_target_t target;
-  mat4_t T_FO;
-  mat4_t T_WF;
-  setup_calib_target(cameras[0], target, T_FO, &T_WF);
+  // Form circle trajectory
+  const auto circle_r = 5.0;
+  const auto circle_v = 2.0;
+  const auto circle_dist = 2.0 * M_PI * circle_r;
+  const auto time_taken = circle_dist / circle_v;
+  const auto w = -2.0 * M_PI * (1.0 / time_taken);
+  const auto dt = time_taken / 10;
+
+  auto time = 0.0;
+  auto theta = 0.0;
+  timestamps_t timestamps;
+  vec3s_t positions;
+  quats_t attitudes;
+
+  while (time <= time_taken) {
+    const auto x = circle_r * sin(theta);
+    const auto y = circle_r * cos(theta);
+    const auto z = 0.0;
+
+    timestamps.push_back(sec2ts(time));
+    positions.emplace_back(x, y, z);
+    attitudes.emplace_back(1.0, 0.0, 0.0, 0.0);
+
+    time += dt;
+    theta += w * dt;
+  }
+  ctraj_t traj{timestamps, positions, attitudes};
+
+  // Simulate cameras
+  const timestamp_t ts_start = sec2ts(0.0);
+  const timestamp_t ts_end = sec2ts(5.0);
+  const real_t cam_rate = 20.0;
+  const mat4_t T_WF = I(4);
+  camera_data_t cam_grids;
+  std::map<timestamp_t, mat4_t> T_WC0_sim;
+  simulate_cameras(ts_start,
+                   ts_end,
+                   traj,
+                   calib.calib_target,
+                   calib.cam_geoms,
+                   calib.cam_params,
+                   calib.cam_exts,
+                   cam_rate,
+                   T_WF,
+                   cam_grids,
+                   T_WC0_sim);
 
   return 0;
 }
 
 int test_simulate_imu() {
   // Setup test
-  std::map<int, camera_params_t> cameras;
+  std::map<int, camera_params_t> cam_params;
   extrinsics_t imu_exts;
   calib_target_t target;
   mat4_t T_FO;
   mat4_t T_WF;
-  setup_test(cameras, imu_exts, target, T_FO, T_WF);
+  setup_test(cam_params, imu_exts, target, T_FO, T_WF);
 
   // Form circle trajectory
-  const auto imu_rate = 200.0;
   const auto circle_r = 5.0;
   const auto circle_v = 2.0;
   const auto circle_dist = 2.0 * M_PI * circle_r;
@@ -451,8 +491,8 @@ int test_nbt_eval() {
   LOG_INFO("Generate NBT orbit trajectory");
   const int cam_idx = 0;
   ctrajs_t trajs;
-  const timestamp_t ts_start = 0;
-  const timestamp_t ts_end = 2e9;
+  const timestamp_t ts_start = calib.calib_views.back()->ts + 1;
+  const timestamp_t ts_end = ts_start + sec2ts(2.0);
   const mat4_t T_FO = calib_target_origin(calib.calib_target,
                                           calib.cam_geoms[cam_idx],
                                           calib.cam_params[cam_idx]);
@@ -468,27 +508,88 @@ int test_nbt_eval() {
 
   // Evaluate NBT trajectories
   LOG_INFO("Evaluate NBT orbit trajectory");
-  for (size_t traj_idx = 0; traj_idx < trajs.size(); traj_idx++) {
-    matx_t calib_covar;
-    if (nbt_eval(trajs[traj_idx], calib, calib_covar) != 0) {
-      return -1;
-    }
+  const int traj_idx = 0;
+  matx_t calib_covar;
+  if (nbt_eval(trajs[traj_idx], calib, calib_covar) != 0) {
+    return -1;
   }
 
   return 0;
 }
 
-// int test_nbt_find() {
-//   // Setup test
-//   std::map<int, camera_params_t> cameras;
-//   extrinsics_t imu_exts;
-//   calib_target_t target;
-//   mat4_t T_FO;
-//   mat4_t T_WF;
-//   setup_test(cameras, imu_exts, target, T_FO, T_WF);
-//
-//   return 0;
-// }
+int test_nbt_find() {
+  // Setup
+  timeline_t timeline = setup_test_data();
+  calib_vi_t calib{CALIB_CONFIG};
+  calib.enable_marginalization = true;
+
+  LOG_INFO("Adding data to problem ...");
+  int nb_views = 0;
+  for (const auto &ts : timeline.timestamps) {
+    const auto kv = timeline.data.equal_range(ts);
+
+    // Handle multiple events in the same timestamp
+    for (auto it = kv.first; it != kv.second; it++) {
+      const auto event = it->second;
+
+      // Aprilgrid event
+      if (auto grid_event = dynamic_cast<aprilgrid_event_t *>(event)) {
+        auto cam_idx = grid_event->cam_idx;
+        auto &grid = grid_event->grid;
+        calib.add_measurement(cam_idx, grid);
+
+        if (cam_idx == 0) {
+          nb_views++;
+        }
+      }
+
+      // Imu event
+      if (auto imu_event = dynamic_cast<imu_event_t *>(event)) {
+        const auto ts = imu_event->ts;
+        const auto &acc = imu_event->acc;
+        const auto &gyr = imu_event->gyr;
+        calib.add_measurement(ts, acc, gyr);
+      }
+    }
+
+    // Sliding window is initialized
+    if (calib.marg_error != nullptr) {
+      break;
+    }
+  }
+
+  LOG_INFO("Solve calibration problem");
+  calib.solve();
+
+  // Generate trajectories
+  LOG_INFO("Generate NBT orbit trajectory");
+  const int cam_idx = 0;
+  ctrajs_t trajs;
+  const timestamp_t ts_start = calib.calib_views.back()->ts + 1;
+  const timestamp_t ts_end = ts_start + sec2ts(2.0);
+  const mat4_t T_FO = calib_target_origin(calib.calib_target,
+                                          calib.cam_geoms[cam_idx],
+                                          calib.cam_params[cam_idx]);
+  nbt_orbit_trajs(ts_start,
+                  ts_end,
+                  calib.calib_target,
+                  calib.cam_geoms[cam_idx],
+                  calib.cam_params[cam_idx],
+                  calib.imu_exts,
+                  calib.get_fiducial_pose(),
+                  T_FO,
+                  trajs);
+
+  // Evaluate NBT trajectories
+  LOG_INFO("Evaluate NBT orbit trajectories");
+  profiler_t prof;
+  prof.start("NBT Find");
+  const int best_index = nbt_find(trajs, calib, true);
+  MU_CHECK(best_index != -1);
+  prof.print("NBT Find");
+
+  return 0;
+}
 
 void test_suite() {
   MU_ADD_TEST(test_nbt_orbit_trajs);
@@ -497,7 +598,7 @@ void test_suite() {
   MU_ADD_TEST(test_simulate_cameras);
   MU_ADD_TEST(test_simulate_imu);
   MU_ADD_TEST(test_nbt_eval);
-  // MU_ADD_TEST(test_nbt_find);
+  MU_ADD_TEST(test_nbt_find);
 }
 
 } // namespace yac

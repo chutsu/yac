@@ -450,6 +450,13 @@ int nbt_eval(const ctraj_t &traj,
   timeline_t timeline;
   nbt_create_timeline(cam_grids, imu_ts, imu_acc, imu_gyr, timeline);
 
+  // Clear status so NBT can be evaluated
+  calib_.verbose = false;
+  calib_.initialized = false;
+  calib_.enable_marginalization = false;
+  calib_.grid_buf.clear();
+  calib_.prev_grids.clear();
+
   for (const auto &ts : timeline.timestamps) {
     const auto kv = timeline.data.equal_range(ts);
 
@@ -467,8 +474,8 @@ int nbt_eval(const ctraj_t &traj,
       // Imu event
       if (auto imu_event = dynamic_cast<imu_event_t *>(event)) {
         const auto ts = imu_event->ts;
-        const auto &acc = imu_event->acc;
-        const auto &gyr = imu_event->gyr;
+        const vec3_t &acc = imu_event->acc;
+        const vec3_t &gyr = imu_event->gyr;
         calib_.add_measurement(ts, acc, gyr);
       }
     }
@@ -483,34 +490,56 @@ int nbt_eval(const ctraj_t &traj,
   return 0;
 }
 
-int nbt_find(const ctrajs_t &trajs, const calib_vi_t &calib) {
+int nbt_find(const ctrajs_t &trajs,
+             const calib_vi_t &calib,
+             const bool verbose) {
   // Calculate info_k
   matx_t calib_covar;
   if (calib.recover_calib_covar(calib_covar) != 0) {
     return -1;
   }
-  const real_t info_k = calib_covar.determinant();
+  const real_t info_k = std::log(calib_covar.determinant()) / std::log(2.0);
 
   // Evaluate trajectories
-  std::vector<real_t> info_kp1;
-  for (const auto &traj : trajs) {
+  std::map<int, real_t> info_kp1;
+#pragma omp parallel for shared(info_kp1)
+  for (size_t traj_idx = 0; traj_idx < trajs.size(); traj_idx++) {
+    const auto &traj = trajs[traj_idx];
     matx_t calib_covar;
     if (nbt_eval(traj, calib, calib_covar) != 0) {
-      info_kp1.push_back(0.0);
+      if (verbose) {
+        LOG_WARN("Failed to evaulate NBT traj [%d]", traj_idx);
+      }
+      info_kp1[traj_idx] = 0.0;
       continue;
     }
-    info_kp1.push_back(calib_covar.determinant());
+    info_kp1[traj_idx] = std::log(calib_covar.determinant()) / std::log(2.0);
   }
 
   // Find max information gain
   int best_idx = -1;
   real_t best_gain = 0.0;
-  for (size_t i = 0; i < trajs.size(); i++) {
-    const auto info_gain = 0.5 * (info_k - info_kp1[i]);
+  for (size_t traj_idx = 0; traj_idx < trajs.size(); traj_idx++) {
+    const auto info_gain = 0.5 * (info_k - info_kp1[traj_idx]);
     if (info_gain > best_gain) {
-      best_idx = i;
+      best_idx = traj_idx;
       best_gain = info_gain;
     }
+
+    if (verbose) {
+      printf("traj_idx: %d ", traj_idx);
+      printf("info_k: %f ", info_k);
+      printf("info_kp1: %f ", info_kp1[traj_idx]);
+      printf("info_gain: %f ", info_gain);
+      printf("\n");
+    }
+  }
+
+  // Print results
+  if (verbose) {
+    printf("\nFind NBT:\n");
+    printf("best_traj: %d\n", best_idx);
+    printf("best_gain: %d\n", best_gain);
   }
 
   return best_idx;

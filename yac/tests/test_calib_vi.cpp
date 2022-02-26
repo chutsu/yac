@@ -242,6 +242,9 @@ int test_calib_vi_copy_constructor() {
       MU_CHECK((calib_covar_orig -calib_covar_copy).norm() < 1e-4);
       // clang-format on
 
+      printf("Solving with copied calibrator!\n");
+      copy.solve();
+
       break;
     }
   }

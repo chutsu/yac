@@ -744,10 +744,12 @@ void calib_vi_t::initialize(const CamIdx2Grids &grids, imu_data_t &imu_buf) {
   }
 
   // Print to screen
-  printf("Initial estimates\n");
-  print_matrix("T_WF", T_WF);
-  print_matrix("T_WS", T_WS);
-  print_matrix("T_BS", T_BS);
+  if (verbose) {
+    printf("Initial estimates\n");
+    print_matrix("T_WF", T_WF);
+    print_matrix("T_WS", T_WS);
+    print_matrix("T_BS", T_BS);
+  }
 
   // First calibration view
   const timestamp_t ts = grids.at(0).timestamp;

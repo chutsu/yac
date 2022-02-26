@@ -108,7 +108,7 @@ struct calib_nbt_t {
       LOG_INFO("Subscribing to cam%d @ [%s]", cam_idx, topic.c_str());
       auto _1 = std::placeholders::_1;
       auto cb = std::bind(&calib_nbt_t::image_callback, this, _1, cam_idx);
-      mcam_subs[cam_idx] = img_trans.subscribe(topic, 1, cb);
+      mcam_subs[cam_idx] = img_trans.subscribe(topic, 10, cb);
     }
     // clang-format on
   }

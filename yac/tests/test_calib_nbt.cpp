@@ -3,6 +3,13 @@
 
 namespace yac {
 
+#ifndef TEST_PATH
+#define TEST_PATH "."
+#endif
+
+#define TEST_IMUCAM_DATA TEST_PATH "/test_data/calib/imu_april"
+#define CALIB_CONFIG TEST_PATH "/test_data/calib/imu_april/config.yaml"
+
 static void setup_cameras(std::map<int, camera_params_t> &cams) {
   const int img_w = 640;
   const int img_h = 480;
@@ -64,6 +71,58 @@ static void setup_test(std::map<int, camera_params_t> &cameras,
   setup_cameras(cameras);
   setup_imu_extrinsics(imu_exts);
   setup_calib_target(cameras[0], target, T_FO, &T_WF);
+}
+
+static timeline_t setup_test_data() {
+  // Load grid data
+  timeline_t timeline;
+
+  // -- Add cam0 grids
+  std::vector<std::string> cam0_files;
+  list_files(TEST_IMUCAM_DATA "/cam0", cam0_files);
+  for (auto grid_path : cam0_files) {
+    grid_path = std::string(TEST_IMUCAM_DATA "/cam0/") + grid_path;
+    aprilgrid_t grid(grid_path);
+    if (grid.detected == false) {
+      const auto grid_fname = parse_fname(grid_path);
+      const auto ts_str = grid_fname.substr(0, 19);
+      grid.timestamp = std::stoull(ts_str);
+      grid.tag_rows = 6;
+      grid.tag_cols = 6;
+      grid.tag_size = 0.088;
+      grid.tag_spacing = 0.3;
+    }
+    timeline.add(grid.timestamp, 0, grid);
+  }
+
+  // -- Add cam1 grids
+  std::vector<std::string> cam1_files;
+  list_files(TEST_IMUCAM_DATA "/cam1", cam1_files);
+  for (auto grid_path : cam1_files) {
+    grid_path = std::string(TEST_IMUCAM_DATA "/cam1/") + grid_path;
+    aprilgrid_t grid(grid_path);
+    if (grid.detected == false) {
+      const auto grid_fname = parse_fname(grid_path);
+      const auto ts_str = grid_fname.substr(0, 19);
+      grid.timestamp = std::stoull(ts_str);
+      grid.tag_rows = 6;
+      grid.tag_cols = 6;
+      grid.tag_size = 0.088;
+      grid.tag_spacing = 0.3;
+    }
+    timeline.add(grid.timestamp, 1, grid);
+  }
+
+  // -- Add imu events
+  timestamps_t imu_ts;
+  vec3s_t imu_acc;
+  vec3s_t imu_gyr;
+  load_imu_data(TEST_IMUCAM_DATA "/imu0.csv", imu_ts, imu_acc, imu_gyr);
+  for (size_t k = 0; k < imu_ts.size(); k++) {
+    timeline.add(imu_ts[k], imu_acc[k], imu_gyr[k]);
+  }
+
+  return timeline;
 }
 
 int test_nbt_trajs(const ctrajs_t &trajs,
@@ -350,33 +409,65 @@ int test_simulate_imu() {
 }
 
 int test_nbt_eval() {
-  // Setup test
-  std::map<int, camera_params_t> cameras;
-  extrinsics_t imu_exts;
-  calib_target_t target;
-  mat4_t T_FO;
-  mat4_t T_WF;
-  setup_test(cameras, imu_exts, target, T_FO, T_WF);
+  // Setup
+  timeline_t timeline = setup_test_data();
+  calib_vi_t calib{CALIB_CONFIG};
+  calib.enable_marginalization = false;
+
+  LOG_INFO("Adding data to problem ...");
+  int nb_views = 0;
+  for (const auto &ts : timeline.timestamps) {
+    const auto kv = timeline.data.equal_range(ts);
+
+    // Handle multiple events in the same timestamp
+    for (auto it = kv.first; it != kv.second; it++) {
+      const auto event = it->second;
+
+      // Aprilgrid event
+      if (auto grid_event = dynamic_cast<aprilgrid_event_t *>(event)) {
+        auto cam_idx = grid_event->cam_idx;
+        auto &grid = grid_event->grid;
+        calib.add_measurement(cam_idx, grid);
+
+        if (cam_idx == 0) {
+          nb_views++;
+        }
+      }
+
+      // Imu event
+      if (auto imu_event = dynamic_cast<imu_event_t *>(event)) {
+        const auto ts = imu_event->ts;
+        const auto &acc = imu_event->acc;
+        const auto &gyr = imu_event->gyr;
+        calib.add_measurement(ts, acc, gyr);
+      }
+    }
+  }
+
+  LOG_INFO("Solve calibration problem");
+  calib.solve();
 
   // Generate trajectories
+  LOG_INFO("Generate NBT orbit trajectory");
+  const int cam_idx = 0;
   ctrajs_t trajs;
   const timestamp_t ts_start = 0;
   const timestamp_t ts_end = 2e9;
-  pinhole_radtan4_t cam_geom;
+  const mat4_t T_FO = calib_target_origin(calib.calib_target,
+                                          calib.cam_geoms[cam_idx],
+                                          calib.cam_params[cam_idx]);
   nbt_orbit_trajs(ts_start,
                   ts_end,
-                  target,
-                  &cam_geom,
-                  &cameras[0],
-                  &imu_exts,
-                  T_WF,
+                  calib.calib_target,
+                  calib.cam_geoms[cam_idx],
+                  calib.cam_params[cam_idx],
+                  calib.imu_exts,
+                  calib.get_fiducial_pose(),
                   T_FO,
                   trajs);
 
-  // Calibrator
-  calib_target_t calib_target;
-  calib_vi_t calib{calib_target};
-
+  // Evaluate NBT trajectories
+  LOG_INFO("Evaluate NBT orbit trajectory");
   for (size_t traj_idx = 0; traj_idx < trajs.size(); traj_idx++) {
     matx_t calib_covar;
     if (nbt_eval(trajs[traj_idx], calib, calib_covar) != 0) {
@@ -387,13 +478,26 @@ int test_nbt_eval() {
   return 0;
 }
 
+// int test_nbt_find() {
+//   // Setup test
+//   std::map<int, camera_params_t> cameras;
+//   extrinsics_t imu_exts;
+//   calib_target_t target;
+//   mat4_t T_FO;
+//   mat4_t T_WF;
+//   setup_test(cameras, imu_exts, target, T_FO, T_WF);
+//
+//   return 0;
+// }
+
 void test_suite() {
   MU_ADD_TEST(test_nbt_orbit_trajs);
   MU_ADD_TEST(test_nbt_pan_trajs);
   MU_ADD_TEST(test_nbt_figure8_trajs);
   MU_ADD_TEST(test_simulate_cameras);
   MU_ADD_TEST(test_simulate_imu);
-  // MU_ADD_TEST(test_nbt_eval);
+  MU_ADD_TEST(test_nbt_eval);
+  // MU_ADD_TEST(test_nbt_find);
 }
 
 } // namespace yac

@@ -62,8 +62,14 @@ set -e
 # RUN_CMD="rosrun yac test_calib_vi --target test_calib_vi_online"
 # RUN_CMD="rosrun yac test_calib_vi --target test_calib_vi_copy_constructor"
 
-# # YAC - NBT
-# RUN_CMD="rosrun yac test_calib_nbt"
+# YAC - NBT
+RUN_CMD="rosrun yac test_calib_nbt"
+# ROS_CMD="rosrun yac test_calib_nbt --target=test_nbt_orbit_trajs"
+# ROS_CMD="rosrun yac test_calib_nbt --target=test_nbt_pan_trajs"
+# ROS_CMD="rosrun yac test_calib_nbt --target=test_nbt_figure8_trajs"
+# ROS_CMD="rosrun yac test_calib_nbt --target=test_simulate_cameras"
+# ROS_CMD="rosrun yac test_calib_nbt --target=test_simulate_imu"
+# ROS_CMD="rosrun yac test_calib_nbt --target=test_nbt_eval"
 
 # YAC - NBV
 # RUN_CMD="rosrun yac test_calib_nbv"
@@ -100,12 +106,12 @@ set -e
 # RUN_CMD="roslaunch yac_ros intel_d435i-calib_imucam.launch \
 #   config_file:=/home/chutsu/projects/yac/yac_ros/config/intel_d435i-calib_imucam.yaml"
 
-RUN_CMD="roslaunch yac_ros intel_d435i-calib_imucam.launch"
+# RUN_CMD="roslaunch yac_ros intel_d435i-calib_imucam.launch"
 
 tmux send-keys -t dev -R C-l C-m
 tmux send-keys -t dev -R "\
 cd ~/projects/yac \
-&& make release \
+&& make lib \
 && source ~/catkin_ws/devel/setup.bash \
 && ${RUN_CMD}
 " C-m C-m

@@ -63,13 +63,14 @@ set -e
 # RUN_CMD="rosrun yac test_calib_vi --target test_calib_vi_copy_constructor"
 
 # YAC - NBT
-RUN_CMD="rosrun yac test_calib_nbt"
-# ROS_CMD="rosrun yac test_calib_nbt --target=test_nbt_orbit_trajs"
-# ROS_CMD="rosrun yac test_calib_nbt --target=test_nbt_pan_trajs"
-# ROS_CMD="rosrun yac test_calib_nbt --target=test_nbt_figure8_trajs"
-# ROS_CMD="rosrun yac test_calib_nbt --target=test_simulate_cameras"
-# ROS_CMD="rosrun yac test_calib_nbt --target=test_simulate_imu"
-# ROS_CMD="rosrun yac test_calib_nbt --target=test_nbt_eval"
+# RUN_CMD="rosrun yac test_calib_nbt"
+# RUN_CMD="rosrun yac test_calib_nbt --target test_nbt_orbit_trajs"
+# RUN_CMD="rosrun yac test_calib_nbt --target test_nbt_pan_trajs"
+# RUN_CMD="rosrun yac test_calib_nbt --target test_nbt_figure8_trajs"
+# RUN_CMD="rosrun yac test_calib_nbt --target test_simulate_cameras"
+# RUN_CMD="rosrun yac test_calib_nbt --target test_simulate_imu"
+# RUN_CMD="rosrun yac test_calib_nbt --target test_nbt_eval"
+RUN_CMD="rosrun yac test_calib_nbt --target test_nbt_find"
 
 # YAC - NBV
 # RUN_CMD="rosrun yac test_calib_nbv"
@@ -111,17 +112,17 @@ RUN_CMD="rosrun yac test_calib_nbt"
 tmux send-keys -t dev -R C-l C-m
 tmux send-keys -t dev -R "\
 cd ~/projects/yac \
-&& make lib \
+&& make lib_relwithdeb \
 && source ~/catkin_ws/devel/setup.bash \
 && ${RUN_CMD}
 " C-m C-m
 exit
 
 # python3 scripts/marg_sandbox.py
-# python3 scripts/plot_nbt.py
+# python3 scripts/plot_frames.py
 # python3 scripts/plot_imu.py
 # python3 scripts/plot_info.py
-# python3 scripts/plot_frames.py
+# python3 scripts/plot_nbt.py
 # python3 scripts/plot_poses.py /tmp/calib-estimates.yaml
 # python3 scripts/plot_stats.py
 # python3 scripts/plot_xyz.py /tmp/calib-estimates.csv "#ts" rx ry rz

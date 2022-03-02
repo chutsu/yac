@@ -508,7 +508,7 @@ int nbt_find(const ctrajs_t &trajs,
     matx_t calib_covar;
     if (nbt_eval(traj, calib, calib_covar) != 0) {
       if (verbose) {
-        LOG_WARN("Failed to evaulate NBT traj [%d]", traj_idx);
+        LOG_WARN("Failed to evaulate NBT traj [%ld]", traj_idx);
       }
       info_kp1[traj_idx] = 0.0;
       continue;
@@ -527,7 +527,7 @@ int nbt_find(const ctrajs_t &trajs,
     }
 
     if (verbose) {
-      printf("traj_idx: %d ", traj_idx);
+      printf("traj_idx: %ld ", traj_idx);
       printf("info_k: %f ", info_k);
       printf("info_kp1: %f ", info_kp1[traj_idx]);
       printf("info_gain: %f ", info_gain);
@@ -539,7 +539,7 @@ int nbt_find(const ctrajs_t &trajs,
   if (verbose) {
     printf("\nFind NBT:\n");
     printf("best_traj: %d\n", best_idx);
-    printf("best_gain: %d\n", best_gain);
+    printf("best_gain: %f\n", best_gain);
   }
 
   return best_idx;

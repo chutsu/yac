@@ -28,6 +28,21 @@ bool check_fully_observable(const calib_target_t &target,
                             const mat4_t &T_FC);
 
 /**
+ * NBV Reached
+ *
+ * @param[in] nbv_target NBV target pose
+ * @param[in] grid Current detected aprilgrid
+ * @param[in] nbv_reproj_threshold NBV reprojection error threshold
+ * @param[in] reproj_errors Reprojection Errors
+ *
+ * @returns True or false
+ */
+bool nbv_reached(const aprilgrid_t &nbv_target,
+                 const aprilgrid_t &grid,
+                 const real_t nbv_reproj_threshsold,
+                 std::vector<double> &reproj_errors);
+
+/**
  * Calibration target origin
  *
  * @param[in] target Calibration target configuration

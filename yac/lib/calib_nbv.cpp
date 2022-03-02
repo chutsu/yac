@@ -38,6 +38,45 @@ bool check_fully_observable(const calib_target_t &target,
   return true;
 }
 
+bool nbv_reached(const aprilgrid_t &nbv_target,
+                 const aprilgrid_t &grid,
+                 const real_t nbv_reproj_threshold,
+                 std::vector<double> &reproj_errors) {
+  // Pre-check
+  if (grid.detected == false) {
+    return false;
+  }
+
+  // Get measurements
+  std::vector<int> tag_ids;
+  std::vector<int> corner_indicies;
+  vec2s_t keypoints;
+  vec3s_t object_points;
+  grid.get_measurements(tag_ids, corner_indicies, keypoints, object_points);
+
+  // See if measured grid matches any NBV grid keypoints
+  reproj_errors.clear();
+  for (size_t i = 0; i < tag_ids.size(); i++) {
+    const int tag_id = tag_ids[i];
+    const int corner_idx = corner_indicies[i];
+    if (nbv_target.has(tag_id, corner_idx) == false) {
+      continue;
+    }
+
+    const vec2_t z_measured = keypoints[i];
+    const vec2_t z_desired = nbv_target.keypoint(tag_id, corner_idx);
+    reproj_errors.push_back((z_desired - z_measured).norm());
+  }
+
+  // Check if NBV is reached using reprojection errors
+  const auto nbv_reproj_err = mean(reproj_errors);
+  if (nbv_reproj_err > nbv_reproj_threshold) {
+    return false;
+  }
+
+  return true;
+}
+
 /** Calculate target origin (O) w.r.t. fiducial (F) T_FO **/
 mat4_t calib_target_origin(const calib_target_t &target,
                            const camera_geometry_t *cam_geom,

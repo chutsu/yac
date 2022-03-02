@@ -15,6 +15,10 @@ clean:
 	@rm -rf share
 	@rm -rf log
 
+eigen:
+	@echo "Building eigen ..."
+	@bash ./scripts/build_eigen.bash > log/build_eigen.log
+
 apriltag3:
 	@echo "Building apriltag3 ..."
 	@bash ./scripts/build_apriltag3.bash > log/build_apriltag3.log

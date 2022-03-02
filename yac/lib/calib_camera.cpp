@@ -715,12 +715,8 @@ void calib_camera_t::add_camera(const int cam_idx,
   // Projection params
   vecx_t proj_params;
   if (proj_model == "pinhole") {
-    double fx = pinhole_focal(cam_res[0], 120);
-    double fy = pinhole_focal(cam_res[0], 120);
-    if (focal_length_init.count(cam_idx)) {
-      fx = focal_length_init[cam_idx];
-      fy = focal_length_init[cam_idx];
-    }
+    const double fx = pinhole_focal(cam_res[0], 120);
+    const double fy = pinhole_focal(cam_res[0], 120);
     const double cx = cam_res[0] / 2.0;
     const double cy = cam_res[1] / 2.0;
     proj_params.resize(4);
@@ -760,6 +756,33 @@ void calib_camera_t::add_camera_extrinsics(const int cam_idx,
     cam_exts[cam_idx]->fixed = true;
     problem->SetParameterBlockConstant(cam_exts[cam_idx]->data());
   }
+}
+
+bool calib_camera_t::add_measurement(const timestamp_t ts,
+                                     const int cam_idx,
+                                     const cv::Mat &cam_img) {
+  // Make sure timestamps in in image buffer all the same
+  bool ready = true;
+  for (auto &[cam_idx, data] : img_buffer) {
+    const auto img_ts = data.first;
+    const auto &img = data.second;
+    if (ts > img_ts) {
+      ready = false;
+    }
+  }
+
+  // Detect AprilGrids
+  grid_buffer.clear();
+  for (auto &[cam_idx, data] : img_buffer) {
+    const auto img_ts = data.first;
+    const auto &img = data.second;
+    const auto grid = detector->detect(img_ts, img);
+    if (grid.detected) {
+      grid_buffer[cam_idx] = grid;
+    }
+  }
+
+  return ready;
 }
 
 void calib_camera_t::add_pose(const timestamp_t ts,

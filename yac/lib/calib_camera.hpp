@@ -113,11 +113,14 @@ struct calib_camera_t {
 
   // Data
   calib_target_t calib_target;
-  std::map<int, real_t> focal_length_init;
   std::set<timestamp_t> timestamps;
   std::map<timestamp_t, std::map<int, aprilgrid_t>> calib_data;
   std::map<int, aprilgrids_t> validation_data;
   int removed_outliers = 0;
+
+  // Buffers
+  std::map<int, std::pair<timestamp_t, cv::Mat>> img_buffer;
+  std::map<int, aprilgrid_t> grid_buffer;
 
   // NBV
   real_t info_k = 0.0;
@@ -201,6 +204,9 @@ struct calib_camera_t {
   void add_camera_extrinsics(const int cam_idx,
                              const mat4_t &ext = I(4),
                              const bool fixed = false);
+  bool add_measurement(const timestamp_t ts,
+                       const int cam_idx,
+                       const cv::Mat &cam_img);
   void add_pose(const timestamp_t ts,
                 const std::map<int, aprilgrid_t> &cam_grids,
                 const bool fixed = false);

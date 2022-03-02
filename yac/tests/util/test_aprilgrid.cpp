@@ -405,9 +405,12 @@ int test_aprilgrid_print() {
 int test_aprilgrid_detect() {
   auto detector = aprilgrid_detector_t(6, 6, 0.088, 0.3);
   const cv::Mat image = cv::imread(TEST_IMAGE, cv::IMREAD_GRAYSCALE);
-  const vec4_t K{458.654, 457.296, 367.215, 248.375};
-  const vec4_t D{-0.28340811, 0.07395907, 0.00019359, 1.76187114e-05};
+
+  // Detect
+  profiler_t prof;
+  prof.start("detect");
   aprilgrid_t grid = detector.detect(0, image);
+  prof.print("detect");
 
   cv::imwrite("/tmp/grid.png", grid.draw(image));
   MU_CHECK(grid.nb_detections > 0);
@@ -430,6 +433,44 @@ int test_aprilgrid_detect() {
   return 0;
 }
 
+int test_aprilgrid_profile() {
+  auto detector = aprilgrid_detector_t(6, 6, 0.088, 0.3);
+
+  const std::string cam0_dir = "/data/euroc/cam_april/mav0/cam0/data";
+  const std::string cam1_dir = "/data/euroc/cam_april/mav0/cam1/data";
+  std::vector<std::string> cam0_files;
+  std::vector<std::string> cam1_files;
+  list_files(cam0_dir, cam0_files);
+  list_files(cam1_dir, cam1_files);
+
+  profiler_t prof;
+
+  const size_t nb_images = std::min(cam0_files.size(), cam1_files.size());
+  for (size_t k = 0; k < nb_images; k++) {
+    const auto img0_path = cam0_dir + "/" + cam0_files[k];
+    const auto img1_path = cam1_dir + "/" + cam1_files[k];
+    cv::Mat img0 = cv::imread(img0_path, cv::IMREAD_GRAYSCALE);
+    cv::Mat img1 = cv::imread(img1_path, cv::IMREAD_GRAYSCALE);
+
+    std::map<int, std::pair<timestamp_t, cv::Mat>> img_buffer;
+    cv::resize(img0, img0, cv::Size(), 0.5, 0.5);
+    cv::resize(img1, img1, cv::Size(), 0.5, 0.5);
+    img_buffer[0] = {k, img0};
+    img_buffer[1] = {k, img1};
+
+    prof.start("detect");
+    auto grids = detector.detect(img_buffer);
+    prof.print("detect");
+
+    if (grids.count(0) && grids[0].detected) {
+      grids[0].imshow("viz", img0);
+      cv::waitKey(1);
+    }
+  }
+
+  return 0;
+}
+
 void test_suite() {
   MU_ADD_TEST(test_aprilgrid_constructor);
   MU_ADD_TEST(test_aprilgrid_grid_index);
@@ -445,6 +486,7 @@ void test_suite() {
   MU_ADD_TEST(test_aprilgrid_save_and_load);
   MU_ADD_TEST(test_aprilgrid_print);
   MU_ADD_TEST(test_aprilgrid_detect);
+  MU_ADD_TEST(test_aprilgrid_profile);
 }
 
 } // namespace yac

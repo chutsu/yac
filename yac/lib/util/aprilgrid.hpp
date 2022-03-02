@@ -118,6 +118,34 @@ using aprilgrids_t = std::vector<aprilgrid_t, Eigen::aligned_allocator<aprilgrid
 /* Load AprilGrids */
 aprilgrids_t load_aprilgrids(const std::string &dir_path);
 
+struct aprilgrid_detect_data_t {
+  const AprilTags::AprilGridDetector &det;
+  const int tag_rows;
+  const int tag_cols;
+  const real_t tag_size;
+  const real_t tag_spacing;
+
+  const int cam_idx;
+  const timestamp_t ts;
+  const cv::Mat image;
+
+  aprilgrid_t grid;
+
+  aprilgrid_detect_data_t() = delete;
+  aprilgrid_detect_data_t(const AprilTags::AprilGridDetector &det_,
+                          const int tag_rows_,
+                          const int tag_cols_,
+                          const real_t tag_size_,
+                          const real_t tag_spacing_,
+                          const int cam_idx_,
+                          const timestamp_t ts_,
+                          const cv::Mat image_)
+      : det{det_}, tag_rows{tag_rows_}, tag_cols{tag_cols_},
+        tag_size{tag_size_},
+        tag_spacing{tag_spacing_}, cam_idx{cam_idx_}, ts{ts_}, image{image_} {}
+};
+void *aprilgrid_detect_thread(void *data);
+
 /* AprilGrid Detector */
 struct aprilgrid_detector_t {
   // Grid properties
@@ -151,6 +179,10 @@ struct aprilgrid_detector_t {
   aprilgrid_t detect(const timestamp_t ts,
                      const cv::Mat &image,
                      const bool use_v3 = false) const;
+
+  std::map<int, aprilgrid_t>
+  detect(const std::map<int, std::pair<timestamp_t, cv::Mat>> &img_buffer,
+         const bool use_v3 = false) const;
 };
 
 } // namespace yac

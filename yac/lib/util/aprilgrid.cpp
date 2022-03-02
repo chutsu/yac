@@ -627,6 +627,122 @@ aprilgrids_t load_aprilgrids(const std::string &dir_path) {
   return grids;
 }
 
+void *aprilgrid_detect_thread(void *raw_data) {
+  aprilgrid_detect_data_t *data = (aprilgrid_detect_data_t *)raw_data;
+  const AprilTags::AprilGridDetector &det = data->det;
+  const int tag_rows = data->tag_rows;
+  const int tag_cols = data->tag_cols;
+  const real_t tag_size = data->tag_size;
+  const real_t tag_spacing = data->tag_spacing;
+  const timestamp_t ts = data->ts;
+  const cv::Mat image = data->image;
+  aprilgrid_t &grid = data->grid;
+
+  // Pre-check
+  if (image.channels() != 1) {
+    FATAL("[aprilgrid_detector_t::detect()]: Image is not grayscale!");
+  }
+
+  // Settings
+  const double min_border_dist = 4.0;
+  const double max_subpix_disp = sqrt(1.5);
+  const cv::Size win_size(2, 2);
+  const cv::Size zero_zone(-1, -1);
+  const int type = cv::TermCriteria::EPS + cv::TermCriteria::MAX_ITER;
+  const cv::TermCriteria criteria(type, 30, 0.1);
+
+  // Setup
+  grid = aprilgrid_t{ts, tag_rows, tag_cols, tag_size, tag_spacing};
+  const float img_rows = image.rows;
+  const float img_cols = image.cols;
+
+  // Use AprilTags by Michael Kaess
+  std::vector<AprilTags::TagDetection> tags = det.extractTags(image);
+  // -- Check if too few measurements
+  if (tags.size() < 4) {
+    return NULL;
+  }
+  // -- Sort Tags by ID
+  std::sort(tags.begin(), tags.end(), apriltag_cmp);
+  // -- Get measurement data
+  std::vector<int> tag_ids;
+  std::vector<int> corner_indicies;
+  vec2s_t keypoints;
+  for (auto &tag : tags) {
+    // Check if tag detection is good
+    if (tag.good == false) {
+      continue;
+    }
+
+    // Check if tag id is out of range for this grid
+    if (tag.id >= (tag_rows * tag_cols)) {
+      continue;
+    }
+
+    // Check if too close to image bounds
+    bool bad_tag = false;
+    for (int i = 0; i < 4; i++) {
+      bad_tag |= tag.p[i].first < min_border_dist;
+      bad_tag |= tag.p[i].first > img_cols - min_border_dist;
+      bad_tag |= tag.p[i].second < min_border_dist;
+      bad_tag |= tag.p[i].second > img_rows - min_border_dist;
+      if (bad_tag) {
+        break;
+      }
+    }
+    if (bad_tag) {
+      continue;
+    }
+
+    // Corner subpixel refinement
+    std::vector<cv::Point2f> corners_before;
+    std::vector<cv::Point2f> corners_after;
+    corners_before.emplace_back(tag.p[0].first, tag.p[0].second);
+    corners_before.emplace_back(tag.p[1].first, tag.p[1].second);
+    corners_before.emplace_back(tag.p[2].first, tag.p[2].second);
+    corners_before.emplace_back(tag.p[3].first, tag.p[3].second);
+    corners_after.emplace_back(tag.p[0].first, tag.p[0].second);
+    corners_after.emplace_back(tag.p[1].first, tag.p[1].second);
+    corners_after.emplace_back(tag.p[2].first, tag.p[2].second);
+    corners_after.emplace_back(tag.p[3].first, tag.p[3].second);
+    cv::cornerSubPix(image, corners_after, win_size, zero_zone, criteria);
+    // -- Check euclidean distance
+    for (size_t i = 0; i < 4; i++) {
+      // Subpixel distance
+      const auto &p_before = corners_before[i];
+      const auto &p_after = corners_after[i];
+      const auto dx = p_before.x - p_after.x;
+      const auto dy = p_before.y - p_after.y;
+      const auto dist = sqrt(dx * dx + dy * dy);
+      if (dist > max_subpix_disp) {
+        bad_tag = true;
+      }
+      tag.p[i].first = p_after.x;
+      tag.p[i].second = p_after.y;
+    }
+    if (bad_tag) {
+      continue;
+    }
+
+    // Add to results
+    for (int i = 0; i < 4; i++) {
+      tag_ids.push_back(tag.id);
+      corner_indicies.push_back(i);
+      keypoints.emplace_back(tag.p[i].first, tag.p[i].second);
+    }
+  }
+  // -- Check if too few measurements
+  if (tag_ids.size() < (4 * 4)) {
+    return NULL;
+  }
+  // -- Add filtered tags to grid
+  for (size_t i = 0; i < tag_ids.size(); i++) {
+    grid.add(tag_ids[i], corner_indicies[i], keypoints[i]);
+  }
+
+  return NULL;
+}
+
 aprilgrid_detector_t::aprilgrid_detector_t(const int tag_rows_,
                                            const int tag_cols_,
                                            const double tag_size_,
@@ -970,122 +1086,6 @@ std::map<int, aprilgrid_t> aprilgrid_detector_t::detect(
   }
 
   return grid_buffer;
-}
-
-void *aprilgrid_detect_thread(void *raw_data) {
-  aprilgrid_detect_data_t *data = (aprilgrid_detect_data_t *)raw_data;
-  const AprilTags::AprilGridDetector &det = data->det;
-  const int tag_rows = data->tag_rows;
-  const int tag_cols = data->tag_cols;
-  const real_t tag_size = data->tag_size;
-  const real_t tag_spacing = data->tag_spacing;
-  const timestamp_t ts = data->ts;
-  const cv::Mat image = data->image;
-  aprilgrid_t &grid = data->grid;
-
-  // Pre-check
-  if (image.channels() != 1) {
-    FATAL("[aprilgrid_detector_t::detect()]: Image is not grayscale!");
-  }
-
-  // Settings
-  const double min_border_dist = 4.0;
-  const double max_subpix_disp = sqrt(1.5);
-  const cv::Size win_size(2, 2);
-  const cv::Size zero_zone(-1, -1);
-  const int type = cv::TermCriteria::EPS + cv::TermCriteria::MAX_ITER;
-  const cv::TermCriteria criteria(type, 30, 0.1);
-
-  // Setup
-  grid = aprilgrid_t{ts, tag_rows, tag_cols, tag_size, tag_spacing};
-  const float img_rows = image.rows;
-  const float img_cols = image.cols;
-
-  // Use AprilTags by Michael Kaess
-  std::vector<AprilTags::TagDetection> tags = det.extractTags(image);
-  // -- Check if too few measurements
-  if (tags.size() < 4) {
-    return NULL;
-  }
-  // -- Sort Tags by ID
-  std::sort(tags.begin(), tags.end(), apriltag_cmp);
-  // -- Get measurement data
-  std::vector<int> tag_ids;
-  std::vector<int> corner_indicies;
-  vec2s_t keypoints;
-  for (auto &tag : tags) {
-    // Check if tag detection is good
-    if (tag.good == false) {
-      continue;
-    }
-
-    // Check if tag id is out of range for this grid
-    if (tag.id >= (tag_rows * tag_cols)) {
-      continue;
-    }
-
-    // Check if too close to image bounds
-    bool bad_tag = false;
-    for (int i = 0; i < 4; i++) {
-      bad_tag |= tag.p[i].first < min_border_dist;
-      bad_tag |= tag.p[i].first > img_cols - min_border_dist;
-      bad_tag |= tag.p[i].second < min_border_dist;
-      bad_tag |= tag.p[i].second > img_rows - min_border_dist;
-      if (bad_tag) {
-        break;
-      }
-    }
-    if (bad_tag) {
-      continue;
-    }
-
-    // Corner subpixel refinement
-    std::vector<cv::Point2f> corners_before;
-    std::vector<cv::Point2f> corners_after;
-    corners_before.emplace_back(tag.p[0].first, tag.p[0].second);
-    corners_before.emplace_back(tag.p[1].first, tag.p[1].second);
-    corners_before.emplace_back(tag.p[2].first, tag.p[2].second);
-    corners_before.emplace_back(tag.p[3].first, tag.p[3].second);
-    corners_after.emplace_back(tag.p[0].first, tag.p[0].second);
-    corners_after.emplace_back(tag.p[1].first, tag.p[1].second);
-    corners_after.emplace_back(tag.p[2].first, tag.p[2].second);
-    corners_after.emplace_back(tag.p[3].first, tag.p[3].second);
-    cv::cornerSubPix(image, corners_after, win_size, zero_zone, criteria);
-    // -- Check euclidean distance
-    for (size_t i = 0; i < 4; i++) {
-      // Subpixel distance
-      const auto &p_before = corners_before[i];
-      const auto &p_after = corners_after[i];
-      const auto dx = p_before.x - p_after.x;
-      const auto dy = p_before.y - p_after.y;
-      const auto dist = sqrt(dx * dx + dy * dy);
-      if (dist > max_subpix_disp) {
-        bad_tag = true;
-      }
-      tag.p[i].first = p_after.x;
-      tag.p[i].second = p_after.y;
-    }
-    if (bad_tag) {
-      continue;
-    }
-
-    // Add to results
-    for (int i = 0; i < 4; i++) {
-      tag_ids.push_back(tag.id);
-      corner_indicies.push_back(i);
-      keypoints.emplace_back(tag.p[i].first, tag.p[i].second);
-    }
-  }
-  // -- Check if too few measurements
-  if (tag_ids.size() < (4 * 4)) {
-    return NULL;
-  }
-  // -- Add filtered tags to grid
-  for (size_t i = 0; i < tag_ids.size(); i++) {
-    grid.add(tag_ids[i], corner_indicies[i], keypoints[i]);
-  }
-
-  return NULL;
 }
 
 } // namespace yac

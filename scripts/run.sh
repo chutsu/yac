@@ -7,6 +7,7 @@ set -e
 
 # YAC-UTIL
 # RUN_CMD="rosrun yac test_util_aprilgrid"
+RUN_CMD="rosrun yac test_util_aprilgrid --target test_aprilgrid_profile"
 # RUN_CMD="rosrun yac test_util_config"
 # RUN_CMD="rosrun yac test_util_cv"
 # RUN_CMD="rosrun yac test_util_core --target test_ctraj_sandbox"
@@ -70,7 +71,7 @@ set -e
 # RUN_CMD="rosrun yac test_calib_nbt --target test_simulate_cameras"
 # RUN_CMD="rosrun yac test_calib_nbt --target test_simulate_imu"
 # RUN_CMD="rosrun yac test_calib_nbt --target test_nbt_eval"
-RUN_CMD="rosrun yac test_calib_nbt --target test_nbt_find"
+# RUN_CMD="rosrun yac test_calib_nbt --target test_nbt_find"
 
 # YAC - NBV
 # RUN_CMD="rosrun yac test_calib_nbv"
@@ -112,12 +113,13 @@ RUN_CMD="rosrun yac test_calib_nbt --target test_nbt_find"
 tmux send-keys -t dev -R C-l C-m
 tmux send-keys -t dev -R "\
 cd ~/projects/yac \
-&& make lib_relwithdeb \
+&& make lib \
 && source ~/catkin_ws/devel/setup.bash \
 && ${RUN_CMD}
 " C-m C-m
 exit
 
+# python3 scripts/aprilgrid_generate.py --nx 6 --ny 6 --tsize 0.088
 # python3 scripts/marg_sandbox.py
 # python3 scripts/plot_frames.py
 # python3 scripts/plot_imu.py

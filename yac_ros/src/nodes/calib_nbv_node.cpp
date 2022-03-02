@@ -54,7 +54,7 @@ struct calib_nbv_t {
   // NBV Settings
   int min_intrinsics_views = 10;
   real_t min_intrinsics_view_diff = 10.0;
-  double nbv_reproj_error_threshold = 10.0;
+  double nbv_reproj_threshold = 10.0;
   double nbv_hold_threshold = 1.0;
 
   /* Constructor */
@@ -154,9 +154,9 @@ struct calib_nbv_t {
     draw_nbv_reproj_error(nbv_reproj_err, img);
 
     // Show NBV status
-    if (nbv_reproj_err < (nbv_reproj_error_threshold * 1.5)) {
+    if (nbv_reproj_err < (nbv_reproj_threshold * 1.5)) {
       std::string text = "Nearly There!";
-      if (nbv_reproj_err <= nbv_reproj_error_threshold) {
+      if (nbv_reproj_err <= nbv_reproj_threshold) {
         text = "HOLD IT!";
       }
       draw_status_text(text, img);
@@ -164,38 +164,21 @@ struct calib_nbv_t {
   }
 
   /** Check if reached NBV */
-  bool nbv_reached() {
+  bool check_nbv_reached() {
     // Pre-check
     if (state != NBV || find_nbv_event || grid_buffer.size() == 0 ||
         grid_buffer.count(nbv_cam_idx) == 0) {
       return false;
     }
 
-    // Get current detected grid measurements
-    const aprilgrid_t &grid = grid_buffer[nbv_cam_idx];
-    std::vector<int> tag_ids;
-    std::vector<int> corner_indicies;
-    vec2s_t keypoints;
-    vec3s_t object_points;
-    grid.get_measurements(tag_ids, corner_indicies, keypoints, object_points);
-
-    // See if measured grid matches any NBV grid keypoints
+    // Check if NBV reached
     std::vector<double> reproj_errors;
-    for (size_t i = 0; i < tag_ids.size(); i++) {
-      const int tag_id = tag_ids[i];
-      const int corner_idx = corner_indicies[i];
-      if (nbv_target.has(tag_id, corner_idx) == false) {
-        continue;
-      }
-
-      const vec2_t z_measured = keypoints[i];
-      const vec2_t z_desired = nbv_target.keypoint(tag_id, corner_idx);
-      reproj_errors.push_back((z_desired - z_measured).norm());
-    }
-
-    // Check if NBV is reached using reprojection errors
+    const bool reached = nbv_reached(nbv_target,
+                                     grid_buffer[nbv_cam_idx],
+                                     nbv_reproj_threshold,
+                                     reproj_errors);
     nbv_reproj_err = mean(reproj_errors);
-    if (nbv_reproj_err > nbv_reproj_error_threshold) {
+    if (reached == false) {
       nbv_hold_tic = (struct timespec){0, 0}; // Reset hold timer
       return false;
     }
@@ -327,7 +310,7 @@ struct calib_nbv_t {
   /** NBV Mode */
   void mode_nbv() {
     // Pre-check
-    if (find_nbv_event == false && nbv_reached() == false) {
+    if (find_nbv_event == false && check_nbv_reached() == false) {
       goto viz_nbv;
     }
 

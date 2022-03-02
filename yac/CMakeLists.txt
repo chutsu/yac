@@ -5,7 +5,7 @@ ENDIF (POLICY CMP0048)
 PROJECT(yac)
 
 # GENERAL SETTINGS
-IF (NOT DEFINED USE_CATKIN)
+IF (NOT DEFINED USE_OPENMP)
   SET(USE_OPENMP ON)
 ENDIF()
 
@@ -16,6 +16,10 @@ ENDIF()
 IF (NOT DEFINED apriltag3_DIR)
   SET(apriltag3_DIR "../deps/share/apriltag3/cmake")  # Use custom AprilTag3
 ENDIF()
+
+# IF (NOT DEFINED Eigen3_DIR)
+#   SET(Eigen3_DIR "../deps/share/eigen3/cmake")
+# ENDIF()
 
 # COMPILATION SETTINGS
 SET(CMAKE_CXX_STANDARD 17)
@@ -59,6 +63,9 @@ IF(USE_CATKIN)
     FILES_MATCHING PATTERN ".h" PATTERN ".hpp"
   )
 ENDIF(USE_CATKIN)
+
+
+
 
 # LIBRARY
 INCLUDE_DIRECTORIES(lib)

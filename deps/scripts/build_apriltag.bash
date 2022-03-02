@@ -2,6 +2,7 @@
 set -e
 BUILD_TYPE=Release
 INSTALL_PREFIX=${PWD}
+# EIGEN_CMAKE_MODULE_PATH=${PWD}/src/cmake
 
 # Clone
 if [ ! -d src/apriltag ]; then

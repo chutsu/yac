@@ -841,6 +841,16 @@ real_t median(const std::vector<real_t> &v) {
   }
 }
 
+real_t max(const std::vector<real_t> &x) {
+  real_t max_value = x[0];
+  for (const auto x_i : x) {
+    if (x_i > max_value) {
+      max_value = x_i;
+    }
+  }
+  return max_value;
+}
+
 real_t mean(const std::vector<real_t> &x) {
   real_t sum = 0.0;
   for (const auto i : x) {

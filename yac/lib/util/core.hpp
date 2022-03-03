@@ -928,6 +928,9 @@ real_t sum(const std::vector<real_t> &x);
 /** Calculate median given an array of numbers */
 real_t median(const std::vector<real_t> &v);
 
+/** Max */
+real_t max(const std::vector<real_t> &x);
+
 /** Mean */
 real_t mean(const std::vector<real_t> &x);
 

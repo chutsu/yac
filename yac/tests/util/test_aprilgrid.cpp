@@ -1,4 +1,5 @@
 #include <limits>
+#include <filesystem>
 #include "../munit.hpp"
 #include "util/aprilgrid.hpp"
 // #include "util/euroc.hpp"
@@ -436,37 +437,77 @@ int test_aprilgrid_detect() {
 int test_aprilgrid_profile() {
   auto detector = aprilgrid_detector_t(6, 6, 0.088, 0.3);
 
-  const std::string cam0_dir = "/data/euroc/cam_april/mav0/cam0/data";
-  const std::string cam1_dir = "/data/euroc/cam_april/mav0/cam1/data";
+  const std::string dataset_dir = "/data/euroc/imu_april/";
+  const std::string cam0_dir = dataset_dir + "mav0/cam0/data";
+  const std::string cam1_dir = dataset_dir + "mav0/cam1/data";
   std::vector<std::string> cam0_files;
   std::vector<std::string> cam1_files;
   list_files(cam0_dir, cam0_files);
   list_files(cam1_dir, cam1_files);
 
   profiler_t prof;
-
   const size_t nb_images = std::min(cam0_files.size(), cam1_files.size());
+
+  std::vector<timestamp_t> timestamps;
+  std::vector<real_t> timings;
+  std::vector<int> detections;
+
   for (size_t k = 0; k < nb_images; k++) {
+    // Load image
     const auto img0_path = cam0_dir + "/" + cam0_files[k];
     const auto img1_path = cam1_dir + "/" + cam1_files[k];
     cv::Mat img0 = cv::imread(img0_path, cv::IMREAD_GRAYSCALE);
     cv::Mat img1 = cv::imread(img1_path, cv::IMREAD_GRAYSCALE);
 
+    // Detect
     std::map<int, std::pair<timestamp_t, cv::Mat>> img_buffer;
-    cv::resize(img0, img0, cv::Size(), 0.5, 0.5);
-    cv::resize(img1, img1, cv::Size(), 0.5, 0.5);
+    cv::resize(img0, img0, cv::Size(), 0.75, 0.75);
+    cv::resize(img1, img1, cv::Size(), 0.75, 0.75);
     img_buffer[0] = {k, img0};
     img_buffer[1] = {k, img1};
 
     prof.start("detect");
     auto grids = detector.detect(img_buffer);
-    prof.print("detect");
+    real_t det_elasped = prof.stop("detect");
 
-    if (grids.count(0) && grids[0].detected) {
-      grids[0].imshow("viz", img0);
-      cv::waitKey(1);
+    // Track timestamps -- Parse timestamp from image filename
+    const std::string img0_fname = std::filesystem::path(img0_path).filename();
+    const std::string ts_str = img0_fname.substr(0, 19);
+    const timestamp_t ts = std::stoull(ts_str);
+    timestamps.push_back(ts);
+
+    // Track timings
+    timings.push_back(det_elasped);
+
+    // Track number of detections
+    int num_dets = 0;
+    for (const auto &[ts, grid] : grids) {
+      num_dets += grid.nb_detections;
     }
+    detections.push_back(num_dets);
+
+    // Imshow
+    printf("detect_time: %f [s], nb_detected: %d\n", det_elasped, num_dets);
+    if (grids.count(0)) {
+      grids[0].imshow("viz", img0);
+    } else {
+      cv::imshow("viz", img0);
+    }
+    cv::waitKey(1);
   }
+
+  // Print stats
+  printf("max(timings): %f\n", max(timings));
+  printf("mean(timings): %f\n", mean(timings));
+  printf("median(timings): %f\n", median(timings));
+
+  // Save data
+  FILE *csv = fopen("/tmp/aprilgrid_detect.csv", "w");
+  fprintf(csv, "timestamps,timings,detections\n");
+  for (size_t i = 0; i < timestamps.size(); i++) {
+    fprintf(csv, "%ld,%f,%d\n", timestamps[i], timings[i], detections[i]);
+  }
+  fclose(csv);
 
   return 0;
 }

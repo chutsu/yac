@@ -779,9 +779,9 @@ void calib_vi_t::add_view(const CamIdx2Grids &grids) {
   // Check aprilgrids, make sure there is atleast 1 detected grid
   bool grid_detected = false;
   timestamp_t grid_ts = 0;
-  for (int i = 0; i < nb_cams(); i++) {
-    if (grids.at(i).detected) {
-      grid_ts = grids.at(i).timestamp;
+  for (const auto &[cam_idx, grid] : grids) {
+    if (grid.detected) {
+      grid_ts = grid.timestamp;
       grid_detected = true;
       break;
     }
@@ -835,13 +835,54 @@ void calib_vi_t::add_view(const CamIdx2Grids &grids) {
   prev_grids = grids;
 }
 
+bool calib_vi_t::add_measurement(const timestamp_t ts,
+                                 const int cam_idx,
+                                 const cv::Mat &cam_image) {
+  // Make sure timestamps in in image buffer all the same
+  bool ready = true;
+  for (auto &[cam_idx, data] : img_buf) {
+    const auto img_ts = data.first;
+    const auto &img = data.second;
+    if (ts > img_ts) {
+      ready = false;
+    }
+  }
+
+  // Detect AprilGrids
+  prof.start("aprilgrid_detection");
+  // -- Downsample the images
+  std::map<int, std::pair<timestamp_t, cv::Mat>> buffer;
+  for (const auto &[cam_idx, data] : img_buf) {
+    auto ts = data.first;
+    auto img = data.second;
+    cv::resize(img, img, cv::Size(), img_scale, img_scale);
+    buffer[cam_idx] = {ts, img};
+  }
+  // -- Detect aprilgrids
+  grid_buf = detector->detect(buffer);
+  // -- Rescale the detected keypoints
+  const auto tag_rows = calib_target.tag_rows;
+  const auto tag_cols = calib_target.tag_cols;
+  for (auto &[cam_idx, grid] : grid_buf) {
+    for (int i = 0; i < (tag_rows * tag_cols * 4); i++) {
+      if (grid.data(i, 0) > 0) {
+        grid.data(i, 1) /= img_scale;
+        grid.data(i, 2) /= img_scale;
+      }
+    }
+  }
+  prof.print("aprilgrid_detection");
+
+  return ready;
+}
+
 void calib_vi_t::add_measurement(const int cam_idx, const aprilgrid_t &grid) {
   // Do not add vision data before first imu measurement
   if (imu_started == false) {
     return;
   }
 
-  grid_buf[cam_idx].push_back(grid);
+  grid_buf[cam_idx] = grid;
   vision_started = true;
 }
 
@@ -856,21 +897,23 @@ void calib_vi_t::add_measurement(const timestamp_t imu_ts,
   if (static_cast<int>(grid_buf.size()) != nb_cams()) {
     return;
   }
+  // if (grid_buf.size() == 0) {
+  //   return;
+  // }
 
-  // Get camera grids
-  CamIdx2Grids grids;
-  for (auto &[cam_idx, cam_grids] : grid_buf) {
-    grids[cam_idx] = cam_grids.front();
-  }
+  // Copy AprilGrid buffer data
+  CamIdx2Grids grids = grid_buf;
   grid_buf.clear();
 
   // Initialize T_WS and T_WF
   // Conditions:
   // - Aprilgrid was observed by cam0
   // - There are more than 2 IMU measurements
-  if (initialized == false && grids.at(0).detected && imu_buf.size() > 2) {
-    initialize(grids, imu_buf);
-    return;
+  if (initialized == false && imu_buf.size() > 2) {
+    if (grids.count(0) && grids.at(0).detected) {
+      initialize(grids, imu_buf);
+      return;
+    }
   }
 
   // Add new view
@@ -879,17 +922,23 @@ void calib_vi_t::add_measurement(const timestamp_t imu_ts,
   // Marginalize
   if (enable_marginalization && calib_views.size() > window_size) {
     // Solve then marginalize
+    prof.start("solve");
     ceres::Solver::Options options;
     options.max_num_iterations = max_iter;
     options.num_threads = max_num_threads;
     ceres::Solver::Summary summary;
     ceres::Solve(options, problem, &summary);
+    prof.stop("solve");
     // if (verbose) {
     //   std::cout << summary.BriefReport() << std::endl;
     // }
 
     // Marginalize oldest view
+    prof.start("marginalize");
     marginalize();
+    prof.stop("marginalize");
+    prof.print("solve");
+    prof.print("marginalize");
     running = true;
   }
 

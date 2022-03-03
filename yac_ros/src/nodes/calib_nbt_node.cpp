@@ -138,11 +138,11 @@ struct calib_nbt_t {
       }
     }
 
-    // Rate limit the images into the calibrator
-    if (ready && (frame_idx % 2 != 0)) {
-      img_buffer.clear();
-      return false;
-    }
+    // // Rate limit the images into the calibrator
+    // if (ready && (frame_idx % 2 != 0)) {
+    //   img_buffer.clear();
+    //   return false;
+    // }
 
     return ready;
   }
@@ -152,26 +152,49 @@ struct calib_nbt_t {
     // Clear previous detected grids
     grid_buffer.clear();
 
-    // Make a copy of camera indices
-    std::vector<int> cam_indices;
-    for (const auto &[cam_idx, _] : img_buffer) {
-      cam_indices.push_back(cam_idx);
-    }
-
-    // Detect aprilgrid in each camera
+    const real_t img_scale = 0.5;
     prof.start("aprilgrid_detection");
-    for (size_t i = 0; i < cam_indices.size(); i++) {
-      const auto cam_idx = cam_indices[i];
-      const auto &data = img_buffer[cam_idx];
+    std::map<int, std::pair<timestamp_t, cv::Mat>> buffer;
+    for (const auto &[cam_idx, data] : img_buffer) {
+      auto ts = data.first;
+      auto img = data.second;
+      cv::resize(img, img, cv::Size(), img_scale, img_scale);
+      buffer[cam_idx] = {ts, img};
+    }
+    grid_buffer = calib->detector->detect(buffer);
 
-      const auto img_ts = data.first;
-      const auto &img = data.second;
-      const auto grid = calib->detector->detect(img_ts, img, use_apriltags3);
-      if (grid.detected) {
-        grid_buffer[cam_idx] = grid;
+    for (auto &[cam_idx, grid] : grid_buffer) {
+      const auto tag_rows = 6;
+      const auto tag_cols = 6;
+      for (int i = 0; i < (tag_rows * tag_cols * 4); i++) {
+        if (grid.data(i, 0) > 0) {
+          grid.data(i, 1) /= img_scale;
+          grid.data(i, 2) /= img_scale;
+        }
       }
     }
-    prof.stop("aprilgrid_detection");
+    prof.print("aprilgrid_detection");
+
+    // // Make a copy of camera indices
+    // std::vector<int> cam_indices;
+    // for (const auto &[cam_idx, _] : img_buffer) {
+    //   cam_indices.push_back(cam_idx);
+    // }
+    //
+    // // Detect aprilgrid in each camera
+    // prof.start("aprilgrid_detection");
+    // for (size_t i = 0; i < cam_indices.size(); i++) {
+    //   const auto cam_idx = cam_indices[i];
+    //   const auto &data = img_buffer[cam_idx];
+    //
+    //   const auto img_ts = data.first;
+    //   const auto &img = data.second;
+    //   const auto grid = calib->detector->detect(img_ts, img, use_apriltags3);
+    //   if (grid.detected) {
+    //     grid_buffer[cam_idx] = grid;
+    //   }
+    // }
+    // prof.stop("aprilgrid_detection");
   }
 
   /** Event Keyboard Handler */
@@ -290,7 +313,7 @@ struct calib_nbt_t {
     // Change settings for online execution
     calib->enable_marginalization = true;
     calib->max_iter = 5;
-    calib->window_size = 10;
+    calib->window_size = 2;
     calib->reset();
 
     // Transition to NBT mode
@@ -346,16 +369,7 @@ struct calib_nbt_t {
     const vec3_t a_m{acc.x, acc.y, acc.z};
     const vec3_t w_m{gyr.x, gyr.y, gyr.z};
     const timestamp_t ts = msg->header.stamp.toNSec();
-
-    if (calib->running) {
-      prof.start("solve");
-    }
-
     calib->add_measurement(ts, a_m, w_m);
-
-    if (calib->running) {
-      prof.stop("solve");
-    }
   }
 
   /**

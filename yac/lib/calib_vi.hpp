@@ -78,6 +78,7 @@ struct calib_vi_t {
   bool enable_marginalization = false;
   double outlier_threshold = 4.0;
   int window_size = 4;
+  const real_t img_scale = 0.5;
 
   // State-Variables
   CamIdx2Geometry cam_geoms;
@@ -89,14 +90,16 @@ struct calib_vi_t {
 
   // Data
   // -- Vision data
+  std::map<int, std::pair<timestamp_t, cv::Mat>> img_buf;
+  std::map<int, aprilgrid_t> grid_buf;
   calib_target_t calib_target;
-  std::map<int, std::deque<aprilgrid_t>> grid_buf;
   CamIdx2Grids prev_grids;
   // -- Imu data
   imu_params_t imu_params;
   imu_data_t imu_buf;
 
   // Problem data
+  profiler_t prof;
   std::deque<calib_vi_view_t *> calib_views;
   ceres::ResidualBlockId marg_error_id;
   marg_error_t *marg_error = nullptr;
@@ -154,6 +157,9 @@ struct calib_vi_t {
   mat4_t estimate_sensor_pose(const CamIdx2Grids &grids);
   void initialize(const CamIdx2Grids &grids, imu_data_t &imu_buf);
   void add_view(const CamIdx2Grids &grids);
+  bool add_measurement(const timestamp_t ts,
+                       const int cam_idx,
+                       const cv::Mat &cam_image);
   void add_measurement(const int cam_idx, const aprilgrid_t &grid);
   void add_measurement(const timestamp_t imu_ts,
                        const vec3_t &a_m,

@@ -284,7 +284,9 @@ calib_vi_t::calib_vi_t(const calib_vi_t &calib) {
   // Data
   initialized = calib.initialized;
   // -- Vision data
+  img_buf = calib.img_buf;
   grid_buf = calib.grid_buf;
+  calib_target = calib.calib_target;
   prev_grids = calib.prev_grids;
   // -- Imu data
   imu_params = calib.imu_params;

@@ -856,26 +856,32 @@ bool calib_vi_t::add_measurement(const timestamp_t ts,
 
   // Detect AprilGrids
   prof.start("detection");
-  // -- Downsample the images
-  std::map<int, std::pair<timestamp_t, cv::Mat>> buffer;
-  for (const auto &[cam_idx, data] : img_buf) {
-    auto ts = data.first;
-    auto img = data.second;
-    cv::resize(img, img, cv::Size(), img_scale, img_scale);
-    buffer[cam_idx] = {ts, img};
-  }
-  // -- Detect aprilgrids
-  grid_buf = detector->detect(buffer);
-  // -- Rescale the detected keypoints
-  const auto tag_rows = calib_target.tag_rows;
-  const auto tag_cols = calib_target.tag_cols;
-  for (auto &[cam_idx, grid] : grid_buf) {
-    for (int i = 0; i < (tag_rows * tag_cols * 4); i++) {
-      if (grid.data(i, 0) > 0) {
-        grid.data(i, 1) /= img_scale;
-        grid.data(i, 2) /= img_scale;
+  if (fltcmp(img_scale, 1.0) != 0) {
+    // Detect with downsampled images
+    // -- Make a copy of down sampled images
+    std::map<int, std::pair<timestamp_t, cv::Mat>> buffer;
+    for (const auto &[cam_idx, data] : img_buf) {
+      auto ts = data.first;
+      auto img = data.second;
+      cv::resize(img, img, cv::Size(), img_scale, img_scale);
+      buffer[cam_idx] = {ts, img};
+    }
+    // -- Detect aprilgrids
+    grid_buf = detector->detect(buffer);
+    // -- Rescale the detected keypoints
+    const auto tag_rows = calib_target.tag_rows;
+    const auto tag_cols = calib_target.tag_cols;
+    for (auto &[cam_idx, grid] : grid_buf) {
+      for (int i = 0; i < (tag_rows * tag_cols * 4); i++) {
+        if (grid.data(i, 0) > 0) {
+          grid.data(i, 1) /= img_scale;
+          grid.data(i, 2) /= img_scale;
+        }
       }
     }
+  } else {
+    // Detect at full image resolution
+    grid_buf = detector->detect(img_buf);
   }
   prof.stop("detection");
 

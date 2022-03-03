@@ -838,6 +838,9 @@ void calib_vi_t::add_view(const CamIdx2Grids &grids) {
 bool calib_vi_t::add_measurement(const timestamp_t ts,
                                  const int cam_idx,
                                  const cv::Mat &cam_image) {
+  // Add image to image buffer
+  img_buf[cam_idx] = {ts, cam_image};
+
   // Make sure timestamps in in image buffer all the same
   bool ready = true;
   for (auto &[cam_idx, data] : img_buf) {
@@ -847,9 +850,12 @@ bool calib_vi_t::add_measurement(const timestamp_t ts,
       ready = false;
     }
   }
+  if (ready == false) {
+    return false;
+  }
 
   // Detect AprilGrids
-  prof.start("aprilgrid_detection");
+  prof.start("detection");
   // -- Downsample the images
   std::map<int, std::pair<timestamp_t, cv::Mat>> buffer;
   for (const auto &[cam_idx, data] : img_buf) {
@@ -871,9 +877,9 @@ bool calib_vi_t::add_measurement(const timestamp_t ts,
       }
     }
   }
-  prof.print("aprilgrid_detection");
+  prof.stop("detection");
 
-  return ready;
+  return true;
 }
 
 void calib_vi_t::add_measurement(const int cam_idx, const aprilgrid_t &grid) {
@@ -937,8 +943,6 @@ void calib_vi_t::add_measurement(const timestamp_t imu_ts,
     prof.start("marginalize");
     marginalize();
     prof.stop("marginalize");
-    prof.print("solve");
-    prof.print("marginalize");
     running = true;
   }
 

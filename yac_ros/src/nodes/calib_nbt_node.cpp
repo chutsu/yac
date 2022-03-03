@@ -30,7 +30,7 @@ struct calib_nbt_t {
 
   // Settings
   bool use_apriltags3 = true;
-  int min_init_views = 20;
+  int min_init_views = 10;
 
   // ROS
   const std::string node_name;
@@ -54,8 +54,6 @@ struct calib_nbt_t {
 
   // Data
   size_t frame_idx = 0;
-  std::map<int, std::pair<timestamp_t, cv::Mat>> img_buffer;
-  std::map<int, aprilgrid_t> grid_buffer;
   profiler_t prof;
 
   // Threads
@@ -116,87 +114,6 @@ struct calib_nbt_t {
     // clang-format on
   }
 
-  /**
-   * Update image buffer
-   * @param[in] cam_idx Camera index
-   * @param[in] msg Image messsage
-   * @returns True or False if all camera images have arrived
-   */
-  bool update_image_buffer(const int cam_idx,
-                           const sensor_msgs::ImageConstPtr &msg) {
-    // Convert message to image and add to image buffer
-    const timestamp_t ts_k = msg->header.stamp.toNSec();
-    img_buffer[cam_idx] = {ts_k, msg_convert(msg)};
-
-    // Make sure timestamps in in image buffer all the same
-    bool ready = true;
-    for (auto &[cam_idx, data] : img_buffer) {
-      const auto img_ts = data.first;
-      const auto &img = data.second;
-      if (ts_k > img_ts) {
-        ready = false;
-      }
-    }
-
-    // // Rate limit the images into the calibrator
-    // if (ready && (frame_idx % 2 != 0)) {
-    //   img_buffer.clear();
-    //   return false;
-    // }
-
-    return ready;
-  }
-
-  /** Detect AprilGrids */
-  void detect_aprilgrid() {
-    // Clear previous detected grids
-    grid_buffer.clear();
-
-    const real_t img_scale = 0.5;
-    prof.start("aprilgrid_detection");
-    std::map<int, std::pair<timestamp_t, cv::Mat>> buffer;
-    for (const auto &[cam_idx, data] : img_buffer) {
-      auto ts = data.first;
-      auto img = data.second;
-      cv::resize(img, img, cv::Size(), img_scale, img_scale);
-      buffer[cam_idx] = {ts, img};
-    }
-    grid_buffer = calib->detector->detect(buffer);
-
-    for (auto &[cam_idx, grid] : grid_buffer) {
-      const auto tag_rows = 6;
-      const auto tag_cols = 6;
-      for (int i = 0; i < (tag_rows * tag_cols * 4); i++) {
-        if (grid.data(i, 0) > 0) {
-          grid.data(i, 1) /= img_scale;
-          grid.data(i, 2) /= img_scale;
-        }
-      }
-    }
-    prof.print("aprilgrid_detection");
-
-    // // Make a copy of camera indices
-    // std::vector<int> cam_indices;
-    // for (const auto &[cam_idx, _] : img_buffer) {
-    //   cam_indices.push_back(cam_idx);
-    // }
-    //
-    // // Detect aprilgrid in each camera
-    // prof.start("aprilgrid_detection");
-    // for (size_t i = 0; i < cam_indices.size(); i++) {
-    //   const auto cam_idx = cam_indices[i];
-    //   const auto &data = img_buffer[cam_idx];
-    //
-    //   const auto img_ts = data.first;
-    //   const auto &img = data.second;
-    //   const auto grid = calib->detector->detect(img_ts, img, use_apriltags3);
-    //   if (grid.detected) {
-    //     grid_buffer[cam_idx] = grid;
-    //   }
-    // }
-    // prof.stop("aprilgrid_detection");
-  }
-
   /** Event Keyboard Handler */
   void event_handler(int key) {
     if (key != EOF) {
@@ -218,17 +135,17 @@ struct calib_nbt_t {
   void visualize() {
     // Pre-check
     const auto cam_idx = 0;
-    if (img_buffer.count(cam_idx) == 0) {
+    if (calib->img_buf.count(cam_idx) == 0) {
       return;
     }
 
     // Convert image gray to rgb
-    const auto &img_gray = img_buffer[cam_idx].second;
+    const auto &img_gray = calib->img_buf[cam_idx].second;
     auto viz = gray2rgb(img_gray);
 
     // Draw "detected" if AprilGrid was observed
-    if (grid_buffer.count(cam_idx)) {
-      draw_detected(grid_buffer[cam_idx], viz);
+    if (calib->grid_buf.count(cam_idx)) {
+      draw_detected(calib->grid_buf[cam_idx], viz);
     }
 
     // Show
@@ -291,13 +208,8 @@ struct calib_nbt_t {
     visualize();
 
     // Pre-check
-    if (grid_buffer.size() == 0) {
+    if (calib->grid_buf.size() == 0) {
       return;
-    }
-
-    // Add to camera data to calibrator
-    for (const auto &[cam_idx, grid] : grid_buffer) {
-      calib->add_measurement(cam_idx, grid);
     }
 
     // Check if we have enough grids for all cameras
@@ -326,11 +238,6 @@ struct calib_nbt_t {
   void mode_nbt() {
     // Visualize
     visualize();
-
-    // Add camera data to calibrator
-    for (const auto &[cam_idx, grid] : grid_buffer) {
-      calib->add_measurement(cam_idx, grid);
-    }
   }
 
   /** Publish Estimates */
@@ -379,14 +286,18 @@ struct calib_nbt_t {
    */
   void image_callback(const sensor_msgs::ImageConstPtr &msg,
                       const int cam_idx) {
-    // Add image to buffer
+    // Add camera image to calibrator
     const timestamp_t ts = msg->header.stamp.toNSec();
-    if (update_image_buffer(cam_idx, msg) == false) {
+    const cv::Mat cam_img = msg_convert(msg);
+    const bool ready = calib->add_measurement(ts, cam_idx, cam_img);
+    if (ready == false) {
       return;
     }
 
-    // Detect
-    detect_aprilgrid();
+    printf("\nts: %ld\n", ts);
+    calib->prof.print("detection");
+    calib->prof.print("solve");
+    calib->prof.print("marginalize");
 
     // States
     switch (state) {

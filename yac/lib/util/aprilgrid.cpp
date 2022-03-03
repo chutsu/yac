@@ -594,6 +594,12 @@ void aprilgrid_t::common_measurements(const aprilgrid_t &grid_i,
   }
 }
 
+/* Compare AprilTag */
+static bool apriltag_cmp(const AprilTags::TagDetection &a,
+                         const AprilTags::TagDetection &b) {
+  return (a.id < b.id);
+}
+
 std::ostream &operator<<(std::ostream &os, const aprilgrid_t &grid) {
   os << "ts: " << grid.timestamp << std::endl;
   os << "tag_rows: " << grid.tag_rows << std::endl;
@@ -905,12 +911,6 @@ void aprilgrid_detector_t::filter_measurements(
   tag_ids = filtered_tag_ids;
   corner_indicies = filtered_corner_indicies;
   keypoints = filtered_keypoints;
-}
-
-/* Compare AprilTag */
-static bool apriltag_cmp(const AprilTags::TagDetection &a,
-                         const AprilTags::TagDetection &b) {
-  return (a.id < b.id);
 }
 
 aprilgrid_t aprilgrid_detector_t::detect(const timestamp_t ts,

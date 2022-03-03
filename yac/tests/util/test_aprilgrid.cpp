@@ -486,7 +486,7 @@ void test_suite() {
   MU_ADD_TEST(test_aprilgrid_save_and_load);
   MU_ADD_TEST(test_aprilgrid_print);
   MU_ADD_TEST(test_aprilgrid_detect);
-  MU_ADD_TEST(test_aprilgrid_profile);
+  // MU_ADD_TEST(test_aprilgrid_profile);
 }
 
 } // namespace yac

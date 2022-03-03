@@ -1745,12 +1745,12 @@ struct imu_data_t {
     mat3_t C_WS = vecs2rot(mean_accel, -gravity);
 
     // Extract roll, pitch and set yaw to 0
-    const quat_t q_WS = quat_t(C_WS);
-    const vec3_t rpy = quat2euler(q_WS);
-    const real_t roll = rpy(0);
-    const real_t pitch = rpy(1);
-    const real_t yaw = 0.0;
-    C_WS = euler321(vec3_t{roll, pitch, yaw});
+    // const quat_t q_WS = quat_t(C_WS);
+    // const vec3_t rpy = quat2euler(q_WS);
+    // const real_t roll = rpy(0);
+    // const real_t pitch = rpy(1);
+    // const real_t yaw = 0.0;
+    // C_WS = euler321(vec3_t{roll, pitch, yaw});
 
     return C_WS;
   }

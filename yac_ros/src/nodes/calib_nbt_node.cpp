@@ -24,7 +24,7 @@ struct calib_nbt_t {
 
   // Flags
   int state = INITIALIZE;
-  std::mutex calib_mutex;
+  std::mutex mtx;
   bool keep_running = true;
   bool finding_nbt = false;
 
@@ -123,6 +123,16 @@ struct calib_nbt_t {
           LOG_INFO("Exiting ...");
           keep_running = false;
           break;
+        case 'f':
+          LOG_INFO("Finding NBT...");
+          find_nbt();
+          break;
+        case 'e': {
+          matx_t covar;
+          calib->recover_calib_covar(covar);
+          printf("shannon entropy: %f\n", shannon_entropy(covar));
+          break;
+        }
         case 'r':
           LOG_INFO("Resetting ...");
           state = INITIALIZE;
@@ -162,30 +172,47 @@ struct calib_nbt_t {
       return;
     }
 
+    // Copy calibrator
+    std::unique_lock<std::mutex> guard(mtx);
+    calib_vi_t calib_copy{*calib.get()};
+    // calib_copy.solve();
+    // matx_t covar;
+    // matx_t covar_copy;
+    // calib->recover_calib_covar(covar);
+    // calib_copy.recover_calib_covar(covar_copy);
+    // printf("shannon_entropy: %f\n", shannon_entropy(covar));
+    // printf("shannon_entropy copy: %f\n", shannon_entropy(covar_copy));
+    guard.unlock();
+
     // Generate NBTs
     LOG_INFO("Generate NBTs");
+    printf("nb_views: %ld\n", calib_copy.calib_views.size());
     const int cam_idx = 0;
     ctrajs_t trajs;
-    const timestamp_t ts_start = calib->calib_views.back()->ts + 1;
+    const timestamp_t ts_start = calib_copy.calib_views.back()->ts + 1;
     const timestamp_t ts_end = ts_start + sec2ts(2.0);
-    const mat4_t T_FO = calib_target_origin(calib->calib_target,
-                                            calib->cam_geoms[cam_idx],
-                                            calib->cam_params[cam_idx]);
+    const mat4_t T_FO = calib_target_origin(calib_copy.calib_target,
+                                            calib_copy.cam_geoms[cam_idx],
+                                            calib_copy.cam_params[cam_idx]);
     nbt_orbit_trajs(ts_start,
                     ts_end,
-                    calib->calib_target,
-                    calib->cam_geoms[cam_idx],
-                    calib->cam_params[cam_idx],
-                    calib->imu_exts,
-                    calib->get_fiducial_pose(),
+                    calib_copy.calib_target,
+                    calib_copy.cam_geoms[cam_idx],
+                    calib_copy.cam_params[cam_idx],
+                    calib_copy.imu_exts,
+                    calib_copy.get_fiducial_pose(),
                     T_FO,
                     trajs);
 
     // Evaluate NBT trajectories
     LOG_INFO("Evaluate NBTs");
     prof.start("find_nbt");
-    const int best_index = nbt_find(trajs, *calib, true);
+    const int best_index = nbt_find(trajs, calib_copy, true);
+    prof.stop("find_nbt");
     prof.print("find_nbt");
+    if (best_index >= 0) {
+      publish_nbt(trajs[best_index], nbt_pub);
+    }
 
     finding_nbt = false;
   }
@@ -225,7 +252,7 @@ struct calib_nbt_t {
     // Change settings for online execution
     calib->enable_marginalization = true;
     calib->max_iter = 5;
-    calib->window_size = 2;
+    calib->window_size = 5;
     calib->reset();
 
     // Transition to NBT mode
@@ -271,6 +298,7 @@ struct calib_nbt_t {
    * @param[in] msg Imu message
    */
   void imu0_callback(const sensor_msgs::ImuConstPtr &msg) {
+    std::lock_guard<std::mutex> guard(mtx);
     const auto gyr = msg->angular_velocity;
     const auto acc = msg->linear_acceleration;
     const vec3_t a_m{acc.x, acc.y, acc.z};
@@ -286,6 +314,7 @@ struct calib_nbt_t {
    */
   void image_callback(const sensor_msgs::ImageConstPtr &msg,
                       const int cam_idx) {
+    std::lock_guard<std::mutex> guard(mtx);
     // Add camera image to calibrator
     const timestamp_t ts = msg->header.stamp.toNSec();
     const cv::Mat cam_img = msg_convert(msg);
@@ -294,10 +323,10 @@ struct calib_nbt_t {
       return;
     }
 
-    printf("\nts: %ld\n", ts);
-    calib->prof.print("detection");
-    calib->prof.print("solve");
-    calib->prof.print("marginalize");
+    // printf("\nts: %ld\n", ts);
+    // calib->prof.print("detection");
+    // calib->prof.print("solve");
+    // calib->prof.print("marginalize");
 
     // States
     switch (state) {

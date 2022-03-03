@@ -1257,7 +1257,7 @@ struct profiler_t {
   }
 
   void print(const std::string &key) {
-    printf("[%s]: %.4fs\n", key.c_str(), stop(key));
+    printf("[%s]: %.4fs\n", key.c_str(), record[key]);
   }
 };
 

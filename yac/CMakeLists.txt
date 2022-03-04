@@ -92,6 +92,7 @@ ADD_LIBRARY(
   lib/calib_nbv.cpp
   lib/calib_params.cpp
   lib/calib_vi.cpp
+  lib/solver.cpp
 )
 
 # TESTS

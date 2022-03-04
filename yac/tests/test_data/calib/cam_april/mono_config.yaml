@@ -11,8 +11,7 @@ settings:
   enable_shuffle_views: true
   enable_nbv_filter: true
   enable_outlier_filter: true
-  enable_marginalization: true
-  enable_cross_validation: false
+  enable_marginalization: false
   enable_early_stopping: false
   min_nbv_views: 40
   outlier_threshold: 4.0

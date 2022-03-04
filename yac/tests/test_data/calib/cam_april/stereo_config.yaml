@@ -9,10 +9,9 @@ settings:
   # Final stage settings
   enable_nbv: true
   enable_shuffle_views: true
-  enable_nbv_filter: true
-  enable_outlier_filter: true
-  enable_marginalization: true
-  enable_cross_validation: false
+  enable_nbv_filter: false
+  enable_outlier_filter: false
+  enable_marginalization: false
   enable_early_stopping: false
   min_nbv_views: 40
   outlier_threshold: 4.0

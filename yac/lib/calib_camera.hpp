@@ -7,6 +7,7 @@
 #include "calib_params.hpp"
 #include "calib_errors.hpp"
 #include "calib_nbv.hpp"
+#include "solver.hpp"
 
 namespace yac {
 
@@ -50,10 +51,8 @@ struct calib_view_t {
   fiducial_corners_t *corners = nullptr;
 
   // Problem
-  ceres::Problem *problem = nullptr;
-  ceres::LossFunction *loss = nullptr;
+  solver_t *solver = nullptr;
   CamIdx2ReprojErrors res_fns;
-  CamIdx2ReprojErrorIds res_ids;
 
   // Parameters
   CamIdx2Geometry *cam_geoms = nullptr;
@@ -66,8 +65,7 @@ struct calib_view_t {
   calib_view_t(const timestamp_t ts_,
                const CamIdx2Grids &grids_,
                fiducial_corners_t *corners_,
-               ceres::Problem *problem_,
-               ceres::LossFunction *loss_,
+               solver_t *solver_,
                CamIdx2Geometry *cam_geom_,
                CamIdx2Parameters *cam_params_,
                CamIdx2Extrinsics *cam_exts_,
@@ -82,7 +80,7 @@ struct calib_view_t {
   std::vector<real_t> get_reproj_errors(const int cam_idx) const;
   int filter_view(const vec2_t &threshold);
   int filter_view(const std::map<int, vec2_t> &thresholds);
-  ceres::ResidualBlockId marginalize(marg_error_t *marg_error);
+  void marginalize(marg_error_t *marg_error);
 };
 
 // CALIBRATOR //////////////////////////////////////////////////////////////////
@@ -100,10 +98,9 @@ struct calib_camera_t {
   int max_num_threads = 8;
   bool enable_nbv = true;
   bool enable_shuffle_views = true;
-  bool enable_nbv_filter = true;
-  bool enable_outlier_filter = true;
+  bool enable_nbv_filter = false;
+  bool enable_outlier_filter = false;
   bool enable_marginalization = false;
-  bool enable_cross_validation = false;
   bool enable_early_stopping = false;
   int min_nbv_views = 40;
   real_t outlier_threshold = 4.0;
@@ -124,7 +121,6 @@ struct calib_camera_t {
 
   // NBV
   real_t info_k = 0.0;
-  real_t valid_error_k = 0.0;
 
   std::map<timestamp_t, std::map<int, vecx_t>> cam_estimates;
   std::map<timestamp_t, std::map<int, mat4_t>> exts_estimates;
@@ -141,12 +137,8 @@ struct calib_camera_t {
 
   // Problem
   std::default_random_engine calib_rng;
-  ceres::Problem::Options prob_options;
-  ceres::Problem *problem = nullptr;
-  ceres::LossFunction *loss = nullptr;
-  ceres::ResidualBlockId marg_error_id;
+  solver_t *solver = nullptr;
   marg_error_t *marg_error = nullptr;
-  PoseLocalParameterization pose_plus;
 
   // State variables
   fiducial_corners_t *corners;

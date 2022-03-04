@@ -7,7 +7,7 @@ set -e
 
 # YAC-UTIL
 # RUN_CMD="rosrun yac test_util_aprilgrid"
-RUN_CMD="rosrun yac test_util_aprilgrid --target test_aprilgrid_profile"
+# RUN_CMD="rosrun yac test_util_aprilgrid --target test_aprilgrid_profile"
 # RUN_CMD="rosrun yac test_util_config"
 # RUN_CMD="rosrun yac test_util_cv"
 # RUN_CMD="rosrun yac test_util_core --target test_ctraj_sandbox"
@@ -38,9 +38,10 @@ RUN_CMD="rosrun yac test_util_aprilgrid --target test_aprilgrid_profile"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_recover_calib_covar"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_find_nbv"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_filter_all_views"
+# RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_remove_all_views"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_remove_outliers"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_solve_batch"
-# RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_solve_inc"
+RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_solve_inc"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_mono"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_stereo"
 # RUN_CMD="rosrun yac test_calib_camera --target test_marg_error"
@@ -113,7 +114,7 @@ RUN_CMD="rosrun yac test_util_aprilgrid --target test_aprilgrid_profile"
 tmux send-keys -t dev -R C-l C-m
 tmux send-keys -t dev -R "\
 cd ~/projects/yac \
-&& make lib \
+&& make lib_relwithdeb \
 && source ~/catkin_ws/devel/setup.bash \
 && ${RUN_CMD}
 " C-m C-m

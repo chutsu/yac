@@ -1561,8 +1561,9 @@ void marg_error_t::schurs_complement(const matx_t &H,
   b_marg = brr - Hrm * Hmm_inv * bmm;
 }
 
-ceres::ResidualBlockId marg_error_t::marginalize(ceres::Problem *problem,
-                                                 bool debug) {
+void marg_error_t::marginalize(std::vector<param_t *> &marg_params,
+                               std::vector<calib_error_t *> &marg_residuals,
+                               const bool debug) {
   // Form Hessian and RHS of Gauss newton
   matx_t H;
   vecx_t b;
@@ -1621,22 +1622,38 @@ ceres::ResidualBlockId marg_error_t::marginalize(ceres::Problem *problem,
     mat2csv("/tmp/r0.csv", r0_);
   }
 
+  // Copy parameters and residuals to be removed
+  marg_params = marg_param_ptrs_;
+  marg_residuals = res_blocks_;
+  marg_param_ptrs_.clear();
+  res_blocks_.clear();
+
+  // Update state
+  marginalized_ = true;
+}
+
+ceres::ResidualBlockId marg_error_t::marginalize(ceres::Problem *problem,
+                                                 bool debug) {
+
+  // Marginalize
+  std::vector<param_t *> marg_params;
+  std::vector<calib_error_t *> marg_residuals;
+  marginalize(marg_params, marg_residuals);
+
   // Remove parameter blocks from problem, which in turn ceres will remove
   // residual blocks linked to the parameter.
-  for (const auto &marg_param : marg_param_ptrs_) {
+  for (const auto &marg_param : marg_params) {
     if (problem->HasParameterBlock(marg_param->param.data())) {
       problem->RemoveParameterBlock(marg_param->param.data());
     }
   }
 
   // Delete residual blocks - no longer needed
-  for (auto res_block : res_blocks_) {
+  for (auto res_block : marg_residuals) {
     delete res_block;
   }
-  res_blocks_.clear();
 
   // Change flag to denote marginalized and add it self to problem
-  marginalized_ = true;
   return problem->AddResidualBlock(this, NULL, get_param_ptrs());
 }
 

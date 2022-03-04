@@ -159,13 +159,12 @@ void camchain_t::clear() {
 calib_view_t::calib_view_t(const timestamp_t ts_,
                            const CamIdx2Grids &grids_,
                            fiducial_corners_t *corners_,
-                           ceres::Problem *problem_,
-                           ceres::LossFunction *loss_,
+                           solver_t *solver_,
                            CamIdx2Geometry *cam_geoms_,
                            CamIdx2Parameters *cam_params_,
                            CamIdx2Extrinsics *cam_exts_,
                            pose_t *T_C0F_)
-    : ts{ts_}, grids{grids_}, corners{corners_}, problem{problem_}, loss{loss_},
+    : ts{ts_}, grids{grids_}, corners{corners_}, solver{solver_},
       cam_geoms{cam_geoms_},
       cam_params{cam_params_}, cam_exts{cam_exts_}, T_C0F{T_C0F_} {
   const mat2_t covar = I(2);
@@ -190,14 +189,8 @@ calib_view_t::calib_view_t(const timestamp_t ts_,
                                        p_FFi_,
                                        z,
                                        covar);
-      auto res_id = problem->AddResidualBlock(res_fn,
-                                              loss,
-                                              cam_exts_->at(cam_idx)->data(),
-                                              T_C0F_->data(),
-                                              p_FFi_->data(),
-                                              cam_params->at(cam_idx)->data());
+      solver->add_residual(res_fn);
       res_fns[cam_idx].push_back(res_fn);
-      res_ids[cam_idx].push_back(res_id);
     }
   }
 }
@@ -303,11 +296,9 @@ int calib_view_t::filter_view(const vec2_t &threshold) {
 
   for (const auto cam_idx : get_camera_indices()) {
     auto res_fns_it = res_fns[cam_idx].begin();
-    auto res_ids_it = res_ids[cam_idx].begin();
 
     while (res_fns_it != res_fns[cam_idx].end()) {
       auto res = *res_fns_it;
-      auto res_id = *res_ids_it;
 
       vec2_t r{0.0, 0.0};
       if (res->get_residual(r) == 0 && (r.x() > th_x || r.y() > th_y)) {
@@ -327,15 +318,13 @@ int calib_view_t::filter_view(const vec2_t &threshold) {
         }
 
         // Remove residual block from ceres::Problem
-        problem->RemoveResidualBlock(res_id);
+        solver->remove_residual(res);
         delete res;
 
         res_fns_it = res_fns[cam_idx].erase(res_fns_it);
-        res_ids_it = res_ids[cam_idx].erase(res_ids_it);
         nb_outliers++;
       } else {
-        ++res_fns_it;
-        ++res_ids_it;
+        res_fns_it++;
         nb_inliers++;
       }
     }
@@ -354,7 +343,7 @@ int calib_view_t::filter_view(const std::map<int, vec2_t> &thresholds) {
   return nb_outliers;
 }
 
-ceres::ResidualBlockId calib_view_t::marginalize(marg_error_t *marg_error) {
+void calib_view_t::marginalize(marg_error_t *marg_error) {
   // Mark relative pose T_C0F to be marginalized
   T_C0F->marginalize = true;
 
@@ -364,16 +353,20 @@ ceres::ResidualBlockId calib_view_t::marginalize(marg_error_t *marg_error) {
       marg_error->add(res_fn);
     }
   }
-  const auto res_id = marg_error->marginalize(problem);
+
+  // Marginalize
+  std::vector<param_t *> marg_params;
+  std::vector<calib_error_t *> marg_residuals;
+  marg_error->marginalize(marg_params, marg_residuals);
+  for (auto param : marg_params) {
+    solver->remove_param(param);
+  }
 
   // Clear residuals
   res_fns.clear();
-  res_ids.clear();
-  // ^ Important! we don't want to delete the residual blocks when the view is
-  // deconstructed, but rather by adding the residual functions to the
+  // ^ Important! we don't want to delete the residual blocks when the view
+  // is deconstructed, but rather by adding the residual functions to the
   // marginalization error we pass the ownership to marg_error_t
-
-  return res_id;
 }
 
 // CALIB CAMERA ////////////////////////////////////////////////////////////////
@@ -381,21 +374,15 @@ ceres::ResidualBlockId calib_view_t::marginalize(marg_error_t *marg_error) {
 calib_camera_t::calib_camera_t(const calib_target_t &calib_target_)
     : calib_target{calib_target_},
       calib_rng(std::chrono::system_clock::now().time_since_epoch().count()) {
-  // Ceres-Problem
-  prob_options.local_parameterization_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
-  prob_options.cost_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
-  prob_options.loss_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
-  prob_options.enable_fast_removal = true;
-  problem = new ceres::Problem(prob_options);
+  // Solver
+  solver = new ceres_solver_t();
 
   // Add fiducial corners to problem
   corners = new fiducial_corners_t(calib_target);
   const int nb_tags = calib_target.tag_rows * calib_target.tag_cols;
   for (int tag_id = 0; tag_id < nb_tags; tag_id++) {
     for (int corner_idx = 0; corner_idx < 4; corner_idx++) {
-      auto corner = corners->get_corner(tag_id, corner_idx);
-      problem->AddParameterBlock(corner->data(), 3);
-      problem->SetParameterBlockConstant(corner->data());
+      solver->add_param(corners->get_corner(tag_id, corner_idx));
     }
   }
 
@@ -408,12 +395,8 @@ calib_camera_t::calib_camera_t(const calib_target_t &calib_target_)
 
 calib_camera_t::calib_camera_t(const std::string &config_path)
     : calib_rng(std::chrono::system_clock::now().time_since_epoch().count()) {
-  // Ceres-Problem
-  prob_options.local_parameterization_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
-  prob_options.cost_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
-  prob_options.loss_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
-  prob_options.enable_fast_removal = true;
-  problem = new ceres::Problem(prob_options);
+  // Solver
+  solver = new ceres_solver_t();
 
   // Load configuration
   config_t config{config_path};
@@ -425,7 +408,6 @@ calib_camera_t::calib_camera_t(const std::string &config_path)
   parse(config, "settings.enable_shuffle_views", enable_shuffle_views, true);
   parse(config, "settings.enable_nbv_filter", enable_nbv_filter, true);
   parse(config, "settings.enable_marginalization", enable_marginalization, true);
-  parse(config, "settings.enable_cross_validation", enable_cross_validation, true);
   parse(config, "settings.enable_early_stopping", enable_early_stopping, true);
   parse(config, "settings.min_nbv_views", min_nbv_views, true);
   parse(config, "settings.outlier_threshold", outlier_threshold, true);
@@ -515,9 +497,7 @@ calib_camera_t::calib_camera_t(const std::string &config_path)
   const int nb_tags = calib_target.tag_rows * calib_target.tag_cols;
   for (int tag_id = 0; tag_id < nb_tags; tag_id++) {
     for (int corner_idx = 0; corner_idx < 4; corner_idx++) {
-      auto corner = corners->get_corner(tag_id, corner_idx);
-      problem->AddParameterBlock(corner->data(), 3);
-      problem->SetParameterBlockConstant(corner->data());
+      solver->add_param(corners->get_corner(tag_id, corner_idx));
     }
   }
 
@@ -552,12 +532,8 @@ calib_camera_t::~calib_camera_t() {
     delete pose;
   }
 
-  if (loss) {
-    delete loss;
-  }
-
-  if (problem) {
-    delete problem;
+  if (solver) {
+    delete solver;
   }
 
   if (marg_error) {
@@ -698,13 +674,8 @@ void calib_camera_t::add_camera(const int cam_idx,
     FATAL("Unsupported [%s]-[%s]!", proj_model.c_str(), dist_model.c_str());
   }
 
-  // Add parameter to problem
-  int params_size = proj_params.size() + dist_params.size();
-  problem->AddParameterBlock(cam_params[cam_idx]->data(), params_size);
-  if (fixed) {
-    cam_params[cam_idx]->fixed = true;
-    problem->SetParameterBlockConstant(cam_params[cam_idx]->data());
-  }
+  // Add parameter
+  solver->add_param(cam_params[cam_idx]);
 }
 
 void calib_camera_t::add_camera(const int cam_idx,
@@ -747,15 +718,9 @@ void calib_camera_t::add_camera_extrinsics(const int cam_idx,
                                            const mat4_t &ext,
                                            const bool fixed) {
   if (cam_exts.count(cam_idx) == 0) {
-    cam_exts[cam_idx] = new extrinsics_t{ext};
+    cam_exts[cam_idx] = new extrinsics_t{ext, (cam_idx == 0 || fixed)};
   }
-
-  problem->AddParameterBlock(cam_exts[cam_idx]->data(), 7);
-  problem->SetParameterization(cam_exts[cam_idx]->data(), &pose_plus);
-  if (cam_idx == 0 || fixed) {
-    cam_exts[cam_idx]->fixed = true;
-    problem->SetParameterBlockConstant(cam_exts[cam_idx]->data());
-  }
+  solver->add_param(cam_exts[cam_idx]);
 }
 
 bool calib_camera_t::add_measurement(const timestamp_t ts,
@@ -818,12 +783,8 @@ void calib_camera_t::add_pose(const timestamp_t ts,
   // Add relative pose T_C0F
   const mat4_t T_C0Ci = get_camera_extrinsics(cam_idx);
   const mat4_t T_C0F = T_C0Ci * T_CiF;
-  poses[ts] = new pose_t{ts, T_C0F};
-  problem->AddParameterBlock(poses[ts]->data(), 7);
-  problem->SetParameterization(poses[ts]->data(), &pose_plus);
-  if (fixed) {
-    problem->SetParameterBlockConstant(poses[ts]->data());
-  }
+  poses[ts] = new pose_t{ts, T_C0F, fixed};
+  solver->add_param(poses[ts]);
 }
 
 bool calib_camera_t::add_view(const std::map<int, aprilgrid_t> &cam_grids,
@@ -861,8 +822,7 @@ bool calib_camera_t::add_view(const std::map<int, aprilgrid_t> &cam_grids,
   calib_views[ts] = new calib_view_t{ts,
                                      cam_grids,
                                      corners,
-                                     problem,
-                                     loss,
+                                     solver,
                                      &cam_geoms,
                                      &cam_params,
                                      &cam_exts,
@@ -877,13 +837,7 @@ bool calib_camera_t::add_view(const std::map<int, aprilgrid_t> &cam_grids,
   _cache_estimates();
 
   // Solve with new view
-  ceres::Solver::Options options;
-  options.minimizer_progress_to_stdout = false;
-  options.max_num_iterations = 10;
-  options.num_threads = max_num_threads;
-  ceres::Solver::Summary summary;
-  ceres::Solve(options, problem, &summary);
-  // std::cout << summary.FullReport() << std::endl;
+  solver->solve();
 
   // Calculate information gain
   real_t info_kp1 = 0.0;
@@ -903,61 +857,16 @@ bool calib_camera_t::add_view(const std::map<int, aprilgrid_t> &cam_grids,
       cam_estimates[ts][1] = get_camera_params(1);
       exts_estimates[ts][1] = get_camera_extrinsics(1);
 
+      const auto cost_init = solver->initial_cost;
+      const auto cost_final = solver->final_cost;
+      const auto num_iter = solver->num_iterations;
       nbv_timestamps.insert(ts);
-      nbv_costs[ts] = {summary.initial_cost,
-                       summary.final_cost,
-                       summary.num_successful_steps};
+      nbv_costs[ts] = {cost_init, cost_final, num_iter};
       nbv_reproj_errors[ts] = get_reproj_errors();
       nbv_accepted[ts] = false;
     }
 
     return false;
-  }
-
-  // Double check with validation set
-  if (enable_cross_validation) {
-    // Make sure we actually have validation data
-    if (validation_data.size() == 0) {
-      FATAL("Validation data is not set!");
-    }
-
-    // Get validation error
-    calib_camera_t valid{calib_target};
-    valid.verbose = false;
-    for (const auto cam_idx : get_camera_indices()) {
-      const auto cam_param = cam_params[cam_idx];
-      const int *cam_res = cam_param->resolution;
-      const std::string &proj_model = cam_param->proj_model;
-      const std::string &dist_model = cam_param->dist_model;
-      const vecx_t &k = cam_param->proj_params();
-      const vecx_t &d = cam_param->dist_params();
-      valid.add_camera(cam_idx, cam_res, proj_model, dist_model, k, d, true);
-      valid.add_camera_extrinsics(cam_idx, cam_exts[cam_idx]->tf());
-    }
-
-    // Accept or reject view
-    const auto valid_error_kp1 = valid.inspect(validation_data);
-    if (fltcmp(valid_error_k, 0.0) == 0 || (valid_error_kp1 < valid_error_k)) {
-      valid_error_k = valid_error_kp1;
-    } else {
-      _restore_estimates();
-      remove_view(ts);
-
-      if (nbv_timestamps.count(ts) == 0) {
-        cam_estimates[ts][0] = get_camera_params(0);
-        cam_estimates[ts][1] = get_camera_params(1);
-        exts_estimates[ts][1] = get_camera_extrinsics(1);
-
-        nbv_timestamps.insert(ts);
-        nbv_costs[ts] = {summary.initial_cost,
-                         summary.final_cost,
-                         summary.num_successful_steps};
-        nbv_reproj_errors[ts] = get_reproj_errors();
-        nbv_accepted[ts] = false;
-      }
-
-      return false;
-    }
   }
 
   // Update
@@ -968,12 +877,13 @@ bool calib_camera_t::add_view(const std::map<int, aprilgrid_t> &cam_grids,
     cam_estimates[ts][1] = get_camera_params(1);
     exts_estimates[ts][1] = get_camera_extrinsics(1);
 
+    const auto cost_init = solver->initial_cost;
+    const auto cost_final = solver->final_cost;
+    const auto num_iter = solver->num_iterations;
     nbv_timestamps.insert(ts);
-    nbv_costs[ts] = {summary.initial_cost,
-                     summary.final_cost,
-                     summary.num_successful_steps};
+    nbv_costs[ts] = {cost_init, cost_final, num_iter};
     nbv_reproj_errors[ts] = get_reproj_errors();
-    nbv_accepted[ts] = true;
+    nbv_accepted[ts] = false;
   }
 
   return true;
@@ -983,8 +893,8 @@ void calib_camera_t::remove_view(const timestamp_t ts, const bool skip_solve) {
   // Remove pose
   if (poses.count(ts)) {
     auto pose_ptr = poses[ts];
-    if (problem->HasParameterBlock(pose_ptr->param.data())) {
-      problem->RemoveParameterBlock(pose_ptr->param.data());
+    if (solver->has_param(pose_ptr)) {
+      solver->remove_param(pose_ptr);
     }
     poses.erase(ts);
     delete pose_ptr;
@@ -1008,14 +918,8 @@ void calib_camera_t::remove_view(const timestamp_t ts, const bool skip_solve) {
   }
 
   // Update info_k
-  ceres::Solver::Options options;
-  options.minimizer_progress_to_stdout = false;
-  options.max_num_iterations = 10;
-  options.num_threads = max_num_threads;
-  ceres::Solver::Summary summary;
-
   _cache_estimates();
-  ceres::Solve(options, problem, &summary);
+  solver->solve();
 
   if (_calc_info(&info_k) != 0) {
     _restore_estimates();
@@ -1028,13 +932,19 @@ void calib_camera_t::remove_all_views() {
     UNUSED(_);
     view_timestamps.push_back(ts);
   }
-
   for (const auto ts : view_timestamps) {
     remove_view(ts);
   }
-
   problem_init = false;
   removed_outliers = 0;
+
+  // Assert
+  if (calib_views.size() != 0) {
+    FATAL("calib_views.size() != 0");
+  }
+  if (solver->num_residuals() != 0) {
+    FATAL("solver->num_residuals() != 0");
+  }
 }
 
 void calib_camera_t::marginalize() {
@@ -1054,14 +964,14 @@ void calib_camera_t::marginalize() {
     new_marg_error->add(marg_error);
 
     // Delete old marg_error_t
-    problem->RemoveResidualBlock(marg_error_id);
+    solver->remove_residual(marg_error);
 
     // Point to new marg_error_t
     marg_error = new_marg_error;
   }
 
   // Marginalize view
-  marg_error_id = view->marginalize(marg_error);
+  view->marginalize(marg_error);
 
   // Remove view
   remove_view(marg_ts, false);
@@ -1276,59 +1186,61 @@ int calib_camera_t::recover_calib_covar(matx_t &calib_covar, bool verbose) {
       covar_blocks.push_back({param_i->data(), param_j->data()});
     }
   }
+  return -1;
 
-  // Estimate covariance
-  ::ceres::Covariance::Options options;
-  ::ceres::Covariance covar_est(options);
-  if (covar_est.Compute(covar_blocks, problem) == false) {
-    if (verbose) {
-      LOG_ERROR("Failed to estimate covariance!");
-      LOG_ERROR("Maybe Hessian is not full rank?");
-    }
-    return -1;
-  }
-  // -- Form covariance matrix
-  calib_covar.resize(calib_covar_size, calib_covar_size);
-  calib_covar.setZero();
-
-  for (size_t i = 0; i < param_blocks.size(); i++) {
-    for (size_t j = i; j < param_blocks.size(); j++) {
-      auto param_i = param_blocks[i];
-      auto param_j = param_blocks[j];
-      auto ptr_i = param_i->data();
-      auto ptr_j = param_j->data();
-      auto idx_i = param_indices[param_i];
-      auto idx_j = param_indices[param_j];
-      auto size_i = param_i->local_size;
-      auto size_j = param_j->local_size;
-
-      // Diagonal
-      matx_row_major_t block;
-      block.resize(size_i, size_j);
-      block.setZero();
-      auto data = block.data();
-      int retval = 0;
-      if ((size_i == 6 || size_j == 6)) {
-        retval = covar_est.GetCovarianceBlockInTangentSpace(ptr_i, ptr_j, data);
-      } else {
-        retval = covar_est.GetCovarianceBlock(ptr_i, ptr_j, data);
-      }
-      calib_covar.block(idx_i, idx_j, size_i, size_j) = block;
-
-      // Off-diagonal
-      if (i != j) {
-        calib_covar.block(idx_j, idx_i, size_j, size_i) = block.transpose();
-      }
-    }
-  }
-
-  // Check if calib_covar is full-rank?
-  if (rank(calib_covar) != calib_covar.rows()) {
-    if (verbose) {
-      LOG_ERROR("calib_covar is not full rank!");
-    }
-    return -1;
-  }
+  // // Estimate covariance
+  // ::ceres::Covariance::Options options;
+  // ::ceres::Covariance covar_est(options);
+  // if (covar_est.Compute(covar_blocks, problem) == false) {
+  //   if (verbose) {
+  //     LOG_ERROR("Failed to estimate covariance!");
+  //     LOG_ERROR("Maybe Hessian is not full rank?");
+  //   }
+  //   return -1;
+  // }
+  // // -- Form covariance matrix
+  // calib_covar.resize(calib_covar_size, calib_covar_size);
+  // calib_covar.setZero();
+  //
+  // for (size_t i = 0; i < param_blocks.size(); i++) {
+  //   for (size_t j = i; j < param_blocks.size(); j++) {
+  //     auto param_i = param_blocks[i];
+  //     auto param_j = param_blocks[j];
+  //     auto ptr_i = param_i->data();
+  //     auto ptr_j = param_j->data();
+  //     auto idx_i = param_indices[param_i];
+  //     auto idx_j = param_indices[param_j];
+  //     auto size_i = param_i->local_size;
+  //     auto size_j = param_j->local_size;
+  //
+  //     // Diagonal
+  //     matx_row_major_t block;
+  //     block.resize(size_i, size_j);
+  //     block.setZero();
+  //     auto data = block.data();
+  //     int retval = 0;
+  //     if ((size_i == 6 || size_j == 6)) {
+  //       retval = covar_est.GetCovarianceBlockInTangentSpace(ptr_i, ptr_j,
+  //       data);
+  //     } else {
+  //       retval = covar_est.GetCovarianceBlock(ptr_i, ptr_j, data);
+  //     }
+  //     calib_covar.block(idx_i, idx_j, size_i, size_j) = block;
+  //
+  //     // Off-diagonal
+  //     if (i != j) {
+  //       calib_covar.block(idx_j, idx_i, size_j, size_i) = block.transpose();
+  //     }
+  //   }
+  // }
+  //
+  // // Check if calib_covar is full-rank?
+  // if (rank(calib_covar) != calib_covar.rows()) {
+  //   if (verbose) {
+  //     LOG_ERROR("calib_covar is not full rank!");
+  //   }
+  //   return -1;
+  // }
 
   return 0;
 }
@@ -1371,8 +1283,7 @@ int calib_camera_t::find_nbv(const std::map<int, mat4s_t> &nbv_poses,
       const mat4_t T_C0F = tf_inv(T_FC0);
       if (poses.count(nbv_ts) == 0) {
         poses[nbv_ts] = new pose_t{nbv_ts, T_C0F};
-        problem->AddParameterBlock(poses[nbv_ts]->data(), 7);
-        problem->SetParameterization(poses[nbv_ts]->data(), &pose_plus);
+        solver->add_param(poses[nbv_ts]);
       }
 
       // Add NBV view
@@ -1578,8 +1489,6 @@ int calib_camera_t::_remove_outliers(const bool filter_all) {
     remove_view(ts, false);
 
     // Add the view back
-    const auto tmp = enable_cross_validation;
-    enable_cross_validation = false;
     if (add_view(grids, false)) {
       removed_outliers += removed;
       nb_outliers += removed;
@@ -1592,33 +1501,11 @@ int calib_camera_t::_remove_outliers(const bool filter_all) {
         printf("Remove view [%ld], outliers: %d\n", ts, removed);
       }
     }
-    enable_cross_validation = tmp;
   }
   if (filter_all) {
     printf("[Stats] kept views: %d, removed views: %d\n\n",
            nb_views(),
            nb_views_removed);
-  }
-
-  // Reset cross validation error if enabled
-  if (filter_all && enable_cross_validation) {
-    if (validation_data.size() == 0) {
-      FATAL("Validation data is not set!");
-    }
-
-    calib_camera_t valid{calib_target};
-    valid.verbose = false;
-    for (const auto cam_idx : get_camera_indices()) {
-      const auto cam_param = cam_params[cam_idx];
-      const int *cam_res = cam_param->resolution;
-      const std::string &proj_model = cam_param->proj_model;
-      const std::string &dist_model = cam_param->dist_model;
-      const vecx_t &k = cam_param->proj_params();
-      const vecx_t &d = cam_param->dist_params();
-      valid.add_camera(cam_idx, cam_res, proj_model, dist_model, k, d, true);
-      valid.add_camera_extrinsics(cam_idx, cam_exts[cam_idx]->tf());
-    }
-    valid_error_k = valid.inspect(validation_data);
   }
 
   return nb_outliers;
@@ -1666,44 +1553,24 @@ void calib_camera_t::_solve_batch(const bool filter_outliers) {
     problem_init = true;
   }
 
-  // Solver options
-  ceres::Solver::Options options;
-  options.minimizer_progress_to_stdout = verbose;
-  options.max_num_iterations = 100;
-  options.num_threads = max_num_threads;
-
   // Solve
-  ceres::Solver::Summary summary;
-  ceres::Solve(options, problem, &summary);
-  if (verbose) {
-    std::cout << summary.BriefReport() << std::endl;
-    std::cout << std::endl;
-  }
+  const int max_iter = 30;
+  solver->solve(max_iter);
 
   // Final outlier rejection
   if (filter_outliers) {
     removed_outliers = _filter_all_views();
     if (verbose) {
+      printf("Final outlier rejectionn\n");
       printf("Removed %d outliers!\n", removed_outliers);
     }
 
     // Solve again - second pass
-    ceres::Solve(options, problem, &summary);
-    if (verbose) {
-      std::cout << summary.BriefReport() << std::endl;
-      std::cout << std::endl;
-    }
+    solver->solve(max_iter);
   }
 }
 
 void calib_camera_t::_solve_inc() {
-  // Solver options
-  ceres::Solver::Options options;
-  options.minimizer_progress_to_stdout = false;
-  options.max_num_iterations = 20;
-  options.num_threads = max_num_threads;
-  ceres::Solver::Summary summary;
-
   // Solve
   size_t ts_idx = 0;
 
@@ -1715,7 +1582,7 @@ void calib_camera_t::_solve_inc() {
 
     // Solve
     if (calib_views.size() >= sliding_window_size) {
-      ceres::Solve(options, problem, &summary);
+      solver->solve();
       marginalize();
     }
 
@@ -1776,7 +1643,7 @@ void calib_camera_t::_solve_nbv() {
     }
 
     // Marginalize oldest view
-    if (enable_marginalization && calib_views.size() > sliding_window_size) {
+    if (enable_marginalization && (calib_views.size() > sliding_window_size)) {
       marginalize();
     }
 
@@ -1801,16 +1668,7 @@ void calib_camera_t::_solve_nbv() {
   }
 
   // Final Solve
-  ceres::Solver::Options options;
-  options.minimizer_progress_to_stdout = false;
-  options.max_num_iterations = 100;
-  options.num_threads = max_num_threads;
-  ceres::Solver::Summary summary;
-  ceres::Solve(options, problem, &summary);
-  if (verbose) {
-    std::cout << summary.BriefReport() << std::endl;
-    std::cout << std::endl;
-  }
+  solver->solve();
 }
 
 void calib_camera_t::solve() {
@@ -1855,7 +1713,6 @@ void calib_camera_t::print_settings(FILE *out) {
   fprintf(out, "  enable_nbv_filter: %s\n", enable_nbv_filter ? "true" : "false");
   fprintf(out, "  enable_outlier_filter: %s\n", enable_outlier_filter ? "true" : "false");
   fprintf(out, "  enable_marginalization: %s\n", enable_marginalization ? "true" : "false");
-  fprintf(out, "  enable_cross_validation: %s\n", enable_cross_validation ? "true" : "false");
   fprintf(out, "  enable_early_stopping: %s\n", enable_early_stopping ? "true" : "false");
   fprintf(out, "  min_nbv_views: %d\n", min_nbv_views);
   fprintf(out, "  outlier_threshold: %f\n", outlier_threshold);

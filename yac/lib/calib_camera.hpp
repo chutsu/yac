@@ -116,8 +116,8 @@ struct calib_camera_t {
   int removed_outliers = 0;
 
   // Buffers
-  std::map<int, std::pair<timestamp_t, cv::Mat>> img_buffer;
-  std::map<int, aprilgrid_t> grid_buffer;
+  std::map<int, std::pair<timestamp_t, cv::Mat>> img_buf;
+  std::map<int, aprilgrid_t> grid_buf;
 
   // NBV
   real_t info_k = 0.0;
@@ -207,7 +207,6 @@ struct calib_camera_t {
   void remove_all_views();
   void marginalize();
 
-  real_t _estimate_calib_info();
   int recover_calib_covar(matx_t &calib_covar, bool verbose = false);
   int find_nbv(const std::map<int, mat4s_t> &nbv_poses,
                int &cam_idx,

@@ -17,22 +17,22 @@ IF (NOT DEFINED apriltag3_DIR)
   SET(apriltag3_DIR "../deps/share/apriltag3/cmake")  # Use custom AprilTag3
 ENDIF()
 
-# IF (NOT DEFINED Eigen3_DIR)
-#   SET(Eigen3_DIR "../deps/share/eigen3/cmake")
-# ENDIF()
+IF (NOT DEFINED Eigen3_DIR)
+  # SET(Eigen3_DIR "../deps/share/eigen3/cmake")
+ENDIF()
 
 # COMPILATION SETTINGS
 SET(CMAKE_CXX_STANDARD 17)
-# ADD_COMPILE_OPTIONS(
-#   -Wall
-#   -Wextra
-#   -fsanitize=address
-#   -fno-omit-frame-pointer
-# )
-# LINK_LIBRARIES(
-#   -fsanitize=address
-#   -static-libasan # Use -static-libsan for Clang
-# )
+ADD_COMPILE_OPTIONS(
+  -Wall
+  -Wextra
+  -fsanitize=address
+  -fno-omit-frame-pointer
+)
+LINK_LIBRARIES(
+  -fsanitize=address
+  -static-libasan # Use -static-libsan for Clang
+)
 
 # DEPENDENCIES
 FIND_PACKAGE(Ceres REQUIRED)
@@ -64,9 +64,6 @@ IF(USE_CATKIN)
   )
 ENDIF(USE_CATKIN)
 
-
-
-
 # LIBRARY
 INCLUDE_DIRECTORIES(lib)
 ADD_LIBRARY(
@@ -88,10 +85,10 @@ ADD_LIBRARY(
   lib/calib_data.cpp
   lib/calib_errors.cpp
   # lib/calib_mocap.cpp
-  # lib/calib_nbt.cpp
+  lib/calib_nbt.cpp
   lib/calib_nbv.cpp
   lib/calib_params.cpp
-  # lib/calib_vi.cpp
+  lib/calib_vi.cpp
   lib/solver.cpp
 )
 
@@ -146,9 +143,9 @@ TARGET_LINK_LIBRARIES(test_calib_errors yac yac_util ${DEPS})
 #
 # ADD_EXECUTABLE(test_calib_nbv tests/test_calib_nbv.cpp)
 # TARGET_LINK_LIBRARIES(test_calib_nbv yac yac_util ${DEPS})
-#
-# ADD_EXECUTABLE(test_calib_vi tests/test_calib_vi.cpp)
-# TARGET_LINK_LIBRARIES(test_calib_vi yac yac_util ${DEPS})
+
+ADD_EXECUTABLE(test_calib_vi tests/test_calib_vi.cpp)
+TARGET_LINK_LIBRARIES(test_calib_vi yac yac_util ${DEPS})
 
 # # DEMO
 # ADD_EXECUTABLE(calib_euroc demo/calib_euroc.cpp)

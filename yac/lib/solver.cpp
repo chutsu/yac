@@ -14,7 +14,8 @@ void solver_t::add_param(param_t *param) { params[param->data()] = param; }
 
 void solver_t::add_residual(calib_error_t *cost_fn) {
   // Pre-check
-  if (cost_fns.count(cost_fn) == 0) {
+  if (cost_fns.count(cost_fn)) {
+    printf("residual: %s, addr: %p\n", cost_fn->type.c_str(), cost_fn);
     FATAL("Residual already exists in problem!");
   }
 
@@ -256,6 +257,9 @@ bool ceres_solver_t::has_param(param_t *param) {
 }
 
 void ceres_solver_t::add_param(param_t *param) {
+  // Add param
+  solver_t::add_param(param);
+
   // Add param to ceres::Problem
   problem->AddParameterBlock(param->data(), param->global_size);
 
@@ -281,6 +285,9 @@ void ceres_solver_t::add_param(param_t *param) {
 }
 
 void ceres_solver_t::add_residual(calib_error_t *cost_fn) {
+  // Add residual
+  solver_t::add_residual(cost_fn);
+
   // Add residual to ceres::Problem
   auto param_blocks = cost_fn->param_block_ptrs();
   auto res_id = problem->AddResidualBlock(cost_fn, nullptr, param_blocks);
@@ -288,15 +295,46 @@ void ceres_solver_t::add_residual(calib_error_t *cost_fn) {
 }
 
 void ceres_solver_t::remove_param(param_t *param) {
+  // Pre-check
+  if (params.count(param->data()) == 0) {
+    FATAL("Parameter block does not exist in problem!");
+  }
+
+  // Erase parameter
+  params.erase(param->data());
+
+  // Update param2res book-keeping
+  if (param2res.count(param)) {
+    const auto res_fns = param2res[param];
+    for (auto res_fn : res_fns) {
+      remove_residual(res_fn);
+    }
+    param2res.erase(param);
+  }
+
   // Remove param from ceres::Problem
   problem->RemoveParameterBlock(param->data());
 }
 
 void ceres_solver_t::remove_residual(calib_error_t *cost_fn) {
   // Pre-check
-  if (res2id.count(cost_fn) == 0) {
-    FATAL("Residual block does not exist in problem!");
+  if (cost_fns.count(cost_fn) == 0) {
+    FATAL("Residual block does not exist in cost_fns!");
   }
+  if (res2id.count(cost_fn) == 0) {
+    FATAL("Residual block does not exist in res2id!");
+  }
+
+  // Erase residual
+  cost_fns.erase(cost_fn);
+
+  // Update param2res
+  for (auto param : cost_fn->param_blocks) {
+    param2res[param].erase(cost_fn);
+  }
+
+  // Update res2param
+  res2param.erase(cost_fn);
 
   // Remove residual from ceres::Problem
   auto res_id = res2id[cost_fn];

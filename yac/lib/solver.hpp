@@ -15,6 +15,9 @@ struct solver_t {
   real_t final_cost = 0.0;
   real_t num_iterations = 0.0;
 
+  solver_t() = default;
+  virtual ~solver_t() = default;
+
   virtual size_t num_residuals();
   virtual size_t num_params();
   virtual bool has_param(param_t *param);

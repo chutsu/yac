@@ -4,6 +4,8 @@ namespace yac {
 
 // CALIB ERROR /////////////////////////////////////////////////////////////////
 
+calib_error_t::calib_error_t(const std::string &type_) : type{type_} {}
+
 std::vector<double *> calib_error_t::param_block_ptrs() {
   std::vector<double *> ptrs;
   for (auto &param : param_blocks) {
@@ -117,8 +119,8 @@ bool calib_error_t::check_jacs(const int param_idx,
 // POSE ERROR //////////////////////////////////////////////////////////////////
 
 pose_error_t::pose_error_t(pose_t *pose_, const mat_t<6, 6> &covar_)
-    : pose{pose_}, pose_meas{pose_->tf()}, covar{covar_}, info{covar.inverse()},
-      sqrt_info{info.llt().matrixU()} {
+    : calib_error_t{"pose_error_t"}, pose{pose_}, pose_meas{pose_->tf()},
+      covar{covar_}, info{covar.inverse()}, sqrt_info{info.llt().matrixU()} {
   // Data
   param_blocks.push_back(pose_);
 
@@ -180,8 +182,9 @@ reproj_error_t::reproj_error_t(camera_geometry_t *cam_geom_,
                                fiducial_corner_t *p_FFi_,
                                const vec2_t &z_,
                                const mat2_t &covar_)
-    : cam_geom{cam_geom_}, cam_params{cam_params_}, T_BCi{T_BCi_},
-      T_C0F{T_C0F_}, p_FFi{p_FFi_}, z{z_}, covar(covar_), info(covar.inverse()),
+    : calib_error_t{"reproj_error_t"}, cam_geom{cam_geom_},
+      cam_params{cam_params_}, T_BCi{T_BCi_}, T_C0F{T_C0F_}, p_FFi{p_FFi_},
+      z{z_}, covar(covar_), info(covar.inverse()),
       sqrt_info(info.llt().matrixU()) {
   // Data
   param_blocks.push_back(T_BCi_);
@@ -359,10 +362,11 @@ fiducial_error_t::fiducial_error_t(const timestamp_t &ts,
                                    const vec3_t &r_FFi,
                                    const vec2_t &z,
                                    const mat2_t &covar)
-    : ts_{ts}, cam_geom_{cam_geom}, cam_params_{cam_params},
-      cam_exts_{cam_exts}, imu_exts_{imu_exts}, fiducial_{fiducial},
-      pose_{pose}, tag_id_{tag_id}, corner_idx_{corner_idx}, r_FFi_{r_FFi},
-      z_{z}, T_WF_{fiducial->estimate()}, covar_{covar}, info_{covar.inverse()},
+    : calib_error_t{"fiducial_error_t"}, ts_{ts}, cam_geom_{cam_geom},
+      cam_params_{cam_params}, cam_exts_{cam_exts}, imu_exts_{imu_exts},
+      fiducial_{fiducial}, pose_{pose}, tag_id_{tag_id},
+      corner_idx_{corner_idx}, r_FFi_{r_FFi}, z_{z},
+      T_WF_{fiducial->estimate()}, covar_{covar}, info_{covar.inverse()},
       sqrt_info_{info_.llt().matrixU()} {
   // Data
   param_blocks.push_back(fiducial_);
@@ -638,9 +642,9 @@ imu_error_t::imu_error_t(const imu_params_t &imu_params,
                          sb_params_t *sb_i,
                          pose_t *pose_j,
                          sb_params_t *sb_j)
-    : imu_params_{imu_params}, imu_data_{imu_data}, t0_{pose_i->ts},
-      t1_{pose_j->ts}, pose_i_{pose_i}, sb_i_{sb_i}, pose_j_{pose_j},
-      sb_j_{sb_j} {
+    : calib_error_t{"imu_error_t"}, imu_params_{imu_params},
+      imu_data_{imu_data}, t0_{pose_i->ts}, t1_{pose_j->ts}, pose_i_{pose_i},
+      sb_i_{sb_i}, pose_j_{pose_j}, sb_j_{sb_j} {
   // Data
   param_blocks.push_back(pose_i);
   param_blocks.push_back(sb_i);
@@ -1317,6 +1321,8 @@ bool imu_error_t::EvaluateWithMinimalJacobians(
 
 // MARGINALIZATION ERROR /////////////////////////////////////////////////////
 
+marg_error_t::marg_error_t() : calib_error_t{"marg_error_t"} {}
+
 marg_error_t::~marg_error_t() {
   for (auto res_block : res_blocks_) {
     delete res_block;
@@ -1623,8 +1629,12 @@ void marg_error_t::marginalize(std::vector<param_t *> &marg_params,
   }
 
   // Copy parameters and residuals to be removed
+  // IMPORTANT NOTE: By doing this, this transfers ownership out of
+  // marg_error_t. This means you have to free it yourself outside of
+  // marg_error_t.
   marg_params = marg_param_ptrs_;
   marg_residuals = res_blocks_;
+  // Clear the pointers in the member variables
   marg_param_ptrs_.clear();
   res_blocks_.clear();
 
@@ -1634,7 +1644,6 @@ void marg_error_t::marginalize(std::vector<param_t *> &marg_params,
 
 ceres::ResidualBlockId marg_error_t::marginalize(ceres::Problem *problem,
                                                  bool debug) {
-
   // Marginalize
   std::vector<param_t *> marg_params;
   std::vector<calib_error_t *> marg_residuals;
@@ -1654,6 +1663,7 @@ ceres::ResidualBlockId marg_error_t::marginalize(ceres::Problem *problem,
   }
 
   // Change flag to denote marginalized and add it self to problem
+  marginalized_ = true;
   return problem->AddResidualBlock(this, NULL, get_param_ptrs());
 }
 

@@ -361,6 +361,10 @@ void calib_view_t::marginalize(marg_error_t *marg_error) {
   for (auto param : marg_params) {
     solver->remove_param(param);
   }
+  for (auto res_fn : marg_residuals) {
+    delete res_fn;
+  }
+  solver->add_residual(marg_error);
 
   // Clear residuals
   res_fns.clear();
@@ -839,52 +843,52 @@ bool calib_camera_t::add_view(const std::map<int, aprilgrid_t> &cam_grids,
   // Solve with new view
   solver->solve();
 
-  // Calculate information gain
-  real_t info_kp1 = 0.0;
-  if (_calc_info(&info_kp1) != 0) {
-    _restore_estimates();
-    return -1;
-  }
-  const real_t info_gain = 0.5 * (info_k - info_kp1);
-
-  // Remove view?
-  if (info_gain < info_gain_threshold) {
-    _restore_estimates();
-    remove_view(ts);
-
-    if (nbv_timestamps.count(ts) == 0) {
-      cam_estimates[ts][0] = get_camera_params(0);
-      cam_estimates[ts][1] = get_camera_params(1);
-      exts_estimates[ts][1] = get_camera_extrinsics(1);
-
-      const auto cost_init = solver->initial_cost;
-      const auto cost_final = solver->final_cost;
-      const auto num_iter = solver->num_iterations;
-      nbv_timestamps.insert(ts);
-      nbv_costs[ts] = {cost_init, cost_final, num_iter};
-      nbv_reproj_errors[ts] = get_reproj_errors();
-      nbv_accepted[ts] = false;
-    }
-
-    return false;
-  }
-
-  // Update
-  info_k = info_kp1;
-
-  if (nbv_timestamps.count(ts) == 0) {
-    cam_estimates[ts][0] = get_camera_params(0);
-    cam_estimates[ts][1] = get_camera_params(1);
-    exts_estimates[ts][1] = get_camera_extrinsics(1);
-
-    const auto cost_init = solver->initial_cost;
-    const auto cost_final = solver->final_cost;
-    const auto num_iter = solver->num_iterations;
-    nbv_timestamps.insert(ts);
-    nbv_costs[ts] = {cost_init, cost_final, num_iter};
-    nbv_reproj_errors[ts] = get_reproj_errors();
-    nbv_accepted[ts] = false;
-  }
+  // // Calculate information gain
+  // real_t info_kp1 = 0.0;
+  // if (_calc_info(&info_kp1) != 0) {
+  //   _restore_estimates();
+  //   return -1;
+  // }
+  // const real_t info_gain = 0.5 * (info_k - info_kp1);
+  //
+  // // Remove view?
+  // if (info_gain < info_gain_threshold) {
+  //   _restore_estimates();
+  //   remove_view(ts);
+  //
+  //   if (nbv_timestamps.count(ts) == 0) {
+  //     cam_estimates[ts][0] = get_camera_params(0);
+  //     cam_estimates[ts][1] = get_camera_params(1);
+  //     exts_estimates[ts][1] = get_camera_extrinsics(1);
+  //
+  //     const auto cost_init = solver->initial_cost;
+  //     const auto cost_final = solver->final_cost;
+  //     const auto num_iter = solver->num_iterations;
+  //     nbv_timestamps.insert(ts);
+  //     nbv_costs[ts] = {cost_init, cost_final, num_iter};
+  //     nbv_reproj_errors[ts] = get_reproj_errors();
+  //     nbv_accepted[ts] = false;
+  //   }
+  //
+  //   return false;
+  // }
+  //
+  // // Update
+  // info_k = info_kp1;
+  //
+  // if (nbv_timestamps.count(ts) == 0) {
+  //   cam_estimates[ts][0] = get_camera_params(0);
+  //   cam_estimates[ts][1] = get_camera_params(1);
+  //   exts_estimates[ts][1] = get_camera_extrinsics(1);
+  //
+  //   const auto cost_init = solver->initial_cost;
+  //   const auto cost_final = solver->final_cost;
+  //   const auto num_iter = solver->num_iterations;
+  //   nbv_timestamps.insert(ts);
+  //   nbv_costs[ts] = {cost_init, cost_final, num_iter};
+  //   nbv_reproj_errors[ts] = get_reproj_errors();
+  //   nbv_accepted[ts] = false;
+  // }
 
   return true;
 }

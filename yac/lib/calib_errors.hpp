@@ -16,11 +16,13 @@ namespace yac {
 
 struct calib_error_t : public ceres::CostFunction {
   // Data
+  std::string type;
   std::vector<param_t *> param_blocks;
   ceres::LossFunction *loss_fn = nullptr;
 
   /* Constructor */
   calib_error_t() = default;
+  calib_error_t(const std::string &type);
 
   /* Destructor */
   virtual ~calib_error_t() = default;
@@ -300,7 +302,7 @@ public:
   matx_t J0_;                               // Linearized jacobians at x0
 
   /* Constructor */
-  marg_error_t() = default;
+  marg_error_t();
 
   /* Destructor */
   ~marg_error_t();

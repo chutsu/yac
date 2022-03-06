@@ -847,7 +847,6 @@ bool calib_vi_t::add_measurement(const timestamp_t ts,
   bool ready = true;
   for (auto &[cam_idx, data] : img_buf) {
     const auto img_ts = data.first;
-    const auto &img = data.second;
     if (ts > img_ts) {
       ready = false;
     }

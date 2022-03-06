@@ -460,16 +460,74 @@ void ceres_solver_t::solve(const int max_iter,
 
 // SOLVER /////////////////////////////////////////////////////////////////////
 
-void yac_solver_t::linearize(matx_t &J, vecx_t &b) {
-  // Track parameters
+bool yac_solver_t::_eval_residual(calib_error_t *res_fn,
+                                  ResidualJacobians &res_jacs,
+                                  ResidualJacobians &res_min_jacs,
+                                  ResidualValues &res_vals) {
+  // Setup parameter data
+  std::vector<double *> param_ptrs;
+  for (auto param_block : res_fn->param_blocks) {
+    param_ptrs.push_back(param_block->data());
+  }
+
+  // Setup Jacobians data
+  const int r_size = res_fn->num_residuals();
+  std::vector<double *> jac_ptrs;
+  for (auto param_block : res_fn->param_blocks) {
+    res_jacs[res_fn].push_back(zeros(r_size, param_block->global_size));
+    jac_ptrs.push_back(res_jacs[res_fn].back().data());
+  }
+
+  // Setup Min-Jacobians data
+  std::vector<double *> min_jac_ptrs;
+  for (auto param_block : res_fn->param_blocks) {
+    res_min_jacs[res_fn].push_back(zeros(r_size, param_block->local_size));
+    min_jac_ptrs.push_back(res_min_jacs[res_fn].back().data());
+  }
+
+  // Evaluate residual block
+  res_vals[res_fn] = zeros(r_size, 1);
+  return res_fn->EvaluateWithMinimalJacobians(param_ptrs.data(),
+                                              res_vals[res_fn].data(),
+                                              jac_ptrs.data(),
+                                              min_jac_ptrs.data());
+}
+
+void yac_solver_t::_solve_linear_system(const matx_t &J,
+                                        const vecx_t &b,
+                                        vecx_t &dx) {
+  const matx_t H = J.transpose() * J;
+  dx = H.ldlt().solve(b);
+}
+
+void yac_solver_t::_linearize(ParameterOrder &param_index,
+                              matx_t &J,
+                              vecx_t &b) {
+  // Evaluate residuals
+  ResidualJacobians res_jacs;
+  ResidualJacobians res_min_jacs;
+  ResidualValues res_vals;
+  std::vector<calib_error_t *> good_res_fns;
+  size_t residuals_length = 0;
+
+  for (calib_error_t *res_fn : cost_fns) {
+    if (_eval_residual(res_fn, res_jacs, res_min_jacs, res_vals)) {
+      good_res_fns.push_back(res_fn);
+      residuals_length += res_fn->num_residuals();
+    }
+  }
+
+  // Track unique parameters
   std::map<param_t *, bool> params_seen;
   std::vector<param_t *> pose_ptrs;
   std::vector<param_t *> sb_ptrs;
   std::vector<param_t *> cam_ptrs;
   std::vector<param_t *> extrinsics_ptrs;
   std::vector<param_t *> fiducial_ptrs;
-  for (auto &cost_fn : cost_fns) {
-    for (auto param_block : cost_fn->param_blocks) {
+  size_t params_length = 0;
+
+  for (auto res_fn : good_res_fns) {
+    for (auto param_block : res_fn->param_blocks) {
       // Check if parameter block seen already
       if (params_seen.count(param_block)) {
         continue;
@@ -488,12 +546,12 @@ void yac_solver_t::linearize(matx_t &J, vecx_t &b) {
         fiducial_ptrs.push_back(param_block);
       }
       params_seen[param_block] = true;
+      params_length += res_fn->num_residuals();
     }
   }
 
   // Determine parameter block column indicies for Hessian matrix H
   size_t idx = 0;
-  std::map<param_t *, int> param_index;
   std::vector<std::vector<param_t *> *> param_groups = {
       &pose_ptrs,
       &sb_ptrs,
@@ -501,6 +559,7 @@ void yac_solver_t::linearize(matx_t &J, vecx_t &b) {
       &extrinsics_ptrs,
       &fiducial_ptrs,
   };
+  param_index.clear();
   for (const auto &param_ptrs : param_groups) {
     for (const auto &param_block : *param_ptrs) {
       if (param_block->fixed) {
@@ -511,82 +570,55 @@ void yac_solver_t::linearize(matx_t &J, vecx_t &b) {
     }
   }
 
-  // Form Jacobian J and b. Left and RHS of Gauss-Newton.
-  //   const auto local_size = m + r;
-  //   matx_t H = zeros(local_size, local_size);
-  //   vecx_t b = zeros(local_size, 1);
-  //
-  //   for (calib_error_t *res_block : res_blocks) {
-  //     // Setup parameter data
-  //     std::vector<double *> param_ptrs;
-  //     for (auto param_block : res_block->param_blocks) {
-  //       param_ptrs.push_back(param_block->data());
-  //     }
-  //
-  //     // Setup Jacobians data
-  //     const int r_size = res_block->num_residuals();
-  //     std::vector<matx_row_major_t> jacs;
-  //     std::vector<double *> jac_ptrs;
-  //     for (auto param_block : res_block->param_blocks) {
-  //       jacs.push_back(zeros(r_size, param_block->global_size));
-  //       jac_ptrs.push_back(jacs.back().data());
-  //     }
-  //
-  //     // Setup Min-Jacobians data
-  //     std::vector<matx_row_major_t> min_jacs;
-  //     std::vector<double *> min_jac_ptrs;
-  //     for (auto param_block : res_block->param_blocks) {
-  //       min_jacs.push_back(zeros(r_size, param_block->local_size));
-  //       min_jac_ptrs.push_back(min_jacs.back().data());
-  //     }
-  //
-  //     // Evaluate residual block
-  //     vecx_t r = zeros(r_size, 1);
-  //     res_block->EvaluateWithMinimalJacobians(param_ptrs.data(),
-  //                                             r.data(),
-  //                                             jac_ptrs.data(),
-  //                                             min_jac_ptrs.data());
-  //
-  //     // Fill Hessian
-  //     for (size_t i = 0; i < res_block->param_blocks.size(); i++) {
-  //       const auto &param_i = res_block->param_blocks[i];
-  //       if (param_i->fixed) {
-  //         continue;
-  //       }
-  //       const int idx_i = param_index[param_i];
-  //       const int size_i = param_i->local_size;
-  //       const matx_t J_i = min_jacs[i];
-  //
-  //       for (size_t j = i; j < res_block->param_blocks.size(); j++) {
-  //         const auto &param_j = res_block->param_blocks[j];
-  //         if (param_j->fixed) {
-  //           continue;
-  //         }
-  //         const int idx_j = param_index[param_j];
-  //         const int size_j = param_j->local_size;
-  //         const matx_t J_j = min_jacs[j];
-  //
-  //         if (i == j) {
-  //           // Form diagonals of H
-  //           H.block(idx_i, idx_i, size_i, size_i) += J_i.transpose() * J_i;
-  //         } else {
-  //           // Form off-diagonals of H
-  //           // clang-format off
-  //         H.block(idx_i, idx_j, size_i, size_j) += J_i.transpose() * J_j;
-  //         H.block(idx_j, idx_i, size_j, size_i) += (J_i.transpose() *
-  //         J_j).transpose();
-  //           // clang-format on
-  //         }
-  //       }
-  //
-  //       // RHS of Gauss Newton (i.e. vector b)
-  //       b.segment(idx_i, size_i) += -J_i.transpose() * r;
-  //     }
-  //   }
+  // Form Jacobian J and b
+  J = zeros(residuals_length, params_length);
+  b = zeros(params_length, 1);
+  size_t res_idx = 0;
+
+  for (calib_error_t *res_fn : good_res_fns) {
+    const vecx_t r = res_vals[res_fn];
+
+    for (size_t i = 0; i < res_fn->param_blocks.size(); i++) {
+      const auto &param_i = res_fn->param_blocks[i];
+      if (param_i->fixed) {
+        continue;
+      }
+
+      const int idx_i = param_index[param_i];
+      const int size_i = param_i->local_size;
+      const matx_t J_i = res_min_jacs[res_fn][i];
+      J.block(idx_i, idx_i, size_i, size_i) += J_i.transpose() * J_i;
+      b.segment(idx_i, size_i) += -J_i.transpose() * r;
+    }
+
+    res_idx += res_fn->num_residuals();
+  }
+}
+
+void yac_solver_t::_update(const ParameterOrder &param_index,
+                           const vecx_t &dx) {
+  for (auto &[param, idx] : param_index) {
+    param->plus(dx.segment(idx, param->local_size));
+  }
 }
 
 void yac_solver_t::solve(const int max_iter,
                          const bool verbose,
-                         const int verbose_level) {}
+                         const int verbose_level) {
+  for (int iter = 0; iter < max_iter; iter++) {
+    // Linearize system
+    ParameterOrder param_index;
+    matx_t J;
+    vecx_t b;
+    _linearize(param_index, J, b);
+
+    // Solve linear system
+    vecx_t dx;
+    _solve_linear_system(J, b, dx);
+
+    // Update
+    _update(param_index, dx);
+  }
+}
 
 } // namespace yac

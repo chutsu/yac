@@ -64,11 +64,24 @@ struct ceres_solver_t : solver_t {
 
 // SOLVER /////////////////////////////////////////////////////////////////////
 
+// clang-format off
+using ResidualJacobians = std::map<calib_error_t *, std::vector<matx_row_major_t>>;
+using ResidualValues = std::map<calib_error_t *, vecx_t>;
+using ParameterOrder = std::map<param_t *, int>;
+// clang-format on
+
 struct yac_solver_t : solver_t {
   yac_solver_t() = default;
   ~yac_solver_t() = default;
 
-  void linearize(matx_t &J, vecx_t &b);
+  bool _eval_residual(calib_error_t *res_fn,
+                      ResidualJacobians &res_jacs,
+                      ResidualJacobians &res_min_jacs,
+                      ResidualValues &res_vals);
+  void _linearize(ParameterOrder &param_index, matx_t &J, vecx_t &b);
+  void _solve_linear_system(const matx_t &J, const vecx_t &b, vecx_t &dx);
+  void _update(const ParameterOrder &param_index, const vecx_t &dx);
+
   void solve(const int max_iter = 30,
              const bool verbose = false,
              const int verbose_level = 0);

@@ -212,33 +212,6 @@ int test_calib_camera_add_and_remove_view() {
   return 0;
 }
 
-int test_calib_camera_recover_calib_covar() {
-  const int cam_res[2] = {752, 480};
-  const std::string proj_model = "pinhole";
-  const std::string dist_model = "radtan4";
-  const calib_target_t calib_target;
-
-  calib_camera_t calib{calib_target};
-  calib.add_camera(0, cam_res, proj_model, dist_model);
-  calib.add_camera(1, cam_res, proj_model, dist_model);
-  calib.add_camera_extrinsics(0);
-  calib.add_camera_extrinsics(1);
-  calib.add_camera_data(0, test_data.at(0));
-  calib.add_camera_data(1, test_data.at(1));
-
-  for (const auto ts : calib.timestamps) {
-    calib.add_view(calib.calib_data[ts], true);
-    if (calib.nb_views() > 10) {
-      break;
-    }
-  }
-
-  matx_t calib_covar;
-  MU_CHECK(calib.recover_calib_covar(calib_covar) == 0);
-
-  return 0;
-}
-
 int test_calib_camera_find_nbv() {
   // Calibration target and camera parameters
   const calib_target_t calib_target{"aprilgrid", 6, 6, 0.088, 0.3};
@@ -516,7 +489,6 @@ void test_suite() {
   MU_ADD_TEST(test_calib_camera_add_camera_extrinsics);
   MU_ADD_TEST(test_calib_camera_add_pose);
   MU_ADD_TEST(test_calib_camera_add_and_remove_view);
-  MU_ADD_TEST(test_calib_camera_recover_calib_covar);
   MU_ADD_TEST(test_calib_camera_find_nbv);
   MU_ADD_TEST(test_calib_camera_filter_all_views);
   MU_ADD_TEST(test_calib_camera_remove_all_views);

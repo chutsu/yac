@@ -69,169 +69,173 @@ void solver_t::remove_residual(calib_error_t *cost_fn) {
   res2param.erase(cost_fn);
 }
 
-int solver_t::estimate_calib_covar(matx_t &calib_covar) const {
-  // Track parameters
-  std::vector<calib_error_t *> res_blocks;
-  std::map<param_t *, bool> params_seen;
-  std::vector<param_t *> marg_param_ptrs;
-  std::vector<param_t *> remain_camera_param_ptrs;
-  std::vector<param_t *> remain_extrinsics_ptrs;
-  std::vector<param_t *> remain_fiducial_ptrs;
-  for (auto &res_block : cost_fns) {
-    for (auto param_block : res_block->param_blocks) {
-      // Seen parameter block already
-      if (params_seen.count(param_block)) {
-        continue;
-      }
-
-      // Keep track of parameter block
-      if (param_block->type == "camera_params_t") {
-        remain_camera_param_ptrs.push_back(param_block);
-      } else if (param_block->type == "extrinsics_t") {
-        remain_extrinsics_ptrs.push_back(param_block);
-      } else if (param_block->type == "fiducial_t") {
-        remain_fiducial_ptrs.push_back(param_block);
-      } else {
-        marg_param_ptrs.push_back(param_block);
-      }
-      params_seen[param_block] = true;
-    }
-    res_blocks.push_back(res_block);
-  }
-
-  // Determine parameter block column indicies for Hessian matrix H
-  size_t m = 0;
-  size_t r = 0;
-  size_t H_idx = 0;
-  std::map<param_t *, int> param_index;
-  // -- Column indices for parameter blocks to be marginalized
-  for (const auto &param_block : marg_param_ptrs) {
-    param_index.insert({param_block, H_idx});
-    H_idx += param_block->local_size;
-    m += param_block->local_size;
-  }
-  // -- Column indices for parameter blocks to remain
-  std::vector<std::vector<param_t *> *> remain_params = {
-      &remain_fiducial_ptrs,
-      &remain_extrinsics_ptrs,
-      &remain_camera_param_ptrs,
-  };
-  std::vector<param_t *> remain_param_ptrs;
-  for (const auto &param_ptrs : remain_params) {
-    for (const auto &param_block : *param_ptrs) {
-      if (param_block->fixed) {
-        continue;
-      }
-      param_index.insert({param_block, H_idx});
-      H_idx += param_block->local_size;
-      r += param_block->local_size;
-      remain_param_ptrs.push_back(param_block);
-    }
-  }
-
-  // Form the H and b. Left and RHS of Gauss-Newton.
-  // H = J.T * J
-  // b = -J.T * e
-  const auto local_size = m + r;
-  matx_t H = zeros(local_size, local_size);
-  vecx_t b = zeros(local_size, 1);
-
-  for (calib_error_t *res_block : res_blocks) {
-    // Setup parameter data
-    std::vector<double *> param_ptrs;
-    for (auto param_block : res_block->param_blocks) {
-      param_ptrs.push_back(param_block->data());
-    }
-
-    // Setup Jacobians data
-    const int r_size = res_block->num_residuals();
-    std::vector<matx_row_major_t> jacs;
-    std::vector<double *> jac_ptrs;
-    for (auto param_block : res_block->param_blocks) {
-      jacs.push_back(zeros(r_size, param_block->global_size));
-      jac_ptrs.push_back(jacs.back().data());
-    }
-
-    // Setup Min-Jacobians data
-    std::vector<matx_row_major_t> min_jacs;
-    std::vector<double *> min_jac_ptrs;
-    for (auto param_block : res_block->param_blocks) {
-      min_jacs.push_back(zeros(r_size, param_block->local_size));
-      min_jac_ptrs.push_back(min_jacs.back().data());
-    }
-
-    // Evaluate residual block
-    vecx_t r = zeros(r_size, 1);
-    res_block->EvaluateWithMinimalJacobians(param_ptrs.data(),
-                                            r.data(),
-                                            jac_ptrs.data(),
-                                            min_jac_ptrs.data());
-
-    // Fill Hessian
-    for (size_t i = 0; i < res_block->param_blocks.size(); i++) {
-      const auto &param_i = res_block->param_blocks[i];
-      if (param_i->fixed) {
-        continue;
-      }
-      const int idx_i = param_index[param_i];
-      const int size_i = param_i->local_size;
-      const matx_t J_i = min_jacs[i];
-
-      for (size_t j = i; j < res_block->param_blocks.size(); j++) {
-        const auto &param_j = res_block->param_blocks[j];
-        if (param_j->fixed) {
-          continue;
-        }
-        const int idx_j = param_index[param_j];
-        const int size_j = param_j->local_size;
-        const matx_t J_j = min_jacs[j];
-
-        if (i == j) {
-          // Form diagonals of H
-          H.block(idx_i, idx_i, size_i, size_i) += J_i.transpose() * J_i;
-        } else {
-          // Form off-diagonals of H
-          // clang-format off
-          H.block(idx_i, idx_j, size_i, size_j) += J_i.transpose() * J_j;
-          H.block(idx_j, idx_i, size_j, size_i) += (J_i.transpose() * J_j).transpose();
-          // clang-format on
-        }
-      }
-
-      // RHS of Gauss Newton (i.e. vector b)
-      b.segment(idx_i, size_i) += -J_i.transpose() * r;
-    }
-  }
-
-  // Marginalize
-  // -- Pseudo inverse of Hmm via Eigen-decomposition:
+int solver_t::estimate_covariance(const std::vector<param_t *> params,
+                                  matx_t &calib_covar,
+                                  const bool verbose) const {
+  // // Track parameters
+  // std::vector<calib_error_t *> res_blocks;
+  // std::map<param_t *, bool> params_seen;
+  // std::vector<param_t *> marg_param_ptrs;
+  // std::vector<param_t *> remain_camera_param_ptrs;
+  // std::vector<param_t *> remain_extrinsics_ptrs;
+  // std::vector<param_t *> remain_fiducial_ptrs;
+  // for (auto &res_block : cost_fns) {
+  //   for (auto param_block : res_block->param_blocks) {
+  //     // Seen parameter block already
+  //     if (params_seen.count(param_block)) {
+  //       continue;
+  //     }
   //
-  //   A_pinv = V * Lambda_pinv * V_transpose
+  //     // Keep track of parameter block
+  //     if (param_block->type == "camera_params_t") {
+  //       remain_camera_param_ptrs.push_back(param_block);
+  //     } else if (param_block->type == "extrinsics_t") {
+  //       remain_extrinsics_ptrs.push_back(param_block);
+  //     } else if (param_block->type == "fiducial_t") {
+  //       remain_fiducial_ptrs.push_back(param_block);
+  //     } else {
+  //       marg_param_ptrs.push_back(param_block);
+  //     }
+  //     params_seen[param_block] = true;
+  //   }
+  //   res_blocks.push_back(res_block);
+  // }
   //
-  // Where Lambda_pinv is formed by **replacing every non-zero diagonal
-  // entry by its reciprocal, leaving the zeros in place, and transposing
-  // the resulting matrix.
-  // clang-format off
-  matx_t Hmm = H.block(0, 0, m, m);
-  Hmm = 0.5 * (Hmm + Hmm.transpose()); // Enforce Symmetry
-  const double eps = 1.0e-8;
-  const Eigen::SelfAdjointEigenSolver<matx_t> eig(Hmm);
-  const matx_t V = eig.eigenvectors();
-  const auto eigvals_inv = (eig.eigenvalues().array() > eps).select(eig.eigenvalues().array().inverse(), 0);
-  const matx_t Lambda_inv = vecx_t(eigvals_inv).asDiagonal();
-  const matx_t Hmm_inv = V * Lambda_inv * V.transpose();
-  // clang-format on
-  // -- Calculate Schur's complement
-  const matx_t Hmr = H.block(0, m, m, r);
-  const matx_t Hrm = H.block(m, 0, r, m);
-  const matx_t Hrr = H.block(m, m, r, r);
-  const vecx_t bmm = b.segment(0, m);
-  const vecx_t brr = b.segment(m, r);
-  const matx_t H_marg = Hrr - Hrm * Hmm_inv * Hmr;
-  const matx_t b_marg = brr - Hrm * Hmm_inv * bmm;
-
-  // Convert
-  calib_covar = H_marg.inverse();
+  // // Determine parameter block column indicies for Hessian matrix H
+  // size_t m = 0;
+  // size_t r = 0;
+  // size_t H_idx = 0;
+  // std::map<param_t *, int> param_index;
+  // // -- Column indices for parameter blocks to be marginalized
+  // for (const auto &param_block : marg_param_ptrs) {
+  //   param_index.insert({param_block, H_idx});
+  //   H_idx += param_block->local_size;
+  //   m += param_block->local_size;
+  // }
+  // // -- Column indices for parameter blocks to remain
+  // std::vector<std::vector<param_t *> *> remain_params = {
+  //     &remain_fiducial_ptrs,
+  //     &remain_extrinsics_ptrs,
+  //     &remain_camera_param_ptrs,
+  // };
+  // std::vector<param_t *> remain_param_ptrs;
+  // for (const auto &param_ptrs : remain_params) {
+  //   for (const auto &param_block : *param_ptrs) {
+  //     if (param_block->fixed) {
+  //       continue;
+  //     }
+  //     param_index.insert({param_block, H_idx});
+  //     H_idx += param_block->local_size;
+  //     r += param_block->local_size;
+  //     remain_param_ptrs.push_back(param_block);
+  //   }
+  // }
+  //
+  // // Form the H and b. Left and RHS of Gauss-Newton.
+  // // H = J.T * J
+  // // b = -J.T * e
+  // const auto local_size = m + r;
+  // matx_t H = zeros(local_size, local_size);
+  // vecx_t b = zeros(local_size, 1);
+  //
+  // for (calib_error_t *res_block : res_blocks) {
+  //   // Setup parameter data
+  //   std::vector<double *> param_ptrs;
+  //   for (auto param_block : res_block->param_blocks) {
+  //     param_ptrs.push_back(param_block->data());
+  //   }
+  //
+  //   // Setup Jacobians data
+  //   const int r_size = res_block->num_residuals();
+  //   std::vector<matx_row_major_t> jacs;
+  //   std::vector<double *> jac_ptrs;
+  //   for (auto param_block : res_block->param_blocks) {
+  //     jacs.push_back(zeros(r_size, param_block->global_size));
+  //     jac_ptrs.push_back(jacs.back().data());
+  //   }
+  //
+  //   // Setup Min-Jacobians data
+  //   std::vector<matx_row_major_t> min_jacs;
+  //   std::vector<double *> min_jac_ptrs;
+  //   for (auto param_block : res_block->param_blocks) {
+  //     min_jacs.push_back(zeros(r_size, param_block->local_size));
+  //     min_jac_ptrs.push_back(min_jacs.back().data());
+  //   }
+  //
+  //   // Evaluate residual block
+  //   vecx_t r = zeros(r_size, 1);
+  //   res_block->EvaluateWithMinimalJacobians(param_ptrs.data(),
+  //                                           r.data(),
+  //                                           jac_ptrs.data(),
+  //                                           min_jac_ptrs.data());
+  //
+  //   // Fill Hessian
+  //   for (size_t i = 0; i < res_block->param_blocks.size(); i++) {
+  //     const auto &param_i = res_block->param_blocks[i];
+  //     if (param_i->fixed) {
+  //       continue;
+  //     }
+  //     const int idx_i = param_index[param_i];
+  //     const int size_i = param_i->local_size;
+  //     const matx_t J_i = min_jacs[i];
+  //
+  //     for (size_t j = i; j < res_block->param_blocks.size(); j++) {
+  //       const auto &param_j = res_block->param_blocks[j];
+  //       if (param_j->fixed) {
+  //         continue;
+  //       }
+  //       const int idx_j = param_index[param_j];
+  //       const int size_j = param_j->local_size;
+  //       const matx_t J_j = min_jacs[j];
+  //
+  //       if (i == j) {
+  //         // Form diagonals of H
+  //         H.block(idx_i, idx_i, size_i, size_i) += J_i.transpose() * J_i;
+  //       } else {
+  //         // Form off-diagonals of H
+  //         // clang-format off
+  //         H.block(idx_i, idx_j, size_i, size_j) += J_i.transpose() * J_j;
+  //         H.block(idx_j, idx_i, size_j, size_i) += (J_i.transpose() *
+  //         J_j).transpose();
+  //         // clang-format on
+  //       }
+  //     }
+  //
+  //     // RHS of Gauss Newton (i.e. vector b)
+  //     b.segment(idx_i, size_i) += -J_i.transpose() * r;
+  //   }
+  // }
+  //
+  // // Marginalize
+  // // -- Pseudo inverse of Hmm via Eigen-decomposition:
+  // //
+  // //   A_pinv = V * Lambda_pinv * V_transpose
+  // //
+  // // Where Lambda_pinv is formed by **replacing every non-zero diagonal
+  // // entry by its reciprocal, leaving the zeros in place, and transposing
+  // // the resulting matrix.
+  // // clang-format off
+  // matx_t Hmm = H.block(0, 0, m, m);
+  // Hmm = 0.5 * (Hmm + Hmm.transpose()); // Enforce Symmetry
+  // const double eps = 1.0e-8;
+  // const Eigen::SelfAdjointEigenSolver<matx_t> eig(Hmm);
+  // const matx_t V = eig.eigenvectors();
+  // const auto eigvals_inv = (eig.eigenvalues().array() >
+  // eps).select(eig.eigenvalues().array().inverse(), 0); const matx_t
+  // Lambda_inv = vecx_t(eigvals_inv).asDiagonal(); const matx_t Hmm_inv = V *
+  // Lambda_inv * V.transpose();
+  // // clang-format on
+  // // -- Calculate Schur's complement
+  // const matx_t Hmr = H.block(0, m, m, r);
+  // const matx_t Hrm = H.block(m, 0, r, m);
+  // const matx_t Hrr = H.block(m, m, r, r);
+  // const vecx_t bmm = b.segment(0, m);
+  // const vecx_t brr = b.segment(m, r);
+  // const matx_t H_marg = Hrr - Hrm * Hmm_inv * Hmr;
+  // const matx_t b_marg = brr - Hrm * Hmm_inv * bmm;
+  //
+  // // Convert
+  // calib_covar = H_marg.inverse();
 
   return 0;
 }
@@ -340,6 +344,86 @@ void ceres_solver_t::remove_residual(calib_error_t *cost_fn) {
   auto res_id = res2id[cost_fn];
   problem->RemoveResidualBlock(res_id);
   res2id.erase(cost_fn);
+}
+
+int ceres_solver_t::estimate_covariance(const std::vector<param_t *> params,
+                                        matx_t &covar,
+                                        bool verbose) const {
+  // Setup covariance blocks to estimate
+  int covar_size = 0;
+  std::map<param_t *, int> param_indices;
+  std::vector<std::pair<const double *, const double *>> covar_blocks;
+  // -- Determine parameter block order and covariance matrix size
+  for (auto &param : params) {
+    if (param->fixed) {
+      continue;
+    }
+    param_indices[param] = covar_size;
+    covar_size += param->local_size;
+  }
+  // -- Covariance blocks
+  for (size_t i = 0; i < params.size(); i++) {
+    for (size_t j = i; j < params.size(); j++) {
+      auto param_i = params[i];
+      auto param_j = params[j];
+      covar_blocks.push_back({param_i->data(), param_j->data()});
+    }
+  }
+
+  // Estimate covariance
+  ::ceres::Covariance::Options options;
+  ::ceres::Covariance covar_est(options);
+  if (covar_est.Compute(covar_blocks, problem) == false) {
+    if (verbose) {
+      LOG_ERROR("Failed to estimate covariance!");
+      LOG_ERROR("Maybe Hessian is not full rank?");
+    }
+    return -1;
+  }
+  // -- Form covariance matrix
+  covar.resize(covar_size, covar_size);
+  covar.setZero();
+
+  for (size_t i = 0; i < params.size(); i++) {
+    for (size_t j = i; j < params.size(); j++) {
+      auto param_i = params[i];
+      auto param_j = params[j];
+      auto ptr_i = param_i->data();
+      auto ptr_j = param_j->data();
+      auto idx_i = param_indices[param_i];
+      auto idx_j = param_indices[param_j];
+      auto size_i = param_i->local_size;
+      auto size_j = param_j->local_size;
+
+      // Diagonal
+      matx_row_major_t block;
+      block.resize(size_i, size_j);
+      block.setZero();
+      auto data = block.data();
+      int retval = 0;
+      if ((size_i == 6 || size_j == 6)) {
+        retval = covar_est.GetCovarianceBlockInTangentSpace(ptr_i, ptr_j, data);
+      } else {
+        retval = covar_est.GetCovarianceBlock(ptr_i, ptr_j, data);
+      }
+      covar.block(idx_i, idx_j, size_i, size_j) = block;
+
+      // Off-diagonal
+      if (i != j) {
+        covar.block(idx_j, idx_i, size_j, size_i) = block.transpose();
+      }
+    }
+  }
+
+  // Check if covar is full-rank?
+  if (rank(covar) != covar.rows()) {
+    if (verbose) {
+      LOG_ERROR("covar is not full rank!");
+    }
+    return -1;
+  }
+
+  return 0;
 }
 
 void ceres_solver_t::solve(const int max_iter,

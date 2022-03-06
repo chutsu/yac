@@ -25,10 +25,12 @@ struct solver_t {
   virtual void add_residual(calib_error_t *cost_fn);
   virtual void remove_param(param_t *param);
   virtual void remove_residual(calib_error_t *cost_fn);
+  virtual int estimate_covariance(const std::vector<param_t *> params,
+                                  matx_t &calib_covar,
+                                  const bool verbose = false) const;
   virtual void solve(const int max_iter = 30,
                      const bool verbose = false,
                      const int verbose_level = 0) = 0;
-  virtual int estimate_calib_covar(matx_t &calib_covar) const;
 };
 
 // CERES-SOLVER ////////////////////////////////////////////////////////////////
@@ -51,6 +53,9 @@ struct ceres_solver_t : solver_t {
   void add_residual(calib_error_t *cost_fn) override;
   void remove_param(param_t *param) override;
   void remove_residual(calib_error_t *cost_fn) override;
+  int estimate_covariance(const std::vector<param_t *> params,
+                          matx_t &covar,
+                          const bool verbose = true) const;
 
   void solve(const int max_iter = 30,
              const bool verbose = false,

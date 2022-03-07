@@ -20,12 +20,12 @@ set -e
 # YAC - CALIBRATION DATA
 # RUN_CMD="rosrun yac test_calib_data"
 
-# YAC - ERRORS
-# RUN_CMD="rosrun yac test_calib_errors"
-# RUN_CMD="rosrun yac test_calib_errors --target test_pose_error"
-# RUN_CMD="rosrun yac test_calib_errors --target test_reproj_error"
-# RUN_CMD="rosrun yac test_calib_errors --target test_fiducial_error"
-# RUN_CMD="rosrun yac test_calib_errors --target test_imu_error"
+# YAC - RESIDUALS
+# RUN_CMD="rosrun yac test_calib_residuals"
+# RUN_CMD="rosrun yac test_calib_residuals --target test_pose_residual"
+# RUN_CMD="rosrun yac test_calib_residuals --target test_reproj_residual"
+# RUN_CMD="rosrun yac test_calib_residuals --target test_fiducial_residual"
+# RUN_CMD="rosrun yac test_calib_residuals --target test_imu_residual"
 
 # YAC - CAMERA CALIBRATION
 # RUN_CMD="rosrun yac test_calib_camera"
@@ -35,21 +35,20 @@ set -e
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_add_camera_extrinsics"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_add_pose"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_add_and_remove_view"
-# RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_recover_calib_covar"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_find_nbv"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_filter_all_views"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_remove_all_views"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_remove_outliers"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_solve_batch"
-RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_solve_inc"
-# RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_mono"
+# RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_solve_inc"
+RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_mono"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_stereo"
-# RUN_CMD="rosrun yac test_calib_camera --target test_marg_error"
+# RUN_CMD="rosrun yac test_calib_camera --target test_marg_residual"
 # RUN_CMD="rosrun yac calib_euroc"
 # RUN_CMD="rosrun yac calib_inspect '/tmp/calib-results.yaml' /data/euroc/cam_april"
 # RUN_CMD="rosrun yac calib_inspect '/data/euroc_results/configs/euroc/euroc.yaml' /data/euroc/cam_april"
 # RUN_CMD="rosrun yac calib_sandbox '/tmp/yac_data/calib.yaml'"
-# RUN_CMD="rosrun --prefix 'gdb -ex run -args' yac test_calib_camera --target test_marg_error"
+# RUN_CMD="rosrun --prefix 'gdb -ex run -args' yac test_calib_camera --target test_marg_residual"
 # RUN_CMD="rosrun --prefix 'gdb -ex run -args' yac test_calib_camera"
 # RUN_CMD="rosrun --prefix 'gdb -ex run -args' yac test_calib_camera --target test_calib_camera_kalibr_data"
 
@@ -88,9 +87,9 @@ RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_solve_inc"
 # RUN_CMD="rosrun yac test_calib_nbv --target test_simulate_imu"
 # RUN_CMD="rosrun yac test_calib_nbv --target test_nbt_eval_traj"
 
-# YAC - MARG ERROR
-# RUN_CMD="rosrun yac test_marg_error"
-# RUN_CMD="rosrun yac test_marg_error --target test_marg_block"
+# YAC - MARG RESIDUAL
+# RUN_CMD="rosrun yac test_marg_residual"
+# RUN_CMD="rosrun yac test_marg_residual --target test_marg_block"
 
 # YAC - ROS NODES
 # RUN_CMD="roslaunch yac_ros record_camera.launch"
@@ -114,7 +113,7 @@ RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_solve_inc"
 tmux send-keys -t dev -R C-l C-m
 tmux send-keys -t dev -R "\
 cd ~/projects/yac \
-&& make lib_relwithdeb \
+&& make lib \
 && source ~/catkin_ws/devel/setup.bash \
 && ${RUN_CMD}
 " C-m C-m

@@ -570,6 +570,7 @@ void yac_solver_t::_linearize(ParameterOrder &param_order,
 
   for (calib_residual_t *res_fn : good_res_fns) {
     const vecx_t r = res_vals[res_fn];
+    const int res_size = r.size();
 
     for (size_t i = 0; i < res_fn->param_blocks.size(); i++) {
       const auto &param_i = res_fn->param_blocks[i];
@@ -577,11 +578,11 @@ void yac_solver_t::_linearize(ParameterOrder &param_order,
         continue;
       }
 
-      const int idx_i = param_order[param_i];
-      const int size_i = param_i->local_size;
-      const matx_t J_i = res_min_jacs[res_fn][i];
-      J.block(idx_i, idx_i, size_i, size_i) += J_i.transpose() * J_i;
-      b.segment(idx_i, size_i) += -J_i.transpose() * r;
+      const int param_idx = param_order[param_i];
+      const int param_size = param_i->local_size;
+      const matx_t J_param = res_min_jacs[res_fn][i];
+      J.block(res_idx, param_idx, res_size, param_size) += J_param;
+      b.segment(param_idx, param_size) += -J_param.transpose() * r;
     }
 
     res_idx += res_fn->num_residuals();

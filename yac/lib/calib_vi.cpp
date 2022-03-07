@@ -45,30 +45,30 @@ calib_vi_view_t::calib_vi_view_t(const timestamp_t ts_,
       const vec3_t r_FFi = pts[i];
 
       // Form residual
-      auto error = new fiducial_error_t(ts,
-                                        cam_geoms[cam_idx],
-                                        cam_params[cam_idx],
-                                        cam_exts[cam_idx],
-                                        imu_exts,
-                                        fiducial,
-                                        &pose,
-                                        tag_id,
-                                        corner_idx,
-                                        r_FFi,
-                                        z,
-                                        covar);
-      fiducial_errors[cam_idx].emplace_back(error);
+      auto res = new fiducial_residual_t(ts,
+                                         cam_geoms[cam_idx],
+                                         cam_params[cam_idx],
+                                         cam_exts[cam_idx],
+                                         imu_exts,
+                                         fiducial,
+                                         &pose,
+                                         tag_id,
+                                         corner_idx,
+                                         r_FFi,
+                                         z,
+                                         covar);
+      fiducial_residuals[cam_idx].emplace_back(res);
 
       // Add to problem
-      auto error_id =
-          problem->AddResidualBlock(fiducial_errors[cam_idx].back(),
+      auto res_id =
+          problem->AddResidualBlock(fiducial_residuals[cam_idx].back(),
                                     NULL,
                                     fiducial->param.data(),
                                     pose.param.data(),
                                     imu_exts->param.data(),
                                     cam_exts[cam_idx]->param.data(),
                                     cam_params[cam_idx]->param.data());
-      fiducial_error_ids[cam_idx].push_back(error_id);
+      fiducial_residual_ids[cam_idx].push_back(res_id);
     }
   }
 }
@@ -82,16 +82,16 @@ calib_vi_view_t::~calib_vi_view_t() {
     problem->RemoveParameterBlock(sb.param.data());
   }
 
-  // Delete fiducial errors
-  for (auto &[cam_idx, errors] : fiducial_errors) {
-    for (auto error : errors) {
-      delete error;
+  // Delete fiducial residuals
+  for (auto &[cam_idx, res_fns] : fiducial_residuals) {
+    for (auto res : res_fns) {
+      delete res;
     }
   }
 
-  // Delete IMU Error
-  if (imu_error) {
-    delete imu_error;
+  // Delete IMU residual
+  if (imu_residual) {
+    delete imu_residual;
   }
 }
 
@@ -109,13 +109,13 @@ std::vector<real_t>
 calib_vi_view_t::get_reproj_errors(const int cam_idx) const {
   std::vector<real_t> cam_errors;
 
-  if (fiducial_errors.count(cam_idx) == 0) {
+  if (fiducial_residuals.count(cam_idx) == 0) {
     return cam_errors;
   }
 
-  for (const auto &error : fiducial_errors.at(cam_idx)) {
+  for (const auto &res_fn : fiducial_residuals.at(cam_idx)) {
     real_t e;
-    if (error->get_reproj_error(e) == 0) {
+    if (res_fn->get_reproj_error(e) == 0) {
       cam_errors.push_back(e);
     }
   }
@@ -126,10 +126,10 @@ calib_vi_view_t::get_reproj_errors(const int cam_idx) const {
 std::map<int, std::vector<real_t>> calib_vi_view_t::get_reproj_errors() const {
   std::map<int, std::vector<real_t>> cam_errors;
 
-  for (const auto &[cam_idx, errors] : fiducial_errors) {
-    for (const auto &error : errors) {
+  for (const auto &[cam_idx, res_fns] : fiducial_residuals) {
+    for (const auto &res : res_fns) {
       real_t e;
-      if (error->get_reproj_error(e) == 0) {
+      if (res->get_reproj_error(e) == 0) {
         cam_errors[cam_idx].push_back(e);
       }
     }
@@ -153,27 +153,27 @@ int calib_vi_view_t::filter_view(const real_t outlier_threshold) {
   int nb_inliers = 0;
   int nb_outliers = 0;
   for (const auto cam_idx : get_camera_indices()) {
-    auto &cam_errors = fiducial_errors[cam_idx];
-    auto &cam_error_ids = fiducial_error_ids[cam_idx];
-    auto err_it = cam_errors.begin();
-    auto id_it = cam_error_ids.begin();
+    auto &res_fns = fiducial_residuals[cam_idx];
+    auto &res_ids = fiducial_residual_ids[cam_idx];
+    auto res_it = res_fns.begin();
+    auto id_it = res_ids.begin();
 
-    while (err_it != cam_errors.end()) {
-      auto &fiducial_error = *err_it;
+    while (res_it != res_fns.end()) {
+      auto &fiducial_residual = *res_it;
       auto &fiducial_id = *id_it;
 
       vec2_t r;
-      if (fiducial_error->get_residual(r) != 0) {
+      if (fiducial_residual->get_residual(r) != 0) {
         continue;
       }
 
       if (r.x() > threshold || r.y() > threshold) {
         problem->RemoveResidualBlock(fiducial_id);
-        err_it = cam_errors.erase(err_it);
-        id_it = cam_error_ids.erase(id_it);
+        res_it = res_fns.erase(res_it);
+        id_it = res_ids.erase(id_it);
         nb_outliers++;
       } else {
-        ++err_it;
+        ++res_it;
         ++id_it;
         nb_inliers++;
       }
@@ -183,41 +183,43 @@ int calib_vi_view_t::filter_view(const real_t outlier_threshold) {
   return nb_outliers;
 }
 
-void calib_vi_view_t::form_imu_error(const imu_params_t &imu_params,
-                                     imu_data_t &imu_buf,
-                                     pose_t *pose_j,
-                                     sb_params_t *sb_j) {
-  imu_error = new imu_error_t(imu_params, imu_buf, &pose, &sb, pose_j, sb_j);
-  imu_error_id = problem->AddResidualBlock(imu_error,
-                                           NULL,
-                                           pose.param.data(),
-                                           sb.param.data(),
-                                           pose_j->param.data(),
-                                           sb_j->param.data());
+void calib_vi_view_t::form_imu_residual(const imu_params_t &imu_params,
+                                        imu_data_t &imu_buf,
+                                        pose_t *pose_j,
+                                        sb_params_t *sb_j) {
+  imu_residual =
+      new imu_residual_t(imu_params, imu_buf, &pose, &sb, pose_j, sb_j);
+  imu_residual_id = problem->AddResidualBlock(imu_residual,
+                                              NULL,
+                                              pose.param.data(),
+                                              sb.param.data(),
+                                              pose_j->param.data(),
+                                              sb_j->param.data());
   imu_buf.trim(pose_j->ts);
 }
 
-ceres::ResidualBlockId calib_vi_view_t::marginalize(marg_error_t *marg_error) {
+ceres::ResidualBlockId
+calib_vi_view_t::marginalize(marg_residual_t *marg_residual) {
   // Mark pose T_WS and speed and biases sb to be marginalized
   pose.marginalize = true;
   sb.marginalize = true;
 
-  // Transfer residual ownership to marginalization error
-  marg_error->add(imu_error);
-  for (auto &[cam_idx, errors] : fiducial_errors) {
-    for (auto &error : errors) {
-      marg_error->add(error);
+  // Transfer residual ownership to marginalization residual
+  marg_residual->add(imu_residual);
+  for (auto &[cam_idx, residuals] : fiducial_residuals) {
+    for (auto &residual : residuals) {
+      marg_residual->add(residual);
     }
   }
-  const auto res_id = marg_error->marginalize(problem);
+  const auto res_id = marg_residual->marginalize(problem);
 
   // Clear residuals
-  fiducial_error_ids.clear();
-  fiducial_errors.clear();
-  imu_error = nullptr;
+  fiducial_residual_ids.clear();
+  fiducial_residuals.clear();
+  imu_residual = nullptr;
   // ^ Important! we don't want to delete the residual blocks when the view is
   // deconstructed, but rather by adding the residual functions to the
-  // marginalization error we pass the ownership to marg_error_t
+  // marginalization residual we pass the ownership to marg_residual_t
 
   return res_id;
 }
@@ -309,31 +311,31 @@ calib_vi_t::calib_vi_t(const calib_vi_t &calib) {
   }
   for (size_t k = 0; k < calib_views.size(); k++) {
     auto view_k = calib.calib_views[k];
-    if (view_k->imu_error == nullptr) {
+    if (view_k->imu_residual == nullptr) {
       continue;
     }
 
     auto view_kp1 = calib.calib_views[k + 1];
-    auto imu_data = view_k->imu_error->imu_data_;
+    auto imu_data = view_k->imu_residual->imu_data_;
     auto pose_j = &calib_views[k + 1]->pose;
     auto sb_j = &calib_views[k + 1]->sb;
-    calib_views[k]->form_imu_error(imu_params, imu_data, pose_j, sb_j);
+    calib_views[k]->form_imu_residual(imu_params, imu_data, pose_j, sb_j);
   }
   // -- Marginalization Error
   // Note: The following approach to deep-copying the Marginalization Error
   // is not ideal, however there isn't an easier way because the
-  // marginalization error from the source were referencing parameters and
+  // marginalization residual from the source were referencing parameters and
   // residual blocks from the original calibrator.
-  if (calib.marg_error != nullptr) {
-    // New marginalization error
-    marg_error_t *marg_error = new marg_error_t();
-    marg_error->marginalized_ = calib.marg_error->marginalized_;
-    marg_error->m_ = calib.marg_error->m_;
-    marg_error->r_ = calib.marg_error->r_;
+  if (calib.marg_residual != nullptr) {
+    // New marginalization residual
+    marg_residual_t *marg_residual = new marg_residual_t();
+    marg_residual->marginalized_ = calib.marg_residual->marginalized_;
+    marg_residual->m_ = calib.marg_residual->m_;
+    marg_residual->r_ = calib.marg_residual->r_;
 
     // Residuals and parameter blocks
-    marg_error->set_residual_size(calib.marg_error->num_residuals());
-    for (auto param_block : calib.marg_error->param_blocks) {
+    marg_residual->set_residual_size(calib.marg_residual->num_residuals());
+    for (auto param_block : calib.marg_residual->param_blocks) {
       // Obtain the corresponding deep-copy parameter
       param_t *remain_param = nullptr;
       if (param_block->type == "pose_t") {
@@ -352,23 +354,24 @@ calib_vi_t::calib_vi_t(const calib_vi_t &calib) {
         FATAL("Implementation Error! Not supposed to reach here!");
       }
 
-      // Add corresponding deep-copied parameter into marginalization error
-      marg_error->add_remain_param(remain_param);
-      marg_error->param_index_[remain_param] =
-          calib.marg_error->param_index_.at(param_block);
+      // Add corresponding deep-copied parameter into marginalization residual
+      marg_residual->add_remain_param(remain_param);
+      marg_residual->param_index_[remain_param] =
+          calib.marg_residual->param_index_.at(param_block);
 
       // Linearization point x0
-      marg_error->x0_[remain_param->data()] = remain_param->param;
+      marg_residual->x0_[remain_param->data()] = remain_param->param;
     }
 
     // Linearized residuals and jacobians
-    marg_error->r0_ = calib.marg_error->r0_;
-    marg_error->J0_ = calib.marg_error->J0_;
+    marg_residual->r0_ = calib.marg_residual->r0_;
+    marg_residual->J0_ = calib.marg_residual->J0_;
 
     // Add to ceres::problem
-    marg_error_id = problem->AddResidualBlock(marg_error,
-                                              NULL,
-                                              marg_error->get_param_ptrs());
+    marg_residual_id =
+        problem->AddResidualBlock(marg_residual,
+                                  NULL,
+                                  marg_residual->get_param_ptrs());
   }
 
   // AprilGrid detector
@@ -832,7 +835,7 @@ void calib_vi_t::add_view(const CamIdx2Grids &grids) {
 
   // Form imu factor between view km1 and k
   auto view_k = calib_views.back();
-  view_km1->form_imu_error(imu_params, imu_buf, &view_k->pose, &view_k->sb);
+  view_km1->form_imu_residual(imu_params, imu_buf, &view_k->pose, &view_k->sb);
 
   prev_grids = grids;
 }
@@ -1138,25 +1141,25 @@ void calib_vi_t::marginalize() {
   view->pose.marginalize = true;
   view->sb.marginalize = true;
 
-  // Form new marg_error_t
-  if (marg_error == nullptr) {
-    // Initialize first marg_error_t
-    marg_error = new marg_error_t();
+  // Form new marg_residual_t
+  if (marg_residual == nullptr) {
+    // Initialize first marg_residual_t
+    marg_residual = new marg_residual_t();
 
   } else {
-    // Add previous marg_error_t to new
-    auto new_marg_error = new marg_error_t();
-    new_marg_error->add(marg_error);
+    // Add previous marg_residual_t to new
+    auto new_marg_residual = new marg_residual_t();
+    new_marg_residual->add(marg_residual);
 
-    // Delete old marg_error_t
-    problem->RemoveResidualBlock(marg_error_id);
+    // Delete old marg_residual_t
+    problem->RemoveResidualBlock(marg_residual_id);
 
-    // Point to new marg_error_t
-    marg_error = new_marg_error;
+    // Point to new marg_residual_t
+    marg_residual = new_marg_residual;
   }
 
   // Marginalize view
-  marg_error_id = view->marginalize(marg_error);
+  marg_residual_id = view->marginalize(marg_residual);
 
   // Remove view
   calib_views.pop_front();
@@ -1180,7 +1183,7 @@ void calib_vi_t::reset() {
   }
   calib_views.clear();
 
-  delete marg_error;
+  delete marg_residual;
 }
 
 int calib_vi_t::save_results(const std::string &save_path) const {

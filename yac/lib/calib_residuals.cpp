@@ -1,12 +1,12 @@
-#include "calib_errors.hpp"
+#include "calib_residuals.hpp"
 
 namespace yac {
 
-// CALIB ERROR /////////////////////////////////////////////////////////////////
+// CALIB RESIDUALS /////////////////////////////////////////////////////////////
 
-calib_error_t::calib_error_t(const std::string &type_) : type{type_} {}
+calib_residual_t::calib_residual_t(const std::string &type_) : type{type_} {}
 
-std::vector<double *> calib_error_t::param_block_ptrs() {
+std::vector<double *> calib_residual_t::param_block_ptrs() {
   std::vector<double *> ptrs;
   for (auto &param : param_blocks) {
     ptrs.push_back(param->data());
@@ -14,16 +14,16 @@ std::vector<double *> calib_error_t::param_block_ptrs() {
   return ptrs;
 }
 
-bool calib_error_t::Evaluate(double const *const *params,
-                             double *res,
-                             double **jacs) const {
+bool calib_residual_t::Evaluate(double const *const *params,
+                                double *res,
+                                double **jacs) const {
   return EvaluateWithMinimalJacobians(params, res, jacs, nullptr);
 }
 
-bool calib_error_t::eval(double const *const *params,
-                         double *res,
-                         double **jacs,
-                         double **min_jacs) const {
+bool calib_residual_t::eval(double const *const *params,
+                            double *res,
+                            double **jacs,
+                            double **min_jacs) const {
   // Evaluate cost function to obtain the jacobians and residuals
   EvaluateWithMinimalJacobians(params, res, jacs, min_jacs);
 
@@ -60,10 +60,10 @@ bool calib_error_t::eval(double const *const *params,
   return true;
 }
 
-bool calib_error_t::check_jacs(const int param_idx,
-                               const std::string &jac_name,
-                               const double step,
-                               const double tol) {
+bool calib_residual_t::check_jacs(const int param_idx,
+                                  const std::string &jac_name,
+                                  const double step,
+                                  const double tol) {
   // Setup
   param_t *param = param_blocks[param_idx];
   const int residual_size = num_residuals();
@@ -118,8 +118,8 @@ bool calib_error_t::check_jacs(const int param_idx,
 
 // POSE ERROR //////////////////////////////////////////////////////////////////
 
-pose_error_t::pose_error_t(pose_t *pose_, const mat_t<6, 6> &covar_)
-    : calib_error_t{"pose_error_t"}, pose{pose_}, pose_meas{pose_->tf()},
+pose_residual_t::pose_residual_t(pose_t *pose_, const mat_t<6, 6> &covar_)
+    : calib_residual_t{"pose_residual_t"}, pose{pose_}, pose_meas{pose_->tf()},
       covar{covar_}, info{covar.inverse()}, sqrt_info{info.llt().matrixU()} {
   // Data
   param_blocks.push_back(pose_);
@@ -130,10 +130,10 @@ pose_error_t::pose_error_t(pose_t *pose_, const mat_t<6, 6> &covar_)
   block_sizes->push_back(7); // Camera-camera extrinsics
 }
 
-bool pose_error_t::EvaluateWithMinimalJacobians(double const *const *params,
-                                                double *res,
-                                                double **jacs,
-                                                double **min_jacs) const {
+bool pose_residual_t::EvaluateWithMinimalJacobians(double const *const *params,
+                                                   double *res,
+                                                   double **jacs,
+                                                   double **min_jacs) const {
   // Parameters
   mat4_t pose_est = tf(params[0]);
 
@@ -175,14 +175,14 @@ bool pose_error_t::EvaluateWithMinimalJacobians(double const *const *params,
 
 // REPROJECTION ERROR //////////////////////////////////////////////////////////
 
-reproj_error_t::reproj_error_t(camera_geometry_t *cam_geom_,
-                               camera_params_t *cam_params_,
-                               pose_t *T_BCi_,
-                               pose_t *T_C0F_,
-                               fiducial_corner_t *p_FFi_,
-                               const vec2_t &z_,
-                               const mat2_t &covar_)
-    : calib_error_t{"reproj_error_t"}, cam_geom{cam_geom_},
+reproj_residual_t::reproj_residual_t(camera_geometry_t *cam_geom_,
+                                     camera_params_t *cam_params_,
+                                     pose_t *T_BCi_,
+                                     pose_t *T_C0F_,
+                                     fiducial_corner_t *p_FFi_,
+                                     const vec2_t &z_,
+                                     const mat2_t &covar_)
+    : calib_residual_t{"reproj_residual_t"}, cam_geom{cam_geom_},
       cam_params{cam_params_}, T_BCi{T_BCi_}, T_C0F{T_C0F_}, p_FFi{p_FFi_},
       z{z_}, covar(covar_), info(covar.inverse()),
       sqrt_info(info.llt().matrixU()) {
@@ -201,7 +201,7 @@ reproj_error_t::reproj_error_t(camera_geometry_t *cam_geom_,
   block_sizes->push_back(8); // Camera parameters
 }
 
-int reproj_error_t::get_residual(vec2_t &z_hat, vec2_t &r) const {
+int reproj_residual_t::get_residual(vec2_t &z_hat, vec2_t &r) const {
   assert(T_BCi != nullptr);
   assert(T_C0F != nullptr);
 
@@ -226,7 +226,7 @@ int reproj_error_t::get_residual(vec2_t &z_hat, vec2_t &r) const {
   return 0;
 }
 
-int reproj_error_t::get_residual(vec2_t &r) const {
+int reproj_residual_t::get_residual(vec2_t &r) const {
   assert(T_BCi != nullptr);
   assert(T_C0F != nullptr);
 
@@ -238,7 +238,7 @@ int reproj_error_t::get_residual(vec2_t &r) const {
   return 0;
 }
 
-int reproj_error_t::get_reproj_error(real_t &error) const {
+int reproj_residual_t::get_reproj_error(real_t &error) const {
   vec2_t r;
   if (get_residual(r) != 0) {
     return -1;
@@ -247,10 +247,11 @@ int reproj_error_t::get_reproj_error(real_t &error) const {
   return 0;
 }
 
-bool reproj_error_t::EvaluateWithMinimalJacobians(double const *const *params,
-                                                  double *res,
-                                                  double **jacs,
-                                                  double **min_jacs) const {
+bool reproj_residual_t::EvaluateWithMinimalJacobians(
+    double const *const *params,
+    double *res,
+    double **jacs,
+    double **min_jacs) const {
   // Map parameters out
   const mat4_t T_C0Ci = tf(params[0]);
   const mat4_t T_C0F = tf(params[1]);
@@ -350,19 +351,19 @@ bool reproj_error_t::EvaluateWithMinimalJacobians(double const *const *params,
 
 // FIDUCIAL ERROR //////////////////////////////////////////////////////////////
 
-fiducial_error_t::fiducial_error_t(const timestamp_t &ts,
-                                   camera_geometry_t *cam_geom,
-                                   camera_params_t *cam_params,
-                                   extrinsics_t *cam_exts,
-                                   extrinsics_t *imu_exts,
-                                   fiducial_t *fiducial,
-                                   pose_t *pose,
-                                   const int tag_id,
-                                   const int corner_idx,
-                                   const vec3_t &r_FFi,
-                                   const vec2_t &z,
-                                   const mat2_t &covar)
-    : calib_error_t{"fiducial_error_t"}, ts_{ts}, cam_geom_{cam_geom},
+fiducial_residual_t::fiducial_residual_t(const timestamp_t &ts,
+                                         camera_geometry_t *cam_geom,
+                                         camera_params_t *cam_params,
+                                         extrinsics_t *cam_exts,
+                                         extrinsics_t *imu_exts,
+                                         fiducial_t *fiducial,
+                                         pose_t *pose,
+                                         const int tag_id,
+                                         const int corner_idx,
+                                         const vec3_t &r_FFi,
+                                         const vec2_t &z,
+                                         const mat2_t &covar)
+    : calib_residual_t{"fiducial_residual_t"}, ts_{ts}, cam_geom_{cam_geom},
       cam_params_{cam_params}, cam_exts_{cam_exts}, imu_exts_{imu_exts},
       fiducial_{fiducial}, pose_{pose}, tag_id_{tag_id},
       corner_idx_{corner_idx}, r_FFi_{r_FFi}, z_{z},
@@ -385,7 +386,7 @@ fiducial_error_t::fiducial_error_t(const timestamp_t &ts,
   block_sizes->push_back(cam_params->global_size); // camera parameters
 }
 
-int fiducial_error_t::get_residual(vec2_t &r) const {
+int fiducial_residual_t::get_residual(vec2_t &r) const {
   // Map parameters
   const mat4_t T_WF = fiducial_->estimate();
   const mat4_t T_WS = tf(pose_->param.data());
@@ -409,7 +410,7 @@ int fiducial_error_t::get_residual(vec2_t &r) const {
   return 0;
 }
 
-int fiducial_error_t::get_reproj_error(real_t &error) const {
+int fiducial_residual_t::get_reproj_error(real_t &error) const {
   vec2_t r;
   if (get_residual(r) != 0) {
     return -1;
@@ -418,10 +419,11 @@ int fiducial_error_t::get_reproj_error(real_t &error) const {
   return 0;
 }
 
-bool fiducial_error_t::EvaluateWithMinimalJacobians(double const *const *params,
-                                                    double *res,
-                                                    double **jacs,
-                                                    double **min_jacs) const {
+bool fiducial_residual_t::EvaluateWithMinimalJacobians(
+    double const *const *params,
+    double *res,
+    double **jacs,
+    double **min_jacs) const {
   // Map parameters
 #if FIDUCIAL_PARAMS_SIZE == 2
   const double roll = params[0][0];
@@ -636,13 +638,13 @@ bool fiducial_error_t::EvaluateWithMinimalJacobians(double const *const *params,
 
 // INERTIAL ERROR //////////////////////////////////////////////////////////////
 
-imu_error_t::imu_error_t(const imu_params_t &imu_params,
-                         const imu_data_t &imu_data,
-                         pose_t *pose_i,
-                         sb_params_t *sb_i,
-                         pose_t *pose_j,
-                         sb_params_t *sb_j)
-    : calib_error_t{"imu_error_t"}, imu_params_{imu_params},
+imu_residual_t::imu_residual_t(const imu_params_t &imu_params,
+                               const imu_data_t &imu_data,
+                               pose_t *pose_i,
+                               sb_params_t *sb_i,
+                               pose_t *pose_j,
+                               sb_params_t *sb_j)
+    : calib_residual_t{"imu_residual_t"}, imu_params_{imu_params},
       imu_data_{imu_data}, t0_{pose_i->ts}, t1_{pose_j->ts}, pose_i_{pose_i},
       sb_i_{sb_i}, pose_j_{pose_j}, sb_j_{sb_j} {
   // Data
@@ -660,14 +662,14 @@ imu_error_t::imu_error_t(const imu_params_t &imu_params,
   block_sizes->push_back(9); // sb_j
 }
 
-int imu_error_t::propagation(const imu_data_t &imu_data,
-                             const imu_params_t &imu_params,
-                             mat4_t &T_WS,
-                             vec_t<9> &sb,
-                             const timestamp_t &t_start,
-                             const timestamp_t &t_end,
-                             mat_t<15, 15> *covariance,
-                             mat_t<15, 15> *jacobian) {
+int imu_residual_t::propagation(const imu_data_t &imu_data,
+                                const imu_params_t &imu_params,
+                                mat4_t &T_WS,
+                                vec_t<9> &sb,
+                                const timestamp_t &t_start,
+                                const timestamp_t &t_end,
+                                mat_t<15, 15> *covariance,
+                                mat_t<15, 15> *jacobian) {
   // now the propagation
   // timestamp_t time = t_start;
   // timestamp_t end = t_end;
@@ -908,10 +910,10 @@ int imu_error_t::propagation(const imu_data_t &imu_data,
   return i;
 }
 
-int imu_error_t::redoPreintegration(const mat4_t & /*T_WS*/,
-                                    const vec_t<9> &sb,
-                                    timestamp_t time,
-                                    timestamp_t end) const {
+int imu_residual_t::redoPreintegration(const mat4_t & /*T_WS*/,
+                                       const vec_t<9> &sb,
+                                       timestamp_t time,
+                                       timestamp_t end) const {
   // Ensure unique access
   std::lock_guard<std::mutex> lock(preintegrationMutex_);
 
@@ -1110,13 +1112,13 @@ int imu_error_t::redoPreintegration(const mat4_t & /*T_WS*/,
   return i;
 }
 
-bool imu_error_t::Evaluate(double const *const *parameters,
-                           double *residuals,
-                           double **jacobians) const {
+bool imu_residual_t::Evaluate(double const *const *parameters,
+                              double *residuals,
+                              double **jacobians) const {
   return EvaluateWithMinimalJacobians(parameters, residuals, jacobians, NULL);
 }
 
-bool imu_error_t::EvaluateWithMinimalJacobians(
+bool imu_residual_t::EvaluateWithMinimalJacobians(
     double const *const *params,
     double *residuals,
     double **jacobians,
@@ -1321,21 +1323,25 @@ bool imu_error_t::EvaluateWithMinimalJacobians(
 
 // MARGINALIZATION ERROR /////////////////////////////////////////////////////
 
-marg_error_t::marg_error_t() : calib_error_t{"marg_error_t"} {}
+marg_residual_t::marg_residual_t() : calib_residual_t{"marg_residual_t"} {}
 
-marg_error_t::~marg_error_t() {
+marg_residual_t::~marg_residual_t() {
   for (auto res_block : res_blocks_) {
     delete res_block;
   }
 }
 
-size_t marg_error_t::get_residual_size() const { return r_; }
+size_t marg_residual_t::get_residual_size() const { return r_; }
 
-void marg_error_t::set_residual_size(size_t size) { set_num_residuals(size); }
+void marg_residual_t::set_residual_size(size_t size) {
+  set_num_residuals(size);
+}
 
-std::vector<param_t *> marg_error_t::get_params() { return remain_param_ptrs_; }
+std::vector<param_t *> marg_residual_t::get_params() {
+  return remain_param_ptrs_;
+}
 
-std::vector<double *> marg_error_t::get_param_ptrs() {
+std::vector<double *> marg_residual_t::get_param_ptrs() {
   std::vector<double *> params;
   for (size_t i = 0; i < remain_param_ptrs_.size(); i++) {
     params.push_back(remain_param_ptrs_[i]->param.data());
@@ -1343,7 +1349,7 @@ std::vector<double *> marg_error_t::get_param_ptrs() {
   return params;
 }
 
-void marg_error_t::add(calib_error_t *res_block) {
+void marg_residual_t::add(calib_residual_t *res_block) {
   // Check pointer to residual block
   if (res_block == nullptr) {
     FATAL("res_block == nullptr!");
@@ -1351,15 +1357,15 @@ void marg_error_t::add(calib_error_t *res_block) {
   res_blocks_.push_back(res_block);
 }
 
-void marg_error_t::add_remain_param(param_t *param) {
+void marg_residual_t::add_remain_param(param_t *param) {
   param_blocks.push_back(param);
   remain_param_ptrs_.push_back(param);
   mutable_parameter_block_sizes()->push_back(param->global_size);
 }
 
-void marg_error_t::form_hessian(matx_t &H, vecx_t &b) {
+void marg_residual_t::form_hessian(matx_t &H, vecx_t &b) {
   // Reset marginalization error parameter blocks and residual size
-  param_blocks.clear(); // <- calib_error_t::param_blocks
+  param_blocks.clear(); // <- calib_residual_t::param_blocks
   mutable_parameter_block_sizes()->clear();
   set_num_residuals(0);
 
@@ -1424,7 +1430,7 @@ void marg_error_t::form_hessian(matx_t &H, vecx_t &b) {
       H_idx += param_block->local_size;
       r_ += param_block->local_size;
       remain_param_ptrs_.push_back(param_block);
-      param_blocks.push_back(param_block); // <- calib_error_t::param_blocks
+      param_blocks.push_back(param_block); // <- calib_residual_t::param_blocks
 
       // VERY IMPORTANT!! Update param blocks and sizes for ceres::CostFunction
       mutable_parameter_block_sizes()->push_back(param_block->global_size);
@@ -1452,7 +1458,7 @@ void marg_error_t::form_hessian(matx_t &H, vecx_t &b) {
   H = zeros(local_size, local_size);
   b = zeros(local_size, 1);
 
-  for (calib_error_t *res_block : res_blocks_) {
+  for (calib_residual_t *res_block : res_blocks_) {
     // Setup parameter data
     std::vector<double *> param_ptrs;
     for (auto param_block : res_block->param_blocks) {
@@ -1520,12 +1526,12 @@ void marg_error_t::form_hessian(matx_t &H, vecx_t &b) {
   }
 }
 
-void marg_error_t::schurs_complement(const matx_t &H,
-                                     const vecx_t &b,
-                                     const size_t m,
-                                     const size_t r,
-                                     matx_t &H_marg,
-                                     vecx_t &b_marg) {
+void marg_residual_t::schurs_complement(const matx_t &H,
+                                        const vecx_t &b,
+                                        const size_t m,
+                                        const size_t r,
+                                        matx_t &H_marg,
+                                        vecx_t &b_marg) {
   assert(m > 0 && r > 0);
 
   // Setup
@@ -1553,7 +1559,7 @@ void marg_error_t::schurs_complement(const matx_t &H,
   const double inv_check = ((Hmm * Hmm_inv) - I(m, m)).sum();
   if (fabs(inv_check) > 1e-4) {
     LOG_WARN("Inverse identity check: %f", inv_check);
-    LOG_WARN("This is bad ... Usually means marg_error_t is bad!");
+    LOG_WARN("This is bad ... Usually means marg_residual_t is bad!");
   }
   // clang-format on
 
@@ -1567,9 +1573,10 @@ void marg_error_t::schurs_complement(const matx_t &H,
   b_marg = brr - Hrm * Hmm_inv * bmm;
 }
 
-void marg_error_t::marginalize(std::vector<param_t *> &marg_params,
-                               std::vector<calib_error_t *> &marg_residuals,
-                               const bool debug) {
+void marg_residual_t::marginalize(
+    std::vector<param_t *> &marg_params,
+    std::vector<calib_residual_t *> &marg_residuals,
+    const bool debug) {
   // Form Hessian and RHS of Gauss newton
   matx_t H;
   vecx_t b;
@@ -1610,7 +1617,7 @@ void marg_error_t::marginalize(std::vector<param_t *> &marg_params,
   const bool decomp_check = decomp_norm < 1.0e-2;
   if (decomp_check == false) {
     LOG_WARN("Decompose JtJ check: %f", decomp_norm);
-    LOG_WARN("This is bad ... Usually means marg_error_t is bad!");
+    LOG_WARN("This is bad ... Usually means marg_residual_t is bad!");
   }
   // clang-format on
 
@@ -1630,8 +1637,8 @@ void marg_error_t::marginalize(std::vector<param_t *> &marg_params,
 
   // Copy parameters and residuals to be removed
   // IMPORTANT NOTE: By doing this, this transfers ownership out of
-  // marg_error_t. This means you have to free it yourself outside of
-  // marg_error_t.
+  // marg_residual_t. This means you have to free it yourself outside of
+  // marg_residual_t.
   marg_params = marg_param_ptrs_;
   marg_residuals = res_blocks_;
   // Clear the pointers in the member variables
@@ -1642,11 +1649,11 @@ void marg_error_t::marginalize(std::vector<param_t *> &marg_params,
   marginalized_ = true;
 }
 
-ceres::ResidualBlockId marg_error_t::marginalize(ceres::Problem *problem,
-                                                 bool debug) {
+ceres::ResidualBlockId marg_residual_t::marginalize(ceres::Problem *problem,
+                                                    bool debug) {
   // Marginalize
   std::vector<param_t *> marg_params;
-  std::vector<calib_error_t *> marg_residuals;
+  std::vector<calib_residual_t *> marg_residuals;
   marginalize(marg_params, marg_residuals);
 
   // Remove parameter blocks from problem, which in turn ceres will remove
@@ -1667,10 +1674,10 @@ ceres::ResidualBlockId marg_error_t::marginalize(ceres::Problem *problem,
   return problem->AddResidualBlock(this, NULL, get_param_ptrs());
 }
 
-vecx_t marg_error_t::compute_delta_chi(double const *const *params) const {
+vecx_t marg_residual_t::compute_delta_chi(double const *const *params) const {
   // Pre-check
   if (marginalized_ == false) {
-    FATAL("Implementation Error! marg_error_t not marginalized yet!");
+    FATAL("Implementation Error! marg_residual_t not marginalized yet!");
   }
 
   // Check if parameter is a pose
@@ -1712,13 +1719,13 @@ vecx_t marg_error_t::compute_delta_chi(double const *const *params) const {
   return DeltaChi;
 }
 
-bool marg_error_t::EvaluateWithMinimalJacobians(double const *const *params,
-                                                double *res,
-                                                double **jacs,
-                                                double **min_jacs) const {
+bool marg_residual_t::EvaluateWithMinimalJacobians(double const *const *params,
+                                                   double *res,
+                                                   double **jacs,
+                                                   double **min_jacs) const {
   // Pre-check
   if (marginalized_ == false) {
-    FATAL("Implementation Error! marg_error_t not marginalized yet!");
+    FATAL("Implementation Error! marg_residual_t not marginalized yet!");
   }
 
   // Residuals

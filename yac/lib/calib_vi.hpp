@@ -3,7 +3,7 @@
 
 #include <ceres/ceres.h>
 
-#include "calib_errors.hpp"
+#include "calib_residuals.hpp"
 
 namespace yac {
 
@@ -29,11 +29,11 @@ struct calib_vi_view_t {
   // Problem
   ceres::Problem *problem = nullptr;
   // -- Fiducial errors
-  CamIdx2FiducialErrorIds fiducial_error_ids;
-  CamIdx2FiducialErrors fiducial_errors;
-  // -- Imu error
-  ceres::ResidualBlockId imu_error_id;
-  imu_error_t *imu_error = nullptr;
+  CamIdx2FiducialResidualIds fiducial_residual_ids;
+  CamIdx2FiducialResiduals fiducial_residuals;
+  // -- Imu residual
+  ceres::ResidualBlockId imu_residual_id;
+  imu_residual_t *imu_residual = nullptr;
 
   calib_vi_view_t() = default;
   calib_vi_view_t(const timestamp_t ts_,
@@ -54,11 +54,11 @@ struct calib_vi_view_t {
   std::map<int, std::vector<real_t>> get_reproj_errors() const;
   std::vector<real_t> get_imu_errors() const;
   int filter_view(const real_t outlier_threshold);
-  void form_imu_error(const imu_params_t &imu_params,
-                      imu_data_t &imu_buf,
-                      pose_t *pose_j,
-                      sb_params_t *sb_j);
-  ceres::ResidualBlockId marginalize(marg_error_t *marg_error);
+  void form_imu_residual(const imu_params_t &imu_params,
+                         imu_data_t &imu_buf,
+                         pose_t *pose_j,
+                         sb_params_t *sb_j);
+  ceres::ResidualBlockId marginalize(marg_residual_t *marg_residual);
 };
 
 // VISUAL INERTIAL CALIBRATOR //////////////////////////////////////////////////
@@ -101,8 +101,8 @@ struct calib_vi_t {
   // Problem data
   profiler_t prof;
   std::deque<calib_vi_view_t *> calib_views;
-  ceres::ResidualBlockId marg_error_id;
-  marg_error_t *marg_error = nullptr;
+  ceres::ResidualBlockId marg_residual_id;
+  marg_residual_t *marg_residual = nullptr;
 
   // Optimization
   PoseLocalParameterization pose_plus;

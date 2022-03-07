@@ -1,5 +1,5 @@
-#ifndef YAC_CALIB_ERRORS_HPP
-#define YAC_CALIB_ERRORS_HPP
+#ifndef YAC_CALIB_RESIDUALS_HPP
+#define YAC_CALIB_RESIDUALS_HPP
 
 #include <mutex>
 #include <ceres/ceres.h>
@@ -12,20 +12,20 @@
 
 namespace yac {
 
-// CALIB ERROR /////////////////////////////////////////////////////////////////
+// CALIB RESIDUAL /////////////////////////////////////////////////////////////
 
-struct calib_error_t : public ceres::CostFunction {
+struct calib_residual_t : public ceres::CostFunction {
   // Data
   std::string type;
   std::vector<param_t *> param_blocks;
   ceres::LossFunction *loss_fn = nullptr;
 
   /* Constructor */
-  calib_error_t() = default;
-  calib_error_t(const std::string &type);
+  calib_residual_t() = default;
+  calib_residual_t(const std::string &type);
 
   /* Destructor */
-  virtual ~calib_error_t() = default;
+  virtual ~calib_residual_t() = default;
 
   /* Get parameter block pointers */
   std::vector<double *> param_block_ptrs();
@@ -52,9 +52,9 @@ struct calib_error_t : public ceres::CostFunction {
                   const double tol = 1e-4);
 };
 
-// POSE ERROR //////////////////////////////////////////////////////////////////
+// POSE RESIDUAL //////////////////////////////////////////////////////////////
 
-struct pose_error_t : public calib_error_t {
+struct pose_residual_t : public calib_residual_t {
   const pose_t *pose = nullptr;
   const mat4_t pose_meas;
 
@@ -64,10 +64,10 @@ struct pose_error_t : public calib_error_t {
   mat_t<6, 6> sqrt_info;
 
   /* Constructor */
-  pose_error_t(pose_t *pose_, const mat_t<6, 6> &covar_);
+  pose_residual_t(pose_t *pose_, const mat_t<6, 6> &covar_);
 
   /* Destructor */
-  ~pose_error_t() = default;
+  ~pose_residual_t() = default;
 
   /* Evaluate */
   bool EvaluateWithMinimalJacobians(double const *const *params,
@@ -76,10 +76,10 @@ struct pose_error_t : public calib_error_t {
                                     double **min_jacs) const;
 };
 
-// REPROJECTION ERROR //////////////////////////////////////////////////////////
+// REPROJECTION RESIDUAL //////////////////////////////////////////////////////
 
-/** Reprojection Error */
-struct reproj_error_t : public calib_error_t {
+/** Reprojection Residual */
+struct reproj_residual_t : public calib_residual_t {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
   // Data
@@ -97,16 +97,16 @@ struct reproj_error_t : public calib_error_t {
   const mat2_t sqrt_info;
 
   /** Constructor */
-  reproj_error_t(camera_geometry_t *cam_geom_,
-                 camera_params_t *cam_params_,
-                 pose_t *T_BCi_,
-                 pose_t *T_C0F_,
-                 fiducial_corner_t *p_FFi_,
-                 const vec2_t &z_,
-                 const mat2_t &covar_);
+  reproj_residual_t(camera_geometry_t *cam_geom_,
+                    camera_params_t *cam_params_,
+                    pose_t *T_BCi_,
+                    pose_t *T_C0F_,
+                    fiducial_corner_t *p_FFi_,
+                    const vec2_t &z_,
+                    const mat2_t &covar_);
 
   /* Destructor */
-  ~reproj_error_t() = default;
+  ~reproj_residual_t() = default;
 
   /** Get residual */
   int get_residual(vec2_t &z_hat, vec2_t &r) const;
@@ -124,9 +124,9 @@ struct reproj_error_t : public calib_error_t {
                                     double **min_jacs) const;
 };
 
-// FIDUCIAL ERROR //////////////////////////////////////////////////////////////
+// FIDUCIAL RESIDUAL //////////////////////////////////////////////////////////
 
-struct fiducial_error_t : public calib_error_t {
+struct fiducial_residual_t : public calib_residual_t {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 
   // Data
@@ -150,21 +150,21 @@ struct fiducial_error_t : public calib_error_t {
   const mat2_t sqrt_info_;
 
   /* Constructor */
-  fiducial_error_t(const timestamp_t &ts,
-                   camera_geometry_t *cam_geom,
-                   camera_params_t *cam_params,
-                   extrinsics_t *cam_exts,
-                   extrinsics_t *imu_exts,
-                   fiducial_t *fiducial,
-                   pose_t *pose,
-                   const int tag_id,
-                   const int corner_idx,
-                   const vec3_t &r_FFi,
-                   const vec2_t &z,
-                   const mat2_t &covar);
+  fiducial_residual_t(const timestamp_t &ts,
+                      camera_geometry_t *cam_geom,
+                      camera_params_t *cam_params,
+                      extrinsics_t *cam_exts,
+                      extrinsics_t *imu_exts,
+                      fiducial_t *fiducial,
+                      pose_t *pose,
+                      const int tag_id,
+                      const int corner_idx,
+                      const vec3_t &r_FFi,
+                      const vec2_t &z,
+                      const mat2_t &covar);
 
   /* Destructor */
-  ~fiducial_error_t() = default;
+  ~fiducial_residual_t() = default;
 
   /** Get residual */
   int get_residual(vec2_t &r) const;
@@ -179,14 +179,14 @@ struct fiducial_error_t : public calib_error_t {
                                     double **min_jacs) const;
 };
 
-// INERTIAL ERROR //////////////////////////////////////////////////////////////
+// INERTIAL RESIDUAL //////////////////////////////////////////////////////////
 
 #define EST_TIMEDELAY 0
 
 /**
  * Implements a nonlinear IMU factor.
  */
-class imu_error_t : public calib_error_t {
+class imu_residual_t : public calib_residual_t {
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
@@ -206,16 +206,16 @@ public:
   mutable vec_t<9> sb1_last_;
 
   // Constructor
-  imu_error_t() = delete;
-  imu_error_t(const imu_params_t &imu_params,
-              const imu_data_t &imu_data,
-              pose_t *pose_i,
-              sb_params_t *sb_i,
-              pose_t *pose_j,
-              sb_params_t *sb_j);
+  imu_residual_t() = delete;
+  imu_residual_t(const imu_params_t &imu_params,
+                 const imu_data_t &imu_data,
+                 pose_t *pose_i,
+                 sb_params_t *sb_i,
+                 pose_t *pose_j,
+                 sb_params_t *sb_j);
 
   // Destructor
-  virtual ~imu_error_t() = default;
+  virtual ~imu_residual_t() = default;
 
   /* Propagate IMU Measurements */
   static int propagation(const imu_data_t &imu_data,
@@ -282,9 +282,9 @@ protected:
   mutable mat_t<15, 15> squareRootInformation_;
 };
 
-// MARGINALIZATION ERROR ///////////////////////////////////////////////////////
+// MARGINALIZATION RESIDUAL ////////////////////////////////////////////////////
 
-class marg_error_t : public calib_error_t {
+class marg_residual_t : public calib_residual_t {
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   bool marginalized_ = false;
@@ -292,7 +292,7 @@ public:
   // Residual blocks and parameters involved for marginalization
   size_t m_ = 0; // Size of params to marginalize
   size_t r_ = 0; // Size of params to remain
-  std::vector<calib_error_t *> res_blocks_;
+  std::vector<calib_residual_t *> res_blocks_;
   std::vector<param_t *> marg_param_ptrs_;
   std::vector<param_t *> remain_param_ptrs_;
   std::unordered_map<param_t *, int> param_index_;
@@ -302,10 +302,10 @@ public:
   matx_t J0_;                               // Linearized jacobians at x0
 
   /* Constructor */
-  marg_error_t();
+  marg_residual_t();
 
   /* Destructor */
-  ~marg_error_t();
+  ~marg_residual_t();
 
   /* Get Residual Size */
   size_t get_residual_size() const;
@@ -320,7 +320,7 @@ public:
   std::vector<double *> get_param_ptrs();
 
   /* Add Cost Function */
-  void add(calib_error_t *error);
+  void add(calib_residual_t *error);
 
   /* Add Parameter block */
   void add_remain_param(param_t *param);
@@ -338,7 +338,7 @@ public:
 
   /* Marginalize */
   void marginalize(std::vector<param_t *> &marg_params,
-                   std::vector<calib_error_t *> &marg_residuals,
+                   std::vector<calib_residual_t *> &marg_residuals,
                    const bool debug = false);
   ceres::ResidualBlockId marginalize(ceres::Problem *problem,
                                      bool debug = false);
@@ -360,11 +360,11 @@ using CamIdx2Grids = std::map<int, aprilgrid_t>;
 using CamIdx2Geometry = std::map<int, camera_geometry_t *>;
 using CamIdx2Parameters = std::map<int, camera_params_t *>;
 using CamIdx2Extrinsics = std::map<int, extrinsics_t *>;
-using CamIdx2ReprojErrors = std::map<int, std::deque<reproj_error_t *>>;
-using CamIdx2ReprojErrorIds = std::map<int, std::deque<ceres::ResidualBlockId>>;
-using CamIdx2FiducialErrors = std::map<int, std::deque<fiducial_error_t *>>;
-using CamIdx2FiducialErrorIds = std::map<int, std::deque<ceres::ResidualBlockId>>;
+using CamIdx2ReprojResiduals = std::map<int, std::deque<reproj_residual_t *>>;
+using CamIdx2ReprojResidualIds = std::map<int, std::deque<ceres::ResidualBlockId>>;
+using CamIdx2FiducialResiduals = std::map<int, std::deque<fiducial_residual_t *>>;
+using CamIdx2FiducialResidualIds = std::map<int, std::deque<ceres::ResidualBlockId>>;
 // clang-format on
 
 } //  namespace yac
-#endif // YAC_CALIB_ERRORS_HPP
+#endif // YAC_CALIB_RESIDUALS_HPP

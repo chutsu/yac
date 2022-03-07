@@ -1,15 +1,17 @@
 #include "calib_params.hpp"
-#include "calib_errors.hpp"
+#include "calib_residuals.hpp"
 
 namespace yac {
 
 // SOLVER BASE /////////////////////////////////////////////////////////////////
 
 struct solver_t {
-  std::unordered_set<calib_error_t *> cost_fns;
+  std::unordered_set<calib_residual_t *> res_fns;
   std::unordered_map<real_t *, param_t *> params;
-  std::unordered_map<param_t *, std::unordered_set<calib_error_t *>> param2res;
-  std::unordered_map<calib_error_t *, std::unordered_set<param_t *>> res2param;
+  std::unordered_map<param_t *, std::unordered_set<calib_residual_t *>>
+      param2res;
+  std::unordered_map<calib_residual_t *, std::unordered_set<param_t *>>
+      res2param;
 
   real_t initial_cost = 0.0;
   real_t final_cost = 0.0;
@@ -22,9 +24,9 @@ struct solver_t {
   virtual size_t num_params();
   virtual bool has_param(param_t *param);
   virtual void add_param(param_t *param);
-  virtual void add_residual(calib_error_t *cost_fn);
+  virtual void add_residual(calib_residual_t *res_fn);
   virtual void remove_param(param_t *param);
-  virtual void remove_residual(calib_error_t *cost_fn);
+  virtual void remove_residual(calib_residual_t *res_fn);
   virtual int estimate_covariance(const std::vector<param_t *> params,
                                   matx_t &calib_covar,
                                   const bool verbose = false) const;
@@ -41,7 +43,7 @@ struct ceres_solver_t : solver_t {
   ceres::Problem *problem;
 
   PoseLocalParameterization pose_plus;
-  std::unordered_map<calib_error_t *, ceres::ResidualBlockId> res2id;
+  std::unordered_map<calib_residual_t *, ceres::ResidualBlockId> res2id;
 
   ceres_solver_t();
   ~ceres_solver_t();
@@ -50,9 +52,9 @@ struct ceres_solver_t : solver_t {
   size_t num_params() override;
   bool has_param(param_t *param) override;
   void add_param(param_t *param) override;
-  void add_residual(calib_error_t *cost_fn) override;
+  void add_residual(calib_residual_t *res_fn) override;
   void remove_param(param_t *param) override;
-  void remove_residual(calib_error_t *cost_fn) override;
+  void remove_residual(calib_residual_t *res_fn) override;
   int estimate_covariance(const std::vector<param_t *> params,
                           matx_t &covar,
                           const bool verbose = true) const;
@@ -65,8 +67,8 @@ struct ceres_solver_t : solver_t {
 // SOLVER /////////////////////////////////////////////////////////////////////
 
 // clang-format off
-using ResidualJacobians = std::map<calib_error_t *, std::vector<matx_row_major_t>>;
-using ResidualValues = std::map<calib_error_t *, vecx_t>;
+using ResidualJacobians = std::map<calib_residual_t *, std::vector<matx_row_major_t>>;
+using ResidualValues = std::map<calib_residual_t *, vecx_t>;
 using ParameterOrder = std::map<param_t *, int>;
 // clang-format on
 
@@ -74,7 +76,7 @@ struct yac_solver_t : solver_t {
   yac_solver_t() = default;
   ~yac_solver_t() = default;
 
-  bool _eval_residual(calib_error_t *res_fn,
+  bool _eval_residual(calib_residual_t *res_fn,
                       ResidualJacobians &res_jacs,
                       ResidualJacobians &res_min_jacs,
                       ResidualValues &res_vals);

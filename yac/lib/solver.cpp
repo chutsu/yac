@@ -4,7 +4,7 @@ namespace yac {
 
 // SOLVER BASE /////////////////////////////////////////////////////////////////
 
-size_t solver_t::num_residuals() { return cost_fns.size(); }
+size_t solver_t::num_residuals() { return res_fns.size(); }
 
 bool solver_t::has_param(param_t *param) { return params.count(param->data()); }
 
@@ -12,24 +12,24 @@ size_t solver_t::num_params() { return params.size(); }
 
 void solver_t::add_param(param_t *param) { params[param->data()] = param; }
 
-void solver_t::add_residual(calib_error_t *cost_fn) {
+void solver_t::add_residual(calib_residual_t *res_fn) {
   // Pre-check
-  if (cost_fns.count(cost_fn)) {
-    printf("residual: %s, addr: %p\n", cost_fn->type.c_str(), cost_fn);
+  if (res_fns.count(res_fn)) {
+    printf("residual: %s, addr: %p\n", res_fn->type.c_str(), res_fn);
     FATAL("Residual already exists in problem!");
   }
 
   // Insert
-  cost_fns.insert(cost_fn);
+  res_fns.insert(res_fn);
 
   // Update param2res
-  for (auto param : cost_fn->param_blocks) {
-    param2res[param].insert(cost_fn);
+  for (auto param : res_fn->param_blocks) {
+    param2res[param].insert(res_fn);
   }
 
   // Update res2param
-  for (auto param : cost_fn->param_blocks) {
-    res2param[cost_fn].insert(param);
+  for (auto param : res_fn->param_blocks) {
+    res2param[res_fn].insert(param);
   }
 }
 
@@ -51,35 +51,35 @@ void solver_t::remove_param(param_t *param) {
   }
 }
 
-void solver_t::remove_residual(calib_error_t *cost_fn) {
+void solver_t::remove_residual(calib_residual_t *res_fn) {
   // Pre-check
-  if (cost_fns.count(cost_fn) == 0) {
+  if (res_fns.count(res_fn) == 0) {
     FATAL("Residual block does not exist in problem!");
   }
 
   // Erase residual
-  cost_fns.erase(cost_fn);
+  res_fns.erase(res_fn);
 
   // Update param2res
-  for (auto param : cost_fn->param_blocks) {
-    param2res[param].erase(cost_fn);
+  for (auto param : res_fn->param_blocks) {
+    param2res[param].erase(res_fn);
   }
 
   // Update res2param
-  res2param.erase(cost_fn);
+  res2param.erase(res_fn);
 }
 
 int solver_t::estimate_covariance(const std::vector<param_t *> params,
                                   matx_t &calib_covar,
                                   const bool verbose) const {
   // // Track parameters
-  // std::vector<calib_error_t *> res_blocks;
+  // std::vector<calib_residual_t *> res_blocks;
   // std::map<param_t *, bool> params_seen;
   // std::vector<param_t *> marg_param_ptrs;
   // std::vector<param_t *> remain_camera_param_ptrs;
   // std::vector<param_t *> remain_extrinsics_ptrs;
   // std::vector<param_t *> remain_fiducial_ptrs;
-  // for (auto &res_block : cost_fns) {
+  // for (auto &res_block : res_fns) {
   //   for (auto param_block : res_block->param_blocks) {
   //     // Seen parameter block already
   //     if (params_seen.count(param_block)) {
@@ -138,7 +138,7 @@ int solver_t::estimate_covariance(const std::vector<param_t *> params,
   // matx_t H = zeros(local_size, local_size);
   // vecx_t b = zeros(local_size, 1);
   //
-  // for (calib_error_t *res_block : res_blocks) {
+  // for (calib_residual_t *res_block : res_blocks) {
   //   // Setup parameter data
   //   std::vector<double *> param_ptrs;
   //   for (auto param_block : res_block->param_blocks) {
@@ -288,14 +288,14 @@ void ceres_solver_t::add_param(param_t *param) {
   }
 }
 
-void ceres_solver_t::add_residual(calib_error_t *cost_fn) {
+void ceres_solver_t::add_residual(calib_residual_t *res_fn) {
   // Add residual
-  solver_t::add_residual(cost_fn);
+  solver_t::add_residual(res_fn);
 
   // Add residual to ceres::Problem
-  auto param_blocks = cost_fn->param_block_ptrs();
-  auto res_id = problem->AddResidualBlock(cost_fn, nullptr, param_blocks);
-  res2id[cost_fn] = res_id;
+  auto param_blocks = res_fn->param_block_ptrs();
+  auto res_id = problem->AddResidualBlock(res_fn, nullptr, param_blocks);
+  res2id[res_fn] = res_id;
 }
 
 void ceres_solver_t::remove_param(param_t *param) {
@@ -320,30 +320,30 @@ void ceres_solver_t::remove_param(param_t *param) {
   problem->RemoveParameterBlock(param->data());
 }
 
-void ceres_solver_t::remove_residual(calib_error_t *cost_fn) {
+void ceres_solver_t::remove_residual(calib_residual_t *res_fn) {
   // Pre-check
-  if (cost_fns.count(cost_fn) == 0) {
-    FATAL("Residual block does not exist in cost_fns!");
+  if (res_fns.count(res_fn) == 0) {
+    FATAL("Residual block does not exist in res_fns!");
   }
-  if (res2id.count(cost_fn) == 0) {
+  if (res2id.count(res_fn) == 0) {
     FATAL("Residual block does not exist in res2id!");
   }
 
   // Erase residual
-  cost_fns.erase(cost_fn);
+  res_fns.erase(res_fn);
 
   // Update param2res
-  for (auto param : cost_fn->param_blocks) {
-    param2res[param].erase(cost_fn);
+  for (auto param : res_fn->param_blocks) {
+    param2res[param].erase(res_fn);
   }
 
   // Update res2param
-  res2param.erase(cost_fn);
+  res2param.erase(res_fn);
 
   // Remove residual from ceres::Problem
-  auto res_id = res2id[cost_fn];
+  auto res_id = res2id[res_fn];
   problem->RemoveResidualBlock(res_id);
-  res2id.erase(cost_fn);
+  res2id.erase(res_fn);
 }
 
 int ceres_solver_t::estimate_covariance(const std::vector<param_t *> params,
@@ -460,7 +460,7 @@ void ceres_solver_t::solve(const int max_iter,
 
 // SOLVER /////////////////////////////////////////////////////////////////////
 
-bool yac_solver_t::_eval_residual(calib_error_t *res_fn,
+bool yac_solver_t::_eval_residual(calib_residual_t *res_fn,
                                   ResidualJacobians &res_jacs,
                                   ResidualJacobians &res_min_jacs,
                                   ResidualValues &res_vals) {
@@ -507,10 +507,10 @@ void yac_solver_t::_linearize(ParameterOrder &param_index,
   ResidualJacobians res_jacs;
   ResidualJacobians res_min_jacs;
   ResidualValues res_vals;
-  std::vector<calib_error_t *> good_res_fns;
+  std::vector<calib_residual_t *> good_res_fns;
   size_t residuals_length = 0;
 
-  for (calib_error_t *res_fn : cost_fns) {
+  for (calib_residual_t *res_fn : res_fns) {
     if (_eval_residual(res_fn, res_jacs, res_min_jacs, res_vals)) {
       good_res_fns.push_back(res_fn);
       residuals_length += res_fn->num_residuals();
@@ -575,7 +575,7 @@ void yac_solver_t::_linearize(ParameterOrder &param_index,
   b = zeros(params_length, 1);
   size_t res_idx = 0;
 
-  for (calib_error_t *res_fn : good_res_fns) {
+  for (calib_residual_t *res_fn : good_res_fns) {
     const vecx_t r = res_vals[res_fn];
 
     for (size_t i = 0; i < res_fn->param_blocks.size(); i++) {

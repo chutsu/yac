@@ -182,13 +182,13 @@ calib_view_t::calib_view_t(const timestamp_t ts_,
       const int corner_idx = corner_idxs[i];
       const vec2_t z = kps[i];
       auto p_FFi_ = corners_->get_corner(tag_id, corner_idx);
-      auto res_fn = new reproj_error_t(cam_geoms_->at(cam_idx),
-                                       cam_params_->at(cam_idx),
-                                       cam_exts_->at(cam_idx),
-                                       T_C0F_,
-                                       p_FFi_,
-                                       z,
-                                       covar);
+      auto res_fn = new reproj_residual_t(cam_geoms_->at(cam_idx),
+                                          cam_params_->at(cam_idx),
+                                          cam_exts_->at(cam_idx),
+                                          T_C0F_,
+                                          p_FFi_,
+                                          z,
+                                          covar);
       solver->add_residual(res_fn);
       res_fns[cam_idx].push_back(res_fn);
     }
@@ -343,34 +343,34 @@ int calib_view_t::filter_view(const std::map<int, vec2_t> &thresholds) {
   return nb_outliers;
 }
 
-void calib_view_t::marginalize(marg_error_t *marg_error) {
+void calib_view_t::marginalize(marg_residual_t *marg_residual) {
   // Mark relative pose T_C0F to be marginalized
   T_C0F->marginalize = true;
 
   // Transfer residuals to marginalization error
   for (auto &[cam_idx, cam_residuals] : res_fns) {
     for (auto &res_fn : cam_residuals) {
-      marg_error->add(res_fn);
+      marg_residual->add(res_fn);
     }
   }
 
   // Marginalize
   std::vector<param_t *> marg_params;
-  std::vector<calib_error_t *> marg_residuals;
-  marg_error->marginalize(marg_params, marg_residuals);
+  std::vector<calib_residual_t *> marg_residuals;
+  marg_residual->marginalize(marg_params, marg_residuals);
   for (auto param : marg_params) {
     solver->remove_param(param);
   }
   for (auto res_fn : marg_residuals) {
     delete res_fn;
   }
-  solver->add_residual(marg_error);
+  solver->add_residual(marg_residual);
 
   // Clear residuals
   res_fns.clear();
   // ^ Important! we don't want to delete the residual blocks when the view
   // is deconstructed, but rather by adding the residual functions to the
-  // marginalization error we pass the ownership to marg_error_t
+  // marginalization error we pass the ownership to marg_residual_t
 }
 
 // CALIB CAMERA ////////////////////////////////////////////////////////////////
@@ -540,8 +540,8 @@ calib_camera_t::~calib_camera_t() {
     delete solver;
   }
 
-  if (marg_error) {
-    delete marg_error;
+  if (marg_residual) {
+    delete marg_residual;
   }
 }
 
@@ -928,25 +928,25 @@ void calib_camera_t::marginalize() {
   auto view = calib_views[marg_ts];
   poses[marg_ts]->marginalize = true;
 
-  // Form new marg_error_t
-  if (marg_error == nullptr) {
-    // Initialize first marg_error_t
-    marg_error = new marg_error_t();
+  // Form new marg_residual_t
+  if (marg_residual == nullptr) {
+    // Initialize first marg_residual_t
+    marg_residual = new marg_residual_t();
 
   } else {
-    // Add previous marg_error_t to new
-    auto new_marg_error = new marg_error_t();
-    new_marg_error->add(marg_error);
+    // Add previous marg_residual_t to new
+    auto new_marg_residual = new marg_residual_t();
+    new_marg_residual->add(marg_residual);
 
-    // Delete old marg_error_t
-    solver->remove_residual(marg_error);
+    // Delete old marg_residual_t
+    solver->remove_residual(marg_residual);
 
-    // Point to new marg_error_t
-    marg_error = new_marg_error;
+    // Point to new marg_residual_t
+    marg_residual = new_marg_residual;
   }
 
   // Marginalize view
-  view->marginalize(marg_error);
+  view->marginalize(marg_residual);
 
   // Remove view
   remove_view(marg_ts, false);
@@ -954,7 +954,7 @@ void calib_camera_t::marginalize() {
 
 // real_t calib_camera_t::_estimate_calib_info() {
 //   // Track parameters
-//   std::vector<calib_error_t *> res_blocks;
+//   std::vector<calib_residual_t *> res_blocks;
 //   std::map<param_t *, bool> params_seen;
 //   std::vector<param_t *> marg_param_ptrs;
 //   std::vector<param_t *> remain_camera_param_ptrs;
@@ -1023,7 +1023,7 @@ void calib_camera_t::marginalize() {
 //   matx_t H = zeros(local_size, local_size);
 //   vecx_t b = zeros(local_size, 1);
 //
-//   for (calib_error_t *res_block : res_blocks) {
+//   for (calib_residual_t *res_block : res_blocks) {
 //     // Setup parameter data
 //     std::vector<double *> param_ptrs;
 //     for (auto param_block : res_block->param_blocks) {

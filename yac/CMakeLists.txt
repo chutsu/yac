@@ -83,7 +83,7 @@ ADD_LIBRARY(
   yac
   lib/calib_camera.cpp
   lib/calib_data.cpp
-  lib/calib_errors.cpp
+  lib/calib_residuals.cpp
   # lib/calib_mocap.cpp
   lib/calib_nbt.cpp
   lib/calib_nbv.cpp
@@ -132,8 +132,8 @@ TARGET_LINK_LIBRARIES(test_calib_camera yac yac_util ${DEPS})
 ADD_EXECUTABLE(test_calib_data tests/test_calib_data.cpp)
 TARGET_LINK_LIBRARIES(test_calib_data yac yac_util ${DEPS})
 
-ADD_EXECUTABLE(test_calib_errors tests/test_calib_errors.cpp)
-TARGET_LINK_LIBRARIES(test_calib_errors yac yac_util ${DEPS})
+ADD_EXECUTABLE(test_calib_residuals tests/test_calib_residuals.cpp)
+TARGET_LINK_LIBRARIES(test_calib_residuals yac yac_util ${DEPS})
 
 # ADD_EXECUTABLE(test_calib_mocap tests/test_calib_mocap.cpp)
 # TARGET_LINK_LIBRARIES(test_calib_mocap yac yac_util ${DEPS})

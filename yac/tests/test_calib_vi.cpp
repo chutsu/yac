@@ -217,7 +217,7 @@ int test_calib_vi_copy_constructor() {
     }
 
     // Test copy-constructor
-    if (calib.marg_error != nullptr) {
+    if (calib.marg_residual != nullptr) {
       matx_t calib_covar_orig;
       calib.recover_calib_covar(calib_covar_orig);
       printf("Original:\n");

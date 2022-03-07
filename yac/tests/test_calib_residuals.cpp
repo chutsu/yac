@@ -1,5 +1,5 @@
 #include "munit.hpp"
-#include "calib_errors.hpp"
+#include "calib_residuals.hpp"
 
 namespace yac {
 
@@ -81,19 +81,19 @@ timeline_t setup_camimu_test_data() {
   return timeline;
 }
 
-int test_pose_error() {
+int test_pose_residual() {
   const vec3_t r{0.1, 0.2, 0.3};
   const vec3_t rpy{0.1, 0.2, 0.3};
   const quat_t q = euler2quat(rpy);
   pose_t pose{0, tf(q, r)};
   mat_t<6, 6> covar = I(6);
-  pose_error_t err(&pose, covar);
+  pose_residual_t err(&pose, covar);
   MU_CHECK(err.check_jacs(0, "J_pose"));
 
   return 0;
 }
 
-int test_reproj_error() {
+int test_reproj_residual() {
   // Load data
   auto cam_grids = setup_test_data();
 
@@ -140,13 +140,13 @@ int test_reproj_error() {
   fiducial_corners_t corners{calib_target};
   auto corner = corners.get_corner(tag_ids[0], corner_indicies[0]);
 
-  reproj_error_t err(&cam_geom,
-                     &cam_params,
-                     &cam_exts,
-                     &rel_pose,
-                     corner,
-                     keypoints[0],
-                     I(2));
+  reproj_residual_t err(&cam_geom,
+                        &cam_params,
+                        &cam_exts,
+                        &rel_pose,
+                        corner,
+                        keypoints[0],
+                        I(2));
 
   MU_CHECK(err.check_jacs(0, "J_cam_exts"));
   MU_CHECK(err.check_jacs(1, "J_rel_pose"));
@@ -156,7 +156,7 @@ int test_reproj_error() {
   return 0;
 }
 
-int test_fiducial_error() {
+int test_fiducial_residual() {
   // Fiducial pose in world frame
   // clang-format off
   mat4_t T_WF;
@@ -234,18 +234,18 @@ int test_fiducial_error() {
   cam_geom.project(cam_res, cam_params.param, r_C0Fi, z);
 
   // Form fiducial error
-  fiducial_error_t err(ts,
-                       &cam_geom,
-                       &cam_params,
-                       &cam_exts,
-                       &imu_exts,
-                       &fiducial,
-                       &pose,
-                       tag_id,
-                       corner_idx,
-                       r_FFi,
-                       z,
-                       covar);
+  fiducial_residual_t err(ts,
+                          &cam_geom,
+                          &cam_params,
+                          &cam_exts,
+                          &imu_exts,
+                          &fiducial,
+                          &pose,
+                          tag_id,
+                          corner_idx,
+                          r_FFi,
+                          z,
+                          covar);
 
   MU_CHECK(err.check_jacs(0, "J_fiducial"));
   MU_CHECK(err.check_jacs(1, "J_pose"));
@@ -257,9 +257,9 @@ int test_fiducial_error() {
 }
 
 void test_suite() {
-  MU_ADD_TEST(test_pose_error);
-  MU_ADD_TEST(test_reproj_error);
-  MU_ADD_TEST(test_fiducial_error);
+  MU_ADD_TEST(test_pose_residual);
+  MU_ADD_TEST(test_reproj_residual);
+  MU_ADD_TEST(test_fiducial_residual);
 }
 
 } // namespace yac

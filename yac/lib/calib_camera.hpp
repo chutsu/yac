@@ -5,7 +5,7 @@
 
 #include "calib_data.hpp"
 #include "calib_params.hpp"
-#include "calib_errors.hpp"
+#include "calib_residuals.hpp"
 #include "calib_nbv.hpp"
 #include "solver.hpp"
 
@@ -52,7 +52,7 @@ struct calib_view_t {
 
   // Problem
   solver_t *solver = nullptr;
-  CamIdx2ReprojErrors res_fns;
+  CamIdx2ReprojResiduals res_fns;
 
   // Parameters
   CamIdx2Geometry *cam_geoms = nullptr;
@@ -80,7 +80,7 @@ struct calib_view_t {
   std::vector<real_t> get_reproj_errors(const int cam_idx) const;
   int filter_view(const vec2_t &threshold);
   int filter_view(const std::map<int, vec2_t> &thresholds);
-  void marginalize(marg_error_t *marg_error);
+  void marginalize(marg_residual_t *marg_residual);
 };
 
 // CALIBRATOR //////////////////////////////////////////////////////////////////
@@ -138,7 +138,7 @@ struct calib_camera_t {
   // Problem
   std::default_random_engine calib_rng;
   solver_t *solver = nullptr;
-  marg_error_t *marg_error = nullptr;
+  marg_residual_t *marg_residual = nullptr;
 
   // State variables
   fiducial_corners_t *corners;

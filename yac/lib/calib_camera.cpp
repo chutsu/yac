@@ -379,8 +379,8 @@ calib_camera_t::calib_camera_t(const calib_target_t &calib_target_)
     : calib_target{calib_target_},
       calib_rng(std::chrono::system_clock::now().time_since_epoch().count()) {
   // Solver
-  // solver = new ceres_solver_t();
-  solver = new yac_solver_t();
+  solver = new ceres_solver_t();
+  // solver = new yac_solver_t();
 
   // Add fiducial corners to problem
   corners = new fiducial_corners_t(calib_target);
@@ -401,8 +401,8 @@ calib_camera_t::calib_camera_t(const calib_target_t &calib_target_)
 calib_camera_t::calib_camera_t(const std::string &config_path)
     : calib_rng(std::chrono::system_clock::now().time_since_epoch().count()) {
   // Solver
-  // solver = new ceres_solver_t();
-  solver = new yac_solver_t();
+  solver = new ceres_solver_t();
+  // solver = new yac_solver_t();
 
   // Load configuration
   config_t config{config_path};

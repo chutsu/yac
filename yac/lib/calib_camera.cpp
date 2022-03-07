@@ -853,40 +853,13 @@ bool calib_camera_t::add_view(const std::map<int, aprilgrid_t> &cam_grids,
   if (info_gain < info_gain_threshold) {
     _restore_estimates();
     remove_view(ts);
-
-    if (nbv_timestamps.count(ts) == 0) {
-      cam_estimates[ts][0] = get_camera_params(0);
-      cam_estimates[ts][1] = get_camera_params(1);
-      exts_estimates[ts][1] = get_camera_extrinsics(1);
-
-      const auto cost_init = solver->initial_cost;
-      const auto cost_final = solver->final_cost;
-      const auto num_iter = solver->num_iterations;
-      nbv_timestamps.insert(ts);
-      nbv_costs[ts] = {cost_init, cost_final, num_iter};
-      nbv_reproj_errors[ts] = get_reproj_errors();
-      nbv_accepted[ts] = false;
-    }
-
+    _track_estimates(ts);
     return false;
   }
 
   // Update
   info_k = info_kp1;
-
-  if (nbv_timestamps.count(ts) == 0) {
-    cam_estimates[ts][0] = get_camera_params(0);
-    cam_estimates[ts][1] = get_camera_params(1);
-    exts_estimates[ts][1] = get_camera_extrinsics(1);
-
-    const auto cost_init = solver->initial_cost;
-    const auto cost_final = solver->final_cost;
-    const auto num_iter = solver->num_iterations;
-    nbv_timestamps.insert(ts);
-    nbv_costs[ts] = {cost_init, cost_final, num_iter};
-    nbv_reproj_errors[ts] = get_reproj_errors();
-    nbv_accepted[ts] = false;
-  }
+  _track_estimates(ts);
 
   return true;
 }
@@ -1433,6 +1406,25 @@ int calib_camera_t::_remove_outliers(const bool filter_all) {
   }
 
   return nb_outliers;
+}
+
+void calib_camera_t::_track_estimates(const timestamp_t ts) {
+  if (nbv_timestamps.count(ts)) {
+    return;
+  }
+
+  for (auto cam_idx : get_camera_indices()) {
+    cam_estimates[ts][cam_idx] = get_camera_params(cam_idx);
+    exts_estimates[ts][cam_idx] = get_camera_extrinsics(cam_idx);
+  }
+
+  const auto cost_init = solver->initial_cost;
+  const auto cost_final = solver->final_cost;
+  const auto num_iter = solver->num_iterations;
+  nbv_timestamps.insert(ts);
+  nbv_costs[ts] = {cost_init, cost_final, num_iter};
+  nbv_reproj_errors[ts] = get_reproj_errors();
+  nbv_accepted[ts] = false;
 }
 
 void calib_camera_t::_print_stats(const size_t ts_idx,

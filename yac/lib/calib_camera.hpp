@@ -219,6 +219,7 @@ struct calib_camera_t {
   void _restore_estimates();
   int _calc_info(real_t *info);
   int _remove_outliers(const bool filter_all);
+  void _track_estimates(const timestamp_t ts);
   void _print_stats(const size_t ts_idx, const size_t nb_timestamps);
   void _solve_batch(const bool filter_outliers);
   void _solve_inc();

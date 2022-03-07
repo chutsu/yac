@@ -14,12 +14,13 @@ using ParameterOrder = std::map<param_t *, int>;
 // clang-format on
 
 struct solver_t {
+  // clang-format off
   std::unordered_set<calib_residual_t *> res_fns;
   std::unordered_map<real_t *, param_t *> params;
-  std::unordered_map<param_t *, std::unordered_set<calib_residual_t *>>
-      param2res;
-  std::unordered_map<calib_residual_t *, std::unordered_set<param_t *>>
-      res2param;
+  std::unordered_map<param_t *, vecx_t> params_cache;
+  std::unordered_map<param_t *, std::unordered_set<calib_residual_t *>> param2res;
+  std::unordered_map<calib_residual_t *, std::unordered_set<param_t *>> res2param;
+  // clang-format on
 
   real_t initial_cost = 0.0;
   real_t final_cost = 0.0;
@@ -36,6 +37,8 @@ struct solver_t {
   virtual void remove_param(param_t *param);
   virtual void remove_residual(calib_residual_t *res_fn);
 
+  void _cache_params();
+  void _restore_params();
   bool _eval_residual(calib_residual_t *res_fn,
                       ResidualJacobians &res_jacs,
                       ResidualJacobians &res_min_jacs,
@@ -87,6 +90,7 @@ struct yac_solver_t : solver_t {
   real_t _linearize(ParameterOrder &param_order, matx_t &J, vecx_t &b);
   void _solve_linear_system(const matx_t &J, const vecx_t &b, vecx_t &dx);
   void _update(const ParameterOrder &param_order, const vecx_t &dx);
+  void _print_stats(const int iter, const real_t cost) const;
 
   void solve(const int max_iter = 30,
              const bool verbose = false,

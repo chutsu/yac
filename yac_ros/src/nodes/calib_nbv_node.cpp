@@ -268,15 +268,6 @@ struct calib_nbv_t {
     calib->show_results();
     calib->enable_outlier_filter = true;
 
-    {
-      matx_t calib_covar;
-      calib->recover_calib_covar(calib_covar);
-      printf("calib_covar_shape: %ldx%ld\n",
-             calib_covar.rows(),
-             calib_covar.cols());
-      printf("shannon entropy: %f\n", shannon_entropy(calib_covar));
-    }
-
     // Transition to NBV mode
     state = NBV;
     find_nbv_event = true;

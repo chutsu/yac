@@ -5,6 +5,12 @@ namespace yac {
 
 // SOLVER BASE /////////////////////////////////////////////////////////////////
 
+// clang-format off
+using ResidualJacobians = std::map<calib_residual_t *, std::vector<matx_row_major_t>>;
+using ResidualValues = std::map<calib_residual_t *, vecx_t>;
+using ParameterOrder = std::map<param_t *, int>;
+// clang-format on
+
 struct solver_t {
   std::unordered_set<calib_residual_t *> res_fns;
   std::unordered_map<real_t *, param_t *> params;
@@ -27,6 +33,12 @@ struct solver_t {
   virtual void add_residual(calib_residual_t *res_fn);
   virtual void remove_param(param_t *param);
   virtual void remove_residual(calib_residual_t *res_fn);
+
+  bool _eval_residual(calib_residual_t *res_fn,
+                      ResidualJacobians &res_jacs,
+                      ResidualJacobians &res_min_jacs,
+                      ResidualValues &res_vals) const;
+
   virtual int estimate_covariance(const std::vector<param_t *> params,
                                   matx_t &calib_covar,
                                   const bool verbose = false) const;
@@ -66,23 +78,13 @@ struct ceres_solver_t : solver_t {
 
 // SOLVER /////////////////////////////////////////////////////////////////////
 
-// clang-format off
-using ResidualJacobians = std::map<calib_residual_t *, std::vector<matx_row_major_t>>;
-using ResidualValues = std::map<calib_residual_t *, vecx_t>;
-using ParameterOrder = std::map<param_t *, int>;
-// clang-format on
-
 struct yac_solver_t : solver_t {
   yac_solver_t() = default;
   ~yac_solver_t() = default;
 
-  bool _eval_residual(calib_residual_t *res_fn,
-                      ResidualJacobians &res_jacs,
-                      ResidualJacobians &res_min_jacs,
-                      ResidualValues &res_vals);
-  void _linearize(ParameterOrder &param_index, matx_t &J, vecx_t &b);
+  void _linearize(ParameterOrder &param_order, matx_t &J, vecx_t &b);
   void _solve_linear_system(const matx_t &J, const vecx_t &b, vecx_t &dx);
-  void _update(const ParameterOrder &param_index, const vecx_t &dx);
+  void _update(const ParameterOrder &param_order, const vecx_t &dx);
 
   void solve(const int max_iter = 30,
              const bool verbose = false,

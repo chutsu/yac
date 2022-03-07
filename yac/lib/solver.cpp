@@ -69,173 +69,199 @@ void solver_t::remove_residual(calib_residual_t *res_fn) {
   res2param.erase(res_fn);
 }
 
+bool solver_t::_eval_residual(calib_residual_t *res_fn,
+                              ResidualJacobians &res_jacs,
+                              ResidualJacobians &res_min_jacs,
+                              ResidualValues &res_vals) const {
+  // Setup parameter data
+  std::vector<double *> param_ptrs;
+  for (auto param_block : res_fn->param_blocks) {
+    param_ptrs.push_back(param_block->data());
+  }
+
+  // Setup Jacobians data
+  const int r_size = res_fn->num_residuals();
+  std::vector<double *> jac_ptrs;
+  for (auto param_block : res_fn->param_blocks) {
+    res_jacs[res_fn].push_back(zeros(r_size, param_block->global_size));
+    jac_ptrs.push_back(res_jacs[res_fn].back().data());
+  }
+
+  // Setup Min-Jacobians data
+  std::vector<double *> min_jac_ptrs;
+  for (auto param_block : res_fn->param_blocks) {
+    res_min_jacs[res_fn].push_back(zeros(r_size, param_block->local_size));
+    min_jac_ptrs.push_back(res_min_jacs[res_fn].back().data());
+  }
+
+  // Evaluate residual block
+  res_vals[res_fn] = zeros(r_size, 1);
+  return res_fn->EvaluateWithMinimalJacobians(param_ptrs.data(),
+                                              res_vals[res_fn].data(),
+                                              jac_ptrs.data(),
+                                              min_jac_ptrs.data());
+}
+
 int solver_t::estimate_covariance(const std::vector<param_t *> params,
                                   matx_t &calib_covar,
                                   const bool verbose) const {
-  // // Track parameters
-  // std::vector<calib_residual_t *> res_blocks;
-  // std::map<param_t *, bool> params_seen;
-  // std::vector<param_t *> marg_param_ptrs;
-  // std::vector<param_t *> remain_camera_param_ptrs;
-  // std::vector<param_t *> remain_extrinsics_ptrs;
-  // std::vector<param_t *> remain_fiducial_ptrs;
-  // for (auto &res_block : res_fns) {
-  //   for (auto param_block : res_block->param_blocks) {
-  //     // Seen parameter block already
-  //     if (params_seen.count(param_block)) {
-  //       continue;
-  //     }
+  // Evaluate residuals
+  ResidualJacobians res_jacs;
+  ResidualJacobians res_min_jacs;
+  ResidualValues res_vals;
+  std::vector<calib_residual_t *> good_res_fns;
+  size_t residuals_length = 0;
+
+  for (calib_residual_t *res_fn : res_fns) {
+    if (_eval_residual(res_fn, res_jacs, res_min_jacs, res_vals)) {
+      good_res_fns.push_back(res_fn);
+      residuals_length += res_fn->num_residuals();
+    }
+  }
+
+  // Track unique parameters
+  std::map<param_t *, bool> params_seen;
+  std::vector<param_t *> pose_ptrs;
+  std::vector<param_t *> sb_ptrs;
+  std::vector<param_t *> cam_ptrs;
+  std::vector<param_t *> extrinsics_ptrs;
+  std::vector<param_t *> fiducial_ptrs;
+
+  for (auto res_fn : good_res_fns) {
+    for (auto param_block : res_fn->param_blocks) {
+      // Check if parameter block seen already
+      if (params_seen.count(param_block)) {
+        continue;
+      }
+      params_seen[param_block] = true;
+
+      // Make sure param block is not fixed
+      if (param_block->fixed) {
+        continue;
+      }
+
+      // Check if parameter's uncertainty is to be estimated
+      auto begin = params.begin();
+      auto end = params.end();
+      if (std::find(begin, end, param_block) != end) {
+        continue;
+      }
+
+      // Track parameter
+      if (param_block->type == "pose_t") {
+        pose_ptrs.push_back(param_block);
+      } else if (param_block->type == "sb_params_t") {
+        sb_ptrs.push_back(param_block);
+      } else if (param_block->type == "camera_params_t") {
+        cam_ptrs.push_back(param_block);
+      } else if (param_block->type == "extrinsics_t") {
+        extrinsics_ptrs.push_back(param_block);
+      } else if (param_block->type == "fiducial_t") {
+        fiducial_ptrs.push_back(param_block);
+      }
+    }
+  }
+
+  // Determine parameter block column indicies for Hessian matrix H
+  size_t m = 0;
+  size_t r = 0;
+  size_t idx = 0;
+  std::vector<std::vector<param_t *> *> param_groups = {
+      &pose_ptrs,
+      &sb_ptrs,
+      &cam_ptrs,
+      &extrinsics_ptrs,
+      &fiducial_ptrs,
+  };
+  ParameterOrder param_order;
+  // -- Column indices for parameter blocks to be marginalized
+  for (const auto &param_ptrs : param_groups) {
+    for (const auto &param_block : *param_ptrs) {
+      if (param_block->fixed) {
+        continue;
+      }
+      param_order.insert({param_block, idx});
+      idx += param_block->local_size;
+      m += param_block->local_size;
+    }
+  }
+  // -- Column indices for parameter blocks to remain
+  for (const auto &param_block : params) {
+    if (param_block->fixed) {
+      continue;
+    }
+    param_order.insert({param_block, idx});
+    idx += param_block->local_size;
+    r += param_block->local_size;
+  }
+
+  // Form Hessian
+  const auto H_size = m + r;
+  matx_t H = zeros(H_size, H_size);
+
+  for (auto res_fn : good_res_fns) {
+    const vecx_t r = res_vals[res_fn];
+
+    // Fill Hessian
+    for (size_t i = 0; i < res_fn->param_blocks.size(); i++) {
+      const auto &param_i = res_fn->param_blocks[i];
+      if (param_i->fixed) {
+        continue;
+      }
+      const int idx_i = param_order[param_i];
+      const int size_i = param_i->local_size;
+      const matx_t J_i = res_min_jacs.at(res_fn)[i];
+
+      for (size_t j = i; j < res_fn->param_blocks.size(); j++) {
+        const auto &param_j = res_fn->param_blocks[j];
+        if (param_j->fixed) {
+          continue;
+        }
+        const int idx_j = param_order[param_j];
+        const int size_j = param_j->local_size;
+        const matx_t J_j = res_min_jacs.at(res_fn)[j];
+
+        if (i == j) {
+          // Form diagonals of H
+          H.block(idx_i, idx_i, size_i, size_i) += J_i.transpose() * J_i;
+        } else {
+          // Form off-diagonals of H
+          // clang-format off
+          H.block(idx_i, idx_j, size_i, size_j) += J_i.transpose() * J_j;
+          H.block(idx_j, idx_i, size_j, size_i) += (J_i.transpose() * J_j).transpose();
+          // clang-format on
+        }
+      }
+    }
+  }
+
+  // Marginalize
+  // -- Pseudo inverse of Hmm via Eigen-decomposition:
   //
-  //     // Keep track of parameter block
-  //     if (param_block->type == "camera_params_t") {
-  //       remain_camera_param_ptrs.push_back(param_block);
-  //     } else if (param_block->type == "extrinsics_t") {
-  //       remain_extrinsics_ptrs.push_back(param_block);
-  //     } else if (param_block->type == "fiducial_t") {
-  //       remain_fiducial_ptrs.push_back(param_block);
-  //     } else {
-  //       marg_param_ptrs.push_back(param_block);
-  //     }
-  //     params_seen[param_block] = true;
-  //   }
-  //   res_blocks.push_back(res_block);
-  // }
+  //   A_pinv = V * Lambda_pinv * V_transpose
   //
-  // // Determine parameter block column indicies for Hessian matrix H
-  // size_t m = 0;
-  // size_t r = 0;
-  // size_t H_idx = 0;
-  // std::map<param_t *, int> param_index;
-  // // -- Column indices for parameter blocks to be marginalized
-  // for (const auto &param_block : marg_param_ptrs) {
-  //   param_index.insert({param_block, H_idx});
-  //   H_idx += param_block->local_size;
-  //   m += param_block->local_size;
-  // }
-  // // -- Column indices for parameter blocks to remain
-  // std::vector<std::vector<param_t *> *> remain_params = {
-  //     &remain_fiducial_ptrs,
-  //     &remain_extrinsics_ptrs,
-  //     &remain_camera_param_ptrs,
-  // };
-  // std::vector<param_t *> remain_param_ptrs;
-  // for (const auto &param_ptrs : remain_params) {
-  //   for (const auto &param_block : *param_ptrs) {
-  //     if (param_block->fixed) {
-  //       continue;
-  //     }
-  //     param_index.insert({param_block, H_idx});
-  //     H_idx += param_block->local_size;
-  //     r += param_block->local_size;
-  //     remain_param_ptrs.push_back(param_block);
-  //   }
-  // }
-  //
-  // // Form the H and b. Left and RHS of Gauss-Newton.
-  // // H = J.T * J
-  // // b = -J.T * e
-  // const auto local_size = m + r;
-  // matx_t H = zeros(local_size, local_size);
-  // vecx_t b = zeros(local_size, 1);
-  //
-  // for (calib_residual_t *res_block : res_blocks) {
-  //   // Setup parameter data
-  //   std::vector<double *> param_ptrs;
-  //   for (auto param_block : res_block->param_blocks) {
-  //     param_ptrs.push_back(param_block->data());
-  //   }
-  //
-  //   // Setup Jacobians data
-  //   const int r_size = res_block->num_residuals();
-  //   std::vector<matx_row_major_t> jacs;
-  //   std::vector<double *> jac_ptrs;
-  //   for (auto param_block : res_block->param_blocks) {
-  //     jacs.push_back(zeros(r_size, param_block->global_size));
-  //     jac_ptrs.push_back(jacs.back().data());
-  //   }
-  //
-  //   // Setup Min-Jacobians data
-  //   std::vector<matx_row_major_t> min_jacs;
-  //   std::vector<double *> min_jac_ptrs;
-  //   for (auto param_block : res_block->param_blocks) {
-  //     min_jacs.push_back(zeros(r_size, param_block->local_size));
-  //     min_jac_ptrs.push_back(min_jacs.back().data());
-  //   }
-  //
-  //   // Evaluate residual block
-  //   vecx_t r = zeros(r_size, 1);
-  //   res_block->EvaluateWithMinimalJacobians(param_ptrs.data(),
-  //                                           r.data(),
-  //                                           jac_ptrs.data(),
-  //                                           min_jac_ptrs.data());
-  //
-  //   // Fill Hessian
-  //   for (size_t i = 0; i < res_block->param_blocks.size(); i++) {
-  //     const auto &param_i = res_block->param_blocks[i];
-  //     if (param_i->fixed) {
-  //       continue;
-  //     }
-  //     const int idx_i = param_index[param_i];
-  //     const int size_i = param_i->local_size;
-  //     const matx_t J_i = min_jacs[i];
-  //
-  //     for (size_t j = i; j < res_block->param_blocks.size(); j++) {
-  //       const auto &param_j = res_block->param_blocks[j];
-  //       if (param_j->fixed) {
-  //         continue;
-  //       }
-  //       const int idx_j = param_index[param_j];
-  //       const int size_j = param_j->local_size;
-  //       const matx_t J_j = min_jacs[j];
-  //
-  //       if (i == j) {
-  //         // Form diagonals of H
-  //         H.block(idx_i, idx_i, size_i, size_i) += J_i.transpose() * J_i;
-  //       } else {
-  //         // Form off-diagonals of H
-  //         // clang-format off
-  //         H.block(idx_i, idx_j, size_i, size_j) += J_i.transpose() * J_j;
-  //         H.block(idx_j, idx_i, size_j, size_i) += (J_i.transpose() *
-  //         J_j).transpose();
-  //         // clang-format on
-  //       }
-  //     }
-  //
-  //     // RHS of Gauss Newton (i.e. vector b)
-  //     b.segment(idx_i, size_i) += -J_i.transpose() * r;
-  //   }
-  // }
-  //
-  // // Marginalize
-  // // -- Pseudo inverse of Hmm via Eigen-decomposition:
-  // //
-  // //   A_pinv = V * Lambda_pinv * V_transpose
-  // //
-  // // Where Lambda_pinv is formed by **replacing every non-zero diagonal
-  // // entry by its reciprocal, leaving the zeros in place, and transposing
-  // // the resulting matrix.
-  // // clang-format off
-  // matx_t Hmm = H.block(0, 0, m, m);
-  // Hmm = 0.5 * (Hmm + Hmm.transpose()); // Enforce Symmetry
-  // const double eps = 1.0e-8;
-  // const Eigen::SelfAdjointEigenSolver<matx_t> eig(Hmm);
-  // const matx_t V = eig.eigenvectors();
-  // const auto eigvals_inv = (eig.eigenvalues().array() >
-  // eps).select(eig.eigenvalues().array().inverse(), 0); const matx_t
-  // Lambda_inv = vecx_t(eigvals_inv).asDiagonal(); const matx_t Hmm_inv = V *
-  // Lambda_inv * V.transpose();
-  // // clang-format on
-  // // -- Calculate Schur's complement
-  // const matx_t Hmr = H.block(0, m, m, r);
-  // const matx_t Hrm = H.block(m, 0, r, m);
-  // const matx_t Hrr = H.block(m, m, r, r);
-  // const vecx_t bmm = b.segment(0, m);
-  // const vecx_t brr = b.segment(m, r);
-  // const matx_t H_marg = Hrr - Hrm * Hmm_inv * Hmr;
-  // const matx_t b_marg = brr - Hrm * Hmm_inv * bmm;
-  //
-  // // Convert
-  // calib_covar = H_marg.inverse();
+  // Where Lambda_pinv is formed by **replacing every non-zero diagonal
+  // entry by its reciprocal, leaving the zeros in place, and transposing
+  // the resulting matrix.
+  // clang-format off
+  matx_t Hmm = H.block(0, 0, m, m);
+  Hmm = 0.5 * (Hmm + Hmm.transpose()); // Enforce Symmetry
+  const double eps = 1.0e-8;
+  const Eigen::SelfAdjointEigenSolver<matx_t> eig(Hmm);
+  const matx_t V = eig.eigenvectors();
+  const auto eigvals_inv = (eig.eigenvalues().array() >
+  eps).select(eig.eigenvalues().array().inverse(), 0); const matx_t
+  Lambda_inv = vecx_t(eigvals_inv).asDiagonal(); const matx_t Hmm_inv = V *
+  Lambda_inv * V.transpose();
+  // clang-format on
+  // -- Calculate Schur's complement
+  const matx_t Hmr = H.block(0, m, m, r);
+  const matx_t Hrm = H.block(m, 0, r, m);
+  const matx_t Hrr = H.block(m, m, r, r);
+  const matx_t H_marg = Hrr - Hrm * Hmm_inv * Hmr;
+
+  // Convert
+  calib_covar = H_marg.inverse();
 
   return 0;
 }
@@ -460,39 +486,6 @@ void ceres_solver_t::solve(const int max_iter,
 
 // SOLVER /////////////////////////////////////////////////////////////////////
 
-bool yac_solver_t::_eval_residual(calib_residual_t *res_fn,
-                                  ResidualJacobians &res_jacs,
-                                  ResidualJacobians &res_min_jacs,
-                                  ResidualValues &res_vals) {
-  // Setup parameter data
-  std::vector<double *> param_ptrs;
-  for (auto param_block : res_fn->param_blocks) {
-    param_ptrs.push_back(param_block->data());
-  }
-
-  // Setup Jacobians data
-  const int r_size = res_fn->num_residuals();
-  std::vector<double *> jac_ptrs;
-  for (auto param_block : res_fn->param_blocks) {
-    res_jacs[res_fn].push_back(zeros(r_size, param_block->global_size));
-    jac_ptrs.push_back(res_jacs[res_fn].back().data());
-  }
-
-  // Setup Min-Jacobians data
-  std::vector<double *> min_jac_ptrs;
-  for (auto param_block : res_fn->param_blocks) {
-    res_min_jacs[res_fn].push_back(zeros(r_size, param_block->local_size));
-    min_jac_ptrs.push_back(res_min_jacs[res_fn].back().data());
-  }
-
-  // Evaluate residual block
-  res_vals[res_fn] = zeros(r_size, 1);
-  return res_fn->EvaluateWithMinimalJacobians(param_ptrs.data(),
-                                              res_vals[res_fn].data(),
-                                              jac_ptrs.data(),
-                                              min_jac_ptrs.data());
-}
-
 void yac_solver_t::_solve_linear_system(const matx_t &J,
                                         const vecx_t &b,
                                         vecx_t &dx) {
@@ -500,7 +493,7 @@ void yac_solver_t::_solve_linear_system(const matx_t &J,
   dx = H.ldlt().solve(b);
 }
 
-void yac_solver_t::_linearize(ParameterOrder &param_index,
+void yac_solver_t::_linearize(ParameterOrder &param_order,
                               matx_t &J,
                               vecx_t &b) {
   // Evaluate residuals
@@ -559,13 +552,13 @@ void yac_solver_t::_linearize(ParameterOrder &param_index,
       &extrinsics_ptrs,
       &fiducial_ptrs,
   };
-  param_index.clear();
+  param_order.clear();
   for (const auto &param_ptrs : param_groups) {
     for (const auto &param_block : *param_ptrs) {
       if (param_block->fixed) {
         continue;
       }
-      param_index.insert({param_block, idx});
+      param_order.insert({param_block, idx});
       idx += param_block->local_size;
     }
   }
@@ -584,7 +577,7 @@ void yac_solver_t::_linearize(ParameterOrder &param_index,
         continue;
       }
 
-      const int idx_i = param_index[param_i];
+      const int idx_i = param_order[param_i];
       const int size_i = param_i->local_size;
       const matx_t J_i = res_min_jacs[res_fn][i];
       J.block(idx_i, idx_i, size_i, size_i) += J_i.transpose() * J_i;
@@ -595,9 +588,9 @@ void yac_solver_t::_linearize(ParameterOrder &param_index,
   }
 }
 
-void yac_solver_t::_update(const ParameterOrder &param_index,
+void yac_solver_t::_update(const ParameterOrder &param_order,
                            const vecx_t &dx) {
-  for (auto &[param, idx] : param_index) {
+  for (auto &[param, idx] : param_order) {
     param->plus(dx.segment(idx, param->local_size));
   }
 }
@@ -607,17 +600,17 @@ void yac_solver_t::solve(const int max_iter,
                          const int verbose_level) {
   for (int iter = 0; iter < max_iter; iter++) {
     // Linearize system
-    ParameterOrder param_index;
+    ParameterOrder param_order;
     matx_t J;
     vecx_t b;
-    _linearize(param_index, J, b);
+    _linearize(param_order, J, b);
 
     // Solve linear system
     vecx_t dx;
     _solve_linear_system(J, b, dx);
 
     // Update
-    _update(param_index, dx);
+    _update(param_order, dx);
   }
 }
 

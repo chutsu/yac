@@ -553,7 +553,7 @@ int test_nbt_find() {
     }
 
     // Sliding window is initialized
-    if (calib.marg_error != nullptr) {
+    if (calib.marg_residual != nullptr) {
       break;
     }
   }

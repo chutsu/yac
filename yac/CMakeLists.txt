@@ -138,11 +138,11 @@ TARGET_LINK_LIBRARIES(test_calib_residuals yac yac_util ${DEPS})
 # ADD_EXECUTABLE(test_calib_mocap tests/test_calib_mocap.cpp)
 # TARGET_LINK_LIBRARIES(test_calib_mocap yac yac_util ${DEPS})
 
-# ADD_EXECUTABLE(test_calib_nbt tests/test_calib_nbt.cpp)
-# TARGET_LINK_LIBRARIES(test_calib_nbt yac yac_util ${DEPS})
-#
-# ADD_EXECUTABLE(test_calib_nbv tests/test_calib_nbv.cpp)
-# TARGET_LINK_LIBRARIES(test_calib_nbv yac yac_util ${DEPS})
+ADD_EXECUTABLE(test_calib_nbt tests/test_calib_nbt.cpp)
+TARGET_LINK_LIBRARIES(test_calib_nbt yac yac_util ${DEPS})
+
+ADD_EXECUTABLE(test_calib_nbv tests/test_calib_nbv.cpp)
+TARGET_LINK_LIBRARIES(test_calib_nbv yac yac_util ${DEPS})
 
 ADD_EXECUTABLE(test_calib_vi tests/test_calib_vi.cpp)
 TARGET_LINK_LIBRARIES(test_calib_vi yac yac_util ${DEPS})

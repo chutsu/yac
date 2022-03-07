@@ -489,13 +489,19 @@ void ceres_solver_t::solve(const int max_iter,
 void yac_solver_t::_solve_linear_system(const matx_t &J,
                                         const vecx_t &b,
                                         vecx_t &dx) {
-  const matx_t H = J.transpose() * J;
-  dx = H.ldlt().solve(b);
+  const matx_t H = J.transpose() * J + 1e-2 * I(b.rows());
+
+  // Dense Cholesky
+  // dx = H.ldlt().solve(b);
+
+  // Dense SVD
+  Eigen::JacobiSVD<matx_t> svd(H, Eigen::ComputeThinU | Eigen::ComputeThinV);
+  dx = svd.solve(b);
 }
 
-void yac_solver_t::_linearize(ParameterOrder &param_order,
-                              matx_t &J,
-                              vecx_t &b) {
+real_t yac_solver_t::_linearize(ParameterOrder &param_order,
+                                matx_t &J,
+                                vecx_t &b) {
   // Evaluate residuals
   ResidualJacobians res_jacs;
   ResidualJacobians res_min_jacs;
@@ -508,6 +514,12 @@ void yac_solver_t::_linearize(ParameterOrder &param_order,
       good_res_fns.push_back(res_fn);
       residuals_length += res_fn->num_residuals();
     }
+  }
+
+  // Calculate cost
+  real_t cost = 0.0;
+  for (const auto &[res_fn, r] : res_vals) {
+    cost += 0.5 * r.transpose() * r;
   }
 
   // Track unique parameters
@@ -525,6 +537,12 @@ void yac_solver_t::_linearize(ParameterOrder &param_order,
       if (params_seen.count(param_block)) {
         continue;
       }
+      params_seen[param_block] = true;
+
+      // Check if parameter is fixed
+      if (param_block->fixed) {
+        continue;
+      }
 
       // Track parameter
       if (param_block->type == "pose_t") {
@@ -538,8 +556,7 @@ void yac_solver_t::_linearize(ParameterOrder &param_order,
       } else if (param_block->type == "fiducial_t") {
         fiducial_ptrs.push_back(param_block);
       }
-      params_seen[param_block] = true;
-      params_length += res_fn->num_residuals();
+      params_length += param_block->local_size;
     }
   }
 
@@ -555,9 +572,6 @@ void yac_solver_t::_linearize(ParameterOrder &param_order,
   param_order.clear();
   for (const auto &param_ptrs : param_groups) {
     for (const auto &param_block : *param_ptrs) {
-      if (param_block->fixed) {
-        continue;
-      }
       param_order.insert({param_block, idx});
       idx += param_block->local_size;
     }
@@ -587,6 +601,8 @@ void yac_solver_t::_linearize(ParameterOrder &param_order,
 
     res_idx += res_fn->num_residuals();
   }
+
+  return cost;
 }
 
 void yac_solver_t::_update(const ParameterOrder &param_order,
@@ -604,11 +620,15 @@ void yac_solver_t::solve(const int max_iter,
     ParameterOrder param_order;
     matx_t J;
     vecx_t b;
-    _linearize(param_order, J, b);
+    const real_t cost = _linearize(param_order, J, b);
 
     // Solve linear system
     vecx_t dx;
     _solve_linear_system(J, b, dx);
+
+    // Print stats
+    printf("iter: %d, ", iter);
+    printf("cost: %f\n", cost);
 
     // Update
     _update(param_order, dx);

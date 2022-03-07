@@ -1,6 +1,8 @@
 #include "calib_params.hpp"
 #include "calib_residuals.hpp"
 
+#include <Eigen/SparseQR>
+
 namespace yac {
 
 // SOLVER BASE /////////////////////////////////////////////////////////////////
@@ -82,7 +84,7 @@ struct yac_solver_t : solver_t {
   yac_solver_t() = default;
   ~yac_solver_t() = default;
 
-  void _linearize(ParameterOrder &param_order, matx_t &J, vecx_t &b);
+  real_t _linearize(ParameterOrder &param_order, matx_t &J, vecx_t &b);
   void _solve_linear_system(const matx_t &J, const vecx_t &b, vecx_t &dx);
   void _update(const ParameterOrder &param_order, const vecx_t &dx);
 

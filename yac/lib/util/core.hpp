@@ -185,21 +185,25 @@ using sp_vec_t = Eigen::SparseVector<real_t>;
   fprintf(stdout, "\033[33m[WARN] " M "\033[0m\n", ##__VA_ARGS__)
 
 #define FATAL(M, ...)                                                          \
-  fprintf(stdout,                                                              \
-          "\033[31m[FATAL] [%s:%d] " M "\033[0m\n",                            \
-          __FILENAME__,                                                        \
-          __LINE__,                                                            \
-          ##__VA_ARGS__);                                                      \
-  exit(-1)
-
-#define FATAL_ASSERT(X, M, ...)                                                \
-  if (!(X)) {                                                                  \
-    fprintf(stdout,                                                            \
+  {                                                                            \
+    char msg[9046] = {0};                                                      \
+    sprintf(msg,                                                               \
             "\033[31m[FATAL] [%s:%d] " M "\033[0m\n",                          \
             __FILENAME__,                                                      \
             __LINE__,                                                          \
             ##__VA_ARGS__);                                                    \
-    exit(-1);                                                                  \
+    throw std::runtime_error(msg);                                             \
+  }
+
+#define FATAL_ASSERT(X, M, ...)                                                \
+  if (!(X)) {                                                                  \
+    char msg[9046] = {0};                                                      \
+    sprintf(msg,                                                               \
+            "\033[31m[FATAL] [%s:%d] " M "\033[0m\n",                          \
+            __FILENAME__,                                                      \
+            __LINE__,                                                          \
+            ##__VA_ARGS__);                                                    \
+    throw std::runtime_error(msg);                                             \
   }
 
 #ifdef NDEBUG

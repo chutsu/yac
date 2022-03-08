@@ -398,8 +398,8 @@ int test_calib_camera_stereo() {
   calib_camera_t calib{STEREO_CONF};
   calib.enable_nbv = true;
   calib.enable_marginalization = true;
-  calib.enable_nbv_filter = false;
-  calib.enable_outlier_filter = false;
+  calib.enable_nbv_filter = true;
+  calib.enable_outlier_filter = true;
   calib.add_camera_data(test_data);
   calib.solve();
   calib.save_results("/tmp/calib-results.yaml");

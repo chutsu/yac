@@ -44,8 +44,12 @@ void solver_t::remove_param(param_t *param) {
 
   // Update param2res book-keeping
   if (param2res.count(param)) {
-    for (auto res : param2res[param]) {
-      remove_residual(res);
+    for (auto res_fn : param2res[param]) {
+      if (res_fns.count(res_fn) == 0) {
+        FATAL("Residual block does not exist in problem!");
+      }
+      res_fns.erase(res_fn);
+      res2param.erase(res_fn);
     }
     param2res.erase(param);
   }
@@ -114,6 +118,21 @@ bool solver_t::_eval_residual(calib_residual_t *res_fn,
                                               res_vals[res_fn].data(),
                                               jac_ptrs.data(),
                                               min_jac_ptrs.data());
+}
+
+bool solver_t::_eval_residual(calib_residual_t *res_fn, vecx_t &r) const {
+  // Setup parameter data
+  std::vector<double *> param_ptrs;
+  for (auto param_block : res_fn->param_blocks) {
+    param_ptrs.push_back(param_block->data());
+  }
+
+  // Evaluate residual block
+  r = zeros(res_fn->num_residuals(), 1);
+  return res_fn->EvaluateWithMinimalJacobians(param_ptrs.data(),
+                                              r.data(),
+                                              NULL,
+                                              NULL);
 }
 
 int solver_t::estimate_covariance(const std::vector<param_t *> params,
@@ -500,36 +519,6 @@ void ceres_solver_t::solve(const int max_iter,
 
 // SOLVER /////////////////////////////////////////////////////////////////////
 
-void yac_solver_t::_solve_linear_system(const matx_t &J,
-                                        const vecx_t &b,
-                                        vecx_t &dx) {
-  // Dense Cholesky
-  // const matx_t H = J.transpose() * J + 1e-2 * I(b.rows());
-  // dx = H.ldlt().solve(b);
-
-  // Dense SVD
-  const matx_t H = J.transpose() * J + 1e-2 * I(b.rows());
-  Eigen::JacobiSVD<matx_t> svd(H, Eigen::ComputeThinU | Eigen::ComputeThinV);
-  dx = svd.solve(b);
-
-  // clang-format off
-  // Eigen::SparseMatrix<real_t> J_sparse = J.sparseView();
-  // Eigen::SparseQR<Eigen::SparseMatrix<real_t>, Eigen::COLAMDOrdering<int>> solver;
-  //
-  // // -- Decompose J_sparse
-  // solver.compute(J_sparse);
-  // if (solver.info() != Eigen::Success) {
-  //   FATAL("SparseQR decomp failed!");
-  // }
-  //
-  // // -- Solve for dx
-  // dx = solver.solve(b);
-  // if (solver.info() != Eigen::Success) {
-  //   FATAL("SparseQR decomp failed!");
-  // }
-  // clang-format on
-}
-
 real_t yac_solver_t::_linearize(ParameterOrder &param_order,
                                 matx_t &J,
                                 vecx_t &b) {
@@ -636,6 +625,49 @@ real_t yac_solver_t::_linearize(ParameterOrder &param_order,
   return cost;
 }
 
+void yac_solver_t::_solve_linear_system(const real_t lambda_k,
+                                        const matx_t &J,
+                                        const vecx_t &b,
+                                        vecx_t &dx) {
+  // Dense Cholesky
+  // const matx_t H = J.transpose() * J + lambda_k * I(b.rows());
+  // dx = H.ldlt().solve(b);
+
+  // Dense SVD
+  const matx_t H = J.transpose() * J + lambda_k * I(b.rows());
+  // const matx_t H = J.transpose() * J;
+  Eigen::JacobiSVD<matx_t> svd(H, Eigen::ComputeThinU | Eigen::ComputeThinV);
+  dx = svd.solve(b);
+
+  // clang-format off
+  // Eigen::SparseMatrix<real_t> J_sparse = J.sparseView();
+  // Eigen::SparseQR<Eigen::SparseMatrix<real_t>, Eigen::COLAMDOrdering<int>> solver;
+  //
+  // // -- Decompose J_sparse
+  // solver.compute(J_sparse);
+  // if (solver.info() != Eigen::Success) {
+  //   FATAL("SparseQR decomp failed!");
+  // }
+  //
+  // // -- Solve for dx
+  // dx = solver.solve(b);
+  // if (solver.info() != Eigen::Success) {
+  //   FATAL("SparseQR decomp failed!");
+  // }
+  // clang-format on
+}
+
+real_t yac_solver_t::_calculate_cost() {
+  real_t cost = 0.0;
+  for (calib_residual_t *res_fn : res_fns) {
+    vecx_t r;
+    _eval_residual(res_fn, r);
+    cost += 0.5 * r.transpose() * r;
+  }
+
+  return cost;
+}
+
 void yac_solver_t::_update(const ParameterOrder &param_order,
                            const vecx_t &dx) {
   for (auto &[param, idx] : param_order) {
@@ -643,38 +675,124 @@ void yac_solver_t::_update(const ParameterOrder &param_order,
   }
 }
 
-void yac_solver_t::_print_stats(const int iter, const real_t cost) const {
-  printf("iter: %d, ", iter);
-  printf("cost: %.4e\n", cost);
+void yac_solver_t::_solve_gn(const int max_iter,
+                             const bool verbose,
+                             const int verbose_level) {
+  // Setup
+  real_t lambda_k = lambda;
+  ParameterOrder param_order;
+  vecx_t dx;
+  matx_t J;
+  vecx_t b;
+
+  // Lambda function to print status
+  auto print_stats =
+      [&](const int iter, const real_t cost, const real_t dcost) {
+        printf("iter: %d, ", iter);
+        printf("cost: %e, ", cost);
+        printf("dcost: %.2e\n", dcost);
+      };
+
+  // Linearize system
+  int iter = 1;
+  const real_t cost_init = _calculate_cost();
+  real_t cost_km1 = cost_init;
+  real_t cost_k = 0.0;
+  real_t dcost = 0.0;
+  if (verbose && verbose_level == 1) {
+    print_stats(0, cost_km1, dcost);
+  }
+
+  for (iter = 1; iter < max_iter; iter++) {
+    _cache_params();
+    _linearize(param_order, J, b);
+    _solve_linear_system(0.0, J, b, dx);
+    _update(param_order, dx);
+
+    cost_k = _calculate_cost();
+    dcost = cost_k - cost_km1;
+
+    if (verbose && verbose_level == 1) {
+      print_stats(iter, cost_k, dcost);
+    }
+  }
+
+  if (verbose && verbose_level == 1) {
+    const real_t cost_final = _calculate_cost();
+    printf("Initial cost: %.4e\n", cost_init);
+    printf("Final cost: %.4e\n", cost_final);
+    printf("Num iterations: %d\n\n", iter);
+  }
+}
+
+void yac_solver_t::_solve_lm(const int max_iter,
+                             const bool verbose,
+                             const int verbose_level) {
+  // Setup
+  real_t lambda_k = lambda;
+  ParameterOrder param_order;
+  vecx_t dx;
+  matx_t J;
+  vecx_t b;
+
+  // Lambda function to print status
+  auto print_stats = [&](const int iter,
+                         const real_t cost,
+                         const real_t dcost,
+                         const real_t lambda_k) {
+    printf("iter: %d, ", iter);
+    printf("cost: %e, ", cost);
+    printf("dcost: %.2e, ", dcost);
+    printf("lambda_k: %.2e\n", lambda_k);
+  };
+
+  // Linearize system
+  int iter = 0;
+  const real_t cost_init = _calculate_cost();
+  real_t cost_km1 = cost_init;
+  real_t cost_k = 0.0;
+  real_t dcost = 0.0;
+  if (verbose && verbose_level == 1) {
+    print_stats(0, cost_km1, dcost, lambda_k);
+  }
+
+  for (iter = 1; iter < max_iter; iter++) {
+    _cache_params();
+    _linearize(param_order, J, b);
+    _solve_linear_system(lambda_k, J, b, dx);
+    _update(param_order, dx);
+
+    cost_k = _calculate_cost();
+    dcost = cost_k - cost_km1;
+    if (verbose && verbose_level == 1) {
+      print_stats(iter, cost_k, dcost, lambda_k);
+    }
+
+    if (dcost < 0.0) {
+      // Accept update
+      cost_km1 = cost_k;
+      lambda_k /= 10.0;
+    } else {
+      // Reject update
+      _restore_params();
+      cost_k = _calculate_cost();
+      lambda_k *= 10.0;
+    }
+  }
+
+  if (verbose && verbose_level == 1) {
+    const real_t cost_final = _calculate_cost();
+    printf("Initial cost: %.4e\n", cost_init);
+    printf("Final cost: %.4e\n", cost_final);
+    printf("Num iterations: %d\n\n", iter);
+  }
 }
 
 void yac_solver_t::solve(const int max_iter,
                          const bool verbose,
                          const int verbose_level) {
-
-  for (int iter = 0; iter < max_iter; iter++) {
-    // Linearize system
-    ParameterOrder param_order;
-    matx_t J;
-    vecx_t b;
-    auto cost = _linearize(param_order, J, b);
-
-    // Solve linear system
-    vecx_t dx;
-    _solve_linear_system(J, b, dx);
-
-    // Print stats
-    _print_stats(iter, cost);
-
-    // Update
-    _cache_params();
-    _update(param_order, dx);
-    // if (cost_k <= cost_km1) {
-    //   real_t cost_k = _linearize(param_order, J, b);
-    // } else {
-    //   _restore_params();
-    // }
-  }
+  _solve_gn(max_iter, verbose, verbose_level);
+  // _solve_lm(max_iter, verbose, verbose_level);
 }
 
 } // namespace yac

@@ -43,6 +43,7 @@ struct solver_t {
                       ResidualJacobians &res_jacs,
                       ResidualJacobians &res_min_jacs,
                       ResidualValues &res_vals) const;
+  bool _eval_residual(calib_residual_t *res_fn, vecx_t &r) const;
 
   virtual int estimate_covariance(const std::vector<param_t *> params,
                                   matx_t &calib_covar,
@@ -84,13 +85,24 @@ struct ceres_solver_t : solver_t {
 // SOLVER /////////////////////////////////////////////////////////////////////
 
 struct yac_solver_t : solver_t {
+  real_t lambda = 1e-4;
+
   yac_solver_t() = default;
   ~yac_solver_t() = default;
 
+  real_t _calculate_cost();
   real_t _linearize(ParameterOrder &param_order, matx_t &J, vecx_t &b);
-  void _solve_linear_system(const matx_t &J, const vecx_t &b, vecx_t &dx);
+  void _solve_linear_system(const real_t lambda_k,
+                            const matx_t &J,
+                            const vecx_t &b,
+                            vecx_t &dx);
   void _update(const ParameterOrder &param_order, const vecx_t &dx);
-  void _print_stats(const int iter, const real_t cost) const;
+  void _solve_gn(const int max_iter,
+                 const bool verbose,
+                 const int verbose_level);
+  void _solve_lm(const int max_iter,
+                 const bool verbose,
+                 const int verbose_level);
 
   void solve(const int max_iter = 30,
              const bool verbose = false,

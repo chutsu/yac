@@ -86,16 +86,16 @@ struct ceres_solver_t : solver_t {
 // SOLVER /////////////////////////////////////////////////////////////////////
 
 struct yac_solver_t : solver_t {
-  real_t lambda = 1e-4;
+  real_t lambda = 1e4;
 
   yac_solver_t() = default;
   ~yac_solver_t() = default;
 
   real_t _calculate_cost();
-  real_t _linearize(ParameterOrder &param_order, matx_t &J, vecx_t &b);
+  void _form_jacobian(ParameterOrder &param_order, matx_t &J, vecx_t &r);
+  void _form_hessian(ParameterOrder &param_order, matx_t &H, vecx_t &b);
   void _solve_linear_system(const real_t lambda_k,
-                            const matx_t &J,
-                            const vecx_t &b,
+                            ParameterOrder &param_order,
                             vecx_t &dx);
   void _update(const ParameterOrder &param_order, const vecx_t &dx);
   void _solve_gn(const int max_iter,

@@ -519,115 +519,107 @@ void ceres_solver_t::solve(const int max_iter,
 
 // SOLVER /////////////////////////////////////////////////////////////////////
 
-// real_t yac_solver_t::_linearize(ParameterOrder &param_order,
-//                                 matx_t &J,
-//                                 vecx_t &b) {
-//   // Evaluate residuals
-//   ResidualJacobians res_jacs;
-//   ResidualJacobians res_min_jacs;
-//   ResidualValues res_vals;
-//   std::vector<calib_residual_t *> good_res_fns;
-//   size_t residuals_length = 0;
-//
-//   for (calib_residual_t *res_fn : res_fns) {
-//     if (_eval_residual(res_fn, res_jacs, res_min_jacs, res_vals)) {
-//       good_res_fns.push_back(res_fn);
-//       residuals_length += res_fn->num_residuals();
-//     }
-//   }
-//
-//   // Calculate cost
-//   real_t cost = 0.0;
-//   for (const auto &[res_fn, r] : res_vals) {
-//     cost += 0.5 * r.transpose() * r;
-//   }
-//
-//   // Track unique parameters
-//   std::map<param_t *, bool> params_seen;
-//   std::vector<param_t *> pose_ptrs;
-//   std::vector<param_t *> sb_ptrs;
-//   std::vector<param_t *> cam_ptrs;
-//   std::vector<param_t *> extrinsics_ptrs;
-//   std::vector<param_t *> fiducial_ptrs;
-//   size_t params_length = 0;
-//
-//   for (auto res_fn : good_res_fns) {
-//     for (auto param_block : res_fn->param_blocks) {
-//       // Check if parameter block seen already
-//       if (params_seen.count(param_block)) {
-//         continue;
-//       }
-//       params_seen[param_block] = true;
-//
-//       // Check if parameter is fixed
-//       if (param_block->fixed) {
-//         continue;
-//       }
-//
-//       // Track parameter
-//       if (param_block->type == "pose_t") {
-//         pose_ptrs.push_back(param_block);
-//       } else if (param_block->type == "sb_params_t") {
-//         sb_ptrs.push_back(param_block);
-//       } else if (param_block->type == "camera_params_t") {
-//         cam_ptrs.push_back(param_block);
-//       } else if (param_block->type == "extrinsics_t") {
-//         extrinsics_ptrs.push_back(param_block);
-//       } else if (param_block->type == "fiducial_t") {
-//         fiducial_ptrs.push_back(param_block);
-//       }
-//       params_length += param_block->local_size;
-//     }
-//   }
-//
-//   // Determine parameter block column indicies for Hessian matrix H
-//   size_t idx = 0;
-//   std::vector<std::vector<param_t *> *> param_groups = {
-//       &pose_ptrs,
-//       &sb_ptrs,
-//       &cam_ptrs,
-//       &extrinsics_ptrs,
-//       &fiducial_ptrs,
-//   };
-//   param_order.clear();
-//   for (const auto &param_ptrs : param_groups) {
-//     for (const auto &param_block : *param_ptrs) {
-//       param_order.insert({param_block, idx});
-//       idx += param_block->local_size;
-//     }
-//   }
-//
-//   // Form Jacobian J and b
-//   J = zeros(residuals_length, params_length);
-//   b = zeros(params_length, 1);
-//   size_t res_idx = 0;
-//
-//   for (calib_residual_t *res_fn : good_res_fns) {
-//     const vecx_t r = res_vals[res_fn];
-//     const int res_size = r.size();
-//
-//     for (size_t i = 0; i < res_fn->param_blocks.size(); i++) {
-//       const auto &param_i = res_fn->param_blocks[i];
-//       if (param_i->fixed) {
-//         continue;
-//       }
-//
-//       const int param_idx = param_order[param_i];
-//       const int param_size = param_i->local_size;
-//       const matx_t J_param = res_min_jacs[res_fn][i];
-//       J.block(res_idx, param_idx, res_size, param_size) += J_param;
-//       b.segment(param_idx, param_size) += -J_param.transpose() * r;
-//     }
-//
-//     res_idx += res_fn->num_residuals();
-//   }
-//
-//   return cost;
-// }
+void yac_solver_t::_form_jacobian(ParameterOrder &param_order,
+                                  matx_t &J,
+                                  vecx_t &r) {
+  // Evaluate residuals
+  ResidualJacobians res_jacs;
+  ResidualJacobians res_min_jacs;
+  ResidualValues res_vals;
+  std::vector<calib_residual_t *> good_res_fns;
+  size_t residuals_length = 0;
 
-real_t yac_solver_t::_linearize(ParameterOrder &param_order,
-                                matx_t &H,
-                                vecx_t &b) {
+  for (calib_residual_t *res_fn : res_fns) {
+    if (_eval_residual(res_fn, res_jacs, res_min_jacs, res_vals)) {
+      good_res_fns.push_back(res_fn);
+      residuals_length += res_fn->num_residuals();
+    }
+  }
+
+  // Track unique parameters
+  std::map<param_t *, bool> params_seen;
+  std::vector<param_t *> pose_ptrs;
+  std::vector<param_t *> sb_ptrs;
+  std::vector<param_t *> cam_ptrs;
+  std::vector<param_t *> extrinsics_ptrs;
+  std::vector<param_t *> fiducial_ptrs;
+  size_t params_length = 0;
+
+  for (auto res_fn : good_res_fns) {
+    for (auto param_block : res_fn->param_blocks) {
+      // Check if parameter block seen already
+      if (params_seen.count(param_block)) {
+        continue;
+      }
+      params_seen[param_block] = true;
+
+      // Check if parameter is fixed
+      if (param_block->fixed) {
+        continue;
+      }
+
+      // Track parameter
+      if (param_block->type == "pose_t") {
+        pose_ptrs.push_back(param_block);
+      } else if (param_block->type == "sb_params_t") {
+        sb_ptrs.push_back(param_block);
+      } else if (param_block->type == "camera_params_t") {
+        cam_ptrs.push_back(param_block);
+      } else if (param_block->type == "extrinsics_t") {
+        extrinsics_ptrs.push_back(param_block);
+      } else if (param_block->type == "fiducial_t") {
+        fiducial_ptrs.push_back(param_block);
+      }
+      params_length += param_block->local_size;
+    }
+  }
+
+  // Determine parameter block column indicies for Hessian matrix H
+  size_t idx = 0;
+  std::vector<std::vector<param_t *> *> param_groups = {
+      &pose_ptrs,
+      &sb_ptrs,
+      &cam_ptrs,
+      &extrinsics_ptrs,
+      &fiducial_ptrs,
+  };
+  param_order.clear();
+  for (const auto &param_ptrs : param_groups) {
+    for (const auto &param_block : *param_ptrs) {
+      param_order.insert({param_block, idx});
+      idx += param_block->local_size;
+    }
+  }
+
+  // Form Jacobian J and r
+  J = zeros(residuals_length, params_length);
+  r = zeros(residuals_length, 1);
+  size_t res_idx = 0;
+
+  for (calib_residual_t *res_fn : good_res_fns) {
+    const vecx_t r_val = res_vals[res_fn];
+    const int res_size = r_val.size();
+    r.segment(res_idx, res_size) = r_val;
+
+    for (size_t i = 0; i < res_fn->param_blocks.size(); i++) {
+      const auto &param_i = res_fn->param_blocks[i];
+      if (param_i->fixed) {
+        continue;
+      }
+
+      const int param_idx = param_order[param_i];
+      const int param_size = param_i->local_size;
+      const matx_t J_param = res_min_jacs[res_fn][i];
+      J.block(res_idx, param_idx, res_size, param_size) = J_param;
+    }
+
+    res_idx += res_fn->num_residuals();
+  }
+}
+
+void yac_solver_t::_form_hessian(ParameterOrder &param_order,
+                                 matx_t &H,
+                                 vecx_t &b) {
   // Evaluate residuals
   ResidualJacobians res_jacs;
   ResidualJacobians res_min_jacs;
@@ -744,60 +736,124 @@ real_t yac_solver_t::_linearize(ParameterOrder &param_order,
       b.segment(idx_i, size_i) += -J_i.transpose() * r;
     }
   }
-
-  return cost;
 }
 
-void yac_solver_t::_solve_linear_system(const real_t lambda_k,
-                                        const matx_t &H,
-                                        const vecx_t &b,
-                                        vecx_t &dx) {
-  // Dense Cholesky
-  // const matx_t H = J.transpose() * J + lambda_k * I(b.rows());
-  // dx = H.ldlt().solve(b);
+static vecx_t linsolve_dense_cholesky(const matx_t &A, const vecx_t &b) {
+  return A.ldlt().solve(b);
+}
 
-  // Dense SVD
-  // const matx_t H = J.transpose() * J + lambda_k * I(b.rows());
-  // Eigen::JacobiSVD<matx_t> svd(H, Eigen::ComputeThinU | Eigen::ComputeThinV);
-  // dx = svd.solve(b);
+static vecx_t linsolve_dense_svd(const matx_t &A, const vecx_t &b) {
+  Eigen::JacobiSVD<matx_t> svd(A, Eigen::ComputeFullV | Eigen::ComputeFullU);
+  const matx_t U = svd.matrixU();
+  const matx_t V = svd.matrixV();
+  const vecx_t sv = svd.singularValues();
 
-  // Dense QR
-  // Eigen::HouseholderQR<matx_t> qr(J);
-  // dx = qr.solve(b);
+  // const double eps = std::numeric_limits<double>::epsilon();
+  // const double tol = sv(0) * eps * sv.size();
+  // size_t rank = sv.size();
+  // for (size_t i = sv.size() - 1; i >= 0; --i) {
+  //   if (sv(i) > tol) {
+  //     break;
+  //   } else {
+  //     --rank;
+  //   }
+  // }
+  // printf("eps: %e, tol: %e\n", eps, tol);
+  // printf("rank: %d, A_shape: %ldx%ld\n", rank, A.rows(), A.cols());
+
+  // const vecx_t dx = V.leftCols(rank) * sv.head(rank).asDiagonal().inverse() *
+  //                   U.leftCols(rank).adjoint() * -b;
+  // const vecx_t dx = V * sv.asDiagonal().inverse() * U.transpose() * b;
+  const vecx_t dx = svd.solve(b);
+
+  return dx;
+}
+
+static vecx_t linsolve_dense_qr(const matx_t &A, const vecx_t &b) {
+  Eigen::HouseholderQR<matx_t> qr(A);
+  return qr.solve(b);
+}
+
+static vecx_t linsolve_sparse_qr(const matx_t &A, const vecx_t &b) {
+  profiler_t prof;
 
   // clang-format off
-  profiler_t prof;
-  prof.start("H = JtJ");
-  // const matx_t H = J.transpose() * J + 1e-2 * I(b.rows());
-  // const matx_t H_damped = H + 1e-2 * I(H.rows());
-  const matx_t H_damped = H + lambda_k * I(H.rows());
-  prof.stop("H = JtJ");
-
-  prof.start("H.sparse_view()");
-  Eigen::SparseMatrix<real_t> H_sparse = H_damped.sparseView();
-  prof.stop("H.sparse_view()");
-
   prof.start("SparseQR.solve()");
   Eigen::SparseQR<Eigen::SparseMatrix<real_t>, Eigen::COLAMDOrdering<int>> solver;
-
   // -- Decompose H_sparse
-  solver.compute(H_sparse);
+  solver.compute(A.sparseView());
   if (solver.info() != Eigen::Success) {
     FATAL("SparseQR decomp failed!");
   }
-
-  // -- Solve for dx
-  dx = solver.solve(b);
+  // -- Solve for x
+  const vecx_t x = solver.solve(b);
   if (solver.info() != Eigen::Success) {
     FATAL("SparseQR decomp failed!");
   }
   prof.stop("SparseQR.solve()");
+  // clang-format on
 
   // prof.print("H = JtJ");
   // prof.print("H.sparse_view()");
   // prof.print("SparseQR.solve()");
   // printf("\n");
   // clang-format on
+
+  return x;
+}
+
+static vecx_t truncated_sparse_qr(const matx_t &A, const vecx_t &b) {
+  // clang-format off
+  profiler_t prof;
+  prof.start("SparseQR.solve()");
+  Eigen::SparseQR<Eigen::SparseMatrix<real_t>, Eigen::COLAMDOrdering<int>> solver;
+
+  // -- Decompose
+  solver.setPivotThreshold(1.0e-5);
+  solver.compute(A.sparseView());
+  if (solver.info() != Eigen::Success) {
+    FATAL("SparseQR decomp failed!");
+  }
+
+  // -- Solve for x
+  const vecx_t x = solver.solve(b);
+  if (solver.info() != Eigen::Success) {
+    FATAL("SparseQR decomp failed!");
+  }
+  prof.stop("SparseQR.solve()");
+  // clang-format on
+
+  // prof.print("H.sparse_view()");
+  // prof.print("SparseQR.solve()");
+  // printf("\n");
+
+  return x;
+}
+
+void yac_solver_t::_solve_linear_system(const real_t lambda_k,
+                                        ParameterOrder &param_order,
+                                        vecx_t &dx) {
+  // matx_t J;
+  // vecx_t r;
+  // _form_jacobian(param_order, J, r);
+  // dx = linsolve_dense_svd(J, r);
+
+  matx_t H;
+  vecx_t b;
+  _form_hessian(param_order, H, b);
+  // H = H + 1e-2 * I(H.rows());
+  // dx = linsolve_dense_svd(H, b);
+  // dx = linsolve_dense_qr(H, b);
+  dx = truncated_sparse_qr(H, b);
+
+  // matx_t H;
+  // vecx_t b;
+  // _form_hessian(param_order, H, b);
+  // const matx_t H_damped = H + lambda_k * I(H.rows());
+  // // dx = linsolve_dense_chol(H_damped, b);
+  // // dx = linsolve_dense_svd(H_damped, b);
+  // // dx = linsolve_dense_qr(H_damped, b);
+  // dx = linsolve_sparse_qr(H_damped, b);
 }
 
 real_t yac_solver_t::_calculate_cost() {
@@ -825,8 +881,6 @@ void yac_solver_t::_solve_gn(const int max_iter,
   real_t lambda_k = lambda;
   ParameterOrder param_order;
   vecx_t dx;
-  matx_t J;
-  vecx_t b;
 
   // Lambda function to print status
   auto print_stats =
@@ -848,8 +902,7 @@ void yac_solver_t::_solve_gn(const int max_iter,
 
   for (iter = 1; iter < max_iter; iter++) {
     _cache_params();
-    _linearize(param_order, J, b);
-    _solve_linear_system(0.0, J, b, dx);
+    _solve_linear_system(0.0, param_order, dx);
     _update(param_order, dx);
 
     cost_k = _calculate_cost();
@@ -875,8 +928,6 @@ void yac_solver_t::_solve_lm(const int max_iter,
   real_t lambda_k = lambda;
   ParameterOrder param_order;
   vecx_t dx;
-  matx_t J;
-  vecx_t b;
 
   // Lambda function to print status
   auto print_stats = [&](const int iter,
@@ -901,8 +952,7 @@ void yac_solver_t::_solve_lm(const int max_iter,
 
   for (iter = 1; iter < max_iter; iter++) {
     _cache_params();
-    _linearize(param_order, J, b);
-    _solve_linear_system(lambda_k, J, b, dx);
+    _solve_linear_system(lambda_k, param_order, dx);
     _update(param_order, dx);
 
     cost_k = _calculate_cost();
@@ -934,8 +984,8 @@ void yac_solver_t::_solve_lm(const int max_iter,
 void yac_solver_t::solve(const int max_iter,
                          const bool verbose,
                          const int verbose_level) {
-  // _solve_gn(max_iter, verbose, verbose_level);
-  _solve_lm(max_iter, verbose, verbose_level);
+  _solve_gn(max_iter, verbose, verbose_level);
+  // _solve_lm(max_iter, verbose, verbose_level);
 }
 
 } // namespace yac

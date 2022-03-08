@@ -137,6 +137,8 @@ struct calib_camera_t {
 
   // Problem
   std::default_random_engine calib_rng;
+  // std::string solver_type = "CERES-SOLVER";
+  std::string solver_type = "YAC-SOLVER";
   solver_t *solver = nullptr;
   marg_residual_t *marg_residual = nullptr;
 

@@ -98,8 +98,8 @@ struct calib_camera_t {
   int max_num_threads = 8;
   bool enable_nbv = true;
   bool enable_shuffle_views = true;
-  bool enable_nbv_filter = false;
-  bool enable_outlier_filter = false;
+  bool enable_nbv_filter = true;
+  bool enable_outlier_filter = true;
   bool enable_marginalization = false;
   bool enable_early_stopping = false;
   int min_nbv_views = 40;

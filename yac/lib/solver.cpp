@@ -519,8 +519,114 @@ void ceres_solver_t::solve(const int max_iter,
 
 // SOLVER /////////////////////////////////////////////////////////////////////
 
+// real_t yac_solver_t::_linearize(ParameterOrder &param_order,
+//                                 matx_t &J,
+//                                 vecx_t &b) {
+//   // Evaluate residuals
+//   ResidualJacobians res_jacs;
+//   ResidualJacobians res_min_jacs;
+//   ResidualValues res_vals;
+//   std::vector<calib_residual_t *> good_res_fns;
+//   size_t residuals_length = 0;
+//
+//   for (calib_residual_t *res_fn : res_fns) {
+//     if (_eval_residual(res_fn, res_jacs, res_min_jacs, res_vals)) {
+//       good_res_fns.push_back(res_fn);
+//       residuals_length += res_fn->num_residuals();
+//     }
+//   }
+//
+//   // Calculate cost
+//   real_t cost = 0.0;
+//   for (const auto &[res_fn, r] : res_vals) {
+//     cost += 0.5 * r.transpose() * r;
+//   }
+//
+//   // Track unique parameters
+//   std::map<param_t *, bool> params_seen;
+//   std::vector<param_t *> pose_ptrs;
+//   std::vector<param_t *> sb_ptrs;
+//   std::vector<param_t *> cam_ptrs;
+//   std::vector<param_t *> extrinsics_ptrs;
+//   std::vector<param_t *> fiducial_ptrs;
+//   size_t params_length = 0;
+//
+//   for (auto res_fn : good_res_fns) {
+//     for (auto param_block : res_fn->param_blocks) {
+//       // Check if parameter block seen already
+//       if (params_seen.count(param_block)) {
+//         continue;
+//       }
+//       params_seen[param_block] = true;
+//
+//       // Check if parameter is fixed
+//       if (param_block->fixed) {
+//         continue;
+//       }
+//
+//       // Track parameter
+//       if (param_block->type == "pose_t") {
+//         pose_ptrs.push_back(param_block);
+//       } else if (param_block->type == "sb_params_t") {
+//         sb_ptrs.push_back(param_block);
+//       } else if (param_block->type == "camera_params_t") {
+//         cam_ptrs.push_back(param_block);
+//       } else if (param_block->type == "extrinsics_t") {
+//         extrinsics_ptrs.push_back(param_block);
+//       } else if (param_block->type == "fiducial_t") {
+//         fiducial_ptrs.push_back(param_block);
+//       }
+//       params_length += param_block->local_size;
+//     }
+//   }
+//
+//   // Determine parameter block column indicies for Hessian matrix H
+//   size_t idx = 0;
+//   std::vector<std::vector<param_t *> *> param_groups = {
+//       &pose_ptrs,
+//       &sb_ptrs,
+//       &cam_ptrs,
+//       &extrinsics_ptrs,
+//       &fiducial_ptrs,
+//   };
+//   param_order.clear();
+//   for (const auto &param_ptrs : param_groups) {
+//     for (const auto &param_block : *param_ptrs) {
+//       param_order.insert({param_block, idx});
+//       idx += param_block->local_size;
+//     }
+//   }
+//
+//   // Form Jacobian J and b
+//   J = zeros(residuals_length, params_length);
+//   b = zeros(params_length, 1);
+//   size_t res_idx = 0;
+//
+//   for (calib_residual_t *res_fn : good_res_fns) {
+//     const vecx_t r = res_vals[res_fn];
+//     const int res_size = r.size();
+//
+//     for (size_t i = 0; i < res_fn->param_blocks.size(); i++) {
+//       const auto &param_i = res_fn->param_blocks[i];
+//       if (param_i->fixed) {
+//         continue;
+//       }
+//
+//       const int param_idx = param_order[param_i];
+//       const int param_size = param_i->local_size;
+//       const matx_t J_param = res_min_jacs[res_fn][i];
+//       J.block(res_idx, param_idx, res_size, param_size) += J_param;
+//       b.segment(param_idx, param_size) += -J_param.transpose() * r;
+//     }
+//
+//     res_idx += res_fn->num_residuals();
+//   }
+//
+//   return cost;
+// }
+
 real_t yac_solver_t::_linearize(ParameterOrder &param_order,
-                                matx_t &J,
+                                matx_t &H,
                                 vecx_t &b) {
   // Evaluate residuals
   ResidualJacobians res_jacs;
@@ -598,35 +704,52 @@ real_t yac_solver_t::_linearize(ParameterOrder &param_order,
   }
 
   // Form Jacobian J and b
-  J = zeros(residuals_length, params_length);
+  H = zeros(params_length, params_length);
   b = zeros(params_length, 1);
   size_t res_idx = 0;
 
   for (calib_residual_t *res_fn : good_res_fns) {
     const vecx_t r = res_vals[res_fn];
-    const int res_size = r.size();
 
     for (size_t i = 0; i < res_fn->param_blocks.size(); i++) {
       const auto &param_i = res_fn->param_blocks[i];
       if (param_i->fixed) {
         continue;
       }
+      const int idx_i = param_order[param_i];
+      const int size_i = param_i->local_size;
+      const matx_t J_i = res_min_jacs.at(res_fn)[i];
 
-      const int param_idx = param_order[param_i];
-      const int param_size = param_i->local_size;
-      const matx_t J_param = res_min_jacs[res_fn][i];
-      J.block(res_idx, param_idx, res_size, param_size) += J_param;
-      b.segment(param_idx, param_size) += -J_param.transpose() * r;
+      for (size_t j = i; j < res_fn->param_blocks.size(); j++) {
+        const auto &param_j = res_fn->param_blocks[j];
+        if (param_j->fixed) {
+          continue;
+        }
+        const int idx_j = param_order[param_j];
+        const int size_j = param_j->local_size;
+        const matx_t J_j = res_min_jacs.at(res_fn)[j];
+
+        if (i == j) {
+          // Form diagonals of H
+          H.block(idx_i, idx_i, size_i, size_i) += J_i.transpose() * J_i;
+        } else {
+          // Form off-diagonals of H
+          // clang-format off
+          H.block(idx_i, idx_j, size_i, size_j) += J_i.transpose() * J_j;
+          H.block(idx_j, idx_i, size_j, size_i) += (J_i.transpose() * J_j).transpose();
+          // clang-format on
+        }
+      }
+
+      b.segment(idx_i, size_i) += -J_i.transpose() * r;
     }
-
-    res_idx += res_fn->num_residuals();
   }
 
   return cost;
 }
 
 void yac_solver_t::_solve_linear_system(const real_t lambda_k,
-                                        const matx_t &J,
+                                        const matx_t &H,
                                         const vecx_t &b,
                                         vecx_t &dx) {
   // Dense Cholesky
@@ -634,26 +757,46 @@ void yac_solver_t::_solve_linear_system(const real_t lambda_k,
   // dx = H.ldlt().solve(b);
 
   // Dense SVD
-  const matx_t H = J.transpose() * J + lambda_k * I(b.rows());
-  // const matx_t H = J.transpose() * J;
-  Eigen::JacobiSVD<matx_t> svd(H, Eigen::ComputeThinU | Eigen::ComputeThinV);
-  dx = svd.solve(b);
+  // const matx_t H = J.transpose() * J + lambda_k * I(b.rows());
+  // Eigen::JacobiSVD<matx_t> svd(H, Eigen::ComputeThinU | Eigen::ComputeThinV);
+  // dx = svd.solve(b);
+
+  // Dense QR
+  // Eigen::HouseholderQR<matx_t> qr(J);
+  // dx = qr.solve(b);
 
   // clang-format off
-  // Eigen::SparseMatrix<real_t> J_sparse = J.sparseView();
-  // Eigen::SparseQR<Eigen::SparseMatrix<real_t>, Eigen::COLAMDOrdering<int>> solver;
-  //
-  // // -- Decompose J_sparse
-  // solver.compute(J_sparse);
-  // if (solver.info() != Eigen::Success) {
-  //   FATAL("SparseQR decomp failed!");
-  // }
-  //
-  // // -- Solve for dx
-  // dx = solver.solve(b);
-  // if (solver.info() != Eigen::Success) {
-  //   FATAL("SparseQR decomp failed!");
-  // }
+  profiler_t prof;
+  prof.start("H = JtJ");
+  // const matx_t H = J.transpose() * J + 1e-2 * I(b.rows());
+  // const matx_t H_damped = H + 1e-2 * I(H.rows());
+  const matx_t H_damped = H + lambda_k * I(H.rows());
+  prof.stop("H = JtJ");
+
+  prof.start("H.sparse_view()");
+  Eigen::SparseMatrix<real_t> H_sparse = H_damped.sparseView();
+  prof.stop("H.sparse_view()");
+
+  prof.start("SparseQR.solve()");
+  Eigen::SparseQR<Eigen::SparseMatrix<real_t>, Eigen::COLAMDOrdering<int>> solver;
+
+  // -- Decompose H_sparse
+  solver.compute(H_sparse);
+  if (solver.info() != Eigen::Success) {
+    FATAL("SparseQR decomp failed!");
+  }
+
+  // -- Solve for dx
+  dx = solver.solve(b);
+  if (solver.info() != Eigen::Success) {
+    FATAL("SparseQR decomp failed!");
+  }
+  prof.stop("SparseQR.solve()");
+
+  // prof.print("H = JtJ");
+  // prof.print("H.sparse_view()");
+  // prof.print("SparseQR.solve()");
+  // printf("\n");
   // clang-format on
 }
 
@@ -791,8 +934,8 @@ void yac_solver_t::_solve_lm(const int max_iter,
 void yac_solver_t::solve(const int max_iter,
                          const bool verbose,
                          const int verbose_level) {
-  _solve_gn(max_iter, verbose, verbose_level);
-  // _solve_lm(max_iter, verbose, verbose_level);
+  // _solve_gn(max_iter, verbose, verbose_level);
+  _solve_lm(max_iter, verbose, verbose_level);
 }
 
 } // namespace yac

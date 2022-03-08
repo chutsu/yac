@@ -2,6 +2,7 @@
 #include "calib_residuals.hpp"
 
 #include <Eigen/SparseQR>
+#include <Eigen/SparseCholesky>
 
 namespace yac {
 

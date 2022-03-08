@@ -100,9 +100,9 @@ struct calib_camera_t {
   bool enable_shuffle_views = true;
   bool enable_nbv_filter = true;
   bool enable_outlier_filter = true;
-  bool enable_marginalization = false;
+  bool enable_marginalization = true;
   bool enable_early_stopping = false;
-  int min_nbv_views = 40;
+  int min_nbv_views = 10;
   real_t outlier_threshold = 4.0;
   real_t info_gain_threshold = 0.2;
   int sliding_window_size = 10;
@@ -137,8 +137,8 @@ struct calib_camera_t {
 
   // Problem
   std::default_random_engine calib_rng;
-  // std::string solver_type = "CERES-SOLVER";
-  std::string solver_type = "YAC-SOLVER";
+  std::string solver_type = "CERES-SOLVER";
+  // std::string solver_type = "YAC-SOLVER";
   solver_t *solver = nullptr;
   marg_residual_t *marg_residual = nullptr;
 

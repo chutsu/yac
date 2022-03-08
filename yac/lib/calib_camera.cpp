@@ -1300,7 +1300,7 @@ void calib_camera_t::_solve_batch(const bool filter_outliers) {
   }
 
   // Solve
-  const int max_iter = 10;
+  const int max_iter = 30;
   solver->solve(max_iter, true, 1);
 
   // Final outlier rejection

@@ -387,6 +387,9 @@ int test_calib_camera_solve_inc() {
 int test_calib_camera_mono() {
   calib_camera_t calib{MONO_CONF};
   calib.enable_nbv = false;
+  calib.enable_marginalization = false;
+  calib.enable_nbv_filter = false;
+  calib.enable_outlier_filter = false;
   calib.add_camera_data(0, test_data.at(0));
   calib.solve();
 

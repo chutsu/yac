@@ -842,18 +842,11 @@ void yac_solver_t::_solve_linear_system(const real_t lambda_k,
   vecx_t b;
   _form_hessian(param_order, H, b);
   H = H + lambda_k * I(H.rows());
+  // dx = linsolve_dense_chol(H, b);
   // dx = linsolve_dense_svd(H, b);
   // dx = linsolve_dense_qr(H, b);
+  // dx = linsolve_sparse_qr(H, b);
   dx = truncated_sparse_qr(H, b);
-
-  // matx_t H;
-  // vecx_t b;
-  // _form_hessian(param_order, H, b);
-  // const matx_t H_damped = H + lambda_k * I(H.rows());
-  // // dx = linsolve_dense_chol(H_damped, b);
-  // // dx = linsolve_dense_svd(H_damped, b);
-  // // dx = linsolve_dense_qr(H_damped, b);
-  // dx = linsolve_sparse_qr(H_damped, b);
 }
 
 real_t yac_solver_t::_calculate_cost() {

@@ -895,7 +895,7 @@ void yac_solver_t::_solve_gn(const int max_iter,
 
   for (iter = 1; iter < max_iter; iter++) {
     _cache_params();
-    _solve_linear_system(0.0, param_order, dx);
+    _solve_linear_system(1e-4, param_order, dx);
     _update(param_order, dx);
 
     cost_k = _calculate_cost();
@@ -978,8 +978,8 @@ void yac_solver_t::_solve_lm(const int max_iter,
 void yac_solver_t::solve(const int max_iter,
                          const bool verbose,
                          const int verbose_level) {
-  // _solve_gn(max_iter, verbose, verbose_level);
-  _solve_lm(max_iter, verbose, verbose_level);
+  _solve_gn(max_iter, verbose, verbose_level);
+  // _solve_lm(max_iter, verbose, verbose_level);
 }
 
 } // namespace yac

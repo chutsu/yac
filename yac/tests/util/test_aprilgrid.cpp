@@ -411,6 +411,7 @@ int test_aprilgrid_detect() {
   profiler_t prof;
   prof.start("detect");
   aprilgrid_t grid = detector.detect(0, image);
+  prof.stop("detect");
   prof.print("detect");
 
   cv::imwrite("/tmp/grid.png", grid.draw(image));
@@ -488,12 +489,12 @@ int test_aprilgrid_profile() {
 
     // Imshow
     printf("detect_time: %f [s], nb_detected: %d\n", det_elasped, num_dets);
-    if (grids.count(0)) {
-      grids[0].imshow("viz", img0);
-    } else {
-      cv::imshow("viz", img0);
-    }
-    cv::waitKey(1);
+    // if (grids.count(0)) {
+    //   grids[0].imshow("viz", img0);
+    // } else {
+    //   cv::imshow("viz", img0);
+    // }
+    // cv::waitKey(1);
   }
 
   // Print stats
@@ -527,7 +528,7 @@ void test_suite() {
   MU_ADD_TEST(test_aprilgrid_save_and_load);
   MU_ADD_TEST(test_aprilgrid_print);
   MU_ADD_TEST(test_aprilgrid_detect);
-  // MU_ADD_TEST(test_aprilgrid_profile);
+  MU_ADD_TEST(test_aprilgrid_profile);
 }
 
 } // namespace yac

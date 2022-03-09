@@ -42,7 +42,11 @@ INCLUDE_DIRECTORIES(${OpenCV_INCLUDE_DIRS})
 INCLUDE_DIRECTORIES(${EIGEN3_INCLUDE_DIR})
 INCLUDE_DIRECTORIES("../deps/include")
 LINK_DIRECTORIES("../deps/lib")
-SET(DEPS yaml-cpp glog ceres apriltag3 apriltag ${OpenCV_LIBS})
+SET(
+  DEPS yaml-cpp glog ceres apriltag3 apriltag ${OpenCV_LIBS}
+  cholmod
+
+)
 
 IF(USE_OPENMP)
   FIND_PACKAGE(OpenMP REQUIRED)
@@ -90,6 +94,7 @@ ADD_LIBRARY(
   lib/calib_params.cpp
   lib/calib_vi.cpp
   lib/solver.cpp
+  lib/suitesparse.cpp
 )
 
 # TESTS

@@ -99,7 +99,7 @@ struct calib_camera_t {
   std::string solver_type = "YAC-SOLVER";
   int max_num_threads = 8;
   bool enable_nbv = true;
-  bool enable_shuffle_views = true;
+  bool enable_shuffle_views = false;
   bool enable_nbv_filter = true;
   bool enable_outlier_filter = true;
   bool enable_marginalization = true;

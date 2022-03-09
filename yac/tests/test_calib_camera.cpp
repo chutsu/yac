@@ -400,6 +400,7 @@ int test_calib_camera_stereo() {
   // Calibrate
   calib_camera_t calib{STEREO_CONF};
   calib.enable_nbv = true;
+  calib.enable_shuffle_views = false;
   calib.enable_marginalization = false;
   calib.enable_nbv_filter = true;
   calib.enable_outlier_filter = true;

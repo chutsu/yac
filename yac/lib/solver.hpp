@@ -1,5 +1,6 @@
 #include "calib_params.hpp"
 #include "calib_residuals.hpp"
+#include "suitesparse.hpp"
 
 #include <Eigen/SparseQR>
 #include <Eigen/SparseCholesky>
@@ -27,7 +28,8 @@ struct solver_t {
   real_t final_cost = 0.0;
   real_t num_iterations = 0.0;
 
-  solver_t() = default;
+  solver_t() { Eigen::setNbThreads(8); }
+
   virtual ~solver_t() = default;
 
   virtual size_t num_residuals();

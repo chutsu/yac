@@ -1418,7 +1418,8 @@ void calib_camera_t::_solve_nbv() {
   }
 
   // Final Solve
-  solver->solve();
+  removed_outliers = _filter_all_views();
+  solver->solve(50, true, 1);
 }
 
 void calib_camera_t::solve() {

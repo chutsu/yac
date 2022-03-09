@@ -95,6 +95,8 @@ struct calib_camera_t {
   // Settings
   // -- General
   bool verbose = true;
+  // std::string solver_type = "CERES-SOLVER";
+  std::string solver_type = "YAC-SOLVER";
   int max_num_threads = 8;
   bool enable_nbv = true;
   bool enable_shuffle_views = true;
@@ -137,8 +139,6 @@ struct calib_camera_t {
 
   // Problem
   std::default_random_engine calib_rng;
-  std::string solver_type = "CERES-SOLVER";
-  // std::string solver_type = "YAC-SOLVER";
   solver_t *solver = nullptr;
   marg_residual_t *marg_residual = nullptr;
 

@@ -383,6 +383,8 @@ calib_camera_t::calib_camera_t(const calib_target_t &calib_target_)
     solver = new ceres_solver_t();
   } else if (solver_type == "YAC-SOLVER") {
     solver = new yac_solver_t();
+  } else {
+    FATAL("Unsupported solver type [%s]", solver_type.c_str());
   }
 
   // Add fiducial corners to problem
@@ -408,6 +410,8 @@ calib_camera_t::calib_camera_t(const std::string &config_path)
     solver = new ceres_solver_t();
   } else if (solver_type == "YAC-SOLVER") {
     solver = new yac_solver_t();
+  } else {
+    FATAL("Unsupported solver type [%s]", solver_type.c_str());
   }
 
   // Load configuration
@@ -1300,7 +1304,7 @@ void calib_camera_t::_solve_batch(const bool filter_outliers) {
   }
 
   // Solve
-  const int max_iter = 30;
+  const int max_iter = 50;
   solver->solve(max_iter, true, 1);
 
   // Final outlier rejection

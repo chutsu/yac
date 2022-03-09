@@ -841,7 +841,7 @@ void yac_solver_t::_solve_linear_system(const real_t lambda_k,
   matx_t H;
   vecx_t b;
   _form_hessian(param_order, H, b);
-  // H = H + 1e-2 * I(H.rows());
+  H = H + lambda_k * I(H.rows());
   // dx = linsolve_dense_svd(H, b);
   // dx = linsolve_dense_qr(H, b);
   dx = truncated_sparse_qr(H, b);
@@ -907,6 +907,7 @@ void yac_solver_t::_solve_gn(const int max_iter,
 
     cost_k = _calculate_cost();
     dcost = cost_k - cost_km1;
+    cost_km1 = cost_k;
 
     if (verbose && verbose_level == 1) {
       print_stats(iter, cost_k, dcost);
@@ -984,8 +985,8 @@ void yac_solver_t::_solve_lm(const int max_iter,
 void yac_solver_t::solve(const int max_iter,
                          const bool verbose,
                          const int verbose_level) {
-  _solve_gn(max_iter, verbose, verbose_level);
-  // _solve_lm(max_iter, verbose, verbose_level);
+  // _solve_gn(max_iter, verbose, verbose_level);
+  _solve_lm(max_iter, verbose, verbose_level);
 }
 
 } // namespace yac

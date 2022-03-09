@@ -56,7 +56,7 @@ double colNorm(const cholmod_sparse *A, std::ptrdiff_t col_idx) {
   return std::sqrt(norm);
 }
 
-std::ptrdiff_t estimateNumericalRank(const Eigen::VectorXd &singular_values,
+std::ptrdiff_t estimateNumericalRank(const vecx_t &singular_values,
                                      double tolerance) {
   // CHECK_GE(tolerance, 0.0);
 
@@ -72,7 +72,7 @@ std::ptrdiff_t estimateNumericalRank(const Eigen::VectorXd &singular_values,
   return numerical_rank;
 }
 
-double rankTol(const Eigen::VectorXd &singular_values, double eps) {
+double rankTol(const vecx_t &singular_values, double eps) {
   // CHECK_GT(singular_values.rows(), 0) << "Empty singular values vector.";
   // CHECK_GT(eps, 0.0);
   return singular_values(0) * eps * singular_values.size();
@@ -86,7 +86,7 @@ double qrTol(cholmod_sparse *A, cholmod_common *cholmod, double eps) {
          spqr_maxcolnorm<double>(A, cholmod);
 }
 
-double svGap(const Eigen::VectorXd &singular_values, std::ptrdiff_t rank) {
+double svGap(const vecx_t &singular_values, std::ptrdiff_t rank) {
   // CHECK_LE(rank, singular_values.rows());
   // CHECK_GE(rank, 0);
 
@@ -303,19 +303,18 @@ cholmod_dense *reduceRightHandSide(SuiteSparseQR_factorization<double> *factor,
 }
 
 void solveSVD(const cholmod_dense *b,
-              const Eigen::VectorXd &sv,
-              const Eigen::MatrixXd &U,
-              const Eigen::MatrixXd &V,
+              const vecx_t &sv,
+              const matx_t &U,
+              const matx_t &V,
               std::ptrdiff_t rank,
-              Eigen::VectorXd &x) {
+              vecx_t &x) {
   // CHECK_NOTNULL(b);
   // CHECK_LE(rank, V.cols());
   // CHECK_EQ(V.cols(), sv.rows());
   // CHECK_EQ(U.rows(), static_cast<std::ptrdiff_t>(b->nrow));
 
-  Eigen::Map<const Eigen::VectorXd> b_eigen(reinterpret_cast<const double *>(
-                                                b->x),
-                                            b->nrow);
+  Eigen::Map<const vecx_t> b_eigen(reinterpret_cast<const double *>(b->x),
+                                   b->nrow);
   x = V.leftCols(rank) * sv.head(rank).asDiagonal().inverse() *
       U.leftCols(rank).adjoint() * b_eigen;
 }
@@ -323,7 +322,7 @@ void solveSVD(const cholmod_dense *b,
 cholmod_dense *solveQR(SuiteSparseQR_factorization<double> *factor,
                        cholmod_dense *b,
                        cholmod_sparse *A_r,
-                       const Eigen::VectorXd &x_r,
+                       const vecx_t &x_r,
                        cholmod_common *cholmod) {
   // CHECK_NOTNULL(factor);
   // CHECK(factor->QRsym != nullptr) << "Run symbolic factorization first.";
@@ -353,12 +352,12 @@ cholmod_dense *solveQR(SuiteSparseQR_factorization<double> *factor,
         cholmod_l_sdmult(A_r, 0, alpha, beta, &x_r_cholmod, A_rx_r, cholmod);
     // CHECK(success) << "cholmod_l_sdmult failed.";
 
-    Eigen::Map<const Eigen::VectorXd> bEigen(reinterpret_cast<const double *>(
-                                                 b->x),
-                                             b->nrow);
-    Eigen::Map<const Eigen::VectorXd>
-        A_rx_rEigen(reinterpret_cast<const double *>(A_rx_r->x), A_rx_r->nrow);
-    const Eigen::VectorXd bmA_rx_rEigen = bEigen - A_rx_rEigen;
+    Eigen::Map<const vecx_t> bEigen(reinterpret_cast<const double *>(b->x),
+                                    b->nrow);
+    Eigen::Map<const vecx_t> A_rx_rEigen(reinterpret_cast<const double *>(
+                                             A_rx_r->x),
+                                         A_rx_r->nrow);
+    const vecx_t bmA_rx_rEigen = bEigen - A_rx_rEigen;
     cholmod_l_free_dense(&A_rx_r, cholmod);
     cholmod_dense bmA_rx_r;
     cholmod_converter_t::convert(bmA_rx_rEigen, &bmA_rx_r);
@@ -377,6 +376,8 @@ cholmod_dense *solveQR(SuiteSparseQR_factorization<double> *factor,
   cholmod_l_free_dense(&QtbmA_rx_r, cholmod);
   return x_l;
 }
+
+// TRUNCATED SOLVER ///////////////////////////////////////////////////////////
 
 truncated_solver_t::truncated_solver_t() { cholmod_l_start(&cholmod_); }
 
@@ -437,44 +438,40 @@ double truncated_solver_t::getQRTolerance() const {
 
 double truncated_solver_t::getSVDTolerance() const { return svdTolerance_; }
 
-const Eigen::VectorXd &truncated_solver_t::getSingularValues() const {
+const vecx_t &truncated_solver_t::getSingularValues() const {
   return singularValues_;
 }
 
-const Eigen::MatrixXd &truncated_solver_t::getMatrixU() const {
-  return matrixU_;
-}
+const matx_t &truncated_solver_t::getMatrixU() const { return matrixU_; }
 
-const Eigen::MatrixXd &truncated_solver_t::getMatrixV() const {
-  return matrixV_;
-}
+const matx_t &truncated_solver_t::getMatrixV() const { return matrixV_; }
 
-Eigen::MatrixXd truncated_solver_t::getNullSpace() const {
+matx_t truncated_solver_t::getNullSpace() const {
   if (svdRank_ == -1 || svdRank_ > matrixV_.cols()) {
-    return Eigen::MatrixXd(0, 0);
+    return matx_t(0, 0);
   }
   return matrixV_.rightCols(matrixV_.cols() - svdRank_);
 }
 
-Eigen::MatrixXd truncated_solver_t::getRowSpace() const {
+matx_t truncated_solver_t::getRowSpace() const {
   if (svdRank_ == -1 || svdRank_ > matrixV_.cols()) {
-    return Eigen::MatrixXd(0, 0);
+    return matx_t(0, 0);
   }
   return matrixV_.leftCols(svdRank_);
 }
 
-Eigen::MatrixXd truncated_solver_t::getCovariance() const {
+matx_t truncated_solver_t::getCovariance() const {
   if (svdRank_ == -1 || svdRank_ > matrixV_.cols()) {
-    return Eigen::MatrixXd(0, 0);
+    return matx_t(0, 0);
   }
   return matrixV_.leftCols(svdRank_) *
          singularValues_.head(svdRank_).asDiagonal().inverse() *
          matrixV_.leftCols(svdRank_).adjoint();
 }
 
-Eigen::MatrixXd truncated_solver_t::getRowSpaceCovariance() const {
+matx_t truncated_solver_t::getRowSpaceCovariance() const {
   if (svdRank_ == -1) {
-    return Eigen::MatrixXd(0, 0);
+    return matx_t(0, 0);
   }
   return singularValues_.head(svdRank_).asDiagonal().inverse();
 }
@@ -484,26 +481,6 @@ double truncated_solver_t::getSingularValuesLog2Sum() const {
     return 0.0;
   }
   return singularValues_.head(svdRank_).array().log().sum() / std::log(2);
-}
-
-size_t truncated_solver_t::getPeakMemoryUsage() const {
-  return cholmod_.memory_usage;
-}
-
-size_t truncated_solver_t::getMemoryUsage() const {
-  return cholmod_.memory_inuse;
-}
-
-// double truncated_solver_t::getNumFlops() const {
-//   return cholmod_.SPQR_xstat[0];
-// }
-
-double truncated_solver_t::getLinearSolverTime() const {
-  return linearSolverTime_;
-}
-
-double truncated_solver_t::getMarginalAnalysisTime() const {
-  return marginalAnalysisTime_;
 }
 
 double truncated_solver_t::getSymbolicFactorizationTime() const {
@@ -530,7 +507,7 @@ void truncated_solver_t::setNThreads(int n) {
 void truncated_solver_t::solve(cholmod_sparse *A,
                                cholmod_dense *b,
                                size_t j,
-                               Eigen::VectorXd &x) {
+                               vecx_t &x) {
   // CHECK_EQ(A->nrow, b->nrow);
   const bool hasQrPart = j > 0;
   const bool hasSvdPart = j < A->ncol;
@@ -583,7 +560,7 @@ void truncated_solver_t::solve(cholmod_sparse *A,
     // cholmod_.other1[1] = cholmod_.other1[2] = 0.0;
   }
 
-  Eigen::VectorXd x_r;
+  vecx_t x_r;
   SelfFreeingCholmodPtr<cholmod_dense> x_l(nullptr, cholmod_);
   SelfFreeingCholmodPtr<cholmod_dense> G_r(nullptr, cholmod_);
   if (hasSvdPart) {
@@ -624,16 +601,18 @@ void truncated_solver_t::solve(cholmod_sparse *A,
 
   if (tsvd_options_.columnScaling) {
     if (G_l) {
-      Eigen::Map<const Eigen::VectorXd>
-          G_lEigen(reinterpret_cast<const double *>(G_l->x), G_l->nrow);
-      Eigen::Map<Eigen::VectorXd> x_lEigen(reinterpret_cast<double *>(x_l->x),
-                                           x_l->nrow);
+      Eigen::Map<const vecx_t> G_lEigen(reinterpret_cast<const double *>(
+                                            G_l->x),
+                                        G_l->nrow);
+      Eigen::Map<vecx_t> x_lEigen(reinterpret_cast<double *>(x_l->x),
+                                  x_l->nrow);
       x_lEigen = G_lEigen.cwiseProduct(x_lEigen);
       G_l.reset(nullptr);
     }
     if (G_r) {
-      Eigen::Map<const Eigen::VectorXd>
-          G_rEigen(reinterpret_cast<const double *>(G_r->x), G_r->nrow);
+      Eigen::Map<const vecx_t> G_rEigen(reinterpret_cast<const double *>(
+                                            G_r->x),
+                                        G_r->nrow);
       x_r = G_rEigen.array() * x_r.array();
       G_r.reset(nullptr);
     }
@@ -641,8 +620,7 @@ void truncated_solver_t::solve(cholmod_sparse *A,
 
   x.resize(A->ncol);
   if (hasQrPart) {
-    Eigen::Map<Eigen::VectorXd> x_lEigen(reinterpret_cast<double *>(x_l->x),
-                                         x_l->nrow);
+    Eigen::Map<vecx_t> x_lEigen(reinterpret_cast<double *>(x_l->x), x_l->nrow);
     x.head(x_lEigen.size()) = x_lEigen;
   }
   if (hasSvdPart) {
@@ -653,16 +631,14 @@ void truncated_solver_t::solve(cholmod_sparse *A,
 }
 
 void truncated_solver_t::analyzeSVD(const cholmod_sparse *Omega,
-                                    Eigen::VectorXd &sv,
-                                    Eigen::MatrixXd &U,
-                                    Eigen::MatrixXd &V) {
+                                    vecx_t &sv,
+                                    matx_t &U,
+                                    matx_t &V) {
   // CHECK_NOTNULL(Omega);
-
-  Eigen::MatrixXd OmegaDense;
+  matx_t OmegaDense;
   cholmod_converter_t::convert(Omega, OmegaDense);
-  const Eigen::JacobiSVD<Eigen::MatrixXd> svd(OmegaDense,
-                                              Eigen::ComputeThinU |
-                                                  Eigen::ComputeThinV);
+  const Eigen::JacobiSVD<matx_t> svd(OmegaDense,
+                                     Eigen::ComputeThinU | Eigen::ComputeThinV);
   U = svd.matrixU();
   V = svd.matrixV();
   sv = svd.singularValues();

@@ -4,6 +4,54 @@
 
 namespace yac {
 
+// CHOLMOD UTILS ///////////////////////////////////////////////////////////////
+
+cholmod_dense *solve_qr(SuiteSparseQR_factorization<double> *factor,
+                        cholmod_dense *b,
+                        cholmod_common *cholmod);
+
+inline void deleteCholdmodPtr(cholmod_sparse *&ptr, cholmod_common &cholmod) {
+  if (ptr) {
+    cholmod_l_free_sparse(&ptr, &cholmod);
+  }
+}
+
+inline void deleteCholdmodPtr(cholmod_dense *&ptr, cholmod_common &cholmod) {
+  if (ptr) {
+    cholmod_l_free_dense(&ptr, &cholmod);
+  }
+}
+
+template <typename T>
+struct SelfFreeingCholmodPtr {
+  explicit SelfFreeingCholmodPtr(T *ptr, cholmod_common &cholmod)
+      : cholmod_(cholmod), ptr_(ptr) {}
+
+  ~SelfFreeingCholmodPtr() { reset(NULL); }
+
+  void reset(T *ptr = nullptr) {
+    deleteCholdmodPtr(ptr_, cholmod_);
+    ptr_ = ptr;
+  }
+
+  SelfFreeingCholmodPtr &operator=(T *ptr) {
+    reset(ptr);
+    return *this;
+  }
+
+  operator T *() { return ptr_; }
+
+  T *operator->() { return ptr_; }
+
+  T **operator&() { return &ptr_; }
+
+private:
+  cholmod_common &cholmod_;
+  T *ptr_;
+};
+
+// CHOLMOD CONVERTER ///////////////////////////////////////////////////////////
+
 struct cholmod_converter_t {
   // CHOLMOD Sparse to Eigen Dense
   static void convert(const cholmod_sparse *in, matx_t &out) {
@@ -109,49 +157,7 @@ struct cholmod_converter_t {
   }
 };
 
-cholmod_dense *solve_qr(SuiteSparseQR_factorization<double> *factor,
-                        cholmod_dense *b,
-                        cholmod_common *cholmod);
-
-inline void deleteCholdmodPtr(cholmod_sparse *&ptr, cholmod_common &cholmod) {
-  if (ptr) {
-    cholmod_l_free_sparse(&ptr, &cholmod);
-  }
-}
-
-inline void deleteCholdmodPtr(cholmod_dense *&ptr, cholmod_common &cholmod) {
-  if (ptr) {
-    cholmod_l_free_dense(&ptr, &cholmod);
-  }
-}
-
-template <typename T>
-struct SelfFreeingCholmodPtr {
-  explicit SelfFreeingCholmodPtr(T *ptr, cholmod_common &cholmod)
-      : cholmod_(cholmod), ptr_(ptr) {}
-
-  ~SelfFreeingCholmodPtr() { reset(NULL); }
-
-  void reset(T *ptr = nullptr) {
-    deleteCholdmodPtr(ptr_, cholmod_);
-    ptr_ = ptr;
-  }
-
-  SelfFreeingCholmodPtr &operator=(T *ptr) {
-    reset(ptr);
-    return *this;
-  }
-
-  operator T *() { return ptr_; }
-
-  T *operator->() { return ptr_; }
-
-  T **operator&() { return &ptr_; }
-
-private:
-  cholmod_common &cholmod_;
-  T *ptr_;
-};
+// TRUNCATED SOLVER ///////////////////////////////////////////////////////////
 
 struct trucated_solver_options_t {
   bool columnScaling = false;
@@ -178,12 +184,6 @@ struct truncated_solver_t {
   double linearSolverTime_;
   double marginalAnalysisTime_;
 
-  // truncated_solver_t(const Options &options = Options());
-  // truncated_solver_t(const truncated_solver_t &other) = delete;
-  // truncated_solver_t &operator=(const truncated_solver_t &other) = delete;
-  // truncated_solver_t(truncated_solver_t &&other) = delete;
-  // truncated_solver_t &operator=(truncated_solver_t &&other) = delete;
-
   truncated_solver_t();
   virtual ~truncated_solver_t();
 
@@ -208,11 +208,6 @@ struct truncated_solver_t {
   matx_t getCovariance() const;
   matx_t getRowSpaceCovariance() const;
   double getSingularValuesLog2Sum() const;
-  size_t getPeakMemoryUsage() const;
-  size_t getMemoryUsage() const;
-  // double getNumFlops() const;
-  double getLinearSolverTime() const;
-  double getMarginalAnalysisTime() const;
   double getSymbolicFactorizationTime() const;
   double getNumericFactorizationTime() const;
   void setNThreads(int n);

@@ -1,18 +1,18 @@
 #!/bin/bash
 set -e
-BUILD_TYPE=Release
-INSTALL_PREFIX=${PWD}
+BASEDIR=$(dirname "$0")
+source "$BASEDIR/config.bash"
 echo "building apriltag ..."
 
 # Clone
-if [ ! -d src/apriltag ]; then
-  cd src
+if [ ! -d $INSTALL_PREFIX/src/apriltag ]; then
+  cd $INSTALL_PREFIX/src
   git clone --quiet https://github.com/chutsu/apriltag
   cd ..
 fi
 
 # Build
-cd src/apriltag
+cd $INSTALL_PREFIX/src/apriltag
 
 git submodule --quiet init
 git submodule --quiet update

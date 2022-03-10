@@ -1,6 +1,6 @@
 # Configurations
-PREFIX="/usr/local"
-DOWNLOAD_PATH="$PREFIX/src"
+INSTALL_PREFIX="/opt/yac"
+DOWNLOAD_PATH="$INSTALL_PREFIX/src"
 BUILD_TYPE="Release"
 ROS_VERSION="noetic"
 
@@ -32,7 +32,7 @@ install_git_repo() {
     cd build || return
     cmake .. \
       -DCMAKE_BUILD_TYPE=$BUILD_TYPE \
-      -DCMAKE_INSTALL_PREFIX=$PREFIX \
+      -DCMAKE_INSTALL_PREFIX=$INSTALL_PREFIX \
       $CMAKE_EXTRA_ARGS
 
     # Compile and install
@@ -58,7 +58,7 @@ install_hg_repo() {
     cd build || return
     cmake .. \
       -DCMAKE_BUILD_TYPE=$BUILD_TYPE \
-      -DCMAKE_INSTALL_PREFIX=$PREFIX \
+      -DCMAKE_INSTALL_PREFIX=$INSTALL_PREFIX \
       $CMAKE_EXTRA_ARGS
 
     # Compile and install
@@ -82,7 +82,7 @@ install_zip_repo() {
   cd build || return
   cmake .. \
     -DCMAKE_BUILD_TYPE=$BUILD_TYPE \
-    -DCMAKE_INSTALL_PREFIX=$PREFIX \
+    -DCMAKE_INSTALL_PREFIX=$INSTALL_PREFIX \
     $CMAKE_EXTRA_ARGS
 
   make -j"$(nproc)" && make install

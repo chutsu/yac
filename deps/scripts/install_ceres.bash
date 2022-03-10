@@ -1,26 +1,27 @@
 #!/bin/bash
-set -e  # Exit on first error
+set -e
 BASEDIR=$(dirname "$0")
-source $BASEDIR/config.bash
+source "$BASEDIR/config.bash"
 
-# VERY IMPORTANT! We need to specifically tell cmake we have our own custom
-# installation of eigen3 or else you'll end up with seg-faults during
-# optimization
-# export CMAKE_EXTRA_ARGS="-DEigen3_DIR=${PREFIX}/share/eigen3/cmake/"
+VERSION=2.0.0
+echo "building ceres-solver [$VERSION] ..."
 
-# install_dependencies() {
-#     apt-get update -qq
-#     apt-get install -qq -y cmake \
-#                            libgoogle-glog-dev \
-#                            libatlas-base-dev \
-#                            libeigen3-dev \
-#                            libsuitesparse-dev
-# }
-#
-# # MAIN
-# install_dependencies
-# install_git_repo \
-#   https://github.com/ceres-solver/ceres-solver.git \
-#   ceres-solver
+# Clone
+if [ ! -d $INSTALL_PREFIX/src/ceres-solver ]; then
+  cd $INSTALL_PREFIX/src
+  git clone --quiet https://github.com/ceres-solver/ceres-solver
+  cd ..
+fi
 
-apt_install libceres-dev
+# Build
+cd $INSTALL_PREFIX/src/ceres-solver
+git checkout ${VERSION} --quiet
+
+mkdir -p build
+cd build
+cmake .. \
+  -DCMAKE_BUILD_TYPE=$BUILD_TYPE \
+  -DCMAKE_INSTALL_PREFIX=$INSTALL_PREFIX \
+  -DCMAKE_PREFIX_PATH=$INSTALL_PREFIX
+make -j4
+make install

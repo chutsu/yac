@@ -4,23 +4,6 @@ IF (POLICY CMP0048)
 ENDIF (POLICY CMP0048)
 PROJECT(yac)
 
-# GENERAL SETTINGS
-IF (NOT DEFINED USE_OPENMP)
-  SET(USE_OPENMP ON)
-ENDIF()
-
-IF (NOT DEFINED apriltag3_DIR)
-  SET(apriltag3_DIR "../deps/share/apriltag3/cmake")  # Use custom AprilTag3
-ENDIF()
-
-IF (NOT DEFINED Eigen3_DIR)
-  SET(Eigen3_DIR "../deps/share/eigen3/cmake")
-ENDIF()
-
-IF (NOT DEFINED Ceres_DIR)
-  SET(Ceres_DIR "../deps/lib/cmake/Ceres")
-ENDIF()
-
 # COMPILATION SETTINGS
 SET(CMAKE_CXX_STANDARD 17)
 # ADD_COMPILE_OPTIONS(
@@ -35,9 +18,21 @@ SET(CMAKE_CXX_STANDARD 17)
 # )
 
 # DEPENDENCIES
-FIND_PACKAGE(Ceres REQUIRED)
-FIND_PACKAGE(OpenCV REQUIRED)
-FIND_PACKAGE(Eigen3 REQUIRED)
+IF (NOT DEFINED Eigen3_DIR)
+  SET(Eigen3_DIR "/opt/yac/share/eigen3/cmake")
+ENDIF()
+
+IF (NOT DEFINED apriltag3_DIR)
+  SET(apriltag3_DIR "/opt/yac/share/apriltag3/cmake")  # Use custom AprilTag3
+ENDIF()
+
+IF (NOT DEFINED Ceres_DIR OR "${Ceres_DIR}" STREQUAL "Ceres_DIR-NOTFOUND")
+  SET(Ceres_DIR "/opt/yac/lib/cmake/Ceres")
+ENDIF()
+
+IF (NOT DEFINED USE_OPENMP)
+  SET(USE_OPENMP ON)
+ENDIF()
 
 IF(USE_OPENMP)
   FIND_PACKAGE(OpenMP REQUIRED)
@@ -49,14 +44,15 @@ IF(USE_OPENMP)
   ENDIF(OPENMP_FOUND)
 ENDIF(USE_OPENMP)
 
+FIND_PACKAGE(Ceres REQUIRED)
+FIND_PACKAGE(OpenCV REQUIRED)
+FIND_PACKAGE(Eigen3 REQUIRED)
 INCLUDE_DIRECTORIES(${OpenCV_INCLUDE_DIRS})
 INCLUDE_DIRECTORIES(${EIGEN3_INCLUDE_DIR})
-INCLUDE_DIRECTORIES("../deps/include")
-LINK_DIRECTORIES("../deps/lib")
-SET(
-  DEPS yaml-cpp glog ceres apriltag3 apriltag ${OpenCV_LIBS}
-  cholmod spqr
-)
+INCLUDE_DIRECTORIES("/opt/yac/include")
+LINK_DIRECTORIES("/opt/yac/lib")
+
+SET(DEPS yaml-cpp glog ceres apriltag3 apriltag ${OpenCV_LIBS} cholmod spqr)
 
 # LIBRARY
 INCLUDE_DIRECTORIES(lib)

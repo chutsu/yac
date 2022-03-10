@@ -5,11 +5,12 @@ source "$BASEDIR"/config.bash
 
 export DEBIAN_FRONTEND="noninteractive"
 export DOWNLOAD_PATH=$DOWNLOAD_PATH
-mkdir -p "$PREFIX"
+mkdir -p "$INSTALL_PREFIX"
 mkdir -p "$DOWNLOAD_PATH"
 
 install() {
-  echo "Installing $1 ..." && "$BASEDIR"/install_"$1".bash > /dev/null
+  echo "Installing $1 ..." \
+    && "$BASEDIR"/install_"$1".bash > "install_${1}.log" 2>&1
 }
 
 install_base() {
@@ -32,8 +33,10 @@ install_base() {
 apt_update
 install_base
 install ros
-# install apriltags
-# install ceres
-# install eigen
+install eigen
+install apriltag
+install apriltag3
+install suitesparse
+install ceres
 install opencv
 install yamlcpp

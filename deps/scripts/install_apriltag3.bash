@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
-BUILD_TYPE=Release
-INSTALL_PREFIX=${PWD}
+BASEDIR=$(dirname "$0")
+source "$BASEDIR/config.bash"
 
 # Build
 cd src/apriltag3

@@ -8,7 +8,7 @@ echo "building eigen [$VERSION] ..."
 # Clone
 if [ ! -d src/eigen ]; then
   cd src
-  git clone https://gitlab.com/libeigen/eigen.git
+  git clone --quiet https://gitlab.com/libeigen/eigen.git
   cd ..
 fi
 

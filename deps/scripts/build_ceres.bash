@@ -8,7 +8,7 @@ echo "building ceres-solver [$VERSION] ..."
 # Clone
 if [ ! -d src/ceres-solver ]; then
   cd src
-  git clone https://github.com/ceres-solver/ceres-solver
+  git clone --quiet https://github.com/ceres-solver/ceres-solver
   cd ..
 fi
 
@@ -22,5 +22,5 @@ cmake .. \
   -DCMAKE_BUILD_TYPE=$BUILD_TYPE \
   -DCMAKE_INSTALL_PREFIX=$INSTALL_PREFIX \
   -DCMAKE_PREFIX_PATH=$INSTALL_PREFIX
-make
+make -j4
 make install

@@ -591,6 +591,9 @@ void yac_solver_t::_form_jacobian(ParameterOrder &param_order,
     }
   }
 
+  // MARGINALIZATION INDEX
+  marg_idx = param_order[cam_ptrs[0]];
+
   // Form Jacobian J and r
   J = zeros(residuals_length, params_length);
   r = zeros(residuals_length, 1);
@@ -807,9 +810,10 @@ static vecx_t truncated_sparse_qr(const matx_t &A, const vecx_t &b) {
   profiler_t prof;
   prof.start("SparseQR.solve()");
   Eigen::SparseQR<Eigen::SparseMatrix<real_t>, Eigen::COLAMDOrdering<int>> solver;
+  // Eigen::SimplicialCholesky<Eigen::SparseMatrix<real_t>> solver;
 
   // -- Decompose
-  solver.setPivotThreshold(1.0e-5);
+  // solver.setPivotThreshold(1.0e-5);
   solver.compute(A.sparseView());
   if (solver.info() != Eigen::Success) {
     FATAL("SparseQR decomp failed!");
@@ -838,6 +842,16 @@ void yac_solver_t::_solve_linear_system(const real_t lambda_k,
   // _form_jacobian(param_order, J, r);
   // dx = linsolve_dense_svd(J, r);
 
+  // // clang-format off
+  // tsolver.cholmod_.SPQR_nthreads = 10;
+  // cholmod_sparse *J_sparse = cholmod_converter_t::convert(J,
+  // &tsolver.cholmod_, std::numeric_limits<double>::epsilon()); cholmod_dense
+  // *r_dense = cholmod_converter_t::convert(-1.0 * r, &tsolver.cholmod_);
+  // tsolver.solve(J_sparse, r_dense, J.cols() - 1, dx);
+  // cholmod_l_free_sparse(&J_sparse, &tsolver.cholmod_);
+  // cholmod_l_free_dense(&r_dense, &tsolver.cholmod_);
+  // // clang-format on
+
   matx_t H;
   vecx_t b;
   _form_hessian(param_order, H, b);
@@ -847,6 +861,14 @@ void yac_solver_t::_solve_linear_system(const real_t lambda_k,
   // dx = linsolve_dense_qr(H, b);
   // dx = linsolve_sparse_qr(H, b);
   dx = truncated_sparse_qr(H, b);
+
+  // clang-format off
+  // cholmod_sparse *H_sparse = cholmod_converter_t::convert(H, &tsolver.cholmod_, std::numeric_limits<double>::epsilon());
+  // cholmod_dense *b_dense = cholmod_converter_t::convert(b, &tsolver.cholmod_);
+  // tsolver.solve(H_sparse, b_dense, H.cols() - 1, dx);
+  // cholmod_l_free_sparse(&H_sparse, &tsolver.cholmod_);
+  // cholmod_l_free_dense(&b_dense, &tsolver.cholmod_);
+  // clang-format on
 }
 
 real_t yac_solver_t::_calculate_cost() {
@@ -978,8 +1000,9 @@ void yac_solver_t::_solve_lm(const int max_iter,
 void yac_solver_t::solve(const int max_iter,
                          const bool verbose,
                          const int verbose_level) {
-  _solve_gn(max_iter, verbose, verbose_level);
-  // _solve_lm(max_iter, verbose, verbose_level);
+  // _solve_gn(max_iter, verbose, verbose_level);
+  _solve_lm(max_iter, verbose, verbose_level);
+  tsolver.clear();
 }
 
 } // namespace yac

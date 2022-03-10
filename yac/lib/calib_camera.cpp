@@ -865,13 +865,13 @@ bool calib_camera_t::add_view(const std::map<int, aprilgrid_t> &cam_grids,
   if (info_gain < info_gain_threshold) {
     _restore_estimates();
     remove_view(ts);
-    _track_estimates(ts);
+    _track_estimates(ts, false);
     return false;
   }
 
   // Update
   info_k = info_kp1;
-  _track_estimates(ts);
+  _track_estimates(ts, true);
 
   return true;
 }
@@ -1242,7 +1242,8 @@ int calib_camera_t::_remove_outliers(const bool filter_all) {
   return nb_outliers;
 }
 
-void calib_camera_t::_track_estimates(const timestamp_t ts) {
+void calib_camera_t::_track_estimates(const timestamp_t ts,
+                                      const bool view_accepted) {
   if (nbv_timestamps.count(ts)) {
     return;
   }
@@ -1258,7 +1259,7 @@ void calib_camera_t::_track_estimates(const timestamp_t ts) {
   nbv_timestamps.insert(ts);
   nbv_costs[ts] = {cost_init, cost_final, num_iter};
   nbv_reproj_errors[ts] = get_reproj_errors();
-  nbv_accepted[ts] = false;
+  nbv_accepted[ts] = view_accepted;
 }
 
 void calib_camera_t::_print_stats(const size_t ts_idx,
@@ -1418,7 +1419,7 @@ void calib_camera_t::_solve_nbv() {
   }
 
   // Final Solve
-  removed_outliers = _filter_all_views();
+  // removed_outliers = _filter_all_views();
   solver->solve(50, true, 1);
 }
 
@@ -1608,15 +1609,29 @@ int calib_camera_t::save_results(const std::string &save_path) {
     fprintf(progress, "%f,", cost_init);
     fprintf(progress, "%f,", cost_final);
 
-    fprintf(progress, "%f,", rmse(reproj_errors.at(0)));
-    fprintf(progress, "%f,", mean(reproj_errors.at(0)));
-    fprintf(progress, "%f,", median(reproj_errors.at(0)));
-    fprintf(progress, "%f,", stddev(reproj_errors.at(0)));
+    if (reproj_errors.count(0)) {
+      fprintf(progress, "%f,", rmse(reproj_errors.at(0)));
+      fprintf(progress, "%f,", mean(reproj_errors.at(0)));
+      fprintf(progress, "%f,", median(reproj_errors.at(0)));
+      fprintf(progress, "%f,", stddev(reproj_errors.at(0)));
+    } else {
+      fprintf(progress, "-1.0,");
+      fprintf(progress, "-1.0,");
+      fprintf(progress, "-1.0,");
+      fprintf(progress, "-1.0,");
+    }
 
-    fprintf(progress, "%f,", rmse(reproj_errors.at(1)));
-    fprintf(progress, "%f,", mean(reproj_errors.at(1)));
-    fprintf(progress, "%f,", median(reproj_errors.at(1)));
-    fprintf(progress, "%f,", stddev(reproj_errors.at(1)));
+    if (reproj_errors.count(1)) {
+      fprintf(progress, "%f,", rmse(reproj_errors.at(1)));
+      fprintf(progress, "%f,", mean(reproj_errors.at(1)));
+      fprintf(progress, "%f,", median(reproj_errors.at(1)));
+      fprintf(progress, "%f,", stddev(reproj_errors.at(1)));
+    } else {
+      fprintf(progress, "-1.0,");
+      fprintf(progress, "-1.0,");
+      fprintf(progress, "-1.0,");
+      fprintf(progress, "-1.0,");
+    }
 
     fprintf(progress, "%d\n", accepted);
   }

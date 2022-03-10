@@ -101,10 +101,10 @@ struct calib_camera_t {
   bool enable_nbv = true;
   bool enable_shuffle_views = false;
   bool enable_nbv_filter = true;
-  bool enable_outlier_filter = true;
-  bool enable_marginalization = true;
+  bool enable_outlier_filter = false;
+  bool enable_marginalization = false;
   bool enable_early_stopping = false;
-  int min_nbv_views = 10;
+  int min_nbv_views = 40;
   real_t outlier_threshold = 4.0;
   real_t info_gain_threshold = 0.2;
   int sliding_window_size = 10;
@@ -221,7 +221,7 @@ struct calib_camera_t {
   void _restore_estimates();
   int _calc_info(real_t *info);
   int _remove_outliers(const bool filter_all);
-  void _track_estimates(const timestamp_t ts);
+  void _track_estimates(const timestamp_t ts, const bool view_accepted);
   void _print_stats(const size_t ts_idx, const size_t nb_timestamps);
   void _solve_batch(const bool filter_outliers);
   void _solve_inc();

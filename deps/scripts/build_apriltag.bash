@@ -7,15 +7,15 @@ echo "building apriltag ..."
 # Clone
 if [ ! -d src/apriltag ]; then
   cd src
-  git clone https://github.com/chutsu/apriltag
+  git clone --quiet https://github.com/chutsu/apriltag
   cd ..
 fi
 
 # Build
 cd src/apriltag
 
-git submodule init
-git submodule update
+git submodule --quiet init
+git submodule --quiet update
 
 mkdir -p build
 cd build

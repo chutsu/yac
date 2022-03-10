@@ -9,16 +9,16 @@ IF (NOT DEFINED USE_OPENMP)
   SET(USE_OPENMP ON)
 ENDIF()
 
-IF (NOT DEFINED USE_CATKIN)
-  SET(USE_CATKIN ON)
-ENDIF()
-
 IF (NOT DEFINED apriltag3_DIR)
   SET(apriltag3_DIR "../deps/share/apriltag3/cmake")  # Use custom AprilTag3
 ENDIF()
 
 IF (NOT DEFINED Eigen3_DIR)
-  # SET(Eigen3_DIR "../deps/share/eigen3/cmake")
+  SET(Eigen3_DIR "../deps/share/eigen3/cmake")
+ENDIF()
+
+IF (NOT DEFINED Ceres_DIR)
+  SET(Ceres_DIR "../deps/lib/cmake/Ceres")
 ENDIF()
 
 # COMPILATION SETTINGS
@@ -38,15 +38,6 @@ SET(CMAKE_CXX_STANDARD 17)
 FIND_PACKAGE(Ceres REQUIRED)
 FIND_PACKAGE(OpenCV REQUIRED)
 FIND_PACKAGE(Eigen3 REQUIRED)
-INCLUDE_DIRECTORIES(${OpenCV_INCLUDE_DIRS})
-INCLUDE_DIRECTORIES(${EIGEN3_INCLUDE_DIR})
-INCLUDE_DIRECTORIES("../deps/include")
-LINK_DIRECTORIES("../deps/lib")
-SET(
-  DEPS yaml-cpp glog ceres apriltag3 apriltag ${OpenCV_LIBS}
-  cholmod
-
-)
 
 IF(USE_OPENMP)
   FIND_PACKAGE(OpenMP REQUIRED)
@@ -58,20 +49,19 @@ IF(USE_OPENMP)
   ENDIF(OPENMP_FOUND)
 ENDIF(USE_OPENMP)
 
-IF(USE_CATKIN)
-  FIND_PACKAGE(catkin REQUIRED)
-  INCLUDE_DIRECTORIES(${catkin_INCLUDE_DIRS})
-  CATKIN_PACKAGE(INCLUDE_DIRS lib LIBRARIES yac yac_util)
-  INSTALL(DIRECTORY lib/
-    DESTINATION ${CATKIN_GLOBAL_INCLUDE_DESTINATION}
-    FILES_MATCHING PATTERN ".h" PATTERN ".hpp"
-  )
-ENDIF(USE_CATKIN)
+INCLUDE_DIRECTORIES(${OpenCV_INCLUDE_DIRS})
+INCLUDE_DIRECTORIES(${EIGEN3_INCLUDE_DIR})
+INCLUDE_DIRECTORIES("../deps/include")
+LINK_DIRECTORIES("../deps/lib")
+SET(
+  DEPS yaml-cpp glog ceres apriltag3 apriltag ${OpenCV_LIBS}
+  cholmod spqr
+)
 
 # LIBRARY
 INCLUDE_DIRECTORIES(lib)
 ADD_LIBRARY(
-  yac_util
+  yac
   lib/util/aprilgrid.cpp
   lib/util/ceres_utils.cpp
   lib/util/config.cpp
@@ -82,9 +72,6 @@ ADD_LIBRARY(
   lib/util/net.cpp
   lib/util/sim.cpp
   lib/util/timeline.cpp
-)
-ADD_LIBRARY(
-  yac
   lib/calib_camera.cpp
   lib/calib_data.cpp
   lib/calib_residuals.cpp
@@ -98,66 +85,62 @@ ADD_LIBRARY(
 )
 
 # TESTS
-IF(USE_CATKIN)
-  SET(TEST_BIN_PATH ${CATKIN_DEVEL_PREFIX}/${CATKIN_PACKAGE_BIN_DESTINATION})
-ELSE()
-  SET(TEST_BIN_PATH ${CMAKE_CURRENT_BINARY_DIR})
-ENDIF(USE_CATKIN)
+SET(TEST_BIN_PATH ${CMAKE_CURRENT_BINARY_DIR})
 FILE(COPY tests/test_data DESTINATION ${TEST_BIN_PATH})
 FILE(COPY tests/test_data/mocap_data DESTINATION /tmp)
 ADD_DEFINITIONS(-DTEST_PATH="${TEST_BIN_PATH}")
 
 ADD_EXECUTABLE(test_util_aprilgrid tests/util/test_aprilgrid.cpp)
-TARGET_LINK_LIBRARIES(test_util_aprilgrid yac yac_util ${DEPS})
+TARGET_LINK_LIBRARIES(test_util_aprilgrid yac ${DEPS})
 
 ADD_EXECUTABLE(test_util_config tests/util/test_config.cpp)
-TARGET_LINK_LIBRARIES(test_util_config yac yac_util ${DEPS})
+TARGET_LINK_LIBRARIES(test_util_config yac ${DEPS})
 
 ADD_EXECUTABLE(test_util_core tests/util/test_core.cpp)
-TARGET_LINK_LIBRARIES(test_util_core yac yac_util ${DEPS})
+TARGET_LINK_LIBRARIES(test_util_core yac ${DEPS})
 
 ADD_EXECUTABLE(test_util_cv tests/util/test_cv.cpp)
-TARGET_LINK_LIBRARIES(test_util_cv yac yac_util ${DEPS})
+TARGET_LINK_LIBRARIES(test_util_cv yac ${DEPS})
 
 ADD_EXECUTABLE(test_util_data tests/util/test_data.cpp)
-TARGET_LINK_LIBRARIES(test_util_data yac yac_util ${DEPS})
+TARGET_LINK_LIBRARIES(test_util_data yac ${DEPS})
 
 ADD_EXECUTABLE(test_util_fs tests/util/test_fs.cpp)
-TARGET_LINK_LIBRARIES(test_util_fs yac yac_util ${DEPS})
+TARGET_LINK_LIBRARIES(test_util_fs yac ${DEPS})
 
 ADD_EXECUTABLE(test_util_net tests/util/test_net.cpp)
-TARGET_LINK_LIBRARIES(test_util_net yac yac_util ${DEPS})
+TARGET_LINK_LIBRARIES(test_util_net yac ${DEPS})
 
 ADD_EXECUTABLE(test_util_timeline tests/util/test_timeline.cpp)
-TARGET_LINK_LIBRARIES(test_util_timeline yac yac_util ${DEPS})
+TARGET_LINK_LIBRARIES(test_util_timeline yac ${DEPS})
 
 ADD_EXECUTABLE(test_calib_camera tests/test_calib_camera.cpp)
-TARGET_LINK_LIBRARIES(test_calib_camera yac yac_util ${DEPS})
+TARGET_LINK_LIBRARIES(test_calib_camera yac ${DEPS})
 
 ADD_EXECUTABLE(test_calib_data tests/test_calib_data.cpp)
-TARGET_LINK_LIBRARIES(test_calib_data yac yac_util ${DEPS})
+TARGET_LINK_LIBRARIES(test_calib_data yac ${DEPS})
 
 ADD_EXECUTABLE(test_calib_residuals tests/test_calib_residuals.cpp)
-TARGET_LINK_LIBRARIES(test_calib_residuals yac yac_util ${DEPS})
+TARGET_LINK_LIBRARIES(test_calib_residuals yac ${DEPS})
 
 # ADD_EXECUTABLE(test_calib_mocap tests/test_calib_mocap.cpp)
-# TARGET_LINK_LIBRARIES(test_calib_mocap yac yac_util ${DEPS})
+# TARGET_LINK_LIBRARIES(test_calib_mocap yac ${DEPS})
 
 ADD_EXECUTABLE(test_calib_nbt tests/test_calib_nbt.cpp)
-TARGET_LINK_LIBRARIES(test_calib_nbt yac yac_util ${DEPS})
+TARGET_LINK_LIBRARIES(test_calib_nbt yac ${DEPS})
 
 ADD_EXECUTABLE(test_calib_nbv tests/test_calib_nbv.cpp)
-TARGET_LINK_LIBRARIES(test_calib_nbv yac yac_util ${DEPS})
+TARGET_LINK_LIBRARIES(test_calib_nbv yac ${DEPS})
 
 ADD_EXECUTABLE(test_calib_vi tests/test_calib_vi.cpp)
-TARGET_LINK_LIBRARIES(test_calib_vi yac yac_util ${DEPS})
+TARGET_LINK_LIBRARIES(test_calib_vi yac ${DEPS})
 
 # DEMO
 ADD_EXECUTABLE(calib_euroc demo/calib_euroc.cpp)
-TARGET_LINK_LIBRARIES(calib_euroc yac yac_util ${DEPS})
+TARGET_LINK_LIBRARIES(calib_euroc yac ${DEPS})
 
 ADD_EXECUTABLE(calib_inspect demo/calib_inspect.cpp)
-TARGET_LINK_LIBRARIES(calib_inspect yac yac_util ${DEPS})
+TARGET_LINK_LIBRARIES(calib_inspect yac ${DEPS})
 
 ADD_EXECUTABLE(calib_sandbox demo/calib_sandbox.cpp)
-TARGET_LINK_LIBRARIES(calib_sandbox yac yac_util ${DEPS})
+TARGET_LINK_LIBRARIES(calib_sandbox yac ${DEPS})

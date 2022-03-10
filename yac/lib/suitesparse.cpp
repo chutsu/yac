@@ -384,9 +384,9 @@ truncated_solver_t::truncated_solver_t() { cholmod_l_start(&cholmod_); }
 truncated_solver_t::~truncated_solver_t() {
   clear();
   cholmod_l_finish(&cholmod_);
-  if (tsvd_options_.verbose && getMemoryUsage() > 0) {
-    // LOG(ERROR) << "Cholmod memory leak detected.";
-  }
+  // if (tsvd_options_.verbose && getMemoryUsage() > 0) {
+  //   // LOG(ERROR) << "Cholmod memory leak detected.";
+  // }
 }
 
 void truncated_solver_t::clear() {

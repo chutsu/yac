@@ -83,6 +83,13 @@ ADD_LIBRARY(
   lib/solver.cpp
   lib/suitesparse.cpp
 )
+INSTALL(TARGETS yac
+        LIBRARY DESTINATION lib
+        ARCHIVE DESTINATION lib
+        RUNTIME DESTINATION bin)
+INSTALL(DIRECTORY ${CMAKE_SOURCE_DIR}/lib/
+        DESTINATION include/yac
+        FILES_MATCHING PATTERN "*.h*")
 
 # TESTS
 SET(TEST_BIN_PATH ${CMAKE_CURRENT_BINARY_DIR})

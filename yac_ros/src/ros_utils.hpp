@@ -36,7 +36,7 @@
 #include <sensor_msgs/Imu.h>
 #include <sensor_msgs/CameraInfo.h>
 
-#include "yac.hpp"
+#include "yac/yac.hpp"
 
 namespace yac {
 

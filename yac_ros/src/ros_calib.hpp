@@ -9,7 +9,7 @@
 #include <visualization_msgs/Marker.h>
 #include <tf2_ros/transform_broadcaster.h>
 
-#include "yac.hpp"
+#include "yac/yac.hpp"
 #include "ros_utils.hpp"
 
 namespace yac {

@@ -1,5 +1,5 @@
-default: dirs eigen apriltag apriltag3 suitesparse ceres
-.PHONY: dirs eigen apriltag apriltag3 suitesparse ceres
+default: dirs base eigen apriltag apriltag3 suitesparse ceres
+.PHONY: dirs base eigen apriltag apriltag3 suitesparse ceres
 
 dirs:
 	@mkdir -p src
@@ -16,6 +16,10 @@ clean:
 	@rm -rf lib
 	@rm -rf share
 	@rm -rf log
+
+base:
+	@echo "Installing base dependencies ..."
+	@sudo bash ./scripts/install.bash
 
 eigen:
 	@echo "building eigen ..."

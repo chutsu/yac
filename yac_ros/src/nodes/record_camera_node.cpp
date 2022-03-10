@@ -2,7 +2,7 @@
 #include <thread>
 #include <termios.h>
 
-#include "yac.hpp"
+#include "yac/yac.hpp"
 #include "../ros_utils.hpp"
 
 using namespace yac;

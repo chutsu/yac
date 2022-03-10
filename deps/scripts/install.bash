@@ -25,6 +25,7 @@ install_base() {
     libasan4 \
     libasan5
 
+  # For suitesparse
   apt_install libgmp3-dev libmpfr-dev  libmpfr-doc
 }
 

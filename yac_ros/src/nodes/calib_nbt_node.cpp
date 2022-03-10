@@ -8,7 +8,7 @@
 #include <message_filters/time_synchronizer.h>
 #include <message_filters/sync_policies/exact_time.h>
 
-#include "yac.hpp"
+#include "yac/yac.hpp"
 #include "../ros_calib.hpp"
 #include "../ros_utils.hpp"
 

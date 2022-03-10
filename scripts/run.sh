@@ -44,7 +44,7 @@ set -e
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_mono"
 # RUN_CMD="rosrun yac test_calib_camera --target test_calib_camera_stereo"
 # RUN_CMD="rosrun yac test_calib_camera --target test_marg_residual"
-RUN_CMD="rosrun yac calib_euroc"
+# RUN_CMD="rosrun yac calib_euroc"
 # RUN_CMD="rosrun yac calib_inspect '/tmp/calib-results.yaml' /data/euroc/cam_april"
 # RUN_CMD="rosrun yac calib_inspect '/data/euroc_results/configs/euroc/euroc.yaml' /data/euroc/cam_april"
 # RUN_CMD="rosrun yac calib_sandbox '/tmp/yac_data/calib.yaml'"
@@ -113,9 +113,10 @@ RUN_CMD="rosrun yac calib_euroc"
 tmux send-keys -t dev -R C-l C-m
 tmux send-keys -t dev -R "\
 cd ~/projects/yac \
-&& make lib \
-&& source ~/catkin_ws/devel/setup.bash \
-&& ${RUN_CMD}
+&& make release
+# && make lib \
+# && source ~/catkin_ws/devel/setup.bash \
+# && ${RUN_CMD}
 " C-m C-m
 exit
 

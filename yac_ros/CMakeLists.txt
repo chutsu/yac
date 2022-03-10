@@ -4,9 +4,24 @@ IF (POLICY CMP0048)
 ENDIF (POLICY CMP0048)
 PROJECT(yac_ros)
 
-# Tell cmake where to find custom AprilTag3 and Ceres-Solver
-SET(apriltag3_DIR "../deps/share/apriltag3/cmake")
-# SET(Ceres_DIR "../deps/lib/cmake/Ceres")
+# GENERAL SETTINGS
+IF (NOT DEFINED USE_OPENMP)
+  SET(USE_OPENMP ON)
+ENDIF()
+
+IF (NOT DEFINED apriltag3_DIR)
+  SET(apriltag3_DIR "../deps/share/apriltag3/cmake")  # Use custom AprilTag3
+ENDIF()
+
+IF (NOT DEFINED Eigen3_DIR)
+  SET(Eigen3_DIR "../deps/share/eigen3/cmake")
+ENDIF()
+
+IF (NOT DEFINED Ceres_DIR)
+  SET(Ceres_DIR "../deps/lib/cmake/Ceres")
+ENDIF()
+
+MESSAGE("${Ceres_DIR}")
 
 # COMPILATION SETTINGS
 SET(CMAKE_CXX_STANDARD 17)
@@ -22,13 +37,17 @@ SET(CMAKE_CXX_STANDARD 17)
 # )
 
 # DEPENDENCIES
+INCLUDE_DIRECTORIES("../deps/include")
+LINK_DIRECTORIES("../deps/lib")
+
+INCLUDE_DIRECTORIES("../build/include")
+LINK_DIRECTORIES("../build")
+
 FIND_PACKAGE(Ceres REQUIRED)
 FIND_PACKAGE(OpenCV REQUIRED)
 FIND_PACKAGE(Eigen3 REQUIRED)
 INCLUDE_DIRECTORIES(${OpenCV_INCLUDE_DIRS})
 INCLUDE_DIRECTORIES(${EIGEN3_INCLUDE_DIR})
-INCLUDE_DIRECTORIES("../deps/include")
-LINK_DIRECTORIES("../deps/lib")
 SET(YAC_DEPS yaml-cpp ceres apriltag3 apriltag ${OpenCV_LIBS})
 
 FIND_PACKAGE(OpenMP REQUIRED)
@@ -57,7 +76,6 @@ FIND_PACKAGE(
 		tf2
 		tf2_ros
 		tf2_geometry_msgs
-    yac
 )
 INCLUDE_DIRECTORIES(${catkin_INCLUDE_DIRS})
 

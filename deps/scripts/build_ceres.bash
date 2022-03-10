@@ -2,6 +2,8 @@
 set -e
 BUILD_TYPE=Release
 INSTALL_PREFIX=${PWD}
+VERSION=2.0.0
+echo "building ceres-solver [$VERSION] ..."
 
 # Clone
 if [ ! -d src/ceres-solver ]; then
@@ -12,8 +14,8 @@ fi
 
 # Build
 cd src/ceres-solver
-git checkout 2.0.0
-rm -rf build
+git checkout ${VERSION} --quiet
+
 mkdir -p build
 cd build
 cmake .. \

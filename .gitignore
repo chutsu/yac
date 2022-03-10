@@ -1,6 +1,7 @@
 build
 tags
 
+deps/src
 deps/bin
 deps/include
 deps/lib

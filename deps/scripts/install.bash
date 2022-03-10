@@ -24,13 +24,15 @@ install_base() {
     wget \
     libasan4 \
     libasan5
+
+  apt_install libgmp3-dev libmpfr-dev  libmpfr-doc
 }
 
 apt_update
 install_base
 install ros
 # install apriltags
-install ceres
-install eigen
+# install ceres
+# install eigen
 install opencv
 install yamlcpp

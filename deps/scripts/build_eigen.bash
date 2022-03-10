@@ -3,6 +3,7 @@ set -e
 BUILD_TYPE=Release
 INSTALL_PREFIX=${PWD}
 VERSION=3.4
+echo "building eigen [$VERSION] ..."
 
 # Clone
 if [ ! -d src/eigen ]; then
@@ -13,9 +14,8 @@ fi
 
 # Build
 cd src/eigen
-git checkout ${VERSION}
+git checkout ${VERSION} --quiet
 
-rm -rf build
 mkdir -p build
 cd build
 cmake .. \

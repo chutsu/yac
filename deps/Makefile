@@ -1,7 +1,8 @@
-default: dirs apriltag3 apriltag
-.PHONY: dirs apriltag3 apriltag suitesparse ceres
+default: dirs eigen apriltag apriltag3 suitesparse ceres
+.PHONY: dirs eigen apriltag apriltag3 suitesparse ceres
 
 dirs:
+	@mkdir -p src
 	@mkdir -p bin
 	@mkdir -p include
 	@mkdir -p lib
@@ -9,6 +10,7 @@ dirs:
 	@mkdir -p log
 
 clean:
+	@rm -rf src
 	@rm -rf bin
 	@rm -rf include
 	@rm -rf lib
@@ -16,21 +18,21 @@ clean:
 	@rm -rf log
 
 eigen:
-	@echo "Building eigen ..."
-	@bash ./scripts/build_eigen.bash > log/build_eigen.log
-
-apriltag3:
-	@echo "Building apriltag3 ..."
-	@bash ./scripts/build_apriltag3.bash > log/build_apriltag3.log
+	@echo "building eigen ..."
+	@bash ./scripts/build_eigen.bash 2>&1 > log/build_eigen.log
 
 apriltag:
-	@echo "Building apriltag ..."
-	@bash ./scripts/build_apriltag.bash > log/build_apriltag.log
+	@echo "building apriltag ..."
+	@bash ./scripts/build_apriltag.bash 2>&1 > log/build_apriltag.log
+
+apriltag3:
+	@echo "building apriltag3 ..."
+	@bash ./scripts/build_apriltag3.bash 2>&1 > log/build_apriltag3.log
 
 suitesparse:
-	@echo "Building SuiteSparse ..."
-	@bash ./scripts/build_suitesparse.bash > log/build_suitesparse.log
+	@echo "building suitesparse ..."
+	@bash ./scripts/build_suitesparse.bash 2>&1 > log/build_suitesparse.log
 
 ceres:
-	@echo "Building Ceres-Solver ..."
-	@bash ./scripts/build_ceres.bash > log/build_ceres.log
+	@echo "building ceres ..."
+	@bash ./scripts/build_ceres.bash 2>&1 > log/build_ceres.log

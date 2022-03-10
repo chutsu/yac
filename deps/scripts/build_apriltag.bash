@@ -2,7 +2,7 @@
 set -e
 BUILD_TYPE=Release
 INSTALL_PREFIX=${PWD}
-# EIGEN_CMAKE_MODULE_PATH=${PWD}/src/cmake
+echo "building apriltag ..."
 
 # Clone
 if [ ! -d src/apriltag ]; then
@@ -17,7 +17,6 @@ cd src/apriltag
 git submodule init
 git submodule update
 
-rm -rf build
 mkdir -p build
 cd build
 cmake .. \

@@ -1,7 +1,8 @@
 #!/bin/bash
 set -e
-BUILD_TYPE=Release
 INSTALL_PREFIX=${PWD}
+VERSION="v5.10.1"
+echo "building suitesparse [$VERSION] ..."
 
 # Clone
 if [ ! -d src/SuiteSparse ]; then
@@ -16,6 +17,8 @@ sudo apt-get install libmpfr-dev libmpfr-doc -y -qq
 
 # Build
 cd src/SuiteSparse
+git checkout ${VERSION} --quiet
+
 make clean
 make library
-make install INSTALL=$INSTALL_PREFIX
+make install INSTALL="$INSTALL_PREFIX"

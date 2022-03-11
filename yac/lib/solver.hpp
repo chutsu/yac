@@ -1,6 +1,6 @@
 #include "calib_params.hpp"
 #include "calib_residuals.hpp"
-#include "suitesparse.hpp"
+// #include "suitesparse.hpp"
 
 #include <Eigen/SparseQR>
 #include <Eigen/SparseCholesky>
@@ -89,7 +89,7 @@ struct ceres_solver_t : solver_t {
 
 struct yac_solver_t : solver_t {
   real_t lambda = 1e-4;
-  truncated_solver_t tsolver;
+  // truncated_solver_t tsolver;
   size_t marg_idx = 0;
 
   yac_solver_t() = default;

@@ -1,6 +1,6 @@
 #include "util/core.hpp"
-#include <cholmod.h>
-#include <spqr.hpp>
+#include <suitesparse/cholmod.h>
+#include <suitesparse/spqr.hpp>
 
 namespace yac {
 

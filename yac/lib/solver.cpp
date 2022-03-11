@@ -1002,7 +1002,7 @@ void yac_solver_t::solve(const int max_iter,
                          const int verbose_level) {
   // _solve_gn(max_iter, verbose, verbose_level);
   _solve_lm(max_iter, verbose, verbose_level);
-  tsolver.clear();
+  // tsolver.clear();
 }
 
 } // namespace yac

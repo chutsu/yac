@@ -1,5 +1,7 @@
 SHELL:=/bin/bash
-CATKIN_WS=${HOME}/catkin_ws
+PREFIX=/opt/yac
+BUILD_DIR=build
+CATKIN_WS=${HOME}/yac_ws
 YAC_PATH=${CATKIN_WS}/src/yac
 ROS_VERSION="noetic"
 NUM_CPU=4
@@ -12,6 +14,12 @@ help:
 		| awk 'BEGIN {FS = ":.*?## "}; \
 			{printf "\033[1;36m%-20s\033[0m%s\n", $$1, $$2}'
 
+${BUILD_DIR}:
+	@sudo mkdir -p ${BUILD_DIR}
+
+${PREFIX}:
+	@sudo mkdir -p ${PREFIX}
+
 ${YAC_PATH}:
 	ln -sf ${PWD} ${CATKIN_WS}/src/yac
 
@@ -22,23 +30,26 @@ deps: ## Install dependencies
 	@echo "[Installing Dependencies]"
 	@make -s -C deps
 
-lib_debug: ## Build libyac in debug mode
-	@mkdir -p build \
-		&& cd build \
-		&& cmake ../yac -DCMAKE_BUILD_TYPE=Debug \
-		&& make -j${NUM_CPU}
+lib_debug: ${BUILD_DIR} ${PREFIX} ## Build libyac in debug mode
+	@cd ${BUILD_DIR} \
+		&& cmake ../yac \
+			-DCMAKE_BUILD_TYPE=Debug \
+			-DCMAKE_INSTALL_PREFIX=${PREFIX} \
+		&& time sudo make install -s -j${NUM_CPU}
 
-lib_relwithdeb: ## Build libyac in release with debug mode
-	@mkdir -p build \
-		&& cd build \
-		&& cmake ../yac -DCMAKE_BUILD_TYPE=RelWtihDebInfo \
-		&& make -j${NUM_CPU}
+lib_relwithdeb: ${BUILD_DIR} ${PREFIX} ## Build libyac in release with debug mode
+	@cd ${BUILD_DIR} \
+		&& cmake ../yac \
+			-DCMAKE_BUILD_TYPE=RelWtihDebInfo \
+			-DCMAKE_INSTALL_PREFIX=${PREFIX} \
+		&& time sudo make install -s -j${NUM_CPU}
 
-lib: ## Build libyac in release mode
-	@mkdir -p build \
-		&& cd build \
-		&& cmake ../yac -DCMAKE_BUILD_TYPE=Release \
-		&& make -j${NUM_CPU}
+lib: ${BUILD_DIR} ${PREFIX} ## Build libyac in release mode
+	@cd ${BUILD_DIR} \
+		&& cmake ../yac \
+			-DCMAKE_BUILD_TYPE=Release \
+			-DCMAKE_INSTALL_PREFIX=${PREFIX} \
+		&& time sudo make install -s -j${NUM_CPU}
 
 download_test_data: ## Download test data
 	@bash ./scripts/download_test_data.bash

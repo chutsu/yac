@@ -9,7 +9,7 @@ namespace yac {
 int ip_port_info(const int sockfd, char *ip, int *port) {
   struct sockaddr_storage addr;
   socklen_t len = sizeof addr;
-  if (getpeername(sockfd, (struct sockaddr *) &addr, &len) != 0) {
+  if (getpeername(sockfd, (struct sockaddr *)&addr, &len) != 0) {
     return -1;
   }
 
@@ -18,12 +18,12 @@ int ip_port_info(const int sockfd, char *ip, int *port) {
 
   if (addr.ss_family == AF_INET) {
     // IPV4
-    struct sockaddr_in *s = (struct sockaddr_in *) &addr;
+    struct sockaddr_in *s = (struct sockaddr_in *)&addr;
     *port = ntohs(s->sin_port);
     inet_ntop(AF_INET, &s->sin_addr, ipstr, sizeof(ipstr));
   } else {
     // IPV6
-    struct sockaddr_in6 *s = (struct sockaddr_in6 *) &addr;
+    struct sockaddr_in6 *s = (struct sockaddr_in6 *)&addr;
     *port = ntohs(s->sin6_port);
     inet_ntop(AF_INET6, &s->sin6_addr, ipstr, sizeof(ipstr));
   }
@@ -71,7 +71,7 @@ int tcp_server_config(tcp_server_t &server) {
 
   // Bind newly created socket to given IP
   int retval =
-      bind(server.sockfd, (struct sockaddr *) &sockaddr, sizeof(sockaddr));
+      bind(server.sockfd, (struct sockaddr *)&sockaddr, sizeof(sockaddr));
   if (retval != 0) {
     LOG_ERROR("Socket bind failed: %s", strerror(errno));
     return -1;
@@ -91,12 +91,12 @@ int tcp_server_loop(tcp_server_t &server) {
   std::map<int, pthread_t *> threads;
   int thread_id = 0;
 
-  DEBUG("Server ready!");
+  // DEBUG("Server ready!");
   while (true) {
     // Accept incomming connections
     struct sockaddr_in sockaddr;
     socklen_t len = sizeof(sockaddr);
-    int connfd = accept(server.sockfd, (struct sockaddr *) &sockaddr, &len);
+    int connfd = accept(server.sockfd, (struct sockaddr *)&sockaddr, &len);
     if (connfd < 0) {
       LOG_ERROR("Server acccept failed!");
       return -1;
@@ -106,11 +106,11 @@ int tcp_server_loop(tcp_server_t &server) {
 
     // Fork off a thread to handle the connection
     pthread_t thread;
-    pthread_create(&thread, nullptr, server.conn_thread, (void *) &server);
+    pthread_create(&thread, nullptr, server.conn_thread, (void *)&server);
     threads.insert({thread_id, &thread});
     thread_id++;
   }
-  DEBUG("Server shutting down ...");
+  // DEBUG("Server shutting down ...");
 
   return 0;
 }
@@ -132,11 +132,11 @@ int tcp_client_config(tcp_client_t &client) {
   server.sin_port = htons(client.server_port);
 
   // Connect to server
-  if (connect(client.sockfd, (struct sockaddr *) &server, server_size) != 0) {
+  if (connect(client.sockfd, (struct sockaddr *)&server, server_size) != 0) {
     LOG_ERROR("Failed to connect to server!");
     return -1;
   }
-  DEBUG("Connected to the server!");
+  // DEBUG("Connected to the server!");
 
   return 0;
 }
@@ -146,8 +146,10 @@ int tcp_client_loop(tcp_client_t &client) {
     if (client.loop_cb) {
       int retval = client.loop_cb(client);
       switch (retval) {
-      case -1: return -1;
-      case 1: break;
+        case -1:
+          return -1;
+        case 1:
+          break;
       }
     }
   }

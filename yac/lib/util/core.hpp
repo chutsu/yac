@@ -206,11 +206,11 @@ using sp_vec_t = Eigen::SparseVector<real_t>;
     throw std::runtime_error(msg);                                             \
   }
 
-#ifdef NDEBUG
-#define DEBUG(M, ...)
-#else
-#define DEBUG(M, ...) fprintf(stdout, "[DEBUG] " M "\n", ##__VA_ARGS__)
-#endif
+// #ifdef NDEBUG
+// #define DEBUG(M, ...)
+// #else
+// #define DEBUG(M, ...) fprintf(stdout, "[DEBUG] " M "\n", ##__VA_ARGS__)
+// #endif
 
 #define UNUSED(expr)                                                           \
   do {                                                                         \

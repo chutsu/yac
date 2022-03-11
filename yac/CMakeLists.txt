@@ -58,6 +58,7 @@ SET(DEPS yaml-cpp glog ceres apriltag3 apriltag ${OpenCV_LIBS} cholmod spqr)
 INCLUDE_DIRECTORIES(lib)
 ADD_LIBRARY(
   yac
+  SHARED
   lib/util/aprilgrid.cpp
   lib/util/ceres_utils.cpp
   lib/util/config.cpp

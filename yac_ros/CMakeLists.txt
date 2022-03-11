@@ -51,7 +51,6 @@ INCLUDE_DIRECTORIES(${OpenCV_INCLUDE_DIRS})
 INCLUDE_DIRECTORIES(${EIGEN3_INCLUDE_DIR})
 INCLUDE_DIRECTORIES("/opt/yac/include")
 LINK_DIRECTORIES("/opt/yac/lib")
-SET(DEPS yaml-cpp glog ceres apriltag3 apriltag ${OpenCV_LIBS} cholmod spqr)
 
 # CATKIN DEPENDENCIES
 CMAKE_POLICY(SET CMP0054 NEW)
@@ -95,10 +94,15 @@ CATKIN_PACKAGE(
 )
 
 # LINK
-SET(DEPS yac_ros ${catkin_LIBRARIES} ${YAC_DEPS})
+SET(YAC_LIBRARIES yaml-cpp glog ceres apriltag3 apriltag ${OpenCV_LIBS} cholmod spqr)
+SET(DEPS yac_ros yac ${catkin_LIBRARIES} ${YAC_LIBRARIES})
 
 # YAC ROS
-ADD_LIBRARY(yac_ros src/ros_calib.cpp src/ros_utils.cpp)
+ADD_LIBRARY(
+  yac_ros
+  src/ros_calib.cpp
+  src/ros_utils.cpp
+)
 INSTALL(
   DIRECTORY launch/
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/launch

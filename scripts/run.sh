@@ -112,11 +112,11 @@ set -e
 
 tmux send-keys -t dev -R C-l C-m
 tmux send-keys -t dev -R "\
-cd ~/projects/yac \
-&& make lib
-# && make lib \
-# && source ~/catkin_ws/devel/setup.bash \
-# && ${RUN_CMD}
+make lib \
+&& cd ~/projects/yac \
+&& make release \
+&& source ~/catkin_ws/devel/setup.bash \
+&& ${RUN_CMD}
 " C-m C-m
 exit
 

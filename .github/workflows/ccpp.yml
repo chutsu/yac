@@ -9,7 +9,10 @@ jobs:
     - name: install dependencies
       run: make deps
 
-    - name: build
+    - name: build yac
+      run: make lib
+
+    - name: build yac_ros
       run: make release
 
     - name: run tests

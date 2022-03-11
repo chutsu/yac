@@ -31,9 +31,6 @@ int main() {
   const std::string proj_model = "pinhole";
   const std::string dist_model = "radtan4";
 
-  Eigen::initParallel();
-  Eigen::setNbThreads(8);
-
   // Calibrate
   yac::calib_camera_t calib{target};
   calib.add_camera_data(test_data, valid_data);

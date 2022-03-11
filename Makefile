@@ -8,6 +8,20 @@ NUM_CPU=4
 
 .PHONY: help deps lib_debug lib debug release download_test_data tests
 
+define compile_yac
+	@cd ${BUILD_DIR} \
+		&& cmake ../yac \
+		-DCMAKE_BUILD_TYPE=$(1) \
+			-DCMAKE_INSTALL_PREFIX=${PREFIX} \
+		&& time sudo make install -s -j${NUM_CPU}
+endef
+
+define compile_yac_ros
+  @cd ${CATKIN_WS} \
+		&& . /opt/ros/${ROS_VERSION}/setup.sh \
+		&& catkin build yac_ros -DCMAKE_BUILD_TYPE=Release -j${NUM_CPU}
+endef
+
 help:
 	@echo -e "\033[1;34m[make targets]:\033[0m"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -20,36 +34,24 @@ ${BUILD_DIR}:
 ${PREFIX}:
 	@sudo mkdir -p ${PREFIX}
 
-${YAC_PATH}:
-	ln -sf ${PWD} ${CATKIN_WS}/src/yac
-
 ${CATKIN_WS}:
 	@mkdir -p ${CATKIN_WS}/src; catkin init
+
+${YAC_PATH}:
+	ln -sf ${PWD} ${CATKIN_WS}/src/yac
 
 deps: ## Install dependencies
 	@echo "[Installing Dependencies]"
 	@make -s -C deps
 
 lib_debug: ${BUILD_DIR} ${PREFIX} ## Build libyac in debug mode
-	@cd ${BUILD_DIR} \
-		&& cmake ../yac \
-			-DCMAKE_BUILD_TYPE=Debug \
-			-DCMAKE_INSTALL_PREFIX=${PREFIX} \
-		&& time sudo make install -s -j${NUM_CPU}
+	$(call compile_yac,Debug)
 
-lib_relwithdeb: ${BUILD_DIR} ${PREFIX} ## Build libyac in release with debug mode
-	@cd ${BUILD_DIR} \
-		&& cmake ../yac \
-			-DCMAKE_BUILD_TYPE=RelWtihDebInfo \
-			-DCMAKE_INSTALL_PREFIX=${PREFIX} \
-		&& time sudo make install -s -j${NUM_CPU}
+lib_relwithdeb: ${BUILD_DIR} ${PREFIX} ## Build libyac in release with debug info
+	$(call compile_yac,RelWithDebInfo)
 
 lib: ${BUILD_DIR} ${PREFIX} ## Build libyac in release mode
-	@cd ${BUILD_DIR} \
-		&& cmake ../yac \
-			-DCMAKE_BUILD_TYPE=Release \
-			-DCMAKE_INSTALL_PREFIX=${PREFIX} \
-		&& time sudo make install -s -j${NUM_CPU}
+	$(call compile_yac,Release)
 
 download_test_data: ## Download test data
 	@bash ./scripts/download_test_data.bash
@@ -67,16 +69,10 @@ tests: ## Build and run tests
 		&& ./test_calib_vi
 
 debug: ${CATKIN_WS} ${YAC_PATH} ## Build libyac and yac_ros in debug mode
-	@cd ${CATKIN_WS} \
-		&& . /opt/ros/${ROS_VERSION}/setup.sh \
-		&& catkin build yac_ros -DCMAKE_BUILD_TYPE=Debug -j${NUM_CPU}
+	$(call compile_yac_ros,Debug)
 
-relwithdeb: ${CATKIN_WS} ${YAC_PATH} ## Build libyac and yac_ros in release with debug mode
-	@cd ${CATKIN_WS} \
-		&& . /opt/ros/${ROS_VERSION}/setup.sh \
-		&& catkin build yac_ros -DCMAKE_BUILD_TYPE=RelWithDebInfo -j${NUM_CPU}
+relwithdeb: ${CATKIN_WS} ${YAC_PATH} ## Build libyac and yac_ros in release with debug info
+	$(call compile_yac_ros,RelWithDebInfo)
 
 release: ${CATKIN_WS} ${YAC_PATH} ## Build libyac and yac_ros in release mode
-	cd ${CATKIN_WS} \
-		&& . /opt/ros/${ROS_VERSION}/setup.sh \
-		&& catkin build yac_ros -DCMAKE_BUILD_TYPE=Release -j${NUM_CPU}
+	$(call compile_yac_ros,Release)

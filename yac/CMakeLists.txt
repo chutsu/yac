@@ -78,7 +78,7 @@ ADD_LIBRARY(
   lib/calib_params.cpp
   lib/calib_vi.cpp
   lib/solver.cpp
-  lib/suitesparse.cpp
+  # lib/suitesparse.cpp
 )
 INSTALL(TARGETS yac
         LIBRARY DESTINATION lib

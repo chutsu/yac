@@ -31,9 +31,6 @@ install_base() {
     wget \
     libasan4 \
     libasan5
-
-  # For suitesparse
-  apt_install libgmp3-dev libmpfr-dev  libmpfr-doc
 }
 
 apt_update

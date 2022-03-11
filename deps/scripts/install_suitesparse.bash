@@ -23,5 +23,6 @@ source "$BASEDIR/config.bash"
 # make library -j4
 # make install INSTALL="$INSTALL_PREFIX"
 
+sudo apt-get install -y -qq libgmp3-dev libmpfr-dev libmpfr-doc
 sudo apt-get install -y -qq libsuitesparse-dev
 sudo apt-get install -y -qq libsuitesparse-doc

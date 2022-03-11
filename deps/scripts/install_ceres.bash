@@ -6,6 +6,41 @@ source "$BASEDIR/config.bash"
 VERSION=2.0.0
 echo "building ceres-solver [$VERSION] ..."
 
+# Install GLOG
+sudo apt-get install -y -qq libgflags-dev
+sudo apt-get install -y -qq libgflags-doc
+sudo apt-get install -y -qq libgoogle-glog-dev
+
+# Clone
+if [ ! -d $INSTALL_PREFIX/src/ceres-solver ]; then
+  cd $INSTALL_PREFIX/src
+  git clone --quiet https://github.com/ceres-solver/ceres-solver
+  cd ..
+fi
+
+# Build
+cd $INSTALL_PREFIX/src/ceres-solver
+git checkout ${VERSION} --quiet
+
+mkdir -p build
+cd build
+cmake .. \
+
+# Clone
+if [ ! -d $INSTALL_PREFIX/src/ceres-solver ]; then
+  cd $INSTALL_PREFIX/src
+  git clone --quiet https://github.com/ceres-solver/ceres-solver
+  cd ..
+fi
+
+# Build
+cd $INSTALL_PREFIX/src/ceres-solver
+git checkout ${VERSION} --quiet
+
+mkdir -p build
+cd build
+cmake .. \
+
 # Clone
 if [ ! -d $INSTALL_PREFIX/src/ceres-solver ]; then
   cd $INSTALL_PREFIX/src

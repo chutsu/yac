@@ -55,18 +55,16 @@ download_test_data: ## Download test data
 	@bash ./scripts/download_test_data.bash
 
 tests: ## Build and run tests
-	@. /opt/ros/${ROS_VERSION}/setup.sh\
-		&& source ${CATKIN_WS}/devel/setup.bash \
-		&& rosrun yac test_util_aprilgrid \
-		&& rosrun yac test_util_config \
-		&& rosrun yac test_util_cv \
-		&& rosrun yac test_util_data \
-		&& rosrun yac test_util_fs \
-		&& rosrun yac test_util_net \
-		&& rosrun yac test_util_timeline \
-		&& rosrun yac test_calib_data \
-		&& rosrun yac test_calib_camera \
-		&& rosrun yac test_calib_vi
+	@cd build \
+		&& ./test_util_config \
+		&& ./test_util_cv \
+		&& ./test_util_data \
+		&& ./test_util_fs \
+		&& ./test_util_net \
+		&& ./test_util_timeline \
+		&& ./test_calib_data \
+		&& ./test_calib_camera \
+		&& ./test_calib_vi
 
 debug: ${CATKIN_WS} ${YAC_PATH} ## Build libyac and yac_ros in debug mode
 	@cd ${CATKIN_WS} \

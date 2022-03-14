@@ -1,36 +1,3 @@
-settings:
-  verbose: true
-  max_num_threads: 8
-  enable_nbv: true
-  enable_shuffle_views: false
-  enable_nbv_filter: true
-  enable_outlier_filter: false
-  enable_marginalization: true
-  enable_early_stopping: false
-  min_nbv_views: 10
-  outlier_threshold: 4.000000
-  info_gain_threshold: 0.200000
-  sliding_window_size: 10
-  early_stop_threshold: 30
-
-total_reproj_error:
-  rmse:   0.6370 # [px]
-  mean:   0.5408 # [px]
-  median: 0.4766 # [px]
-  stddev: 0.3367 # [px]
-
-cam0_reproj_error:
-  rmse:   0.6482 # [px]
-  mean:   0.5448 # [px]
-  median: 0.4791 # [px]
-  stddev: 0.3515 # [px]
-
-cam1_reproj_error:
-  rmse:   0.6254 # [px]
-  mean:   0.5368 # [px]
-  median: 0.4759 # [px]
-  stddev: 0.3211 # [px]
-
 calib_target:
   target_type: aprilgrid
   tag_rows: 6

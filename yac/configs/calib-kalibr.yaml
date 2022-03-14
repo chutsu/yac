@@ -1,3 +1,10 @@
+calib_target:
+  target_type: aprilgrid
+  tag_rows: 6
+  tag_cols: 6
+  tag_size: 0.088000
+  tag_spacing: 0.300000
+
 cam0:
   resolution: [752, 480]
   proj_model: "pinhole"

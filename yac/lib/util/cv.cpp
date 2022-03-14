@@ -111,159 +111,161 @@ cv::Mat rgb2gray(const cv::Mat &image) {
   return image_gray;
 }
 
-cv::Mat roi(const cv::Mat &image,
-            const int width,
-            const int height,
-            const real_t cx,
-            const real_t cy) {
-  const real_t x = cx - width / 2.0;
-  const real_t y = cy - height / 2.0;
-  cv::Rect roi(x, y, width, height);
-  return image(roi);
-}
+// cv::Mat roi(const cv::Mat &image,
+//             const int width,
+//             const int height,
+//             const real_t cx,
+//             const real_t cy) {
+//   const real_t x = cx - width / 2.0;
+//   const real_t y = cy - height / 2.0;
+//   cv::Rect roi(x, y, width, height);
+//   return image(roi);
+// }
 
-bool keypoint_compare_by_response(const cv::KeyPoint &kp1,
-                                  const cv::KeyPoint &kp2) {
-  // Keypoint with higher response will be at the beginning of the vector
-  return kp1.response > kp2.response;
-}
-
-real_t reprojection_error(const vec2s_t &measured, const vec2s_t &projected) {
-  assert(measured.size() == projected.size());
-
-  real_t sse = 0.0;
-  const size_t nb_keypoints = measured.size();
-  for (size_t i = 0; i < nb_keypoints; i++) {
-    sse += pow((measured[i] - projected[i]).norm(), 2);
-  }
-  const real_t rmse = sqrt(sse / nb_keypoints);
-
-  return rmse;
-}
-
-real_t reprojection_error(const std::vector<cv::Point2f> &measured,
-                          const std::vector<cv::Point2f> &projected) {
-  assert(measured.size() == projected.size());
-
-  real_t sse = 0.0;
-  const size_t nb_keypoints = measured.size();
-  for (size_t i = 0; i < nb_keypoints; i++) {
-    sse += pow(cv::norm(measured[i] - projected[i]), 2);
-  }
-  const real_t rmse = sqrt(sse / nb_keypoints);
-
-  return rmse;
-}
-
-real_t reprojection_error(const std::vector<vec2_t> &errors) {
-  double sse = 0.0;
-  for (const auto &e : errors) {
-    sse += pow(e.norm(), 2);
-  }
-  const double mse = sse / errors.size();
-
-  return sqrt(mse);
-}
-
-matx_t feature_mask(const int image_width,
-                    const int image_height,
-                    const std::vector<cv::Point2f> points,
-                    const int patch_width) {
-  matx_t mask = ones(image_height, image_width);
-
-  // Create a mask around each point
-  for (const auto &p : points) {
-    // Skip if pixel is out of image bounds
-    const real_t px = static_cast<int>(p.x);
-    const real_t py = static_cast<int>(p.y);
-    if (px >= image_width || px <= 0) {
-      continue;
-    } else if (py >= image_height || py <= 0) {
-      continue;
-    }
-
-    // Calculate patch top left corner, patch width and height
-    vec2_t top_left{px - patch_width, py - patch_width};
-    vec2_t top_right{px + patch_width, py - patch_width};
-    vec2_t btm_left{px - patch_width, py + patch_width};
-    vec2_t btm_right{px + patch_width, py + patch_width};
-    std::vector<vec2_t *> corners{&top_left, &top_right, &btm_left, &btm_right};
-    for (auto corner : corners) {
-      // Check corner in x-axis
-      if ((*corner)(0) < 0) {
-        (*corner)(0) = 0;
-      } else if ((*corner)(0) > image_width) {
-        (*corner)(0) = image_width;
-      }
-
-      // Check corner in y-axis
-      if ((*corner)(1) < 0) {
-        (*corner)(1) = 0;
-      } else if ((*corner)(1) > image_height) {
-        (*corner)(1) = image_height;
-      }
-    }
-
-    // Create mask around pixel
-    const int row = top_left(1);
-    const int col = top_left(0);
-    int width = top_right(0) - top_left(0) + 1;
-    int height = btm_left(1) - top_left(1) + 1;
-    width = (col + width) > image_width ? width - 1 : width;
-    height = (row + height) > image_height ? height - 1 : height;
-
-    // std::cout << "---" << std::endl;
-    // std::cout << image_width << std::endl;
-    // std::cout << image_height << std::endl;
-    // std::cout << row << std::endl;
-    // std::cout << col << std::endl;
-    // std::cout << width << std::endl;
-    // std::cout << height << std::endl;
-    // std::cout << "---" << std::endl;
-
-    mask.block(row, col, height, width) = zeros(height, width);
-  }
-
-  return mask;
-}
-
-matx_t feature_mask(const int image_width,
-                    const int image_height,
-                    const std::vector<cv::KeyPoint> keypoints,
-                    const int patch_width) {
-  std::vector<cv::Point2f> points;
-  for (const auto &kp : keypoints) {
-    points.emplace_back(kp.pt);
-  }
-
-  return feature_mask(image_width, image_height, points, patch_width);
-}
-
-cv::Mat feature_mask_opencv(const int image_width,
-                            const int image_height,
-                            const std::vector<cv::Point2f> points,
-                            const int patch_width) {
-  auto mask = feature_mask(image_width, image_height, points, patch_width);
-
-  cv::Mat mask_cv;
-  cv::eigen2cv(mask, mask_cv);
-  mask_cv.convertTo(mask_cv, CV_8UC1);
-
-  return mask_cv;
-}
-
-cv::Mat feature_mask_opencv(const int image_width,
-                            const int image_height,
-                            const std::vector<cv::KeyPoint> keypoints,
-                            const int patch_width) {
-  auto mask = feature_mask(image_width, image_height, keypoints, patch_width);
-
-  cv::Mat mask_cv;
-  cv::eigen2cv(mask, mask_cv);
-  mask_cv.convertTo(mask_cv, CV_8UC1);
-
-  return mask_cv;
-}
+// bool keypoint_compare_by_response(const cv::KeyPoint &kp1,
+//                                   const cv::KeyPoint &kp2) {
+//   // Keypoint with higher response will be at the beginning of the vector
+//   return kp1.response > kp2.response;
+// }
+//
+// real_t reprojection_error(const vec2s_t &measured, const vec2s_t &projected)
+// {
+//   assert(measured.size() == projected.size());
+//
+//   real_t sse = 0.0;
+//   const size_t nb_keypoints = measured.size();
+//   for (size_t i = 0; i < nb_keypoints; i++) {
+//     sse += pow((measured[i] - projected[i]).norm(), 2);
+//   }
+//   const real_t rmse = sqrt(sse / nb_keypoints);
+//
+//   return rmse;
+// }
+//
+// real_t reprojection_error(const std::vector<cv::Point2f> &measured,
+//                           const std::vector<cv::Point2f> &projected) {
+//   assert(measured.size() == projected.size());
+//
+//   real_t sse = 0.0;
+//   const size_t nb_keypoints = measured.size();
+//   for (size_t i = 0; i < nb_keypoints; i++) {
+//     sse += pow(cv::norm(measured[i] - projected[i]), 2);
+//   }
+//   const real_t rmse = sqrt(sse / nb_keypoints);
+//
+//   return rmse;
+// }
+//
+// real_t reprojection_error(const std::vector<vec2_t> &errors) {
+//   double sse = 0.0;
+//   for (const auto &e : errors) {
+//     sse += pow(e.norm(), 2);
+//   }
+//   const double mse = sse / errors.size();
+//
+//   return sqrt(mse);
+// }
+//
+// matx_t feature_mask(const int image_width,
+//                     const int image_height,
+//                     const std::vector<cv::Point2f> points,
+//                     const int patch_width) {
+//   matx_t mask = ones(image_height, image_width);
+//
+//   // Create a mask around each point
+//   for (const auto &p : points) {
+//     // Skip if pixel is out of image bounds
+//     const real_t px = static_cast<int>(p.x);
+//     const real_t py = static_cast<int>(p.y);
+//     if (px >= image_width || px <= 0) {
+//       continue;
+//     } else if (py >= image_height || py <= 0) {
+//       continue;
+//     }
+//
+//     // Calculate patch top left corner, patch width and height
+//     vec2_t top_left{px - patch_width, py - patch_width};
+//     vec2_t top_right{px + patch_width, py - patch_width};
+//     vec2_t btm_left{px - patch_width, py + patch_width};
+//     vec2_t btm_right{px + patch_width, py + patch_width};
+//     std::vector<vec2_t *> corners{&top_left, &top_right, &btm_left,
+//     &btm_right}; for (auto corner : corners) {
+//       // Check corner in x-axis
+//       if ((*corner)(0) < 0) {
+//         (*corner)(0) = 0;
+//       } else if ((*corner)(0) > image_width) {
+//         (*corner)(0) = image_width;
+//       }
+//
+//       // Check corner in y-axis
+//       if ((*corner)(1) < 0) {
+//         (*corner)(1) = 0;
+//       } else if ((*corner)(1) > image_height) {
+//         (*corner)(1) = image_height;
+//       }
+//     }
+//
+//     // Create mask around pixel
+//     const int row = top_left(1);
+//     const int col = top_left(0);
+//     int width = top_right(0) - top_left(0) + 1;
+//     int height = btm_left(1) - top_left(1) + 1;
+//     width = (col + width) > image_width ? width - 1 : width;
+//     height = (row + height) > image_height ? height - 1 : height;
+//
+//     // std::cout << "---" << std::endl;
+//     // std::cout << image_width << std::endl;
+//     // std::cout << image_height << std::endl;
+//     // std::cout << row << std::endl;
+//     // std::cout << col << std::endl;
+//     // std::cout << width << std::endl;
+//     // std::cout << height << std::endl;
+//     // std::cout << "---" << std::endl;
+//
+//     mask.block(row, col, height, width) = zeros(height, width);
+//   }
+//
+//   return mask;
+// }
+//
+// matx_t feature_mask(const int image_width,
+//                     const int image_height,
+//                     const std::vector<cv::KeyPoint> keypoints,
+//                     const int patch_width) {
+//   std::vector<cv::Point2f> points;
+//   for (const auto &kp : keypoints) {
+//     points.emplace_back(kp.pt);
+//   }
+//
+//   return feature_mask(image_width, image_height, points, patch_width);
+// }
+//
+// cv::Mat feature_mask_opencv(const int image_width,
+//                             const int image_height,
+//                             const std::vector<cv::Point2f> points,
+//                             const int patch_width) {
+//   auto mask = feature_mask(image_width, image_height, points, patch_width);
+//
+//   cv::Mat mask_cv;
+//   cv::eigen2cv(mask, mask_cv);
+//   mask_cv.convertTo(mask_cv, CV_8UC1);
+//
+//   return mask_cv;
+// }
+//
+// cv::Mat feature_mask_opencv(const int image_width,
+//                             const int image_height,
+//                             const std::vector<cv::KeyPoint> keypoints,
+//                             const int patch_width) {
+//   auto mask = feature_mask(image_width, image_height, keypoints,
+//   patch_width);
+//
+//   cv::Mat mask_cv;
+//   cv::eigen2cv(mask, mask_cv);
+//   mask_cv.convertTo(mask_cv, CV_8UC1);
+//
+//   return mask_cv;
+// }
 
 cv::Mat radtan_undistort_image(const mat3_t &K,
                                const vecx_t &D,

@@ -79,11 +79,12 @@ double rankTol(const vecx_t &singular_values, double eps) {
 }
 
 double qrTol(cholmod_sparse *A, cholmod_common *cholmod, double eps) {
-  // CHECK_NOTNULL(A);
-  // CHECK_NOTNULL(cholmod);
-  // CHECK_GT(eps, 0.0);
-  return 20.0 * static_cast<double>(A->nrow + A->ncol) * eps *
-         spqr_maxcolnorm<double>(A, cholmod);
+  // // CHECK_NOTNULL(A);
+  // // CHECK_NOTNULL(cholmod);
+  // // CHECK_GT(eps, 0.0);
+  // return 20.0 * static_cast<double>(A->nrow + A->ncol) * eps *
+  //        spqr_maxcolnorm<double>(A, cholmod);
+  return std::numeric_limits<double>::epsilon();
 }
 
 double svGap(const vecx_t &singular_values, std::ptrdiff_t rank) {
@@ -201,7 +202,8 @@ void reduceLeftHandSide(SuiteSparseQR_factorization<double> *factor,
     *Omega = cholmod_l_aat(A_rt, nullptr, 0, 1, cholmod);
     return;
   } else {
-    // CHECK(factor->QRsym != nullptr) << "Run symbolic factorization first.";
+    // CHECK(factor->QRsym != nullptr) << "Run symbolic factorization
+    // first.";
     // CHECK(factor->QRnum != nullptr) << "Run QR decomposition first.";
   }
   // CHECK_NOTNULL(factor);
@@ -259,7 +261,8 @@ cholmod_dense *reduceRightHandSide(SuiteSparseQR_factorization<double> *factor,
     // CHECK(status) << "cholmod_l_sdmult failed";
     return b_reduced;
   } else {
-    // CHECK(factor->QRsym != nullptr) << "Run symbolic factorization first.";
+    // CHECK(factor->QRsym != nullptr) << "Run symbolic factorization
+    // first.";
     // CHECK(factor->QRnum != nullptr) << "Run QR decomposition first.";
   }
   // CHECK_NOTNULL(factor);
@@ -377,7 +380,7 @@ cholmod_dense *solveQR(SuiteSparseQR_factorization<double> *factor,
   return x_l;
 }
 
-// TRUNCATED SOLVER ///////////////////////////////////////////////////////////
+/// TRUNCATED SOLVER /////////////////////////////////////////////////////////
 
 truncated_solver_t::truncated_solver_t() { cholmod_l_start(&cholmod_); }
 

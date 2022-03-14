@@ -95,16 +95,16 @@ struct calib_camera_t {
   // Settings
   // -- General
   bool verbose = true;
-  // std::string solver_type = "CERES-SOLVER";
-  std::string solver_type = "YAC-SOLVER";
+  std::string solver_type = "CERES-SOLVER";
+  // std::string solver_type = "YAC-SOLVER";
   int max_num_threads = 8;
   bool enable_nbv = true;
   bool enable_shuffle_views = false;
   bool enable_nbv_filter = true;
   bool enable_outlier_filter = false;
-  bool enable_marginalization = false;
+  bool enable_marginalization = true;
   bool enable_early_stopping = false;
-  int min_nbv_views = 40;
+  int min_nbv_views = 10;
   real_t outlier_threshold = 4.0;
   real_t info_gain_threshold = 0.2;
   int sliding_window_size = 10;

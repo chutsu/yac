@@ -7,3 +7,5 @@
 #include "calib_params.hpp"
 #include "calib_residuals.hpp"
 #include "calib_vi.hpp"
+#include "solver.hpp"
+#include "suitesparse.hpp"

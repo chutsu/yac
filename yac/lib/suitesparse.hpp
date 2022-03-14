@@ -1,10 +1,12 @@
+#ifndef YAC_SUITESPARSE_HPP
+#define YAC_SUITESPARSE_HPP
+
 #include "util/core.hpp"
-#include <suitesparse/cholmod.h>
-#include <suitesparse/spqr.hpp>
+#include <suitesparse/SuiteSparseQR.hpp>
 
 namespace yac {
 
-// CHOLMOD UTILS ///////////////////////////////////////////////////////////////
+// CHOLMOD UTILS /////////////////////////////////////////////////////////////
 
 cholmod_dense *solve_qr(SuiteSparseQR_factorization<double> *factor,
                         cholmod_dense *b,
@@ -50,7 +52,7 @@ private:
   T *ptr_;
 };
 
-// CHOLMOD CONVERTER ///////////////////////////////////////////////////////////
+// CHOLMOD CONVERTER /////////////////////////////////////////////////////////
 
 struct cholmod_converter_t {
   // CHOLMOD Sparse to Eigen Dense
@@ -58,10 +60,11 @@ struct cholmod_converter_t {
     out.setZero(in->nrow, in->ncol);
 
     // clang-format off
-    const std::ptrdiff_t *row_ind = reinterpret_cast<const std::ptrdiff_t *>(in->i);
-    const std::ptrdiff_t *col_ptr = reinterpret_cast<const std::ptrdiff_t *>(in->p);
-    const std::ptrdiff_t col_end = static_cast<std::ptrdiff_t>(in->ncol);
-    const double *values = reinterpret_cast<const double *>(in->x);
+    const std::ptrdiff_t *row_ind = reinterpret_cast<const std::ptrdiff_t
+    *>(in->i); const std::ptrdiff_t *col_ptr = reinterpret_cast<const
+    std::ptrdiff_t *>(in->p); const std::ptrdiff_t col_end =
+    static_cast<std::ptrdiff_t>(in->ncol); const double *values =
+    reinterpret_cast<const double *>(in->x);
     // clang-format on
     for (std::ptrdiff_t col_idx = 0; col_idx < col_end; ++col_idx) {
       for (std::ptrdiff_t val_idx = col_ptr[col_idx];
@@ -220,3 +223,4 @@ struct truncated_solver_t {
 };
 
 } // namespace yac
+#endif // YAC_SUITESPARSE_HPP

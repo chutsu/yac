@@ -282,16 +282,22 @@ int solver_t::estimate_covariance(const std::vector<param_t *> params,
   const double eps = 1.0e-8;
   const Eigen::SelfAdjointEigenSolver<matx_t> eig(Hmm);
   const matx_t V = eig.eigenvectors();
-  const auto eigvals_inv = (eig.eigenvalues().array() >
-  eps).select(eig.eigenvalues().array().inverse(), 0); const matx_t
-  Lambda_inv = vecx_t(eigvals_inv).asDiagonal(); const matx_t Hmm_inv = V *
-  Lambda_inv * V.transpose();
+  const auto eigvals_inv = (eig.eigenvalues().array() > eps).select(eig.eigenvalues().array().inverse(), 0);
+  const matx_t Lambda_inv = vecx_t(eigvals_inv).asDiagonal();
+  const matx_t Hmm_inv = V * Lambda_inv * V.transpose();
   // clang-format on
   // -- Calculate Schur's complement
   const matx_t Hmr = H.block(0, m, m, r);
   const matx_t Hrm = H.block(m, 0, r, m);
   const matx_t Hrr = H.block(m, m, r, r);
   const matx_t H_marg = Hrr - Hrm * Hmm_inv * Hmr;
+  // -- Inverse check
+  const double inv_check = ((Hmm * Hmm_inv) - I(m, m)).sum();
+  if (fabs(inv_check) > 1e-4) {
+    LOG_WARN("Covariance estimation: Inverse identity check: %f", inv_check);
+    LOG_WARN("This is bad ... Usually means covariance estimated is bad!");
+    return -1;
+  }
 
   // Convert
   calib_covar = H_marg.inverse();
@@ -859,8 +865,8 @@ void yac_solver_t::_solve_linear_system(const real_t lambda_k,
   // dx = linsolve_dense_chol(H, b);
   // dx = linsolve_dense_svd(H, b);
   // dx = linsolve_dense_qr(H, b);
-  // dx = linsolve_sparse_qr(H, b);
-  dx = truncated_sparse_qr(H, b);
+  dx = linsolve_sparse_qr(H, b);
+  // dx = truncated_sparse_qr(H, b);
 
   // clang-format off
   // cholmod_sparse *H_sparse = cholmod_converter_t::convert(H, &tsolver.cholmod_, std::numeric_limits<double>::epsilon());
@@ -1000,8 +1006,8 @@ void yac_solver_t::_solve_lm(const int max_iter,
 void yac_solver_t::solve(const int max_iter,
                          const bool verbose,
                          const int verbose_level) {
-  // _solve_gn(max_iter, verbose, verbose_level);
-  _solve_lm(max_iter, verbose, verbose_level);
+  _solve_gn(max_iter, verbose, verbose_level);
+  // _solve_lm(max_iter, verbose, verbose_level);
   // tsolver.clear();
 }
 

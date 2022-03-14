@@ -80,111 +80,111 @@ cv::Mat gray2rgb(const cv::Mat &image);
  */
 cv::Mat rgb2gray(const cv::Mat &image);
 
-/**
- * Create ROI from an image
- *
- * @param[in] image Input image
- * @param[in] width ROI width
- * @param[in] height ROI height
- * @param[in] cx ROI center x-axis
- * @param[in] cy ROI center y-axis
- *
- * @returns ROI
- */
-cv::Mat roi(const cv::Mat &image,
-            const int width,
-            const int height,
-            const real_t cx,
-            const real_t cy);
-
-/**
- * Compare two keypoints based on the response.
- *
- * @param[in] kp1 First keypoint
- * @param[in] kp2 Second keypoint
- * @returns Boolean to denote if first keypoint repose is larger than second
- */
-bool keypoint_compare_by_response(const cv::KeyPoint &kp1,
-                                  const cv::KeyPoint &kp2);
-
-/**
- * Calculate reprojection error
- *
- * @param[in] measured Measured image pixels
- * @param[in] projected Projected image pixels
- * @returns Reprojection error
- */
-real_t reprojection_error(const vec2s_t &measured, const vec2s_t &projected);
-
-/**
- * Calculate reprojection error
- *
- * @param[in] measured Measured image pixels
- * @param[in] projected Projected image pixels
- * @returns Reprojection error
- */
-real_t reprojection_error(const std::vector<cv::Point2f> &measured,
-                          const std::vector<cv::Point2f> &projected);
-
-/**
- * Create feature mask
- *
- * @param[in] image_width Image width
- * @param[in] image_height Image height
- * @param[in] points Points
- * @param[in] patch_width Patch width
- *
- * @returns Feature mask
- */
-matx_t feature_mask(const int image_width,
-                    const int image_height,
-                    const std::vector<cv::Point2f> points,
-                    const int patch_width);
-
-/**
- * Create feature mask
- *
- * @param[in] image_width Image width
- * @param[in] image_height Image height
- * @param[in] keypoints Keypoints
- * @param[in] patch_width Patch width
- *
- * @returns Feature mask
- */
-matx_t feature_mask(const int image_width,
-                    const int image_height,
-                    const std::vector<cv::KeyPoint> keypoints,
-                    const int patch_width);
-
-/**
- * Create feature mask
- *
- * @param[in] image_width Image width
- * @param[in] image_height Image height
- * @param[in] points Points
- * @param[in] patch_width Patch width
- *
- * @returns Feature mask
- */
-cv::Mat feature_mask_opencv(const int image_width,
-                            const int image_height,
-                            const std::vector<cv::Point2f> points,
-                            const int patch_width);
-
-/**
- * Create feature mask
- *
- * @param[in] image_width Image width
- * @param[in] image_height Image height
- * @param[in] keypoints Keypoints
- * @param[in] patch_width Patch width
- *
- * @returns Feature mask
- */
-cv::Mat feature_mask_opencv(const int image_width,
-                            const int image_height,
-                            const std::vector<cv::KeyPoint> keypoints,
-                            const int patch_width);
+// /**
+//  * Create ROI from an image
+//  *
+//  * @param[in] image Input image
+//  * @param[in] width ROI width
+//  * @param[in] height ROI height
+//  * @param[in] cx ROI center x-axis
+//  * @param[in] cy ROI center y-axis
+//  *
+//  * @returns ROI
+//  */
+// cv::Mat roi(const cv::Mat &image,
+//             const int width,
+//             const int height,
+//             const real_t cx,
+//             const real_t cy);
+//
+// /**
+//  * Compare two keypoints based on the response.
+//  *
+//  * @param[in] kp1 First keypoint
+//  * @param[in] kp2 Second keypoint
+//  * @returns Boolean to denote if first keypoint repose is larger than second
+//  */
+// bool keypoint_compare_by_response(const cv::KeyPoint &kp1,
+//                                   const cv::KeyPoint &kp2);
+//
+// /**
+//  * Calculate reprojection error
+//  *
+//  * @param[in] measured Measured image pixels
+//  * @param[in] projected Projected image pixels
+//  * @returns Reprojection error
+//  */
+// real_t reprojection_error(const vec2s_t &measured, const vec2s_t &projected);
+//
+// /**
+//  * Calculate reprojection error
+//  *
+//  * @param[in] measured Measured image pixels
+//  * @param[in] projected Projected image pixels
+//  * @returns Reprojection error
+//  */
+// real_t reprojection_error(const std::vector<cv::Point2f> &measured,
+//                           const std::vector<cv::Point2f> &projected);
+//
+// /**
+//  * Create feature mask
+//  *
+//  * @param[in] image_width Image width
+//  * @param[in] image_height Image height
+//  * @param[in] points Points
+//  * @param[in] patch_width Patch width
+//  *
+//  * @returns Feature mask
+//  */
+// matx_t feature_mask(const int image_width,
+//                     const int image_height,
+//                     const std::vector<cv::Point2f> points,
+//                     const int patch_width);
+//
+// /**
+//  * Create feature mask
+//  *
+//  * @param[in] image_width Image width
+//  * @param[in] image_height Image height
+//  * @param[in] keypoints Keypoints
+//  * @param[in] patch_width Patch width
+//  *
+//  * @returns Feature mask
+//  */
+// matx_t feature_mask(const int image_width,
+//                     const int image_height,
+//                     const std::vector<cv::KeyPoint> keypoints,
+//                     const int patch_width);
+//
+// /**
+//  * Create feature mask
+//  *
+//  * @param[in] image_width Image width
+//  * @param[in] image_height Image height
+//  * @param[in] points Points
+//  * @param[in] patch_width Patch width
+//  *
+//  * @returns Feature mask
+//  */
+// cv::Mat feature_mask_opencv(const int image_width,
+//                             const int image_height,
+//                             const std::vector<cv::Point2f> points,
+//                             const int patch_width);
+//
+// /**
+//  * Create feature mask
+//  *
+//  * @param[in] image_width Image width
+//  * @param[in] image_height Image height
+//  * @param[in] keypoints Keypoints
+//  * @param[in] patch_width Patch width
+//  *
+//  * @returns Feature mask
+//  */
+// cv::Mat feature_mask_opencv(const int image_width,
+//                             const int image_height,
+//                             const std::vector<cv::KeyPoint> keypoints,
+//                             const int patch_width);
 
 /**
  * Equi undistort image

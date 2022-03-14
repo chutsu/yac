@@ -399,11 +399,12 @@ int test_calib_camera_mono() {
 int test_calib_camera_stereo() {
   // Calibrate
   calib_camera_t calib{STEREO_CONF};
-  calib.enable_nbv = true;
+  calib.enable_nbv = false;
   calib.enable_shuffle_views = false;
   calib.enable_marginalization = false;
-  calib.enable_nbv_filter = true;
+  calib.enable_nbv_filter = false;
   calib.enable_outlier_filter = true;
+  calib.outlier_threshold = 4.0;
   calib.add_camera_data(test_data);
   calib.solve();
   calib.save_results("/tmp/calib-results.yaml");

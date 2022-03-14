@@ -1,6 +1,8 @@
+#ifndef YAC_SOLVER_HPP
+#define YAC_SOLVER_HPP
 #include "calib_params.hpp"
 #include "calib_residuals.hpp"
-// #include "suitesparse.hpp"
+#include "suitesparse.hpp"
 
 #include <Eigen/SparseQR>
 #include <Eigen/SparseCholesky>
@@ -28,7 +30,10 @@ struct solver_t {
   real_t final_cost = 0.0;
   real_t num_iterations = 0.0;
 
-  solver_t() { Eigen::setNbThreads(8); }
+  solver_t() {
+    Eigen::initParallel();
+    Eigen::setNbThreads(8);
+  }
 
   virtual ~solver_t() = default;
 
@@ -115,3 +120,4 @@ struct yac_solver_t : solver_t {
 };
 
 } // namespace yac
+#endif // YAC_SOLVER_HPP

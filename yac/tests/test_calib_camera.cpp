@@ -181,7 +181,7 @@ int test_calib_camera_add_and_remove_view() {
       continue;
     }
 
-    calib.add_view(calib.calib_data[ts], true);
+    calib.add_view(calib.calib_data[ts]);
     view_ts = ts;
     if (calib.nb_views() >= 5) {
       break;
@@ -280,7 +280,7 @@ int test_calib_camera_filter_all_views() {
   calib.add_camera_data(1, test_data.at(1));
 
   for (const auto ts : calib.timestamps) {
-    calib.add_view(calib.calib_data[ts], true);
+    calib.add_view(calib.calib_data[ts]);
     if (calib.nb_views() > 10) {
       break;
     }
@@ -306,7 +306,7 @@ int test_calib_camera_remove_all_views() {
   calib.add_camera_data(1, test_data.at(1));
 
   for (const auto ts : calib.timestamps) {
-    calib.add_view(calib.calib_data[ts], true);
+    calib.add_view(calib.calib_data[ts]);
     if (calib.nb_views() > 10) {
       break;
     }
@@ -334,12 +334,15 @@ int test_calib_camera_remove_outliers() {
 
   timestamp_t last_ts = 0;
   for (const auto ts : calib.timestamps) {
-    calib.add_view(calib.calib_data[ts], true);
+    calib.add_view(calib.calib_data[ts]);
     if (calib.nb_views() > 10) {
+      last_ts = ts;
       break;
     }
   }
-  calib._remove_outliers(true);
+  calib.solver->solve(100, true, 1);
+  MU_CHECK(calib._calc_info(&calib.info_k) == 0);
+  calib._remove_outliers(false);
 
   return 0;
 }
@@ -457,8 +460,8 @@ int test_marg_error() {
       continue;
     }
 
-    calib.add_view(calib.calib_data[ts], true);
-    if (calib.nb_views() > max_num_views) {
+    calib.add_view(calib.calib_data[ts]);
+    if (static_cast<size_t>(calib.nb_views()) > max_num_views) {
       break;
     }
   }

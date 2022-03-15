@@ -424,12 +424,10 @@ calib_camera_t::calib_camera_t(const std::string &config_path)
   parse(config, "settings.enable_shuffle_views", enable_shuffle_views, true);
   parse(config, "settings.enable_nbv_filter", enable_nbv_filter, true);
   parse(config, "settings.enable_marginalization", enable_marginalization, true);
-  parse(config, "settings.enable_early_stopping", enable_early_stopping, true);
   parse(config, "settings.min_nbv_views", min_nbv_views, true);
   parse(config, "settings.outlier_threshold", outlier_threshold, true);
   parse(config, "settings.info_gain_threshold", info_gain_threshold, true);
   parse(config, "settings.sliding_window_size", sliding_window_size, true);
-  parse(config, "settings.early_stop_threshold", early_stop_threshold, true);
   // clang-format on
   // -- Parse calibration target
   if (calib_target.load(config_path, "calib_target") != 0) {
@@ -801,8 +799,7 @@ void calib_camera_t::add_pose(const timestamp_t ts,
   solver->add_param(poses[ts]);
 }
 
-bool calib_camera_t::add_view(const std::map<int, aprilgrid_t> &cam_grids,
-                              const bool force) {
+bool calib_camera_t::add_view(const std::map<int, aprilgrid_t> &cam_grids) {
   // Check if AprilGrid was detected
   bool detected = false;
   timestamp_t ts = 0;
@@ -842,9 +839,13 @@ bool calib_camera_t::add_view(const std::map<int, aprilgrid_t> &cam_grids,
                                      &cam_exts,
                                      poses[ts]};
 
-  // When **not** doing NBV add the view and return early
-  if (force) {
-    return true;
+  return true;
+}
+
+bool calib_camera_t::add_nbv_view(const std::map<int, aprilgrid_t> &cam_grids) {
+  // Add view
+  if (add_view(cam_grids) == false) {
+    return false;
   }
 
   // Keep track of initial values - incase view is rejected
@@ -854,12 +855,18 @@ bool calib_camera_t::add_view(const std::map<int, aprilgrid_t> &cam_grids,
   solver->solve();
 
   // Calculate information gain
+  const timestamp_t ts = calib_view_timestamps.back();
   real_t info_kp1 = 0.0;
   if (_calc_info(&info_kp1) != 0) {
     _restore_estimates();
-    return -1;
+    remove_view(ts);
+    return false;
   }
   const real_t info_gain = 0.5 * (info_k - info_kp1);
+  // printf("info_gain: %f, info_k: %f, info_kp1: %f\n",
+  //        info_gain,
+  //        info_k,
+  //        info_kp1);
 
   // Remove view?
   if (info_gain < info_gain_threshold) {
@@ -876,7 +883,7 @@ bool calib_camera_t::add_view(const std::map<int, aprilgrid_t> &cam_grids,
   return true;
 }
 
-void calib_camera_t::remove_view(const timestamp_t ts, const bool skip_solve) {
+void calib_camera_t::remove_view(const timestamp_t ts) {
   // Remove pose
   if (poses.count(ts)) {
     auto pose_ptr = poses[ts];
@@ -897,19 +904,6 @@ void calib_camera_t::remove_view(const timestamp_t ts, const bool skip_solve) {
                            calib_view_timestamps.end(),
                            ts);
     calib_view_timestamps.erase(ts_it);
-  }
-
-  // Skip solving
-  if (skip_solve) {
-    return;
-  }
-
-  // Update info_k
-  _cache_estimates();
-  solver->solve();
-
-  if (_calc_info(&info_k) != 0) {
-    _restore_estimates();
   }
 }
 
@@ -961,7 +955,7 @@ void calib_camera_t::marginalize() {
   view->marginalize(marg_residual);
 
   // Remove view
-  remove_view(marg_ts, false);
+  remove_view(marg_ts);
 }
 
 int calib_camera_t::find_nbv(const std::map<int, mat4s_t> &nbv_poses,
@@ -1015,7 +1009,7 @@ int calib_camera_t::find_nbv(const std::map<int, mat4s_t> &nbv_poses,
                                              nbv_ts,
                                              T_FC0 * T_C0Ci);
       }
-      add_view(cam_grids, true);
+      add_view(cam_grids);
 
       // Evaluate NBV
       real_t info_kp1;
@@ -1024,10 +1018,10 @@ int calib_camera_t::find_nbv(const std::map<int, mat4s_t> &nbv_poses,
         best_idx = i;
         best_info = info_kp1;
       }
-      const auto gain = 0.5 * (info_k - info_kp1);
+      // const auto gain = 0.5 * (info_k - info_kp1);
 
       // Remove view and update
-      remove_view(nbv_ts, true);
+      remove_view(nbv_ts);
       bar.update();
     }
   }
@@ -1097,6 +1091,20 @@ void calib_camera_t::_initialize_extrinsics() {
   // Initialize
   if (enable_nbv) {
     _solve_batch(false);
+
+    // std::vector<real_t> reproj_errors;
+    // for (auto &[ts, view] : calib_views) {
+    //   auto errors = view->get_reproj_errors();
+    //   printf("ts: %ld, reproj_error: %f\n", ts, rmse(errors));
+    //   reproj_errors.push_back(rmse(errors));
+    // }
+
+    // printf("reproj_errors:\n");
+    // printf("  mean: %f\n", mean(reproj_errors));
+    // printf("  median: %f\n", median(reproj_errors));
+    // printf("  rmse: %f\n", rmse(reproj_errors));
+    // printf("\n");
+
     remove_all_views();
   }
 }
@@ -1170,13 +1178,23 @@ int calib_camera_t::_calc_info(real_t *info) {
   }
 
   // Estimate marginal covariance matrix
-  matx_t calib_covar;
-  if (solver->estimate_covariance(params, calib_covar, true) != 0) {
+  // {
+  //   matx_t calib_covar;
+  //   if (solver->estimate_covariance(params, calib_covar, true) != 0) {
+  //     return -1;
+  //   }
+  //   *info = log(calib_covar.determinant()) / log(2.0);
+  //   return 0;
+  // }
+
+  real_t covar_det = 0.0;
+  if (solver->estimate_covariance_determinant(params, covar_det, true) != 0) {
     return -1;
   }
-
-  // log(det(calib_covar)) / log(2)
-  *info = log(calib_covar.determinant()) / log(2.0);
+  if (std::isnan(std::abs(covar_det))) {
+    return -1;
+  }
+  *info = covar_det / log(2.0);
 
   return 0;
 }
@@ -1211,16 +1229,37 @@ int calib_camera_t::_remove_outliers(const bool filter_all) {
       cam_thresholds[cam_idx] = outlier_threshold * cam_stddev;
     }
 
+    // Cache estimates
+    _cache_estimates();
+
     // Filter view
     auto &view = calib_views[ts];
+    const auto grids_cache = view->grids;
     int removed = view->filter_view(cam_thresholds);
+
+    // Get info with filtered view
+    real_t info_before;
+    if (_calc_info(&info_before) != 0) {
+      printf("Failed to evaluate info!");
+      continue;
+    }
+
+    // Remove view
     const auto grids = view->grids; // Make a copy of the grids
+    remove_view(ts);
 
-    // Remove view and check info
-    remove_view(ts, false);
+    // Get info with filtered view removed
+    real_t info_after;
+    if (_calc_info(&info_after) != 0) {
+      printf("Failed to evaluate info!");
+      add_view(grids_cache);
+      continue;
+    }
 
-    // Add the view back
-    if (add_view(grids, false)) {
+    // Add the view back?
+    const real_t info_gain = 0.5 * (info_after - info_before);
+    if (info_gain > info_gain_threshold) {
+      add_view(grids);
       removed_outliers += removed;
       nb_outliers += removed;
       if (filter_all) {
@@ -1232,11 +1271,21 @@ int calib_camera_t::_remove_outliers(const bool filter_all) {
         printf("Remove view [%ld], outliers: %d\n", ts, removed);
       }
     }
+
+    // Restore estimates
+    _restore_estimates();
   }
+
+  // Print stats
   if (filter_all) {
     printf("[Stats] kept views: %d, removed views: %d\n\n",
            nb_views(),
            nb_views_removed);
+  }
+
+  // Update info_k
+  if (_calc_info(&info_k) != 0) {
+    return nb_outliers;
   }
 
   return nb_outliers;
@@ -1272,6 +1321,7 @@ void calib_camera_t::_print_stats(const size_t ts_idx,
   printf("reproj_error: %.4f  ", rmse(reproj_errors_all));
   printf("info_k: %.4f  ", info_k);
   printf("\n");
+  // printf("\n");
 
   // Show current calibration estimates
   if ((ts_idx % 10) == 0) {
@@ -1279,7 +1329,6 @@ void calib_camera_t::_print_stats(const size_t ts_idx,
     const mat4_t T_BC0 = get_camera_extrinsics(0);
     const mat4_t T_C0B = tf_inv(T_BC0);
     for (const auto cam_idx : get_camera_indices()) {
-      const auto cam_res = cam_params[cam_idx]->resolution;
       const auto param = cam_params[cam_idx]->param;
       printf("cam%d_params: %s\n", cam_idx, vec2str(param).c_str());
     }
@@ -1299,7 +1348,7 @@ void calib_camera_t::_solve_batch(const bool filter_outliers) {
   // Setup batch problem
   if (problem_init == false) {
     for (const auto ts : timestamps) {
-      add_view(calib_data[ts], true);
+      add_view(calib_data[ts]);
     }
     problem_init = true;
   }
@@ -1307,6 +1356,24 @@ void calib_camera_t::_solve_batch(const bool filter_outliers) {
   // Solve
   const int max_iter = 50;
   solver->solve(max_iter, true, 1);
+
+  // std::vector<real_t> reproj_errors;
+  // for (auto &[ts, view] : calib_views) {
+  //   auto errors = view->get_reproj_errors();
+  //   reproj_errors.push_back(rmse(errors));
+  // }
+  // auto threshold = 4.0 * stddev(reproj_errors);
+  // timestamps_t bad_views;
+  // for (auto &[ts, view] : calib_views) {
+  //   if (rmse(view->get_reproj_errors()) >= threshold) {
+  //     bad_views.push_back(ts);
+  //   }
+  // }
+  // for (auto ts : bad_views) {
+  //   remove_view(ts);
+  // }
+  // printf("removed bad views: %ld\n", bad_views.size());
+  // solver->solve(max_iter, true, 1);
 
   // Final outlier rejection
   if (filter_outliers) {
@@ -1327,12 +1394,12 @@ void calib_camera_t::_solve_inc() {
 
   for (const auto &ts : timestamps) {
     // Add view
-    if (add_view(calib_data[ts], true) == false) {
+    if (add_view(calib_data[ts]) == false) {
       continue;
     }
 
     // Solve
-    if (calib_views.size() >= sliding_window_size) {
+    if (static_cast<int>(calib_views.size()) >= sliding_window_size) {
       solver->solve();
       marginalize();
     }
@@ -1371,55 +1438,44 @@ void calib_camera_t::_solve_nbv() {
 
   // NBV
   size_t ts_idx = 0;
-  int early_stop_counter = 0;
-
   for (const auto &ts : nbv_timestamps) {
     // Add view
-    if (add_view(calib_data[ts], false) == false) {
-      early_stop_counter++;
-      _print_stats(ts_idx++, nbv_timestamps.size());
-      continue;
-    }
-    early_stop_counter = 0;
+    if (add_nbv_view(calib_data[ts])) {
+      // Remove outliers
+      if (enable_nbv_filter && nb_views() >= min_nbv_views) {
+        _remove_outliers(filter_all);
+        filter_all = false;
+      }
 
-    // Remove outliers
-    if (enable_nbv_filter && nb_views() >= min_nbv_views) {
-      _remove_outliers(filter_all);
-      filter_all = false;
+      // Marginalize oldest view
+      if (enable_marginalization &&
+          (calib_views.size() > (size_t)sliding_window_size)) {
+        marginalize();
+      }
+
+      // Update
+      problem_init = true;
     }
 
     // Print stats
     if (verbose) {
       _print_stats(ts_idx++, nbv_timestamps.size());
     }
-
-    // Marginalize oldest view
-    if (enable_marginalization && (calib_views.size() > sliding_window_size)) {
-      marginalize();
-    }
-
-    // Stop early?
-    if (enable_early_stopping && early_stop_counter > early_stop_threshold) {
-      break;
-    }
-
-    // Update
-    problem_init = true;
   }
 
-  // Final outlier rejection, then batch solve
-  if (enable_outlier_filter) {
-    if (verbose) {
-      printf("Performing Final Outlier Rejection\n");
-    }
-    removed_outliers += _remove_outliers(true);
-    if (verbose) {
-      printf("Removed %d outliers\n", removed_outliers);
-    }
-  }
+  // // Final outlier rejection, then batch solve
+  // if (enable_outlier_filter) {
+  //   if (verbose) {
+  //     printf("Performing Final Outlier Rejection\n");
+  //   }
+  //   removed_outliers += _remove_outliers(true);
+  //   if (verbose) {
+  //     printf("Removed %d outliers\n", removed_outliers);
+  //   }
+  // }
 
   // Final Solve
-  // removed_outliers = _filter_all_views();
+  removed_outliers = _filter_all_views();
   solver->solve(50, true, 1);
 }
 
@@ -1459,18 +1515,17 @@ void calib_camera_t::print_settings(FILE *out) {
   // clang-format off
   fprintf(out, "settings:\n");
   fprintf(out, "  verbose: %s\n", verbose ? "true" : "false");
+  fprintf(out, "  solver: %s\n", solver_type.c_str());
   fprintf(out, "  max_num_threads: %d\n", max_num_threads);
   fprintf(out, "  enable_nbv: %s\n", enable_nbv ? "true" : "false");
   fprintf(out, "  enable_shuffle_views: %s\n", enable_shuffle_views ? "true" : "false");
   fprintf(out, "  enable_nbv_filter: %s\n", enable_nbv_filter ? "true" : "false");
   fprintf(out, "  enable_outlier_filter: %s\n", enable_outlier_filter ? "true" : "false");
   fprintf(out, "  enable_marginalization: %s\n", enable_marginalization ? "true" : "false");
-  fprintf(out, "  enable_early_stopping: %s\n", enable_early_stopping ? "true" : "false");
   fprintf(out, "  min_nbv_views: %d\n", min_nbv_views);
   fprintf(out, "  outlier_threshold: %f\n", outlier_threshold);
   fprintf(out, "  info_gain_threshold: %f\n", info_gain_threshold);
   fprintf(out, "  sliding_window_size: %d\n", sliding_window_size);
-  fprintf(out, "  early_stop_threshold: %d\n", early_stop_threshold);
   fprintf(out, "\n");
   // clang-format on
 }
@@ -1536,7 +1591,6 @@ void calib_camera_t::print_estimates(FILE *out) {
     for (int i = 1; i < nb_cameras(); i++) {
       const mat4_t T_BCi = get_camera_extrinsics(i);
       const mat4_t T_C0Ci = T_C0B * T_BCi;
-      const mat4_t T_CiC0 = tf_inv(T_C0Ci);
       fprintf(out, "T_cam0_cam%d:\n", i);
       fprintf(out, "  rows: 4\n");
       fprintf(out, "  cols: 4\n");

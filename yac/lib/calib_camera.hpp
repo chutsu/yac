@@ -101,14 +101,12 @@ struct calib_camera_t {
   bool enable_nbv = true;
   bool enable_shuffle_views = false;
   bool enable_nbv_filter = true;
-  bool enable_outlier_filter = false;
-  bool enable_marginalization = true;
-  bool enable_early_stopping = false;
-  int min_nbv_views = 10;
+  bool enable_outlier_filter = true;
+  bool enable_marginalization = false;
+  int min_nbv_views = 40;
   real_t outlier_threshold = 4.0;
   real_t info_gain_threshold = 0.2;
   int sliding_window_size = 10;
-  int early_stop_threshold = 30;
 
   // Data
   calib_target_t calib_target;
@@ -204,8 +202,9 @@ struct calib_camera_t {
   void add_pose(const timestamp_t ts,
                 const std::map<int, aprilgrid_t> &cam_grids,
                 const bool fixed = false);
-  bool add_view(const std::map<int, aprilgrid_t> &cam_grids, const bool force);
-  void remove_view(const timestamp_t ts, const bool skip_solve = true);
+  bool add_view(const std::map<int, aprilgrid_t> &cam_grids);
+  bool add_nbv_view(const std::map<int, aprilgrid_t> &cam_grids);
+  void remove_view(const timestamp_t ts);
   void remove_all_views();
   void marginalize();
 

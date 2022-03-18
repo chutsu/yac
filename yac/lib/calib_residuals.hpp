@@ -52,9 +52,33 @@ struct calib_residual_t : public ceres::CostFunction {
                   const double tol = 1e-4);
 };
 
-// POSE RESIDUAL //////////////////////////////////////////////////////////////
+// PRIOR ///////////////////////////////////////////////////////////////////////
 
-struct pose_residual_t : public calib_residual_t {
+struct prior_t : public calib_residual_t {
+  const param_t *param = nullptr;
+  const vecx_t param_meas;
+
+  // Covariance
+  matx_t covar;
+  matx_t info;
+  matx_t sqrt_info;
+
+  /* Constructor */
+  prior_t(param_t *param_, const matx_t &covar_);
+
+  /* Destructor */
+  ~prior_t() = default;
+
+  /* Evaluate */
+  bool EvaluateWithMinimalJacobians(double const *const *params,
+                                    double *res,
+                                    double **jacs,
+                                    double **min_jacs) const;
+};
+
+// POSE PRIOR /////////////////////////////////////////////////////////////////
+
+struct pose_prior_t : public calib_residual_t {
   const pose_t *pose = nullptr;
   const mat4_t pose_meas;
 
@@ -64,10 +88,10 @@ struct pose_residual_t : public calib_residual_t {
   mat_t<6, 6> sqrt_info;
 
   /* Constructor */
-  pose_residual_t(pose_t *pose_, const mat_t<6, 6> &covar_);
+  pose_prior_t(pose_t *pose_, const mat_t<6, 6> &covar_);
 
   /* Destructor */
-  ~pose_residual_t() = default;
+  ~pose_prior_t() = default;
 
   /* Evaluate */
   bool EvaluateWithMinimalJacobians(double const *const *params,
@@ -340,8 +364,7 @@ public:
   void marginalize(std::vector<param_t *> &marg_params,
                    std::vector<calib_residual_t *> &marg_residuals,
                    const bool debug = false);
-  ceres::ResidualBlockId marginalize(ceres::Problem *problem,
-                                     bool debug = false);
+  ceres::ResidualBlockId marginalize(ceres::Problem *problem);
 
   /* Compute Delta Chi */
   vecx_t compute_delta_chi(double const *const *params) const;

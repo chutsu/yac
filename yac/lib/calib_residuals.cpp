@@ -116,10 +116,58 @@ bool calib_residual_t::check_jacs(const int param_idx,
   return (retval == 0) ? true : false;
 }
 
-// POSE ERROR //////////////////////////////////////////////////////////////////
+// PRIOR ///////////////////////////////////////////////////////////////////////
 
-pose_residual_t::pose_residual_t(pose_t *pose_, const mat_t<6, 6> &covar_)
-    : calib_residual_t{"pose_residual_t"}, pose{pose_}, pose_meas{pose_->tf()},
+prior_t::prior_t(param_t *param_, const matx_t &covar_)
+    : calib_residual_t{"prior_t"}, param{param_}, param_meas{param_->param},
+      covar{covar_}, info{covar.inverse()}, sqrt_info{info.llt().matrixU()} {
+  // Data
+  param_blocks.push_back(param_);
+
+  // Ceres-Solver
+  set_num_residuals(param->global_size);
+  auto block_sizes = mutable_parameter_block_sizes();
+  block_sizes->push_back(param->global_size);
+}
+
+bool prior_t::EvaluateWithMinimalJacobians(double const *const *params,
+                                           double *res,
+                                           double **jacs,
+                                           double **min_jacs) const {
+  // clang-format off
+  const int r_size = num_residuals();
+  Eigen::Map<const vecx_t> param_est(params[0], r_size);
+  Eigen::Map<vecx_t> r(res, r_size);
+  r = sqrt_info * (param_meas - param_est);
+  // clang-format on
+
+  // Jacobians
+  if (jacs != NULL && jacs[0] != NULL) {
+    matx_t J_min = zeros(r_size, r_size);
+    J_min.setIdentity();
+    J_min *= -1.0;
+    J_min = sqrt_info * J_min;
+
+    Eigen::Map<mat_t<dynamic_t, dynamic_t, row_major_t>> J(jacs[0],
+                                                           r_size,
+                                                           r_size);
+    J = J_min;
+
+    if (min_jacs[0]) {
+      Eigen::Map<mat_t<dynamic_t, dynamic_t, row_major_t>> J0_min(min_jacs[0],
+                                                                  r_size,
+                                                                  r_size);
+      J0_min = J_min;
+    }
+  }
+
+  return true;
+}
+
+// POSE PRIOR //////////////////////////////////////////////////////////////////
+
+pose_prior_t::pose_prior_t(pose_t *pose_, const mat_t<6, 6> &covar_)
+    : calib_residual_t{"pose_prior_t"}, pose{pose_}, pose_meas{pose_->tf()},
       covar{covar_}, info{covar.inverse()}, sqrt_info{info.llt().matrixU()} {
   // Data
   param_blocks.push_back(pose_);
@@ -130,10 +178,10 @@ pose_residual_t::pose_residual_t(pose_t *pose_, const mat_t<6, 6> &covar_)
   block_sizes->push_back(7); // Camera-camera extrinsics
 }
 
-bool pose_residual_t::EvaluateWithMinimalJacobians(double const *const *params,
-                                                   double *res,
-                                                   double **jacs,
-                                                   double **min_jacs) const {
+bool pose_prior_t::EvaluateWithMinimalJacobians(double const *const *params,
+                                                double *res,
+                                                double **jacs,
+                                                double **min_jacs) const {
   // Parameters
   mat4_t pose_est = tf(params[0]);
 
@@ -1552,7 +1600,7 @@ void marg_residual_t::schurs_complement(const matx_t &H,
   const double eps = 1.0e-8;
   const Eigen::SelfAdjointEigenSolver<matx_t> eig(Hmm);
   const matx_t V = eig.eigenvectors();
-  const auto eigvals = (eig.eigenvalues().array() > eps).select(eig.eigenvalues().array(), 0);
+  // const auto eigvals = (eig.eigenvalues().array() > eps).select(eig.eigenvalues().array(), 0);
   const auto eigvals_inv = (eig.eigenvalues().array() > eps).select(eig.eigenvalues().array().inverse(), 0);
   const matx_t Lambda_inv = vecx_t(eigvals_inv).asDiagonal();
   const matx_t Hmm_inv = V * Lambda_inv * V.transpose();
@@ -1649,8 +1697,7 @@ void marg_residual_t::marginalize(
   marginalized_ = true;
 }
 
-ceres::ResidualBlockId marg_residual_t::marginalize(ceres::Problem *problem,
-                                                    bool debug) {
+ceres::ResidualBlockId marg_residual_t::marginalize(ceres::Problem *problem) {
   // Marginalize
   std::vector<param_t *> marg_params;
   std::vector<calib_residual_t *> marg_residuals;

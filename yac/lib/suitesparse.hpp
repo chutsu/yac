@@ -163,7 +163,7 @@ struct cholmod_converter_t {
 // TRUNCATED SOLVER ///////////////////////////////////////////////////////////
 
 struct trucated_solver_options_t {
-  bool columnScaling = false;
+  bool columnScaling = true;
   double epsNorm = std::numeric_limits<double>::epsilon();
   double epsSVD = std::numeric_limits<double>::epsilon();
   double epsQR = std::numeric_limits<double>::epsilon();

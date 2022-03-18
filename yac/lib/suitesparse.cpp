@@ -60,8 +60,8 @@ std::ptrdiff_t estimateNumericalRank(const vecx_t &singular_values,
                                      double tolerance) {
   // CHECK_GE(tolerance, 0.0);
 
-  std::ptrdiff_t numerical_rank = singular_values.size();
-  for (std::ptrdiff_t i = singular_values.size() - 1; i >= 0; --i) {
+  size_t numerical_rank = singular_values.size();
+  for (size_t i = singular_values.size() - 1; i >= 0; --i) {
     if (singular_values(i) > tolerance) {
       // Assumes that the singular values are ordered.
       break;

@@ -1394,7 +1394,8 @@ typedef Eigen::Spline<real_t, 3> Spline3D;
  * Continuous trajectory generator
  */
 struct ctraj_t {
-  const timestamps_t timestamps;
+  const timestamp_t ts_start;
+  const timestamp_t ts_end;
   const vec3s_t positions;
   const quats_t orientations;
 
@@ -1405,9 +1406,10 @@ struct ctraj_t {
   Spline3D pos_spline;
   Spline3D rvec_spline;
 
-  ctraj_t(const timestamps_t &timestamps,
-          const vec3s_t &positions,
-          const quats_t &orientations);
+  ctraj_t(const timestamp_t &ts_start_,
+          const timestamp_t &ts_end_,
+          const vec3s_t &positions_,
+          const quats_t &orientations_);
 };
 
 /**

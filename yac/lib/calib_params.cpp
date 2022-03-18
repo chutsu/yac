@@ -227,8 +227,8 @@ fiducial_corner_t::fiducial_corner_t(const int tag_id_,
                                      const int corner_idx_,
                                      const vec3_t &p_FFi_,
                                      const bool fixed_)
-    : tag_id{tag_id_},
-      corner_idx{corner_idx_}, param_t{"fiducial_corner_t", 0, 3, 3, fixed_} {
+    : param_t{"fiducial_corner_t", 0, 3, 3, fixed_}, tag_id{tag_id_},
+      corner_idx{corner_idx_} {
   param = p_FFi_;
 }
 

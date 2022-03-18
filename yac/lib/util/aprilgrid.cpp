@@ -1049,6 +1049,7 @@ aprilgrid_t aprilgrid_detector_t::detect(const timestamp_t ts,
 std::map<int, aprilgrid_t> aprilgrid_detector_t::detect(
     const std::map<int, std::pair<timestamp_t, cv::Mat>> &img_buffer,
     const bool use_v3) const {
+  UNUSED(use_v3);
   std::vector<pthread_t> threads;
   std::vector<std::unique_ptr<aprilgrid_detect_data_t>> thread_data;
   std::map<int, aprilgrid_t> grid_buffer;

@@ -673,6 +673,8 @@ mat2_t radtan4_point_jacobian(const vec4_t &dist_params, const vec2_t &p) {
 }
 
 matx_t radtan4_params_jacobian(const vec4_t &dist_params, const vec2_t &p) {
+  UNUSED(dist_params);
+
   const real_t x = p.x();
   const real_t y = p.y();
 
@@ -779,6 +781,8 @@ mat2_t equi4_point_jacobian(const vec4_t &dist_params, const vec2_t &p) {
 }
 
 matx_t equi4_params_jacobian(const vec4_t &dist_params, const vec2_t &p) {
+  UNUSED(dist_params);
+
   const real_t x = p(0);
   const real_t y = p(1);
   const real_t r = p.norm();
@@ -874,6 +878,7 @@ int pinhole_project(const int res[2],
 }
 
 mat2_t pinhole_point_jacobian(const vec4_t &proj_params) {
+  UNUSED(proj_params);
   mat2_t J = zeros(2, 2);
   J(0, 0) = proj_params(0); // fx
   J(1, 1) = proj_params(1); // fy
@@ -882,6 +887,7 @@ mat2_t pinhole_point_jacobian(const vec4_t &proj_params) {
 
 mat_t<2, 4> pinhole_params_jacobian(const vec4_t &proj_params,
                                     const vec2_t &x) {
+  UNUSED(proj_params);
   mat_t<2, 4> J = zeros(2, 4);
   J(0, 0) = x(0); // x
   J(1, 1) = x(1); // y
@@ -1104,6 +1110,7 @@ int solvepnp(const camera_geometry_t *cam,
              const vec2s_t &keypoints,
              const vec3s_t &object_points,
              mat4_t &T_CF) {
+  UNUSED(cam_res);
   assert(keypoints.size() == object_points.size());
 
   // Create object points (counter-clockwise, from bottom left)

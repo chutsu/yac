@@ -81,14 +81,35 @@ timeline_t setup_camimu_test_data() {
   return timeline;
 }
 
-int test_pose_residual() {
+int test_prior() {
+  const int cam_idx = 0;
+  const int cam_res[2] = {752, 480};
+  const std::string proj_model = "pinhole";
+  const std::string dist_model = "radtan4";
+  const vec4_t proj_params{458.654, 457.296, 367.215, 248.375};
+  const vec4_t dist_params{-0.28340811, 0.07395907, 0.00019359, 1.76187114e-05};
+  camera_params_t cam_params{cam_idx,
+                             cam_res,
+                             proj_model,
+                             dist_model,
+                             proj_params,
+                             dist_params};
+  mat_t<8, 8> covar = I(8);
+  prior_t r(&cam_params, covar);
+  MU_CHECK(r.check_jacs(0, "J_prior"));
+
+  return 0;
+}
+
+int test_pose_prior() {
   const vec3_t r{0.1, 0.2, 0.3};
   const vec3_t rpy{0.1, 0.2, 0.3};
   const quat_t q = euler2quat(rpy);
+
   pose_t pose{0, tf(q, r)};
   mat_t<6, 6> covar = I(6);
-  pose_residual_t err(&pose, covar);
-  MU_CHECK(err.check_jacs(0, "J_pose"));
+  pose_prior_t prior(&pose, covar);
+  MU_CHECK(prior.check_jacs(0, "J_pose"));
 
   return 0;
 }
@@ -106,7 +127,7 @@ int test_reproj_residual() {
     }
   }
 
-  // Form reprojection error
+  // Form reprojection residual
   std::vector<int> tag_ids;
   std::vector<int> corner_indicies;
   vec2s_t keypoints;
@@ -140,18 +161,18 @@ int test_reproj_residual() {
   fiducial_corners_t corners{calib_target};
   auto corner = corners.get_corner(tag_ids[0], corner_indicies[0]);
 
-  reproj_residual_t err(&cam_geom,
-                        &cam_params,
-                        &cam_exts,
-                        &rel_pose,
-                        corner,
-                        keypoints[0],
-                        I(2));
+  reproj_residual_t r(&cam_geom,
+                      &cam_params,
+                      &cam_exts,
+                      &rel_pose,
+                      corner,
+                      keypoints[0],
+                      I(2));
 
-  MU_CHECK(err.check_jacs(0, "J_cam_exts"));
-  MU_CHECK(err.check_jacs(1, "J_rel_pose"));
-  MU_CHECK(err.check_jacs(2, "J_fiducial"));
-  MU_CHECK(err.check_jacs(3, "J_cam"));
+  MU_CHECK(r.check_jacs(0, "J_cam_exts"));
+  MU_CHECK(r.check_jacs(1, "J_rel_pose"));
+  MU_CHECK(r.check_jacs(2, "J_fiducial"));
+  MU_CHECK(r.check_jacs(3, "J_cam"));
 
   return 0;
 }
@@ -233,31 +254,32 @@ int test_fiducial_residual() {
   vec2_t z = zeros(2, 1);
   cam_geom.project(cam_res, cam_params.param, r_C0Fi, z);
 
-  // Form fiducial error
-  fiducial_residual_t err(ts,
-                          &cam_geom,
-                          &cam_params,
-                          &cam_exts,
-                          &imu_exts,
-                          &fiducial,
-                          &pose,
-                          tag_id,
-                          corner_idx,
-                          r_FFi,
-                          z,
-                          covar);
+  // Form fiducial residual
+  fiducial_residual_t r(ts,
+                        &cam_geom,
+                        &cam_params,
+                        &cam_exts,
+                        &imu_exts,
+                        &fiducial,
+                        &pose,
+                        tag_id,
+                        corner_idx,
+                        r_FFi,
+                        z,
+                        covar);
 
-  MU_CHECK(err.check_jacs(0, "J_fiducial"));
-  MU_CHECK(err.check_jacs(1, "J_pose"));
-  MU_CHECK(err.check_jacs(2, "J_imu_exts"));
-  MU_CHECK(err.check_jacs(2, "J_cam_exts"));
-  MU_CHECK(err.check_jacs(3, "J_cam"));
+  MU_CHECK(r.check_jacs(0, "J_fiducial"));
+  MU_CHECK(r.check_jacs(1, "J_pose"));
+  MU_CHECK(r.check_jacs(2, "J_imu_exts"));
+  MU_CHECK(r.check_jacs(2, "J_cam_exts"));
+  MU_CHECK(r.check_jacs(3, "J_cam"));
 
   return 0;
 }
 
 void test_suite() {
-  MU_ADD_TEST(test_pose_residual);
+  MU_ADD_TEST(test_prior);
+  MU_ADD_TEST(test_pose_prior);
   MU_ADD_TEST(test_reproj_residual);
   MU_ADD_TEST(test_fiducial_residual);
 }

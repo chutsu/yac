@@ -212,6 +212,62 @@ int test_calib_camera_add_and_remove_view() {
   return 0;
 }
 
+int test_calib_camera_add_nbv_view() {
+  const int cam_res[2] = {752, 480};
+  const std::string proj_model = "pinhole";
+  const std::string dist_model = "radtan4";
+  const calib_target_t calib_target;
+
+  calib_camera_t calib{calib_target};
+  calib.add_camera(0, cam_res, proj_model, dist_model);
+  calib.add_camera(1, cam_res, proj_model, dist_model);
+  calib.add_camera_extrinsics(0);
+  calib.add_camera_extrinsics(1);
+  calib.add_camera_data(0, test_data.at(0));
+  calib.add_camera_data(1, test_data.at(1));
+
+  // Add view
+  timestamp_t view_ts = 0;
+  for (const auto ts : calib.timestamps) {
+    size_t detected = 0;
+    for (const auto [cam_idx, grid] : calib.calib_data[ts]) {
+      detected += (grid.detected) ? 1 : 0;
+    }
+    if (detected != 2) {
+      continue;
+    }
+    MU_CHECK(calib.add_nbv_view(calib.calib_data[ts]));
+
+    view_ts = ts;
+    if (calib.nb_views() >= 5) {
+      break;
+    }
+  }
+  const size_t nb_res = calib.solver->num_residuals();
+  const size_t nb_params = calib.solver->num_params();
+  MU_CHECK(calib.poses.count(view_ts));
+  MU_CHECK(calib.calib_views.size() == 5);
+  MU_CHECK(calib.calib_views.begin()->second->get_camera_indices().size() == 2);
+  // 144 corners + 2 camera parameters + 2 camera extrinsics + 1 pose
+
+  // Remove view
+  calib.remove_view(view_ts);
+  MU_CHECK(calib.poses.count(view_ts) == 0);
+  MU_CHECK(calib.calib_views.size() == 4);
+  MU_CHECK(calib.solver->num_residuals() < nb_res);
+  MU_CHECK(calib.solver->num_params() < nb_params);
+
+  // Remove all views
+  calib.remove_all_views();
+  MU_CHECK(calib.poses.size() == 0);
+  MU_CHECK(calib.calib_views.size() == 0);
+  MU_CHECK(calib.solver->num_residuals() == 0);
+  MU_CHECK(calib.solver->num_params() == 148);
+  // 144 corners + 2 camera parameters + 2 camera extrinsics
+
+  return 0;
+}
+
 int test_calib_camera_find_nbv() {
   // Calibration target and camera parameters
   const calib_target_t calib_target{"aprilgrid", 6, 6, 0.088, 0.3};
@@ -498,6 +554,7 @@ void test_suite() {
   MU_ADD_TEST(test_calib_camera_add_camera_extrinsics);
   MU_ADD_TEST(test_calib_camera_add_pose);
   MU_ADD_TEST(test_calib_camera_add_and_remove_view);
+  MU_ADD_TEST(test_calib_camera_add_nbv_view);
   MU_ADD_TEST(test_calib_camera_find_nbv);
   MU_ADD_TEST(test_calib_camera_filter_all_views);
   MU_ADD_TEST(test_calib_camera_remove_all_views);

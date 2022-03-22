@@ -26,7 +26,6 @@ calib_vi_view_t::calib_vi_view_t(const timestamp_t ts_,
   problem->AddParameterBlock(sb.param.data(), 9);
 
   // Add fiducial errors
-  const mat4_t T_WF = fiducial->estimate();
   const mat2_t covar = I(2);
 
   for (const auto &[cam_idx, grid] : grids) {
@@ -936,7 +935,7 @@ void calib_vi_t::add_measurement(const timestamp_t imu_ts,
   add_view(grids);
 
   // Marginalize
-  if (enable_marginalization && calib_views.size() > window_size) {
+  if (enable_marginalization && calib_views.size() > (size_t)window_size) {
     // Solve then marginalize
     prof.start("solve");
     ceres::Solver::Options options;

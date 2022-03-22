@@ -807,8 +807,13 @@ int solver_t::estimate_covariance_determinant(
   // // clang-format on
 
   // clang-format off
+  ParameterOrder param_order;
+  matx_t J;
+  vecx_t r;
+  _form_jacobian(param_order, J, r);
+
   const auto eps = std::numeric_limits<double>::epsilon();
-  cholmod_sparse *J_sparse = cholmod_converter_t::convert(J, &tsolver.cholmod_, eps);
+  cholmod_sparse *J_sparse = cholmod_convert(J, &tsolver.cholmod_, eps);
   tsolver.analyzeMarginal(J_sparse, marg_idx);
   cholmod_l_free_sparse(&J_sparse, &tsolver.cholmod_);
 
@@ -1048,45 +1053,9 @@ void ceres_solver_t::solve(const int max_iter,
 
 // SOLVER /////////////////////////////////////////////////////////////////////
 
-void yac_solver_t::_solve_linear_system(const real_t lambda_k,
-                                        ParameterOrder &param_order,
-                                        vecx_t &dx) {
-  _form_jacobian(param_order, J, r);
-
-  // clang-format off
-  const auto eps = std::numeric_limits<double>::epsilon();
-  cholmod_sparse *J_sparse = cholmod_converter_t::convert(J, &tsolver.cholmod_, eps);
-  cholmod_dense *r_dense = cholmod_converter_t::convert(-1.0 * r, &tsolver.cholmod_);
-  tsolver.solve(J_sparse, r_dense, marg_idx, dx);
-  cholmod_l_free_sparse(&J_sparse, &tsolver.cholmod_);
-  cholmod_l_free_dense(&r_dense, &tsolver.cholmod_);
-  // clang-format on
-
-  // matx_t H;
-  // vecx_t b;
-  // _form_hessian(param_order, H, b);
-  // H = H + lambda_k * I(H.rows());
-  // // dx = linsolve_dense_chol(H, b);
-  // // dx = linsolve_dense_svd(H, b);
-  // // dx = linsolve_dense_qr(H, b);
-  // dx = linsolve_sparse_qr(H, b);
-
-  // clang-format off
-  // cholmod_sparse *H_sparse = cholmod_converter_t::convert(H, &tsolver.cholmod_, std::numeric_limits<double>::epsilon());
-  // cholmod_dense *b_dense = cholmod_converter_t::convert(b, &tsolver.cholmod_);
-  // tsolver.solve(H_sparse, b_dense, H.cols() - 1, dx);
-  // cholmod_l_free_sparse(&H_sparse, &tsolver.cholmod_);
-  // cholmod_l_free_dense(&b_dense, &tsolver.cholmod_);
-  // clang-format on
-}
-
 void yac_solver_t::_solve_gn(const int max_iter,
                              const bool verbose,
                              const int verbose_level) {
-  // Setup
-  ParameterOrder param_order;
-  vecx_t dx;
-
   // Lambda function to print status
   auto print_stats =
       [&](const int iter, const real_t cost, const real_t dcost) {
@@ -1095,7 +1064,7 @@ void yac_solver_t::_solve_gn(const int max_iter,
         printf("dcost: %.2e\n", dcost);
       };
 
-  // Linearize system
+  // Setup
   int iter = 1;
   const real_t cost_init = _calculate_cost();
   real_t cost_km1 = cost_init;
@@ -1110,13 +1079,32 @@ void yac_solver_t::_solve_gn(const int max_iter,
 
   // Solve
   for (iter = 1; iter < max_iter; iter++) {
-    _solve_linear_system(0.0, param_order, dx);
+    // Form Jacobian J, and residual r
+    ParameterOrder param_order;
+    matx_t J;
+    vecx_t r;
+    _form_jacobian(param_order, J, r);
+
+    // Convert dense J and r to sparse
+    // clang-format off
+    const auto eps = std::numeric_limits<double>::epsilon();
+    cholmod_sparse *J_sparse = cholmod_convert(J, &tsolver.cholmod_, eps);
+    cholmod_dense *r_dense = cholmod_convert(-1.0 * r, &tsolver.cholmod_);
+    // clang-format on
+
+    // Solve: J dx = -r
+    vecx_t dx;
+    tsolver.solve(J_sparse, r_dense, marg_idx, dx);
+    cholmod_l_free_sparse(&J_sparse, &tsolver.cholmod_);
+    cholmod_l_free_dense(&r_dense, &tsolver.cholmod_);
     _update(param_order, dx);
 
+    // Calculate convergence
     cost_k = _calculate_cost();
     dcost = cost_k - cost_km1;
     cost_km1 = cost_k;
 
+    // Print stats
     if (verbose && verbose_level == 1) {
       print_stats(iter, cost_k, dcost);
     }
@@ -1138,11 +1126,6 @@ void yac_solver_t::_solve_gn(const int max_iter,
 void yac_solver_t::_solve_lm(const int max_iter,
                              const bool verbose,
                              const int verbose_level) {
-  // Setup
-  real_t lambda_k = lambda;
-  ParameterOrder param_order;
-  vecx_t dx;
-
   // Lambda function to print status
   auto print_stats = [&](const int iter,
                          const real_t cost,
@@ -1154,9 +1137,10 @@ void yac_solver_t::_solve_lm(const int max_iter,
     printf("lambda_k: %.2e\n", lambda_k);
   };
 
-  // Linearize system
+  // Setup
   int iter = 0;
   const real_t cost_init = _calculate_cost();
+  real_t lambda_k = lambda;
   real_t cost_km1 = cost_init;
   real_t cost_k = 0.0;
   real_t dcost = 0.0;
@@ -1165,18 +1149,26 @@ void yac_solver_t::_solve_lm(const int max_iter,
   }
 
   for (iter = 1; iter < max_iter; iter++) {
+    // Cache parameters
     _cache_params();
 
+    // Form Hessian H and R.H.S vector b
+    ParameterOrder param_order;
     matx_t H;
     vecx_t b;
     _form_hessian(param_order, H, b);
+
+    // Apply LM-dampening
     H = H + lambda_k * I(H.rows());
+
+    // Solve: H dx = b
     // dx = linsolve_dense_chol(H, b);
     // dx = linsolve_dense_svd(H, b);
     // dx = linsolve_dense_qr(H, b);
-    dx = linsolve_sparse_qr(H, b);
+    const vecx_t dx = linsolve_sparse_qr(H, b);
     _update(param_order, dx);
 
+    // Calculate convergence and print stats
     cost_k = _calculate_cost();
     dcost = cost_k - cost_km1;
     if (verbose && verbose_level == 1) {

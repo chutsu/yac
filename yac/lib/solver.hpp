@@ -25,8 +25,6 @@ using ParameterOrder = std::map<param_t *, int>;
 struct solver_t {
   std::string algorithm_type = "LEVENBERG-MARQUARDT";
   truncated_solver_t tsolver;
-  matx_t J;
-  vecx_t r;
   int marg_idx = 0;
 
   // clang-format off
@@ -118,9 +116,6 @@ struct yac_solver_t : solver_t {
   yac_solver_t() = default;
   ~yac_solver_t() = default;
 
-  void _solve_linear_system(const real_t lambda_k,
-                            ParameterOrder &param_order,
-                            vecx_t &dx);
   void _solve_gn(const int max_iter,
                  const bool verbose,
                  const int verbose_level);

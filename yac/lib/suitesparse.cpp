@@ -43,21 +43,22 @@ double colNorm(const cholmod_sparse *A, std::ptrdiff_t col_idx) {
   // CHECK_GE(col_idx, 0);
   // CHECK_LT(col_idx, static_cast<std::ptrdiff_t>(A->ncol));
 
-  const std::ptrdiff_t *col_ptr =
-      reinterpret_cast<const std::ptrdiff_t *>(A->p);
+  // clang-format off
+  const std::ptrdiff_t *col_ptr = reinterpret_cast<const std::ptrdiff_t *>(A->p);
   const double *values = reinterpret_cast<const double *>(A->x);
   const std::ptrdiff_t p = col_ptr[col_idx];
   const std::ptrdiff_t num_elements = col_ptr[col_idx + 1] - p;
+  // clang-format on
 
   double norm = 0.0;
   for (std::ptrdiff_t i = 0; i < num_elements; ++i) {
     norm += values[p + i] * values[p + i];
   }
+
   return std::sqrt(norm);
 }
 
-std::ptrdiff_t estimateNumericalRank(const vecx_t &singular_values,
-                                     double tolerance) {
+ssize_t estimateNumericalRank(const vecx_t &singular_values, double tolerance) {
   // CHECK_GE(tolerance, 0.0);
 
   ssize_t numerical_rank = singular_values.size();
@@ -69,6 +70,7 @@ std::ptrdiff_t estimateNumericalRank(const vecx_t &singular_values,
       --numerical_rank;
     }
   }
+
   return numerical_rank;
 }
 
@@ -87,7 +89,7 @@ double qrTol(cholmod_sparse *A, cholmod_common *cholmod, double eps) {
   return std::numeric_limits<double>::epsilon();
 }
 
-double svGap(const vecx_t &singular_values, std::ptrdiff_t rank) {
+double svGap(const vecx_t &singular_values, ssize_t rank) {
   // CHECK_LE(rank, singular_values.rows());
   // CHECK_GE(rank, 0);
 
@@ -96,6 +98,7 @@ double svGap(const vecx_t &singular_values, std::ptrdiff_t rank) {
   } else if (rank < singular_values.size()) {
     return singular_values(rank - 1) / singular_values(rank);
   }
+
   return std::numeric_limits<double>::infinity();
 }
 
@@ -592,17 +595,15 @@ void truncated_solver_t::solve(cholmod_sparse *A,
 
     SelfFreeingCholmodPtr<cholmod_dense> b_r(nullptr, cholmod_);
     {
-      SelfFreeingCholmodPtr<cholmod_sparse> A_rt(cholmod_l_transpose(A_r,
-                                                                     1,
-                                                                     &cholmod_),
-                                                 cholmod_);
+      // clang-format off
+      SelfFreeingCholmodPtr<cholmod_sparse> A_rt(cholmod_l_transpose(A_r, 1, &cholmod_), cholmod_);
       // CHECK(A_rt != nullptr) << "cholmod_l_transpose failed.";
-
       SelfFreeingCholmodPtr<cholmod_sparse> A_rtQ(nullptr, cholmod_);
       SelfFreeingCholmodPtr<cholmod_sparse> Omega(nullptr, cholmod_);
       reduceLeftHandSide(factor_, A_rt, &Omega, &A_rtQ, &cholmod_);
       analyzeSVD(Omega);
       b_r = reduceRightHandSide(factor_, A_rt, A_rtQ, b, &cholmod_);
+      // clang-format on
     }
     solveSVD(b_r, singularValues_, matrixU_, matrixV_, svdRank_, x_r);
     if (hasQrPart) {
@@ -618,13 +619,12 @@ void truncated_solver_t::solve(cholmod_sparse *A,
 
   if (tsvd_options_.columnScaling) {
     if (G_l) {
-      Eigen::Map<const vecx_t> G_lEigen(reinterpret_cast<const double *>(
-                                            G_l->x),
-                                        G_l->nrow);
-      Eigen::Map<vecx_t> x_lEigen(reinterpret_cast<double *>(x_l->x),
-                                  x_l->nrow);
+      // clang-format off
+      Eigen::Map<const vecx_t> G_lEigen(reinterpret_cast<const double *>( G_l->x), G_l->nrow);
+      Eigen::Map<vecx_t> x_lEigen(reinterpret_cast<double *>(x_l->x), x_l->nrow);
       x_lEigen = G_lEigen.cwiseProduct(x_lEigen);
       G_l.reset(nullptr);
+      // clang-format on
     }
     if (G_r) {
       Eigen::Map<const vecx_t> G_rEigen(reinterpret_cast<const double *>(
@@ -652,13 +652,14 @@ void truncated_solver_t::analyzeSVD(const cholmod_sparse *Omega,
                                     matx_t &U,
                                     matx_t &V) {
   // CHECK_NOTNULL(Omega);
+  // clang-format off
   matx_t OmegaDense;
   cholmod_convert(Omega, OmegaDense);
-  const Eigen::JacobiSVD<matx_t> svd(OmegaDense,
-                                     Eigen::ComputeThinU | Eigen::ComputeThinV);
+  const Eigen::JacobiSVD<matx_t> svd(OmegaDense, Eigen::ComputeThinU | Eigen::ComputeThinV);
   U = svd.matrixU();
   V = svd.matrixV();
   sv = svd.singularValues();
+  // clang-format on
 }
 
 void truncated_solver_t::analyzeSVD(cholmod_sparse *Omega) {

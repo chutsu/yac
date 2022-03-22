@@ -7,10 +7,10 @@ jobs:
     - uses: actions/checkout@master
 
     - name: install dependencies
-      run: make deps
+      run: sudo make deps
 
     - name: build yac
-      run: make lib
+      run: sudo make lib
 
     - name: build yac_ros
       run: make release

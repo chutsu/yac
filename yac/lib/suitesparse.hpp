@@ -176,14 +176,15 @@ struct truncated_solver_t {
   trucated_solver_options_t tsvd_options_;
   cholmod_common cholmod_;
   SuiteSparseQR_factorization<double> *factor_;
-  std::ptrdiff_t svdRank_;
+
+  size_t svdRank_;
   double svGap_;
-  std::ptrdiff_t svdRankDeficiency_;
-  std::ptrdiff_t margStartIndex_;
+  size_t svdRankDeficiency_;
   double svdTolerance_;
   vecx_t singularValues_;
   matx_t matrixU_;
   matx_t matrixV_;
+
   double linearSolverTime_;
   double marginalAnalysisTime_;
 
@@ -194,25 +195,9 @@ struct truncated_solver_t {
   void analyzeMarginal(cholmod_sparse *A, size_t j);
 
   void clear();
-  std::ptrdiff_t getSVDRank() const;
-  std::ptrdiff_t getSVDRankDeficiency() const;
-  double getSvGap() const;
-  std::ptrdiff_t getQRRank() const;
-  std::ptrdiff_t getQRRankDeficiency() const;
-  std::ptrdiff_t getMargStartIndex() const;
-  void setMargStartIndex(std::ptrdiff_t index);
-  double getQRTolerance() const;
-  double getSVDTolerance() const;
+  size_t getSVDRank() const;
   const vecx_t &getSingularValues() const;
-  const matx_t &getMatrixU() const;
-  const matx_t &getMatrixV() const;
-  matx_t getNullSpace() const;
-  matx_t getRowSpace() const;
-  matx_t getCovariance() const;
-  matx_t getRowSpaceCovariance() const;
   double getSingularValuesLog2Sum() const;
-  double getSymbolicFactorizationTime() const;
-  double getNumericFactorizationTime() const;
   void setNThreads(int n);
   void clearSvdAnalysisResultMembers();
   void analyzeSVD(const cholmod_sparse *Omega,

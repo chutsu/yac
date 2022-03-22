@@ -23,6 +23,12 @@ using ParameterOrder = std::map<param_t *, int>;
 // clang-format on
 
 struct solver_t {
+  std::string algorithm_type = "LEVENBERG-MARQUARDT";
+  truncated_solver_t tsolver;
+  matx_t J;
+  vecx_t r;
+  int marg_idx = 0;
+
   // clang-format off
   std::unordered_set<calib_residual_t *> res_fns;
   std::unordered_map<real_t *, param_t *> params;
@@ -64,7 +70,7 @@ struct solver_t {
   virtual int
   estimate_covariance_determinant(const std::vector<param_t *> params,
                                   real_t &covar_det,
-                                  const bool verbose = false) const;
+                                  const bool verbose = false);
   virtual void solve(const int max_iter = 30,
                      const bool verbose = false,
                      const int verbose_level = 0) = 0;
@@ -108,7 +114,6 @@ struct ceres_solver_t : solver_t {
 
 struct yac_solver_t : solver_t {
   real_t lambda = 1e-4;
-  truncated_solver_t tsolver;
 
   yac_solver_t() = default;
   ~yac_solver_t() = default;

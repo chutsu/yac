@@ -382,7 +382,10 @@ cholmod_dense *solveQR(SuiteSparseQR_factorization<double> *factor,
 
 /// TRUNCATED SOLVER /////////////////////////////////////////////////////////
 
-truncated_solver_t::truncated_solver_t() { cholmod_l_start(&cholmod_); }
+truncated_solver_t::truncated_solver_t() {
+  cholmod_l_start(&cholmod_);
+  cholmod_.SPQR_nthreads = 4;
+}
 
 truncated_solver_t::~truncated_solver_t() {
   clear();
@@ -402,81 +405,10 @@ void truncated_solver_t::clear() {
   marginalAnalysisTime_ = 0.0;
 }
 
-std::ptrdiff_t truncated_solver_t::getSVDRank() const { return svdRank_; }
-
-std::ptrdiff_t truncated_solver_t::getSVDRankDeficiency() const {
-  return svdRankDeficiency_;
-}
-
-double truncated_solver_t::getSvGap() const { return svGap_; }
-
-std::ptrdiff_t truncated_solver_t::getQRRank() const {
-  if (factor_ && factor_->QRnum)
-    return factor_->rank;
-  else
-    return 0;
-}
-
-std::ptrdiff_t truncated_solver_t::getQRRankDeficiency() const {
-  if (factor_ && factor_->QRsym && factor_->QRnum)
-    return factor_->QRsym->n - factor_->rank;
-  else
-    return 0;
-}
-
-std::ptrdiff_t truncated_solver_t::getMargStartIndex() const {
-  return margStartIndex_;
-}
-
-void truncated_solver_t::setMargStartIndex(std::ptrdiff_t index) {
-  margStartIndex_ = index;
-}
-
-double truncated_solver_t::getQRTolerance() const {
-  if (factor_ && factor_->QRsym && factor_->QRnum)
-    return factor_->tol;
-  else
-    return SPQR_DEFAULT_TOL;
-}
-
-double truncated_solver_t::getSVDTolerance() const { return svdTolerance_; }
+size_t truncated_solver_t::getSVDRank() const { return svdRank_; }
 
 const vecx_t &truncated_solver_t::getSingularValues() const {
   return singularValues_;
-}
-
-const matx_t &truncated_solver_t::getMatrixU() const { return matrixU_; }
-
-const matx_t &truncated_solver_t::getMatrixV() const { return matrixV_; }
-
-matx_t truncated_solver_t::getNullSpace() const {
-  if (svdRank_ == -1 || svdRank_ > matrixV_.cols()) {
-    return matx_t(0, 0);
-  }
-  return matrixV_.rightCols(matrixV_.cols() - svdRank_);
-}
-
-matx_t truncated_solver_t::getRowSpace() const {
-  if (svdRank_ == -1 || svdRank_ > matrixV_.cols()) {
-    return matx_t(0, 0);
-  }
-  return matrixV_.leftCols(svdRank_);
-}
-
-matx_t truncated_solver_t::getCovariance() const {
-  if (svdRank_ == -1 || svdRank_ > matrixV_.cols()) {
-    return matx_t(0, 0);
-  }
-  return matrixV_.leftCols(svdRank_) *
-         singularValues_.head(svdRank_).asDiagonal().inverse() *
-         matrixV_.leftCols(svdRank_).adjoint();
-}
-
-matx_t truncated_solver_t::getRowSpaceCovariance() const {
-  if (svdRank_ == -1) {
-    return matx_t(0, 0);
-  }
-  return singularValues_.head(svdRank_).asDiagonal().inverse();
 }
 
 double truncated_solver_t::getSingularValuesLog2Sum() const {
@@ -484,22 +416,6 @@ double truncated_solver_t::getSingularValuesLog2Sum() const {
     return 0.0;
   }
   return singularValues_.head(svdRank_).array().log().sum() / std::log(2);
-}
-
-double truncated_solver_t::getSymbolicFactorizationTime() const {
-  if (!factor_ || !factor_->QRsym) {
-    return 0.0;
-  }
-  // return cholmod_.other1[1];
-  return 0.0;
-}
-
-double truncated_solver_t::getNumericFactorizationTime() const {
-  if (!factor_ || !factor_->QRnum) {
-    return 0.0;
-  }
-  // return cholmod_.other1[2];
-  return 0.0;
 }
 
 void truncated_solver_t::setNThreads(int n) {

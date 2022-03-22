@@ -827,6 +827,9 @@ bool calib_camera_t::add_view(const std::map<int, aprilgrid_t> &cam_grids) {
   if (poses.count(ts) == 0) {
     add_pose(ts, cam_grids);
   }
+  if (solver->has_param(poses[ts]) == false) {
+    solver->add_param(poses[ts]);
+  }
 
   // Add calibration view
   calib_view_timestamps.push_back(ts);
@@ -852,7 +855,7 @@ bool calib_camera_t::add_nbv_view(const std::map<int, aprilgrid_t> &cam_grids) {
   _cache_estimates();
 
   // Solve with new view
-  solver->solve();
+  solver->solve(5);
 
   // Calculate information gain
   const timestamp_t ts = calib_view_timestamps.back();
@@ -863,10 +866,10 @@ bool calib_camera_t::add_nbv_view(const std::map<int, aprilgrid_t> &cam_grids) {
     return false;
   }
   const real_t info_gain = 0.5 * (info_k - info_kp1);
-  // printf("info_gain: %f, info_k: %f, info_kp1: %f\n",
-  //        info_gain,
-  //        info_k,
-  //        info_kp1);
+  printf("info_gain: %f, info_k: %f, info_kp1: %f\n",
+         info_gain,
+         info_k,
+         info_kp1);
 
   // Remove view?
   if (info_gain < info_gain_threshold) {
@@ -890,8 +893,8 @@ void calib_camera_t::remove_view(const timestamp_t ts) {
     if (solver->has_param(pose_ptr)) {
       solver->remove_param(pose_ptr);
     }
-    poses.erase(ts);
-    delete pose_ptr;
+    // poses.erase(ts);
+    // delete pose_ptr;
   }
 
   // Remove view
@@ -1095,14 +1098,35 @@ void calib_camera_t::_initialize_extrinsics() {
     // std::vector<real_t> reproj_errors;
     // for (auto &[ts, view] : calib_views) {
     //   auto errors = view->get_reproj_errors();
-    //   printf("ts: %ld, reproj_error: %f\n", ts, rmse(errors));
     //   reproj_errors.push_back(rmse(errors));
     // }
-
+    //
+    // const auto threshold = 3.0 * stddev(reproj_errors);
+    // std::set<timestamp_t> filtered_timestamps;
+    // int num_removed = 0;
+    // for (auto &[ts, view] : calib_views) {
+    //   bool view_ok = true;
+    //   for (auto cam_idx : view->get_camera_indices()) {
+    //     if (mean(view->get_reproj_errors(cam_idx)) > threshold) {
+    //       view_ok = false;
+    //       break;
+    //     }
+    //   }
+    //
+    //   if (view_ok) {
+    //     filtered_timestamps.insert(ts);
+    //   } else {
+    //     num_removed++;
+    //   }
+    // }
+    // timestamps = filtered_timestamps;
     // printf("reproj_errors:\n");
+    // printf("  stddev: %f\n", stddev(reproj_errors));
     // printf("  mean: %f\n", mean(reproj_errors));
     // printf("  median: %f\n", median(reproj_errors));
     // printf("  rmse: %f\n", rmse(reproj_errors));
+    // printf("\n");
+    // printf("Removed %d timestamps ...", num_removed);
     // printf("\n");
 
     remove_all_views();
@@ -1196,6 +1220,10 @@ int calib_camera_t::_calc_info(real_t *info) {
   }
   *info = covar_det / log(2.0);
 
+  // const auto sv_rank = solver->tsolver.getSVDRank();
+  // const vecx_t s = solver->tsolver.getSingularValues();
+  // *info = -1.0 * s.head(sv_rank).array().log().sum() / log(2.0);
+
   return 0;
 }
 
@@ -1229,13 +1257,26 @@ int calib_camera_t::_remove_outliers(const bool filter_all) {
       cam_thresholds[cam_idx] = outlier_threshold * cam_stddev;
     }
 
-    // Cache estimates
-    _cache_estimates();
+    // // Calculate reprojection threshold
+    // std::map<int, vec2s_t> cam_residuals = get_residuals();
+    // vec2s_t all_residuals;
+    // for (const auto cam_idx : get_camera_indices()) {
+    //   const vec2s_t cam_r = cam_residuals[cam_idx];
+    //   for (auto r : cam_r) {
+    //     all_residuals.push_back(r);
+    //   }
+    // }
+    // const vec2_t cam_stddev = stddev(all_residuals);
+    // const vec2_t cam_thresholds = outlier_threshold * cam_stddev;
 
-    // Filter view
+    // // Cache estimates
+    // _cache_estimates();
+
+    // // Filter view
     auto &view = calib_views[ts];
     const auto grids_cache = view->grids;
     int removed = view->filter_view(cam_thresholds);
+    solver->solve(5);
 
     // Get info with filtered view
     real_t info_before;
@@ -1247,19 +1288,23 @@ int calib_camera_t::_remove_outliers(const bool filter_all) {
     // Remove view
     const auto grids = view->grids; // Make a copy of the grids
     remove_view(ts);
+    solver->solve(5);
 
     // Get info with filtered view removed
     real_t info_after;
     if (_calc_info(&info_after) != 0) {
       printf("Failed to evaluate info!");
       add_view(grids_cache);
+      _restore_estimates();
       continue;
     }
 
     // Add the view back?
     const real_t info_gain = 0.5 * (info_after - info_before);
     if (info_gain > info_gain_threshold) {
+      // Add view back and restore estimates
       add_view(grids);
+
       removed_outliers += removed;
       nb_outliers += removed;
       if (filter_all) {
@@ -1430,6 +1475,9 @@ void calib_camera_t::_solve_nbv() {
       }
     }
   }
+  if (nbv_timestamps.size() == 0) {
+    FATAL("Implementation Error: No views to process?");
+  }
 
   // Shuffle timestamps
   if (enable_shuffle_views) {
@@ -1447,11 +1495,11 @@ void calib_camera_t::_solve_nbv() {
         filter_all = false;
       }
 
-      // Marginalize oldest view
-      if (enable_marginalization &&
-          (calib_views.size() > (size_t)sliding_window_size)) {
-        marginalize();
-      }
+      // // Marginalize oldest view
+      // if (enable_marginalization &&
+      //     (calib_views.size() > (size_t)sliding_window_size)) {
+      //   marginalize();
+      // }
 
       // Update
       problem_init = true;
@@ -1461,22 +1509,26 @@ void calib_camera_t::_solve_nbv() {
     if (verbose) {
       _print_stats(ts_idx++, nbv_timestamps.size());
     }
+
+    // if (nb_views() > 30) {
+    //   break;
+    // }
   }
 
-  // // Final outlier rejection, then batch solve
-  // if (enable_outlier_filter) {
-  //   if (verbose) {
-  //     printf("Performing Final Outlier Rejection\n");
-  //   }
-  //   removed_outliers += _remove_outliers(true);
-  //   if (verbose) {
-  //     printf("Removed %d outliers\n", removed_outliers);
-  //   }
-  // }
+  // Final outlier rejection, then batch solve
+  if (enable_outlier_filter) {
+    if (verbose) {
+      printf("Performing Final Outlier Rejection\n");
+    }
+    removed_outliers += _remove_outliers(true);
+    if (verbose) {
+      printf("Removed %d outliers\n", removed_outliers);
+    }
+  }
 
   // Final Solve
-  removed_outliers = _filter_all_views();
-  solver->solve(50, true, 1);
+  // removed_outliers = _filter_all_views();
+  solver->solve(5, true, 1);
 }
 
 void calib_camera_t::solve() {
@@ -1500,6 +1552,7 @@ void calib_camera_t::solve() {
 
   // Solve
   if (enable_nbv) {
+    solver->algorithm_type = "GAUSS-NEWTON";
     _solve_nbv();
   } else {
     _solve_batch(enable_outlier_filter);

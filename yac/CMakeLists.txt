@@ -63,6 +63,8 @@ SET(DEPS
   spqr
   TBB::tbb
 )
+MESSAGE("${TBB_FOUND}")
+MESSAGE("${DEPS}")
 
 # LIBRARY
 INCLUDE_DIRECTORIES(lib)
@@ -109,10 +111,10 @@ ADD_DEFINITIONS(-DTEST_PATH="${TEST_BIN_PATH}")
 #
 # ADD_EXECUTABLE(test_util_config tests/util/test_config.cpp)
 # TARGET_LINK_LIBRARIES(test_util_config yac ${DEPS})
-#
-# ADD_EXECUTABLE(test_util_core tests/util/test_core.cpp)
-# TARGET_LINK_LIBRARIES(test_util_core yac ${DEPS})
-#
+
+ADD_EXECUTABLE(test_util_core tests/util/test_core.cpp)
+TARGET_LINK_LIBRARIES(test_util_core yac ${DEPS})
+
 # ADD_EXECUTABLE(test_util_cv tests/util/test_cv.cpp)
 # TARGET_LINK_LIBRARIES(test_util_cv yac ${DEPS})
 #
@@ -134,15 +136,15 @@ TARGET_LINK_LIBRARIES(test_calib_camera yac ${DEPS})
 # ADD_EXECUTABLE(test_calib_data tests/test_calib_data.cpp)
 # TARGET_LINK_LIBRARIES(test_calib_data yac ${DEPS})
 #
-# ADD_EXECUTABLE(test_calib_residuals tests/test_calib_residuals.cpp)
-# TARGET_LINK_LIBRARIES(test_calib_residuals yac ${DEPS})
+ADD_EXECUTABLE(test_calib_residuals tests/test_calib_residuals.cpp)
+TARGET_LINK_LIBRARIES(test_calib_residuals yac ${DEPS})
 
 # ADD_EXECUTABLE(test_calib_mocap tests/test_calib_mocap.cpp)
 # TARGET_LINK_LIBRARIES(test_calib_mocap yac ${DEPS})
 
-# ADD_EXECUTABLE(test_calib_nbt tests/test_calib_nbt.cpp)
-# TARGET_LINK_LIBRARIES(test_calib_nbt yac ${DEPS})
-#
+ADD_EXECUTABLE(test_calib_nbt tests/test_calib_nbt.cpp)
+TARGET_LINK_LIBRARIES(test_calib_nbt yac ${DEPS})
+
 # ADD_EXECUTABLE(test_calib_nbv tests/test_calib_nbv.cpp)
 # TARGET_LINK_LIBRARIES(test_calib_nbv yac ${DEPS})
 #

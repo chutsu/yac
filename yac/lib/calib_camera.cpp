@@ -1164,19 +1164,9 @@ int calib_camera_t::_calc_info(real_t *info) {
     }
   }
 
-  // Estimate marginal covariance matrix
-  // {
-  //   matx_t calib_covar;
-  //   if (solver->estimate_covariance(params, calib_covar, true) != 0) {
-  //     return -1;
-  //   }
-  //   *info = log(calib_covar.determinant()) / log(2.0);
-  //   return 0;
-  // }
-
   // Estimate the determinant of the marginal covariance matrix
   real_t covar_det = 0.0;
-  if (solver->estimate_covariance_determinant(params, covar_det, true) != 0) {
+  if (solver->estimate_covariance_determinant(params, covar_det) != 0) {
     return -1;
   }
   if (std::isnan(std::abs(covar_det))) {

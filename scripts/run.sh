@@ -113,7 +113,7 @@ RUN_CMD="./calib_euroc"
 tmux send-keys -t dev -R C-l C-m
 tmux send-keys -t dev -R "\
 cd ~/projects/yac \
-&& make lib \
+&& make lib_relwithdeb \
 && cd build && ${RUN_CMD}
 " C-m C-m
 exit

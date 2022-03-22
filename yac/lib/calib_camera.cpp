@@ -767,7 +767,7 @@ void calib_camera_t::add_pose(const timestamp_t ts,
                               const bool fixed) {
   // Pre-check
   if (poses.count(ts) > 0) {
-    // FATAL("Implementation Error!");
+    FATAL("Pose already exists! Implementation Error!");
     return;
   }
 
@@ -893,8 +893,8 @@ void calib_camera_t::remove_view(const timestamp_t ts) {
     if (solver->has_param(pose_ptr)) {
       solver->remove_param(pose_ptr);
     }
-    // poses.erase(ts);
-    // delete pose_ptr;
+    poses.erase(ts);
+    delete pose_ptr;
   }
 
   // Remove view
@@ -1092,41 +1092,6 @@ void calib_camera_t::_initialize_extrinsics() {
   // Initialize
   if (enable_nbv) {
     _solve_batch(false);
-
-    // std::vector<real_t> reproj_errors;
-    // for (auto &[ts, view] : calib_views) {
-    //   auto errors = view->get_reproj_errors();
-    //   reproj_errors.push_back(rmse(errors));
-    // }
-    //
-    // const auto threshold = 3.0 * stddev(reproj_errors);
-    // std::set<timestamp_t> filtered_timestamps;
-    // int num_removed = 0;
-    // for (auto &[ts, view] : calib_views) {
-    //   bool view_ok = true;
-    //   for (auto cam_idx : view->get_camera_indices()) {
-    //     if (mean(view->get_reproj_errors(cam_idx)) > threshold) {
-    //       view_ok = false;
-    //       break;
-    //     }
-    //   }
-    //
-    //   if (view_ok) {
-    //     filtered_timestamps.insert(ts);
-    //   } else {
-    //     num_removed++;
-    //   }
-    // }
-    // timestamps = filtered_timestamps;
-    // printf("reproj_errors:\n");
-    // printf("  stddev: %f\n", stddev(reproj_errors));
-    // printf("  mean: %f\n", mean(reproj_errors));
-    // printf("  median: %f\n", median(reproj_errors));
-    // printf("  rmse: %f\n", rmse(reproj_errors));
-    // printf("\n");
-    // printf("Removed %d timestamps ...", num_removed);
-    // printf("\n");
-
     remove_all_views();
   }
 }
@@ -1252,22 +1217,10 @@ int calib_camera_t::_remove_outliers(const bool filter_all) {
       cam_thresholds[cam_idx] = outlier_threshold * cam_stddev;
     }
 
-    // // Calculate reprojection threshold
-    // std::map<int, vec2s_t> cam_residuals = get_residuals();
-    // vec2s_t all_residuals;
-    // for (const auto cam_idx : get_camera_indices()) {
-    //   const vec2s_t cam_r = cam_residuals[cam_idx];
-    //   for (auto r : cam_r) {
-    //     all_residuals.push_back(r);
-    //   }
-    // }
-    // const vec2_t cam_stddev = stddev(all_residuals);
-    // const vec2_t cam_thresholds = outlier_threshold * cam_stddev;
+    // Cache estimates
+    _cache_estimates();
 
-    // // Cache estimates
-    // _cache_estimates();
-
-    // // Filter view
+    // Filter view
     auto &view = calib_views[ts];
     const auto grids_cache = view->grids;
     int removed = view->filter_view(cam_thresholds);

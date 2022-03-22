@@ -52,26 +52,50 @@ struct solver_t {
 
   void _cache_params();
   void _restore_params();
+  bool _eval_residual(calib_residual_t *res_fn, vecx_t &r) const;
   bool _eval_residual(calib_residual_t *res_fn,
                       ResidualJacobians &res_jacs,
                       ResidualJacobians &res_min_jacs,
                       ResidualValues &res_vals) const;
-  bool _eval_residual(calib_residual_t *res_fn, vecx_t &r) const;
+  void _eval_residuals(ParameterOrder &param_order,
+                       std::vector<calib_residual_t *> &res_evaled,
+                       ResidualJacobians &res_jacs,
+                       ResidualJacobians &res_min_jacs,
+                       ResidualValues &res_vals,
+                       size_t &residuals_length,
+                       size_t &params_length);
   real_t _calculate_cost();
   void _form_jacobian(ParameterOrder &param_order, matx_t &J, vecx_t &r);
   void _form_hessian(ParameterOrder &param_order, matx_t &H, vecx_t &b);
   void _update(const ParameterOrder &param_order, const vecx_t &dx);
 
   virtual int estimate_covariance(const std::vector<param_t *> params,
-                                  matx_t &calib_covar,
-                                  const bool verbose = false) const;
-  virtual int
-  estimate_covariance_determinant(const std::vector<param_t *> params,
-                                  real_t &covar_det,
-                                  const bool verbose = false);
+                                  matx_t &calib_covar) const;
+  virtual int estimate_covariance_determinant(
+      const std::vector<param_t *> params, real_t &covar_det);
   virtual void solve(const int max_iter = 30,
                      const bool verbose = false,
                      const int verbose_level = 0) = 0;
+};
+
+// YAC-SOLVER //////////////////////////////////////////////////////////////////
+
+struct yac_solver_t : solver_t {
+  real_t lambda = 1e-4;
+
+  yac_solver_t() = default;
+  ~yac_solver_t() = default;
+
+  void _solve_gn(const int max_iter,
+                 const bool verbose,
+                 const int verbose_level);
+  void _solve_lm(const int max_iter,
+                 const bool verbose,
+                 const int verbose_level);
+
+  void solve(const int max_iter = 30,
+             const bool verbose = false,
+             const int verbose_level = 0);
 };
 
 // CERES-SOLVER ////////////////////////////////////////////////////////////////
@@ -106,26 +130,6 @@ struct ceres_solver_t : solver_t {
   void solve(const int max_iter = 30,
              const bool verbose = false,
              const int verbose_level = 0) override;
-};
-
-// SOLVER /////////////////////////////////////////////////////////////////////
-
-struct yac_solver_t : solver_t {
-  real_t lambda = 1e-4;
-
-  yac_solver_t() = default;
-  ~yac_solver_t() = default;
-
-  void _solve_gn(const int max_iter,
-                 const bool verbose,
-                 const int verbose_level);
-  void _solve_lm(const int max_iter,
-                 const bool verbose,
-                 const int verbose_level);
-
-  void solve(const int max_iter = 30,
-             const bool verbose = false,
-             const int verbose_level = 0);
 };
 
 } // namespace yac

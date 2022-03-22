@@ -85,14 +85,16 @@ start:
     }
 
     // Update
-    const auto timestamps = linspace(ts_start, ts_end, positions.size());
-    orbit_trajs.emplace_back(timestamps, positions, attitudes);
+    orbit_trajs.emplace_back(ts_start, ts_end, positions, attitudes);
     lat += dlat;
   }
 
   // Append to results
   for (const auto &traj : orbit_trajs) {
-    trajs.emplace_back(traj.timestamps, traj.positions, traj.orientations);
+    trajs.emplace_back(traj.ts_start,
+                       traj.ts_end,
+                       traj.positions,
+                       traj.orientations);
   }
 }
 
@@ -164,13 +166,15 @@ start:
     }
 
     // Add to trajectories
-    const auto timestamps = linspace(ts_start, ts_end, nb_control_points);
-    pan_trajs.emplace_back(timestamps, positions, attitudes);
+    pan_trajs.emplace_back(ts_start, ts_end, positions, attitudes);
   }
 
   // Append to results
   for (const auto &traj : pan_trajs) {
-    trajs.emplace_back(traj.timestamps, traj.positions, traj.orientations);
+    trajs.emplace_back(traj.ts_start,
+                       traj.ts_end,
+                       traj.positions,
+                       traj.orientations);
   }
 }
 
@@ -249,8 +253,7 @@ void nbt_figure8_trajs(const timestamp_t &ts_start,
     attitudes.emplace_back(C_WS);
   }
   // -- Create spline
-  const auto timestamps = linspace(ts_start, ts_end, nb_control_points);
-  trajs.emplace_back(timestamps, positions, attitudes);
+  trajs.emplace_back(ts_start, ts_end, positions, attitudes);
 }
 
 /** SIMULATION ***************************************************************/
@@ -357,6 +360,13 @@ void simulate_imu(const timestamp_t &ts_start,
     const vec3_t a_WS_W = ctraj_get_acceleration(traj, ts_k);
     const vec3_t w_WS_W = ctraj_get_angular_velocity(traj, ts_k);
 
+    printf("ts: %ld\n", ts_k);
+    print_matrix("T_WS_W", T_WS_W);
+    print_vector("v_WS_W", v_WS_W);
+    print_vector("a_WS_W", a_WS_W);
+    print_vector("w_WS_W", w_WS_W);
+    break;
+
     vec3_t a_WS_S{0.0, 0.0, 0.0};
     vec3_t w_WS_S{0.0, 0.0, 0.0};
     sim_imu_measurement(sim_imu,
@@ -407,8 +417,8 @@ int nbt_eval(const ctraj_t &traj,
              const calib_vi_t &calib,
              matx_t &calib_covar) {
   // Setup
-  const timestamp_t ts_start = traj.timestamps.front();
-  const timestamp_t ts_end = traj.timestamps.back();
+  const timestamp_t ts_start = traj.ts_start;
+  const timestamp_t ts_end = traj.ts_end;
   const double cam_rate = calib.get_camera_rate();
 
   // Make a copy of the calibrator

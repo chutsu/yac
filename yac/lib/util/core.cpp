@@ -1789,15 +1789,13 @@ void lerp_data(std::deque<timestamp_t> &ts0,
   align_back(lerp_ts, ts0, vs0);
 }
 
-ctraj_t::ctraj_t(const timestamps_t &timestamps,
-                 const vec3s_t &positions,
-                 const quats_t &orientations)
-    : timestamps{timestamps}, positions{positions}, orientations{orientations},
-      ts_s_start{ts2sec(timestamps.front())},
-      ts_s_end{ts2sec(timestamps.back())}, ts_s_gap{ts_s_end - ts_s_start} {
-  assert(timestamps.size() == positions.size());
-  assert(timestamps.size() == orientations.size());
-  assert(timestamps.size() > 4);
+ctraj_t::ctraj_t(const timestamp_t &ts_start_,
+                 const timestamp_t &ts_end_,
+                 const vec3s_t &positions_,
+                 const quats_t &orientations_)
+    : ts_start{ts_start_}, ts_end{ts_end_}, positions{positions_},
+      orientations{orientations_}, ts_s_start{ts2sec(ts_start)},
+      ts_s_end{ts2sec(ts_end)}, ts_s_gap{ts_s_end - ts_s_start} {
   ctraj_init(*this);
 }
 
@@ -1809,15 +1807,15 @@ inline static real_t ts_normalize(const ctraj_t &ctraj, const timestamp_t ts) {
 }
 
 void ctraj_init(ctraj_t &ctraj) {
-  assert(ctraj.timestamps.size() == ctraj.positions.size());
-  assert(ctraj.timestamps.size() == ctraj.orientations.size());
-  assert(ctraj.timestamps.size() > (3 + 1));
+  assert(ctraj.positions.size() == ctraj.orientations.size());
 
   // Create knots
-  const size_t nb_knots = ctraj.timestamps.size();
+  const size_t nb_knots = ctraj.positions.size();
+
+  const auto timestamps = linspace(ctraj.ts_start, ctraj.ts_end, nb_knots);
   row_vector_t knots{nb_knots};
-  for (size_t i = 0; i < ctraj.timestamps.size(); i++) {
-    knots(i) = ts_normalize(ctraj, ctraj.timestamps[i]);
+  for (size_t i = 0; i < timestamps.size(); i++) {
+    knots(i) = ts_normalize(ctraj, timestamps[i]);
   }
 
   // Prep position data
@@ -1844,22 +1842,68 @@ void ctraj_init(ctraj_t &ctraj) {
 
     // Add new rotation vector
     rvec.block<3, 1>(0, i) = rvec_km1 + delta;
+    print_quaternion("q", ctraj.orientations[i]);
+    print_vector("rvec", rvec.block<3, 1>(0, i));
   }
 
+  // Prep position derivatives
+  matx_t pos_derivs = zeros(3, 2);
+
+  // matx_t pos_deriv_indices = zeros(3, 2);
+  // pos_deriv_indices.block(0, 1, 3, 1) = (pos.size() - 1) * ones(3, 1);
+
+  row_vector_t pos_deriv_indices{2};
+  pos_deriv_indices << 0, pos.size() - 1;
+
+  // Prep orientation derivatives
+  matx_t rvec_derivs = zeros(3, 2);
+  row_vector_t rvec_deriv_indices{2};
+  rvec_deriv_indices << 0, rvec.size() - 1;
+
   // Create splines
-  const int spline_degree = 3;
-  ctraj.pos_spline = SPLINE3D(pos, knots, spline_degree);
-  ctraj.rvec_spline = SPLINE3D(rvec, knots, spline_degree);
+  const int spline_degree = 4;
+  // ctraj.pos_spline = SPLINE3D(pos, knots, spline_degree);
+  // ctraj.rvec_spline = SPLINE3D(rvec, knots, spline_degree);
+
+  // const int spline_degree = nb_knots - 1;
+  ctraj.pos_spline = Eigen::SplineFitting<
+      Spline3D>::InterpolateWithDerivatives(pos,
+                                            pos_derivs,
+                                            pos_deriv_indices,
+                                            spline_degree);
+  ctraj.rvec_spline = Eigen::SplineFitting<
+      Spline3D>::InterpolateWithDerivatives(rvec,
+                                            rvec_derivs,
+                                            rvec_deriv_indices,
+                                            spline_degree);
 }
 
 mat4_t ctraj_get_pose(const ctraj_t &ctraj, const timestamp_t ts) {
   const real_t u = ts_normalize(ctraj, ts);
 
+  if (fltcmp(u, 0.0) == 0) {
+    const quat_t q = ctraj.orientations.front();
+    const vec3_t r = ctraj.positions.front();
+    return tf(q, r);
+  } else if (fltcmp(u, 1.0) == 0) {
+    const quat_t q = ctraj.orientations.back();
+    const vec3_t r = ctraj.positions.back();
+    return tf(q, r);
+  }
+
   // Translation
   const vec3_t r = ctraj.pos_spline(u);
+  // printf("u: %f\n", u);
+  // print_vector("r", r);
 
   // Orientation
-  const vec3_t rvec = ctraj.rvec_spline(u);
+  // const vec3_t rvec = ctraj.rvec_spline(u);
+  const vec3_t rvec = ctraj.rvec_spline(0);
+  // printf("u: %f\n", u);
+  // print_vector("pos0", ctraj.positions[0]);
+  // print_quaternion("orientations0", ctraj.orientations[0]);
+  // print_vector("r", ctraj.pos_spline(1e-4));
+  // print_vector("rvec", ctraj.rvec_spline(1e-4));
   if (rvec.norm() < 1e-12) { // Check angle is not zero
     return tf(I(3), r);
   }
@@ -1870,18 +1914,18 @@ mat4_t ctraj_get_pose(const ctraj_t &ctraj, const timestamp_t ts) {
 }
 
 vec3_t ctraj_get_velocity(const ctraj_t &ctraj, const timestamp_t ts) {
-  assert(ts >= ctraj.timestamps.front());
-  assert(ts <= ctraj.timestamps.back());
+  assert(ts >= ctraj.ts_start);
+  assert(ts <= ctraj.ts_end);
 
   const real_t u = ts_normalize(ctraj, ts);
   const real_t scale = (1 / ctraj.ts_s_gap);
 
-  return ctraj.pos_spline.derivatives(u, 1).col(1) * scale;
+  return ctraj.pos_spline.derivatives(1e-10, 1).col(1) * scale;
 }
 
 vec3_t ctraj_get_acceleration(const ctraj_t &ctraj, const timestamp_t ts) {
-  assert(ts >= ctraj.timestamps.front());
-  assert(ts <= ctraj.timestamps.back());
+  assert(ts >= ctraj.ts_start);
+  assert(ts <= ctraj.ts_end);
 
   const real_t u = ts_normalize(ctraj, ts);
   const real_t scale = pow(1 / ctraj.ts_s_gap, 2);
@@ -1890,8 +1934,8 @@ vec3_t ctraj_get_acceleration(const ctraj_t &ctraj, const timestamp_t ts) {
 }
 
 vec3_t ctraj_get_angular_velocity(const ctraj_t &ctraj, const timestamp_t ts) {
-  assert(ts >= ctraj.timestamps.front());
-  assert(ts <= ctraj.timestamps.back());
+  assert(ts >= ctraj.ts_start);
+  assert(ts <= ctraj.ts_end);
 
   const real_t u = ts_normalize(ctraj, ts);
   const real_t scale = 1 / ctraj.ts_s_gap;
@@ -1925,11 +1969,16 @@ int ctraj_save(const ctraj_t &ctraj, const std::string &save_path) {
   }
 
   // Output trajectory timestamps, positions and orientations as csv
-  file << "#ts,rx,ry,rz,qx,qy,qz,qw,vx,vy,vz" << std::endl;
-  for (size_t i = 0; i < ctraj.timestamps.size(); i++) {
-    const vec3_t v = ctraj_get_velocity(ctraj, ctraj.timestamps[i]);
+  const timestamp_t ts_start = ctraj.ts_start;
+  const timestamp_t ts_end = ctraj.ts_end;
+  const size_t num_positions = ctraj.positions.size();
+  const auto timestamps = linspace(ts_start, ts_end, num_positions);
 
-    file << ctraj.timestamps[i] << ",";
+  file << "#ts,rx,ry,rz,qx,qy,qz,qw,vx,vy,vz" << std::endl;
+  for (size_t i = 0; i < timestamps.size(); i++) {
+    const vec3_t v = ctraj_get_velocity(ctraj, timestamps[i]);
+
+    file << timestamps[i] << ",";
     file << ctraj.positions[i].x() << ",";
     file << ctraj.positions[i].y() << ",";
     file << ctraj.positions[i].z() << ",";

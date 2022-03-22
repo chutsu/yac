@@ -164,6 +164,8 @@ int test_nbt_trajs(const ctrajs_t &trajs,
     vec3_t r_WS = tf_trans(T_WS);
     mat3_t C_WS = tf_rot(T_WS);
     vec3_t v_WS = ctraj_get_velocity(traj, 0);
+    print_matrix("T_WS", T_WS);
+    print_vector("v_WS", v_WS);
 
     timestamp_t ts_k = 0;
     while (ts_k <= ts_end) {
@@ -334,7 +336,7 @@ int test_simulate_cameras() {
     time += dt;
     theta += w * dt;
   }
-  ctraj_t traj{timestamps, positions, attitudes};
+  ctraj_t traj{timestamps.front(), timestamps.back(), positions, attitudes};
 
   // Simulate cameras
   const timestamp_t ts_start = sec2ts(0.0);
@@ -393,13 +395,13 @@ int test_simulate_imu() {
     time += dt;
     theta += w * dt;
   }
-  ctraj_t traj{timestamps, positions, attitudes};
+  ctraj_t traj{timestamps.front(), timestamps.back(), positions, attitudes};
 
   // Simulate IMU measurements
   imu_params_t imu_params;
   imu_params.rate = 200.0;
 
-  const timestamp_t ts_start = sec2ts(1.0);
+  const timestamp_t ts_start = sec2ts(0.001);
   const timestamp_t ts_end = sec2ts(15.0);
   timestamps_t imu_time;
   vec3s_t imu_accel;

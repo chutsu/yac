@@ -1339,7 +1339,9 @@ int test_ctraj() {
   quats_t orientations;
 
   generate_trajectory(timestamps, positions, orientations);
-  ctraj_t ctraj(timestamps, positions, orientations);
+  const auto ts_start = timestamps.front();
+  const auto ts_end = timestamps.back();
+  ctraj_t ctraj(ts_start, ts_end, positions, orientations);
   save_data("/tmp/positions.csv", timestamps, positions);
   save_data("/tmp/orientations.csv", timestamps, orientations);
 
@@ -1356,14 +1358,13 @@ int test_ctraj() {
 }
 
 int test_ctraj_sandbox() {
-  const size_t nb_knots = 6;
+  const size_t nb_knots = 5;
   row_vector_t knots{nb_knots};
   knots[0] = 0.0;
-  knots[1] = 0.2;
-  knots[2] = 0.4;
-  knots[3] = 0.6;
-  knots[4] = 0.8;
-  knots[5] = 1.0;
+  knots[1] = 0.5;
+  knots[2] = 1.0;
+  knots[3] = 1.5;
+  knots[4] = 2.0;
 
   row_vector_t pos{nb_knots};
   pos[0] = 0.0;
@@ -1371,7 +1372,6 @@ int test_ctraj_sandbox() {
   pos[2] = 0.4;
   pos[3] = 0.6;
   pos[4] = 0.8;
-  pos[5] = 1.0;
 
   row_vector_t derivs{2};
   derivs << 0.0, 0.0;
@@ -1381,12 +1381,16 @@ int test_ctraj_sandbox() {
 
   // clang-format off
   auto spline = Eigen::SplineFitting<Spline1D>::InterpolateWithDerivatives(pos, derivs, deriv_indices, 3, knots);
+  // auto spline = Eigen::SplineFitting<Spline1D>::InterpolateWithDerivatives(pos, derivs, deriv_indices, 3);
   // auto spline = Eigen::SplineFitting<Spline1D>::Interpolate(pos, 3, knots);
   // clang-format on
 
-  for (int i = 0; i < nb_knots; i++) {
-    std::cout << spline(pos(i)) << std::endl;
-  }
+  // for (int i = 0; i < nb_knots; i++) {
+  //   std::cout << spline(knots(i)) << std::endl;
+  // }
+  std::cout << spline(0.0) << std::endl;
+  std::cout << spline(0.5) << std::endl;
+  std::cout << spline(1.0) << std::endl;
 
   return 0;
 }
@@ -1397,7 +1401,7 @@ int test_ctraj_get_pose() {
   quats_t orientations;
 
   generate_trajectory(timestamps, positions, orientations);
-  ctraj_t ctraj(timestamps, positions, orientations);
+  ctraj_t ctraj(timestamps.front(), timestamps.back(), positions, orientations);
   save_data("/tmp/pos_data.csv", timestamps, positions);
   save_data("/tmp/att_data.csv", timestamps, orientations);
 
@@ -1445,7 +1449,7 @@ int test_ctraj_get_velocity() {
   quats_t orientations;
 
   generate_trajectory(timestamps, positions, orientations);
-  ctraj_t ctraj(timestamps, positions, orientations);
+  ctraj_t ctraj(timestamps.front(), timestamps.back(), positions, orientations);
   save_data("/tmp/pos_data.csv", timestamps, positions);
 
   {
@@ -1484,7 +1488,7 @@ int test_ctraj_get_acceleration() {
   quats_t orientations;
 
   generate_trajectory(timestamps, positions, orientations);
-  ctraj_t ctraj(timestamps, positions, orientations);
+  ctraj_t ctraj(timestamps.front(), timestamps.back(), positions, orientations);
   save_data("/tmp/pos_data.csv", timestamps, positions);
   save_data("/tmp/att_data.csv", timestamps, orientations);
 
@@ -1524,7 +1528,7 @@ int test_ctraj_get_angular_velocity() {
   quats_t orientations;
 
   generate_trajectory(timestamps, positions, orientations);
-  ctraj_t ctraj(timestamps, positions, orientations);
+  ctraj_t ctraj(timestamps.front(), timestamps.back(), positions, orientations);
   save_data("/tmp/att_data.csv", timestamps, orientations);
 
   // Setup
@@ -1597,7 +1601,7 @@ int test_sim_imu_measurement() {
   vec3s_t positions;
   quats_t orientations;
   generate_trajectory(timestamps, positions, orientations);
-  ctraj_t ctraj(timestamps, positions, orientations);
+  ctraj_t ctraj(timestamps.front(), timestamps.back(), positions, orientations);
   save_data("/tmp/pos_data.csv", timestamps, positions);
   save_data("/tmp/att_data.csv", timestamps, orientations);
 

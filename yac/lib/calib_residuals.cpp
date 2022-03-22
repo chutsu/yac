@@ -66,45 +66,36 @@ bool calib_residual_t::check_jacs(const int param_idx,
                                   const double tol) {
   // Setup
   param_t *param = param_blocks[param_idx];
-  const int residual_size = num_residuals();
+  const int r_size = num_residuals();
   const int local_size = param->local_size;
+  const size_t nb_params = param_blocks.size();
 
   // Params
   std::vector<double *> param_ptrs;
-  for (size_t i = 0; i < param_blocks.size(); i++) {
+  for (size_t i = 0; i < nb_params; i++) {
     param_ptrs.push_back(param_blocks[i]->data());
   }
 
   // Jacobians
-  double **jac_ptrs = new double *[param_blocks.size()];
-  std::vector<matx_row_major_t> jacs;
-  jacs.resize(param_blocks.size());
-  for (size_t i = 0; i < param_blocks.size(); i++) {
-    jacs[i].resize(residual_size, param_blocks[i]->global_size);
-    jac_ptrs[i] = jacs[i].data();
-  }
-
-  // Min-Jacobians
-  double **min_jac_ptrs = new double *[param_blocks.size()];
-  std::vector<matx_row_major_t> min_jacs;
-  min_jacs.resize(param_blocks.size());
-  for (size_t i = 0; i < param_blocks.size(); i++) {
-    min_jacs[i].resize(residual_size, param_blocks[i]->local_size);
-    min_jac_ptrs[i] = min_jacs[i].data();
+  double **jac_ptrs = (double **)calloc(nb_params, sizeof(double *));
+  double **min_jac_ptrs = (double **)calloc(nb_params, sizeof(double *));
+  for (size_t i = 0; i < nb_params; i++) {
+    const auto jac_size = r_size * param_blocks[i]->global_size;
+    const auto min_jac_size = r_size * param_blocks[i]->local_size;
+    jac_ptrs[i] = (double *)calloc(jac_size, sizeof(double));
+    min_jac_ptrs[i] = (double *)calloc(min_jac_size, sizeof(double));
   }
 
   // Base-line
-  vecx_t r = zeros(residual_size);
+  vecx_t r = zeros(r_size);
   EvaluateWithMinimalJacobians(param_ptrs.data(),
                                r.data(),
                                jac_ptrs,
                                min_jac_ptrs);
-  free(jac_ptrs);
-  free(min_jac_ptrs);
 
   // Finite difference
-  matx_t fdiff = zeros(residual_size, local_size);
-  vecx_t r_fd = zeros(residual_size);
+  matx_t fdiff = zeros(r_size, local_size);
+  vecx_t r_fd = zeros(r_size);
   for (int i = 0; i < local_size; i++) {
     param->perturb(i, step);
     Evaluate(param_ptrs.data(), r_fd.data(), nullptr);
@@ -112,7 +103,19 @@ bool calib_residual_t::check_jacs(const int param_idx,
     param->perturb(i, -step);
   }
 
-  int retval = check_jacobian(jac_name, fdiff, min_jacs[param_idx], tol, true);
+  // Check jacobian
+  const auto min_jac_ptr = min_jac_ptrs[param_idx];
+  Eigen::Map<matx_row_major_t> min_jac(min_jac_ptr, r_size, local_size);
+  const int retval = check_jacobian(jac_name, fdiff, min_jac, tol, true);
+
+  // Clean up
+  for (size_t i = 0; i < nb_params; i++) {
+    free(jac_ptrs[i]);
+    free(min_jac_ptrs[i]);
+  }
+  free(jac_ptrs);
+  free(min_jac_ptrs);
+
   return (retval == 0) ? true : false;
 }
 
@@ -136,6 +139,7 @@ bool prior_t::EvaluateWithMinimalJacobians(double const *const *params,
                                            double **min_jacs) const {
   // clang-format off
   const int r_size = num_residuals();
+  const int global_size = param_blocks[0]->global_size;
   Eigen::Map<const vecx_t> param_est(params[0], r_size);
   Eigen::Map<vecx_t> r(res, r_size);
   r = sqrt_info * (param_meas - param_est);
@@ -143,21 +147,14 @@ bool prior_t::EvaluateWithMinimalJacobians(double const *const *params,
 
   // Jacobians
   if (jacs != NULL && jacs[0] != NULL) {
-    matx_t J_min = zeros(r_size, r_size);
-    J_min.setIdentity();
-    J_min *= -1.0;
-    J_min = sqrt_info * J_min;
-
-    Eigen::Map<mat_t<dynamic_t, dynamic_t, row_major_t>> J(jacs[0],
-                                                           r_size,
-                                                           r_size);
-    J = J_min;
+    Eigen::Map<matx_row_major_t> J(jacs[0], r_size, global_size);
+    J.setIdentity();
+    J *= -1.0;
+    J = sqrt_info * J;
 
     if (min_jacs[0]) {
-      Eigen::Map<mat_t<dynamic_t, dynamic_t, row_major_t>> J0_min(min_jacs[0],
-                                                                  r_size,
-                                                                  r_size);
-      J0_min = J_min;
+      Eigen::Map<matx_row_major_t> J_min(min_jacs[0], r_size, global_size);
+      J_min = J;
     }
   }
 

@@ -11,22 +11,10 @@ vecx_t linsolve_dense_svd(const matx_t &A, const vecx_t &b) {
   const matx_t U = svd.matrixU();
   const matx_t V = svd.matrixV();
   const vecx_t sv = svd.singularValues();
-
-  // const double eps = std::numeric_limits<double>::epsilon();
-  // const double tol = sv(0) * eps * sv.size();
-  // size_t rank = sv.size();
-  // for (size_t i = sv.size() - 1; i >= 0; --i) {
-  //   if (sv(i) > tol) {
-  //     break;
-  //   } else {
-  //     --rank;
-  //   }
-  // }
-  // printf("eps: %e, tol: %e\n", eps, tol);
-  // printf("rank: %d, A_shape: %ldx%ld\n", rank, A.rows(), A.cols());
-
-  // const vecx_t dx = V.leftCols(rank) * sv.head(rank).asDiagonal().inverse() *
-  //                   U.leftCols(rank).adjoint() * b;
+  // const auto svd_rank = svd.rank();
+  // const vecx_t dx = V.leftCols(svd_rank) *
+  //                   sv.head(svd_rank).asDiagonal().inverse() *
+  //                   U.leftCols(svd_rank).adjoint() * b;
   // const vecx_t dx = V * sv.asDiagonal().inverse() * U.transpose() * b;
   const vecx_t dx = svd.solve(b);
 
@@ -44,11 +32,13 @@ vecx_t linsolve_sparse_qr(const matx_t &A, const vecx_t &b) {
   // clang-format off
   prof.start("SparseQR.solve()");
   Eigen::SparseQR<Eigen::SparseMatrix<real_t>, Eigen::COLAMDOrdering<int>> solver;
+
   // -- Decompose H_sparse
   solver.compute(A.sparseView());
   if (solver.info() != Eigen::Success) {
     FATAL("SparseQR decomp failed!");
   }
+
   // -- Solve for x
   const vecx_t x = solver.solve(b);
   if (solver.info() != Eigen::Success) {

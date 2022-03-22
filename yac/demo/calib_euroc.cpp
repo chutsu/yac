@@ -66,24 +66,23 @@ int main() {
   calib.add_camera_data(test_data);
   calib.add_camera(0, cam_res, proj_model, dist_model);
   calib.add_camera(1, cam_res, proj_model, dist_model);
-  calib.add_camera_extrinsics(0);
-  calib.add_camera_extrinsics(1);
   calib.solve();
 
-  // // clang-format off
-  // calib.cam_params[0]->param << 460.22, 458.984, 368.066, 244.867, -0.276787,
-  // 0.0683317, 0.000718692, -0.000305668; calib.cam_params[1]->param <<
-  // 458.839, 457.515, 378.827, 251.504, -0.273078, 0.0650777, 0.000486785,
-  // -0.000217006; yac::mat4_t T_C0C1; T_C0C1 << 0.999986, -0.00255615,
-  // -0.0046943, 0.109969,
+  // clang-format off
+  // calib.add_camera_extrinsics(0);
+  // calib.add_camera_extrinsics(1);
+  // calib.cam_params[0]->param << 460.22, 458.984, 368.066, 244.867, -0.276787, 0.0683317, 0.000718692, -0.000305668;
+  // calib.cam_params[1]->param << 458.839, 457.515, 378.827, 251.504, -0.273078, 0.0650777, 0.000486785, -0.000217006;
+  // yac::mat4_t T_C0C1;
+  // T_C0C1 << 0.999986, -0.00255615, -0.0046943, 0.109969,
   //           0.00248833, 0.999893, -0.0143977, -0.000242966,
   //           0.0047306, 0.0143858, 0.999885, 0.000737503,
   //           0, 0, 0, 1;
   // const yac::vec3_t r = yac::tf_trans(T_C0C1);
   // const yac::quat_t q = yac::tf_quat(T_C0C1);
-  // calib.cam_exts[1]->param << r.x(), r.y(), r.z(), q.x(), q.y(), q.z(),
-  // q.w(); calib._solve_nbv();
-  // // clang-format on
+  // calib.cam_exts[1]->param << r.x(), r.y(), r.z(), q.x(), q.y(), q.z(), q.w();
+  // calib._solve_nbv();
+  // clang-format on
 
   calib.show_results();
   calib.save_results("/tmp/calib-results.yaml");

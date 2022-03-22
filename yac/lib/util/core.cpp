@@ -1171,9 +1171,9 @@ mat3_t euler321(const vec3_t &euler) {
 }
 
 quat_t euler2quat(const vec3_t &euler) {
-  const real_t phi = euler(1);
-  const real_t theta = euler(2);
-  const real_t psi = euler(3);
+  const real_t phi = euler.x();
+  const real_t theta = euler.y();
+  const real_t psi = euler.z();
 
   const real_t c_phi = cos(phi / 2.0);
   const real_t c_theta = cos(theta / 2.0);

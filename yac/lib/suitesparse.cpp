@@ -60,8 +60,8 @@ std::ptrdiff_t estimateNumericalRank(const vecx_t &singular_values,
                                      double tolerance) {
   // CHECK_GE(tolerance, 0.0);
 
-  size_t numerical_rank = singular_values.size();
-  for (size_t i = singular_values.size() - 1; i >= 0; --i) {
+  ssize_t numerical_rank = singular_values.size();
+  for (ssize_t i = singular_values.size() - 1; i >= 0; --i) {
     if (singular_values(i) > tolerance) {
       // Assumes that the singular values are ordered.
       break;
@@ -339,7 +339,7 @@ cholmod_dense *solveQR(SuiteSparseQR_factorization<double> *factor,
     //     << "Dimension mismatch between x_r and A_r.";
 
     cholmod_dense x_r_cholmod;
-    cholmod_converter_t::convert(x_r, &x_r_cholmod);
+    cholmod_convert(x_r, &x_r_cholmod);
     cholmod_dense *A_rx_r = cholmod_l_allocate_dense(A_r->nrow,
                                                      1,
                                                      A_r->nrow,
@@ -363,7 +363,7 @@ cholmod_dense *solveQR(SuiteSparseQR_factorization<double> *factor,
     const vecx_t bmA_rx_rEigen = bEigen - A_rx_rEigen;
     cholmod_l_free_dense(&A_rx_r, cholmod);
     cholmod_dense bmA_rx_r;
-    cholmod_converter_t::convert(bmA_rx_rEigen, &bmA_rx_r);
+    cholmod_convert(bmA_rx_rEigen, &bmA_rx_r);
     QtbmA_rx_r =
         SuiteSparseQR_qmult<double>(SPQR_QTX, factor, &bmA_rx_r, cholmod);
   } else {
@@ -380,6 +380,107 @@ cholmod_dense *solveQR(SuiteSparseQR_factorization<double> *factor,
   return x_l;
 }
 
+// CHOLMOD CONVERTER /////////////////////////////////////////////////////////
+
+// CHOLMOD Sparse to Eigen Dense
+void cholmod_convert(const cholmod_sparse *in, matx_t &out) {
+  out.setZero(in->nrow, in->ncol);
+
+  // clang-format off
+  const std::ptrdiff_t *row_ind = reinterpret_cast<const std::ptrdiff_t *>(in->i);
+  const std::ptrdiff_t *col_ptr = reinterpret_cast<const std::ptrdiff_t *>(in->p);
+  const std::ptrdiff_t col_end = static_cast<std::ptrdiff_t>(in->ncol);
+  const double *values = reinterpret_cast<const double *>(in->x);
+  // clang-format on
+  for (std::ptrdiff_t col_idx = 0; col_idx < col_end; ++col_idx) {
+    for (std::ptrdiff_t val_idx = col_ptr[col_idx];
+         val_idx < col_ptr[col_idx + 1];
+         ++val_idx) {
+      out(row_ind[val_idx], col_idx) = values[val_idx];
+      if (in->stype && col_idx != row_ind[val_idx]) {
+        out(col_idx, row_ind[val_idx]) = values[val_idx];
+      }
+    }
+  }
+}
+
+// CHOLMOD Dense to Eigen Dense Copy
+void cholmod_convert(const cholmod_dense *in, vecx_t &out) {
+  // CHECK_NOTNULL(in);
+  out.resize(in->nrow);
+  const double *in_val = reinterpret_cast<const double *>(in->x);
+  std::copy(in_val, in_val + in->nrow, out.data());
+}
+
+// Eigen Dense To CHOLMOD Dense
+void cholmod_convert(const vecx_t &in, cholmod_dense *out) {
+  // CHECK_NOTNULL(out);
+  out->nrow = in.size();
+  out->ncol = 1;
+  out->nzmax = in.size();
+  out->d = in.size();
+  out->x = reinterpret_cast<void *>(const_cast<double *>(in.data()));
+  out->z = nullptr;
+  out->xtype = CHOLMOD_REAL;
+  out->dtype = CHOLMOD_DOUBLE;
+}
+
+// Eigen Dense To CHOLMOD Dense Copy
+cholmod_dense *cholmod_convert(const vecx_t &in, cholmod_common *cholmod) {
+  cholmod_dense *out =
+      cholmod_l_allocate_dense(in.size(), 1, in.size(), CHOLMOD_REAL, cholmod);
+  // CHECK(out != nullptr) << "cholmod_l_allocate_dense failed.";
+
+  double *out_val = reinterpret_cast<double *>(out->x);
+  const double *in_val = in.data();
+  std::copy(in_val, in_val + in.size(), out_val);
+  return out;
+}
+
+// Eigen Dense to CHOLMOD Sparse Copy
+cholmod_sparse *cholmod_convert(const matx_t &A,
+                                cholmod_common *cholmod,
+                                double eps) {
+  // CHECK_NOTNULL(cholmod);
+  // CHECK_GT(eps, 0.0);
+
+  size_t nzmax = 0;
+  for (std::ptrdiff_t i = 0; i < A.rows(); ++i) {
+    for (std::ptrdiff_t j = 0; j < A.cols(); ++j) {
+      if (std::fabs(A(i, j)) > eps) {
+        nzmax++;
+      }
+    }
+  }
+
+  cholmod_sparse *A_cholmod = cholmod_l_allocate_sparse(A.rows(),
+                                                        A.cols(),
+                                                        nzmax,
+                                                        1,
+                                                        1,
+                                                        0,
+                                                        CHOLMOD_REAL,
+                                                        cholmod);
+  // CHECK(A_cholmod != nullptr) << "cholmod_l_allocate_sparse failed.";
+
+  std::ptrdiff_t *row_ind = reinterpret_cast<std::ptrdiff_t *>(A_cholmod->i);
+  std::ptrdiff_t *col_ptr = reinterpret_cast<std::ptrdiff_t *>(A_cholmod->p);
+  double *values = reinterpret_cast<double *>(A_cholmod->x);
+  size_t row_it = 0;
+  size_t col_it = 1;
+  for (long int c = 0; c < A.cols(); ++c) {
+    for (long int r = 0; r < A.rows(); ++r)
+      if (std::fabs(A(r, c)) > eps) {
+        values[row_it] = A(r, c);
+        row_ind[row_it] = r;
+        row_it++;
+      }
+    col_ptr[col_it] = row_it;
+    col_it++;
+  }
+  return A_cholmod;
+}
+
 /// TRUNCATED SOLVER /////////////////////////////////////////////////////////
 
 truncated_solver_t::truncated_solver_t() {
@@ -390,9 +491,6 @@ truncated_solver_t::truncated_solver_t() {
 truncated_solver_t::~truncated_solver_t() {
   clear();
   cholmod_l_finish(&cholmod_);
-  // if (tsvd_options_.verbose && getMemoryUsage() > 0) {
-  //   // LOG(ERROR) << "Cholmod memory leak detected.";
-  // }
 }
 
 void truncated_solver_t::clear() {
@@ -405,7 +503,7 @@ void truncated_solver_t::clear() {
   marginalAnalysisTime_ = 0.0;
 }
 
-size_t truncated_solver_t::getSVDRank() const { return svdRank_; }
+ssize_t truncated_solver_t::getSVDRank() const { return svdRank_; }
 
 const vecx_t &truncated_solver_t::getSingularValues() const {
   return singularValues_;
@@ -555,7 +653,7 @@ void truncated_solver_t::analyzeSVD(const cholmod_sparse *Omega,
                                     matx_t &V) {
   // CHECK_NOTNULL(Omega);
   matx_t OmegaDense;
-  cholmod_converter_t::convert(Omega, OmegaDense);
+  cholmod_convert(Omega, OmegaDense);
   const Eigen::JacobiSVD<matx_t> svd(OmegaDense,
                                      Eigen::ComputeThinU | Eigen::ComputeThinV);
   U = svd.matrixU();
@@ -590,8 +688,9 @@ void truncated_solver_t::analyzeMarginal(cholmod_sparse *A, size_t j) {
     if (factor_ && factor_->QRsym &&
         (factor_->QRsym->m != static_cast<std::ptrdiff_t>(A_l->nrow) ||
          factor_->QRsym->n != static_cast<std::ptrdiff_t>(A_l->ncol) ||
-         factor_->QRsym->anz != static_cast<std::ptrdiff_t>(A_l->nzmax)))
+         factor_->QRsym->anz != static_cast<std::ptrdiff_t>(A_l->nzmax))) {
       clear();
+    }
     if (!factor_) {
       // const double t2 = Timestamp::now();
       factor_ = SuiteSparseQR_symbolic<double>(SPQR_ORDERING_BEST,

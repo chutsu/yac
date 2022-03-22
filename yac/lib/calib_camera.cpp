@@ -866,10 +866,10 @@ bool calib_camera_t::add_nbv_view(const std::map<int, aprilgrid_t> &cam_grids) {
     return false;
   }
   const real_t info_gain = 0.5 * (info_k - info_kp1);
-  printf("info_gain: %f, info_k: %f, info_kp1: %f\n",
-         info_gain,
-         info_k,
-         info_kp1);
+  // printf("info_gain: %f, info_k: %f, info_kp1: %f\n",
+  //        info_gain,
+  //        info_k,
+  //        info_kp1);
 
   // Remove view?
   if (info_gain < info_gain_threshold) {
@@ -1021,7 +1021,6 @@ int calib_camera_t::find_nbv(const std::map<int, mat4s_t> &nbv_poses,
         best_idx = i;
         best_info = info_kp1;
       }
-      // const auto gain = 0.5 * (info_k - info_kp1);
 
       // Remove view and update
       remove_view(nbv_ts);
@@ -1033,7 +1032,6 @@ int calib_camera_t::find_nbv(const std::map<int, mat4s_t> &nbv_poses,
   // Return
   cam_idx = best_cam;
   nbv_idx = best_idx;
-
   const auto info_gain = 0.5 * (info_k - best_info);
   if (info_gain < info_gain_threshold) {
     return -1;
@@ -1211,6 +1209,7 @@ int calib_camera_t::_calc_info(real_t *info) {
   //   return 0;
   // }
 
+  // Estimate the determinant of the marginal covariance matrix
   real_t covar_det = 0.0;
   if (solver->estimate_covariance_determinant(params, covar_det, true) != 0) {
     return -1;
@@ -1219,10 +1218,6 @@ int calib_camera_t::_calc_info(real_t *info) {
     return -1;
   }
   *info = covar_det / log(2.0);
-
-  // const auto sv_rank = solver->tsolver.getSVDRank();
-  // const vecx_t s = solver->tsolver.getSingularValues();
-  // *info = -1.0 * s.head(sv_rank).array().log().sum() / log(2.0);
 
   return 0;
 }

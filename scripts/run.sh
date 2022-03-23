@@ -36,6 +36,7 @@ set -e
 # RUN_CMD="./test_calib_camera --target test_calib_camera_add_camera_extrinsics"
 # RUN_CMD="./test_calib_camera --target test_calib_camera_add_pose"
 # RUN_CMD="./test_calib_camera --target test_calib_camera_add_and_remove_view"
+# RUN_CMD="./test_calib_camera --target test_calib_camera_add_nbv_view"
 # RUN_CMD="./test_calib_camera --target test_calib_camera_find_nbv"
 # RUN_CMD="./test_calib_camera --target test_calib_camera_filter_all_views"
 # RUN_CMD="./test_calib_camera --target test_calib_camera_remove_all_views"
@@ -46,7 +47,7 @@ set -e
 # RUN_CMD="./test_calib_camera --target test_calib_camera_stereo"
 # RUN_CMD="./test_calib_camera --target test_marg_residual"
 RUN_CMD="./calib_euroc"
-# RUN_CMD="./calib_inspect '/home/chutsu/projects/yac/yac/configs/calib-euroc.yaml' /data/euroc/cam_april"
+# RUN_CMD="./calib_inspect '/tmp/calib-results.yaml' /data/euroc/cam_april"
 # RUN_CMD="./calib_inspect '/home/chutsu/projects/yac/yac/configs/calib-kalibr.yaml' /data/euroc/imu_april"
 # RUN_CMD="./calib_inspect '/home/chutsu/projects/yac/yac/configs/calib-yac.yaml' /data/euroc/cam_april"
 # RUN_CMD="./calib_inspect '/data/euroc_results/configs/euroc/euroc.yaml' /data/euroc/cam_april"
@@ -113,7 +114,7 @@ RUN_CMD="./calib_euroc"
 tmux send-keys -t dev -R C-l C-m
 tmux send-keys -t dev -R "\
 cd ~/projects/yac \
-&& make lib_relwithdeb \
+&& sudo make lib_relwithdeb \
 && cd build && ${RUN_CMD}
 " C-m C-m
 exit

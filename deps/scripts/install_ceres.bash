@@ -10,7 +10,8 @@ echo "building ceres-solver [$VERSION] ..."
 apt_install libgflags-dev
 apt_install libgflags-doc
 apt_install libgoogle-glog-dev
-apt_install libceres
+apt_install libceres-dev
+apt_install libceres1
 
 # # Clone
 # if [ ! -d $INSTALL_PREFIX/src/ceres-solver ]; then

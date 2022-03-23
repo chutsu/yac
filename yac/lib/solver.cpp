@@ -323,6 +323,7 @@ void solver_t::_form_hessian(ParameterOrder &param_order,
                              matx_t &H,
                              vecx_t &b) {
   // Evaluate residuals
+  prof.start("form_hessian-eval_residuals");
   std::vector<calib_residual_t *> res_evaled;
   ResidualJacobians res_jacs;
   ResidualJacobians res_min_jacs;
@@ -336,8 +337,10 @@ void solver_t::_form_hessian(ParameterOrder &param_order,
                   res_vals,
                   residuals_length,
                   params_length);
+  prof.stop("form_hessian-eval_residuals");
 
   // Form Hessian H and R.H.S b
+  prof.start("form_hessian-fill_values");
   H = zeros(params_length, params_length);
   b = zeros(params_length, 1);
 
@@ -377,6 +380,12 @@ void solver_t::_form_hessian(ParameterOrder &param_order,
       b.segment(idx_i, size_i) += -J_i.transpose() * r;
     }
   }
+  prof.stop("form_hessian-fill_values");
+
+  printf("profile:\n");
+  prof.print("form_hessian-eval_residuals");
+  prof.print("form_hessian-fill_values");
+  printf("\n");
 }
 
 void solver_t::_update(const ParameterOrder &param_order, const vecx_t &dx) {
@@ -525,36 +534,18 @@ int solver_t::estimate_covariance(const std::vector<param_t *> params,
   // clang-format off
   matx_t Hmm = H.block(0, 0, m, m);
   Hmm = 0.5 * (Hmm + Hmm.transpose()); // Enforce Symmetry
-  // const double eps = 1.0e-8;
-  // const Eigen::SelfAdjointEigenSolver<matx_t> eig(Hmm);
-  // const matx_t V = eig.eigenvectors();
-  // const auto eigvals_inv = (eig.eigenvalues().array() > eps).select(eig.eigenvalues().array().inverse(), 0);
-  // const matx_t Lambda_inv = vecx_t(eigvals_inv).asDiagonal();
-  // const matx_t Hmm_inv = V * Lambda_inv * V.transpose();
+  const double eps = 1.0e-8;
+  const Eigen::SelfAdjointEigenSolver<matx_t> eig(Hmm);
+  const matx_t V = eig.eigenvectors();
+  const auto eigvals_inv = (eig.eigenvalues().array() > eps).select(eig.eigenvalues().array().inverse(), 0);
+  const matx_t Lambda_inv = vecx_t(eigvals_inv).asDiagonal();
+  const matx_t Hmm_inv = V * Lambda_inv * V.transpose();
 
-  Eigen::JacobiSVD< matx_t> svd(Hmm, Eigen::ComputeFullU | Eigen::ComputeFullV);
-  const auto nb_rows = Hmm.rows();
-  const auto nb_cols = Hmm.cols();
-  const matx_t &U = svd.matrixU();
-  const matx_t &V = svd.matrixV();
-  const vecx_t &s = svd.singularValues();
-  const double eps = std::numeric_limits<double>::epsilon();
-  const double tol = eps * std::max(nb_rows, nb_cols) * s.array().abs()(0);
-  svd.setThreshold(tol);
-  const auto rank = svd.rank();
-  const matx_t Hmm_inv = V.leftCols(rank) * s.head(rank).asDiagonal().inverse() * U.leftCols(rank).adjoint();
+  // Eigen::JacobiSVD< matx_t> svd(Hmm, Eigen::ComputeFullU | Eigen::ComputeFullV);
+  // const auto rank = svd.rank();
+  // const matx_t Hmm_inv = V.leftCols(rank) * s.head(rank).asDiagonal().inverse() * U.leftCols(rank).adjoint();
   // printf("svd rank: %ld\n", svd.rank());
   // printf("Hmm: %ldx%ld\n", Hmm.rows(), Hmm.cols());
-
-  // Eigen::SparseQR<Eigen::SparseMatrix<real_t>, Eigen::COLAMDOrdering<int>> spqr;
-  // spqr.compute(H.sparseView());
-  // if (spqr.info() != Eigen::Success) {
-  //   FATAL("SparseQR decomp failed!");
-  // }
-  // const matx_t Hmm_inv = spqr.solve(I(m, m));
-  // if (spqr.info() != Eigen::Success) {
-  //   FATAL("SparseQR decomp failed!");
-  // }
 
   // clang-format on
   // -- Calculate Schur's complement
@@ -587,6 +578,7 @@ int solver_t::estimate_covariance(const std::vector<param_t *> params,
 
 int solver_t::estimate_covariance_determinant(
     const std::vector<param_t *> params, real_t &covar_det) {
+  UNUSED(params);
 
   // Form dense jacobian
   ParameterOrder param_order;
@@ -597,11 +589,11 @@ int solver_t::estimate_covariance_determinant(
   // Convert to sparse jacobian
   const auto eps = std::numeric_limits<double>::epsilon();
   cholmod_sparse *J_sparse = cholmod_convert(J, &tsolver.cholmod_, eps);
-  tsolver.analyzeMarginal(J_sparse, marg_idx);
+  tsolver.analyze_marginal(J_sparse, marg_idx);
   cholmod_l_free_sparse(&J_sparse, &tsolver.cholmod_);
 
   // estimate covariance determinant
-  const auto sv_rank = tsolver.getSVDRank();
+  const auto sv_rank = tsolver.svdRank_;
   const vecx_t s = tsolver.getSingularValues();
   covar_det = -1.0 * s.head(sv_rank).array().log().sum();
 
@@ -705,24 +697,93 @@ void yac_solver_t::_solve_lm(const int max_iter,
     print_stats(0, cost_km1, dcost, lambda_k);
   }
 
+  matx_t H;
+  vecx_t b;
+
+  // Cholmod setup
+  SuiteSparseQR_factorization<double> *QR = nullptr;
+  cholmod_common cc;
+  cholmod_l_start(&cc);
+
   for (iter = 1; iter < max_iter; iter++) {
     // Cache parameters
     _cache_params();
 
     // Form Hessian H and R.H.S vector b
+    prof.start("form_hessian");
     ParameterOrder param_order;
-    matx_t H;
-    vecx_t b;
     _form_hessian(param_order, H, b);
+    prof.stop("form_hessian");
 
     // Apply LM-dampening
     H = H + lambda_k * I(H.rows());
+
+    // Solve with SPQR
+    // -- Setup H_sparse and b_dense
+    prof.start("cholmod-sparsify");
+    const auto eps = std::numeric_limits<double>::epsilon();
+    cholmod_sparse *H_sparse = cholmod_convert(H, &cc, eps);
+    cholmod_dense *b_dense = cholmod_convert(b, &cc);
+    CHECK(H_sparse != nullptr);
+    CHECK(b_dense != nullptr);
+    prof.stop("cholmod-sparsify");
+
+    // -- Factorize matrix symbolically
+    prof.start("spqr-factorize-symbolically");
+    if (QR && QR->QRsym &&
+        (QR->QRsym->m != static_cast<std::ptrdiff_t>(H_sparse->nrow) ||
+         QR->QRsym->n != static_cast<std::ptrdiff_t>(H_sparse->ncol) ||
+         QR->QRsym->anz != static_cast<std::ptrdiff_t>(H_sparse->nzmax))) {
+      SuiteSparseQR_free<double>(&QR, &cc);
+      QR = nullptr;
+    }
+    // -- Factorize matrix symbolically
+    if (QR == nullptr) {
+      QR = SuiteSparseQR_symbolic<double>(SPQR_ORDERING_BEST,
+                                          SPQR_DEFAULT_TOL,
+                                          H_sparse,
+                                          &cc);
+      CHECK(QR != nullptr);
+    }
+    prof.stop("spqr-factorize-symbolically");
+
+    // -- Factorize matrix numerically
+    prof.start("spqr-factorize-numerically");
+    const double qr_tol = std::numeric_limits<double>::epsilon();
+    CHECK(SuiteSparseQR_numeric<double>(qr_tol, H_sparse, QR, &cc));
+    prof.stop("spqr-factorize-numerically");
+
+    // -- Solve
+    prof.start("spqr-solve");
+    // cholmod_dense *dx_dense = solve_qr(H_sparse, b_dense, &cholmod);
+    auto Y = SuiteSparseQR_qmult<double>(SPQR_QTX, QR, b_dense, &cc);
+    auto dx_dense = SuiteSparseQR_solve<double>(SPQR_RETX_EQUALS_B, QR, Y, &cc);
+
+    // Clean up
+    cholmod_l_free_dense(&Y, &cc);
+    vecx_t dx;
+    cholmod_convert(dx_dense, dx);
+    cholmod_l_free_sparse(&H_sparse, &cc);
+    cholmod_l_free_dense(&b_dense, &cc);
+    cholmod_l_free_dense(&dx_dense, &cc);
+    prof.stop("spqr-solve");
+
+    // Profiling
+    // printf("profile:\n");
+    // prof.print("form_hessian");
+    // prof.print("cholmod-sparsify");
+    // prof.print("spqr-factorize-symbolically");
+    // prof.print("spqr-factorize-numerically");
+    // prof.print("spqr-solve");
+    // printf("\n");
 
     // Solve: H dx = b
     // dx = linsolve_dense_chol(H, b);
     // dx = linsolve_dense_svd(H, b);
     // dx = linsolve_dense_qr(H, b);
-    const vecx_t dx = linsolve_sparse_qr(H, b);
+    // const vecx_t dx = linsolve_sparse_qr(H, b);
+
+    // Update
     _update(param_order, dx);
 
     // Calculate convergence and print stats
@@ -742,7 +803,15 @@ void yac_solver_t::_solve_lm(const int max_iter,
       cost_k = _calculate_cost();
       lambda_k *= 10.0;
     }
+
+    // Limit lambda_k value
+    lambda_k = std::max(1e-10, lambda_k);
+    lambda_k = std::min(1e10, lambda_k);
   }
+
+  // Clean up cholmod
+  SuiteSparseQR_free(&QR, &cc);
+  cholmod_l_finish(&cc);
 
   if (verbose && verbose_level == 1) {
     const real_t cost_final = _calculate_cost();

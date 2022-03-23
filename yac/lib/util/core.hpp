@@ -170,6 +170,9 @@ using sp_vec_t = Eigen::SparseVector<real_t>;
 #define KCYN "\x1B[1;36m"
 #define KWHT "\x1B[1;37m"
 
+#define STRINGIFY(x) #x
+#define TOSTRING(x) STRINGIFY(x)
+
 #define __FILENAME__                                                           \
   (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 
@@ -218,10 +221,14 @@ using sp_vec_t = Eigen::SparseVector<real_t>;
   } while (0)
 
 #ifndef CHECK
-#define CHECK(A, M, ...)                                                       \
+#define CHECK(A)                                                               \
   if (!(A)) {                                                                  \
-    LOG_ERROR(M, ##__VA_ARGS__);                                               \
-    goto error;                                                                \
+    char msg[9046] = {0};                                                      \
+    sprintf(msg,                                                               \
+            "\033[31m[CHECK FAILED] [%s:%d] " TOSTRING(A) "\033[0m\n",         \
+            __FILENAME__,                                                      \
+            __LINE__);                                                         \
+    throw std::runtime_error(msg);                                             \
   }
 #endif
 

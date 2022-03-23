@@ -26,6 +26,7 @@ struct solver_t {
   std::string algorithm_type = "LEVENBERG-MARQUARDT";
   truncated_solver_t tsolver;
   int marg_idx = 0;
+  profiler_t prof;
 
   // clang-format off
   std::unordered_set<calib_residual_t *> res_fns;

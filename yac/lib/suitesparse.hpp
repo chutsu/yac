@@ -8,7 +8,7 @@ namespace yac {
 
 // CHOLMOD UTILS /////////////////////////////////////////////////////////////
 
-cholmod_dense *solve_qr(SuiteSparseQR_factorization<double> *factor,
+cholmod_dense *solve_qr(cholmod_sparse *A,
                         cholmod_dense *b,
                         cholmod_common *cholmod);
 
@@ -95,6 +95,7 @@ struct truncated_solver_t {
   vecx_t singularValues_;
   matx_t matrixU_;
   matx_t matrixV_;
+  real_t calib_covar_det = 0.0;
 
   double linearSolverTime_;
   double marginalAnalysisTime_;
@@ -103,19 +104,15 @@ struct truncated_solver_t {
   virtual ~truncated_solver_t();
 
   void solve(cholmod_sparse *A, cholmod_dense *b, size_t j, vecx_t &x);
-  void analyzeMarginal(cholmod_sparse *A, size_t j);
+  void analyze_marginal(cholmod_sparse *A, size_t j);
 
   void clear();
-  ssize_t getSVDRank() const;
   const vecx_t &getSingularValues() const;
   double getSingularValuesLog2Sum() const;
-  void setNThreads(int n);
-  void clearSvdAnalysisResultMembers();
-  void analyzeSVD(const cholmod_sparse *Omega,
-                  Eigen::VectorXd &sv,
-                  Eigen::MatrixXd &U,
-                  Eigen::MatrixXd &V);
-  void analyzeSVD(cholmod_sparse *Omega);
+
+  void
+  _analyze_svd(const cholmod_sparse *Omega, vecx_t &sv, matx_t &U, matx_t &V);
+  void _analyze_svd(cholmod_sparse *Omega);
 };
 
 } // namespace yac

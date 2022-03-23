@@ -18,17 +18,19 @@ ADD_COMPILE_OPTIONS(
 # )
 
 # DEPENDENCIES
-IF (NOT DEFINED Eigen3_DIR)
-  SET(Eigen3_DIR "/opt/yac/share/eigen3/cmake")
-ENDIF()
+LIST(APPEND CMAKE_MODULE_PATH "../cmake")
+
+# IF (NOT DEFINED Eigen3_DIR)
+#   SET(Eigen3_DIR "/opt/yac/share/eigen3/cmake")
+# ENDIF()
 
 IF (NOT DEFINED apriltag3_DIR)
   SET(apriltag3_DIR "/opt/yac/share/apriltag3/cmake")  # Use custom AprilTag3
 ENDIF()
 
-IF (NOT DEFINED Ceres_DIR OR "${Ceres_DIR}" STREQUAL "Ceres_DIR-NOTFOUND")
-  SET(Ceres_DIR "/opt/yac/lib/cmake/Ceres")
-ENDIF()
+# IF (NOT DEFINED Ceres_DIR OR "${Ceres_DIR}" STREQUAL "Ceres_DIR-NOTFOUND")
+#   SET(Ceres_DIR "/opt/yac/lib/cmake/Ceres")
+# ENDIF()
 
 IF (NOT DEFINED USE_OPENMP)
   SET(USE_OPENMP ON)
@@ -48,8 +50,12 @@ FIND_PACKAGE(Ceres REQUIRED)
 FIND_PACKAGE(OpenCV REQUIRED)
 FIND_PACKAGE(Eigen3 REQUIRED)
 FIND_PACKAGE(TBB REQUIRED)
+FIND_PACKAGE(SuiteSparse REQUIRED CHOLMOD SPQR)
 INCLUDE_DIRECTORIES(${OpenCV_INCLUDE_DIRS})
 INCLUDE_DIRECTORIES(${EIGEN3_INCLUDE_DIR})
+INCLUDE_DIRECTORIES(${CHOLMOD_INCLUDE_DIR})
+INCLUDE_DIRECTORIES(${SUITESPARSEQR_INCLUDE_DIR})
+INCLUDE_DIRECTORIES(${SUITESPARSE_CONFIG_INCLUDE_DIR})
 INCLUDE_DIRECTORIES("/opt/yac/include")
 LINK_DIRECTORIES("/opt/yac/lib")
 SET(DEPS
@@ -59,12 +65,11 @@ SET(DEPS
   apriltag3
   apriltag
   ${OpenCV_LIBS}
-  cholmod
-  spqr
-  TBB::tbb
+	${CHOLMOD_LIBRARY}
+	${SUITESPARSEQR_LIBRARY}
+	${SUITESPARSE_CONFIG_LIBRARY}
+	${TBB_LIBRARY}
 )
-MESSAGE("${TBB_FOUND}")
-MESSAGE("${DEPS}")
 
 # LIBRARY
 INCLUDE_DIRECTORIES(lib)
@@ -112,8 +117,8 @@ ADD_DEFINITIONS(-DTEST_PATH="${TEST_BIN_PATH}")
 # ADD_EXECUTABLE(test_util_config tests/util/test_config.cpp)
 # TARGET_LINK_LIBRARIES(test_util_config yac ${DEPS})
 
-ADD_EXECUTABLE(test_util_core tests/util/test_core.cpp)
-TARGET_LINK_LIBRARIES(test_util_core yac ${DEPS})
+# ADD_EXECUTABLE(test_util_core tests/util/test_core.cpp)
+# TARGET_LINK_LIBRARIES(test_util_core yac ${DEPS})
 
 # ADD_EXECUTABLE(test_util_cv tests/util/test_cv.cpp)
 # TARGET_LINK_LIBRARIES(test_util_cv yac ${DEPS})
@@ -142,8 +147,8 @@ TARGET_LINK_LIBRARIES(test_calib_residuals yac ${DEPS})
 # ADD_EXECUTABLE(test_calib_mocap tests/test_calib_mocap.cpp)
 # TARGET_LINK_LIBRARIES(test_calib_mocap yac ${DEPS})
 
-ADD_EXECUTABLE(test_calib_nbt tests/test_calib_nbt.cpp)
-TARGET_LINK_LIBRARIES(test_calib_nbt yac ${DEPS})
+# ADD_EXECUTABLE(test_calib_nbt tests/test_calib_nbt.cpp)
+# TARGET_LINK_LIBRARIES(test_calib_nbt yac ${DEPS})
 
 # ADD_EXECUTABLE(test_calib_nbv tests/test_calib_nbv.cpp)
 # TARGET_LINK_LIBRARIES(test_calib_nbv yac ${DEPS})
@@ -155,8 +160,8 @@ TARGET_LINK_LIBRARIES(test_calib_nbt yac ${DEPS})
 ADD_EXECUTABLE(calib_euroc demo/calib_euroc.cpp)
 TARGET_LINK_LIBRARIES(calib_euroc yac ${DEPS})
 
-# ADD_EXECUTABLE(calib_inspect demo/calib_inspect.cpp)
-# TARGET_LINK_LIBRARIES(calib_inspect yac ${DEPS})
-#
+ADD_EXECUTABLE(calib_inspect demo/calib_inspect.cpp)
+TARGET_LINK_LIBRARIES(calib_inspect yac ${DEPS})
+
 # ADD_EXECUTABLE(calib_sandbox demo/calib_sandbox.cpp)
 # TARGET_LINK_LIBRARIES(calib_sandbox yac ${DEPS})

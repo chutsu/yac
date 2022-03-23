@@ -3,38 +3,38 @@
 
 namespace yac {
 
-cholmod_dense *solve_qr(SuiteSparseQR_factorization<double> *factor,
+cholmod_dense *solve_qr(cholmod_sparse *A,
                         cholmod_dense *b,
                         cholmod_common *cholmod) {
   // Assert
-  assert(factor != nullptr);
+  assert(A != nullptr);
   assert(b != nullptr);
   assert(cholmod != nullptr);
 
-  // Pre-check
-  if (factor->QRsym == NULL) {
-    FATAL("Run symbolic factorization first!");
-  }
-  if (factor->QRnum == NULL) {
-    FATAL("Run QR decomposition first!");
+  // Factorize
+  auto factor = SuiteSparseQR_factorize<double>(SPQR_ORDERING_DEFAULT,
+                                                SPQR_DEFAULT_TOL,
+                                                A,
+                                                cholmod);
+  if (factor == NULL) {
+    FATAL("Failed to run SuiteSparseQR_factorize()");
   }
 
-  // Multiply Q with b
-  auto qmult_method = SPQR_QTX;
-  auto *Qt_b = SuiteSparseQR_qmult<double>(qmult_method, factor, b, cholmod);
-  if (Qt_b == NULL) {
+  // Multiply Q' with b: Y = Q' * b
+  auto Y = SuiteSparseQR_qmult<double>(SPQR_QTX, factor, b, cholmod);
+  if (Y == NULL) {
     FATAL("Failed to run SuiteSparseQR_qmult()");
   }
 
   // Solve
-  auto solve_method = SPQR_RETX_EQUALS_B;
-  auto *x = SuiteSparseQR_solve<double>(solve_method, factor, Qt_b, cholmod);
+  auto x = SuiteSparseQR_solve<double>(SPQR_RETX_EQUALS_B, factor, Y, cholmod);
   if (x == NULL) {
     FATAL("Failed to run SuiteSparseQR_solve()");
   }
 
   // Clean up
-  cholmod_l_free_dense(&Qt_b, cholmod);
+  SuiteSparseQR_free(&factor, cholmod);
+  cholmod_l_free_dense(&Y, cholmod);
 
   return x;
 }
@@ -102,10 +102,9 @@ cholmod_sparse *columnSubmatrix(cholmod_sparse *A,
                                 cholmod_common *cholmod) {
   CHECK(A);
   CHECK(cholmod);
-
-  // CHECK_GE(col_end_idx, col_start_idx);
-  // CHECK_LT(col_end_idx, static_cast<std::ptrdiff_t>(A->ncol));
-  // CHECK_GE(col_start_idx, 0);
+  CHECK(col_end_idx >= col_start_idx);
+  CHECK(col_end_idx < static_cast<std::ptrdiff_t>(A->ncol));
+  CHECK(col_start_idx >= 0);
 
   const std::ptrdiff_t num_indices = col_end_idx - col_start_idx + 1;
   std::ptrdiff_t *col_indices = new std::ptrdiff_t[num_indices];
@@ -158,10 +157,9 @@ cholmod_sparse *rowSubmatrix(cholmod_sparse *A,
                              cholmod_common *cholmod) {
   CHECK(A);
   CHECK(cholmod);
-
-  // CHECK_GE(row_end_idx, row_start_idx);
-  // CHECK_LT(row_end_idx, static_cast<std::ptrdiff_t>(A->nrow));
-  // CHECK_GE(row_start_idx, 0);
+  CHECK(row_end_idx >= row_start_idx);
+  CHECK(row_end_idx < static_cast<std::ptrdiff_t>(A->nrow));
+  CHECK(row_start_idx >= 0);
 
   const std::ptrdiff_t num_indices = row_end_idx - row_start_idx + 1;
   std::ptrdiff_t *row_indices = new std::ptrdiff_t[num_indices];
@@ -204,9 +202,10 @@ void reduceLeftHandSide(SuiteSparseQR_factorization<double> *factor,
   CHECK(factor);
   CHECK(A_rtQ);
 
-  cholmod_sparse *A_rtQFull =
-      SuiteSparseQR_qmult<double>(SPQR_XQ, factor, A_rt, cholmod);
+  // clang-format off
+  cholmod_sparse *A_rtQFull = SuiteSparseQR_qmult<double>(SPQR_XQ, factor, A_rt, cholmod);
   CHECK(A_rtQFull != nullptr);
+  // clang-format on
 
   *A_rtQ = columnSubmatrix(A_rtQFull, 0, factor->QRsym->n - 1, cholmod);
   cholmod_l_free_sparse(&A_rtQFull, cholmod);
@@ -220,10 +219,9 @@ void reduceLeftHandSide(SuiteSparseQR_factorization<double> *factor,
   A_rt2->stype = 1;
 
   double alpha[2];
-  alpha[0] = 1.0;
   double beta[2];
+  alpha[0] = 1.0;
   beta[0] = -1.0;
-
   *Omega = cholmod_l_add(A_rt2, A_rtQ2, alpha, beta, 1, 1, cholmod);
   CHECK(*Omega != nullptr);
 
@@ -393,7 +391,7 @@ void cholmod_convert(const cholmod_sparse *in, matx_t &out) {
 
 // CHOLMOD Dense to Eigen Dense Copy
 void cholmod_convert(const cholmod_dense *in, vecx_t &out) {
-  // CHECK_NOTNULL(in);
+  CHECK(in);
   out.resize(in->nrow);
   const double *in_val = reinterpret_cast<const double *>(in->x);
   std::copy(in_val, in_val + in->nrow, out.data());
@@ -401,7 +399,7 @@ void cholmod_convert(const cholmod_dense *in, vecx_t &out) {
 
 // Eigen Dense To CHOLMOD Dense
 void cholmod_convert(const vecx_t &in, cholmod_dense *out) {
-  // CHECK_NOTNULL(out);
+  CHECK(out);
   out->nrow = in.size();
   out->ncol = 1;
   out->nzmax = in.size();
@@ -432,8 +430,8 @@ cholmod_sparse *cholmod_convert(const matx_t &A,
   CHECK(eps > 0.0);
 
   size_t nzmax = 0;
-  for (std::ptrdiff_t i = 0; i < A.rows(); ++i) {
-    for (std::ptrdiff_t j = 0; j < A.cols(); ++j) {
+  for (long int i = 0; i < A.rows(); ++i) {
+    for (long int j = 0; j < A.cols(); ++j) {
       if (std::fabs(A(i, j)) > eps) {
         nzmax++;
       }
@@ -471,8 +469,8 @@ cholmod_sparse *cholmod_convert(const matx_t &A,
 /// TRUNCATED SOLVER /////////////////////////////////////////////////////////
 
 truncated_solver_t::truncated_solver_t() {
+  cholmod_.SPQR_nthreads = 0;
   cholmod_l_start(&cholmod_);
-  cholmod_.SPQR_nthreads = 4;
 }
 
 truncated_solver_t::~truncated_solver_t() {
@@ -485,12 +483,17 @@ void truncated_solver_t::clear() {
     SuiteSparseQR_free<double>(&factor_, &cholmod_);
     factor_ = nullptr;
   }
-  clearSvdAnalysisResultMembers();
+  svdRank_ = -1;
+  svGap_ = std::numeric_limits<double>::infinity();
+  svdRankDeficiency_ = -1;
+  svdTolerance_ = -1.0;
+  singularValues_.resize(0);
+  matrixU_.resize(0, 0);
+  matrixV_.resize(0, 0);
+
   linearSolverTime_ = 0.0;
   marginalAnalysisTime_ = 0.0;
 }
-
-ssize_t truncated_solver_t::getSVDRank() const { return svdRank_; }
 
 const vecx_t &truncated_solver_t::getSingularValues() const {
   return singularValues_;
@@ -501,11 +504,6 @@ double truncated_solver_t::getSingularValuesLog2Sum() const {
     return 0.0;
   }
   return singularValues_.head(svdRank_).array().log().sum() / std::log(2);
-}
-
-void truncated_solver_t::setNThreads(int n) {
-  CHECK(n >= -1);
-  cholmod_.SPQR_nthreads = n;
 }
 
 void truncated_solver_t::solve(cholmod_sparse *A,
@@ -582,7 +580,7 @@ void truncated_solver_t::solve(cholmod_sparse *A,
       SelfFreeingCholmodPtr<cholmod_sparse> A_rtQ(nullptr, cholmod_);
       SelfFreeingCholmodPtr<cholmod_sparse> Omega(nullptr, cholmod_);
       reduceLeftHandSide(factor_, A_rt, &Omega, &A_rtQ, &cholmod_);
-      analyzeSVD(Omega);
+      _analyze_svd(Omega);
       b_r = reduceRightHandSide(factor_, A_rt, A_rtQ, b, &cholmod_);
       // clang-format on
     }
@@ -591,7 +589,7 @@ void truncated_solver_t::solve(cholmod_sparse *A,
       x_l = solveQR(factor_, b, A_r, x_r, &cholmod_);
     }
   } else {
-    analyzeSVD(nullptr);
+    _analyze_svd(nullptr);
     x_r.resize(0);
     if (hasQrPart) {
       x_l = solveQR(factor_, b, nullptr, x_r, &cholmod_);
@@ -616,6 +614,7 @@ void truncated_solver_t::solve(cholmod_sparse *A,
     }
   }
 
+  // Form update vector x
   x.resize(A->ncol);
   if (hasQrPart) {
     Eigen::Map<vecx_t> x_lEigen(reinterpret_cast<double *>(x_l->x), x_l->nrow);
@@ -625,13 +624,17 @@ void truncated_solver_t::solve(cholmod_sparse *A,
     x.tail(x_r.size()) = x_r;
   }
 
+  // Calculate calib covar determinant
+  // calib_covar_det = -1.0 *
+  // singularValues_.head(svdRank_).array().log().sum();
+
   // linearSolverTime_ = Timestamp::now() - t0;
 }
 
-void truncated_solver_t::analyzeSVD(const cholmod_sparse *Omega,
-                                    vecx_t &sv,
-                                    matx_t &U,
-                                    matx_t &V) {
+void truncated_solver_t::_analyze_svd(const cholmod_sparse *Omega,
+                                      vecx_t &sv,
+                                      matx_t &U,
+                                      matx_t &V) {
   CHECK(Omega);
 
   // clang-format off
@@ -644,9 +647,9 @@ void truncated_solver_t::analyzeSVD(const cholmod_sparse *Omega,
   // clang-format on
 }
 
-void truncated_solver_t::analyzeSVD(cholmod_sparse *Omega) {
+void truncated_solver_t::_analyze_svd(cholmod_sparse *Omega) {
   if (Omega) {
-    analyzeSVD(Omega, singularValues_, matrixU_, matrixV_);
+    _analyze_svd(Omega, singularValues_, matrixU_, matrixV_);
     svdTolerance_ = (tsvd_options_.svdTol != -1.0)
                         ? tsvd_options_.svdTol
                         : rankTol(singularValues_, tsvd_options_.epsSVD);
@@ -654,13 +657,20 @@ void truncated_solver_t::analyzeSVD(cholmod_sparse *Omega) {
     svdRankDeficiency_ = singularValues_.size() - svdRank_;
     svGap_ = svGap(singularValues_, svdRank_);
   } else {
-    clearSvdAnalysisResultMembers();
+    svdRank_ = -1;
+    svGap_ = std::numeric_limits<double>::infinity();
+    svdRankDeficiency_ = -1;
+    svdTolerance_ = -1.0;
+    singularValues_.resize(0);
+    matrixU_.resize(0, 0);
+    matrixV_.resize(0, 0);
+
     svdRank_ = 0;
     svdRankDeficiency_ = 0;
   }
 }
 
-void truncated_solver_t::analyzeMarginal(cholmod_sparse *A, size_t j) {
+void truncated_solver_t::analyze_marginal(cholmod_sparse *A, size_t j) {
   // const double t0 = Timestamp::now();
   const bool hasQrPart = j > 0;
   const bool hasSvdPart = j < A->ncol;
@@ -709,22 +719,12 @@ void truncated_solver_t::analyzeMarginal(cholmod_sparse *A, size_t j) {
     SelfFreeingCholmodPtr<cholmod_sparse> Omega(nullptr, cholmod_);
     SelfFreeingCholmodPtr<cholmod_sparse> A_rtQ(nullptr, cholmod_);
     reduceLeftHandSide(factor_, A_rt, &Omega, &A_rtQ, &cholmod_);
-    analyzeSVD(Omega);
+    _analyze_svd(Omega);
   } else {
-    analyzeSVD(nullptr);
+    _analyze_svd(nullptr);
   }
 
   // marginalAnalysisTime_ = Timestamp::now() - t0;
-}
-
-void truncated_solver_t::clearSvdAnalysisResultMembers() {
-  svdRank_ = -1;
-  svGap_ = std::numeric_limits<double>::infinity();
-  svdRankDeficiency_ = -1;
-  svdTolerance_ = -1.0;
-  singularValues_.resize(0);
-  matrixU_.resize(0, 0);
-  matrixV_.resize(0, 0);
 }
 
 } // namespace yac

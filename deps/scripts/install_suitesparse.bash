@@ -3,6 +3,13 @@ set -e
 BASEDIR=$(dirname "$0")
 source "$BASEDIR/config.bash"
 
+# Install Deps
+apt_install libgmp3-dev
+apt_install libmpfr-dev
+apt_install libmpfr-doc
+apt_install libsuitesparse-dev
+apt_install libsuitesparse-doc
+
 # VERSION="v5.10.1"
 # echo "building suitesparse [$VERSION] ..."
 #

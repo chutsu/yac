@@ -64,6 +64,7 @@ int main() {
 
   // Calibrate
   yac::calib_camera_t calib{target};
+  // calib.enable_nbv = false;
   calib.add_camera_data(test_data);
   calib.add_camera(0, cam_res, proj_model, dist_model);
   calib.add_camera(1, cam_res, proj_model, dist_model);
@@ -85,7 +86,7 @@ int main() {
   // calib._solve_nbv();
   // clang-format on
 
-  calib.show_results();
+  // calib.show_results();
   calib.save_results("/tmp/calib-results.yaml");
   calib.inspect(test_data);
   calib.inspect(valid_data);

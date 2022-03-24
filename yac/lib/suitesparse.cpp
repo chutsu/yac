@@ -678,23 +678,24 @@ void truncated_solver_t::analyze_marginal(cholmod_sparse *A, size_t j) {
   if (hasQrPart) {
     SelfFreeingCholmodPtr<cholmod_sparse>
         A_l(columnSubmatrix(A, 0, j - 1, &cholmod_), cholmod_);
-    if (factor_ && factor_->QRsym &&
-        (factor_->QRsym->m != static_cast<std::ptrdiff_t>(A_l->nrow) ||
-         factor_->QRsym->n != static_cast<std::ptrdiff_t>(A_l->ncol) ||
-         factor_->QRsym->anz != static_cast<std::ptrdiff_t>(A_l->nzmax))) {
-      clear();
-    }
-    if (!factor_) {
-      // const double t2 = Timestamp::now();
-      factor_ = SuiteSparseQR_symbolic<double>(SPQR_ORDERING_BEST,
-                                               SPQR_DEFAULT_TOL,
-                                               A_l,
-                                               &cholmod_);
-      CHECK(factor_);
+    // if (factor_ && factor_->QRsym &&
+    //     (factor_->QRsym->m != static_cast<std::ptrdiff_t>(A_l->nrow) ||
+    //      factor_->QRsym->n != static_cast<std::ptrdiff_t>(A_l->ncol) ||
+    //      factor_->QRsym->anz != static_cast<std::ptrdiff_t>(A_l->nzmax))) {
+    //   clear();
+    // }
+    clear();
+    // if (!factor_) {
+    // const double t2 = Timestamp::now();
+    factor_ = SuiteSparseQR_symbolic<double>(SPQR_ORDERING_BEST,
+                                             SPQR_DEFAULT_TOL,
+                                             A_l,
+                                             &cholmod_);
+    CHECK(factor_);
 
-      // const double t3 = Timestamp::now();
-      // cholmod_.other1[1] = t3 - t2;
-    }
+    // const double t3 = Timestamp::now();
+    // cholmod_.other1[1] = t3 - t2;
+    // }
 
     // const double t2 = Timestamp::now();
     const double qrTolerance = (tsvd_options_.qrTol != -1.0)

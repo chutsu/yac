@@ -10,6 +10,11 @@ std::map<int, yac::aprilgrids_t> load_dataset(const std::string data_path) {
 }
 
 int main(int argc, char *argv[]) {
+  if (argc != 3) {
+    printf("usage: %s <config_file> <dataset_path>\n", argv[0]);
+    return -1;
+  }
+
   const std::string config_file = argv[1];
   const std::string dataset_path = argv[2];
   const auto inspect_data = load_dataset(dataset_path);

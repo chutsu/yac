@@ -113,23 +113,6 @@ int test_calib_camera_add_camera() {
   return 0;
 }
 
-int test_calib_camera_add_camera_extrinsics() {
-  mat4_t cam0_exts = tf(quat_t{1.0, 0.0, 0.0, 0.0}, vec3_t{0.1, 0.2, 0.3});
-  mat4_t cam1_exts = tf(quat_t{1.0, 0.0, 0.0, 0.0}, vec3_t{0.4, 0.5, 0.6});
-  calib_target_t calib_target;
-  calib_camera_t calib{calib_target};
-  calib.add_camera_extrinsics(0, cam0_exts);
-  calib.add_camera_extrinsics(1, cam1_exts);
-
-  MU_CHECK(calib.cam_exts.size() == 2);
-  MU_CHECK(calib.cam_exts[0]->tf().isApprox(cam0_exts));
-  MU_CHECK(calib.cam_exts[0]->fixed == true);
-  MU_CHECK(calib.cam_exts[1]->tf().isApprox(cam1_exts));
-  MU_CHECK(calib.cam_exts[1]->fixed == false);
-
-  return 0;
-}
-
 int test_calib_camera_add_pose() {
   const int cam_res[2] = {752, 480};
   const std::string proj_model = "pinhole";
@@ -146,7 +129,6 @@ int test_calib_camera_add_pose() {
 
   calib_camera_t calib{calib_target};
   calib.add_camera(0, cam_res, proj_model, dist_model);
-  calib.add_camera_extrinsics(0);
 
   const timestamp_t ts = test_grid.timestamp;
   const std::map<int, aprilgrid_t> cam_grids = {{0, test_grid}};
@@ -165,8 +147,6 @@ int test_calib_camera_add_and_remove_view() {
   calib_camera_t calib{calib_target};
   calib.add_camera(0, cam_res, proj_model, dist_model);
   calib.add_camera(1, cam_res, proj_model, dist_model);
-  calib.add_camera_extrinsics(0);
-  calib.add_camera_extrinsics(1);
   calib.add_camera_data(0, test_data.at(0));
   calib.add_camera_data(1, test_data.at(1));
 
@@ -221,8 +201,6 @@ int test_calib_camera_add_nbv_view() {
   calib_camera_t calib{calib_target};
   calib.add_camera(0, cam_res, proj_model, dist_model);
   calib.add_camera(1, cam_res, proj_model, dist_model);
-  calib.add_camera_extrinsics(0);
-  calib.add_camera_extrinsics(1);
   calib.add_camera_data(0, test_data.at(0));
   calib.add_camera_data(1, test_data.at(1));
 
@@ -299,10 +277,10 @@ int test_calib_camera_find_nbv() {
   calib_camera_t calib{calib_target};
   calib.enable_nbv = false;
   calib.enable_outlier_filter = false;
-  calib.add_camera(0, cam_res, proj_model, dist_model);
-  calib.add_camera(1, cam_res, proj_model, dist_model);
   calib.add_camera_data(0, cam0_grids);
   calib.add_camera_data(1, cam1_grids);
+  calib.add_camera(0, cam_res, proj_model, dist_model);
+  calib.add_camera(1, cam_res, proj_model, dist_model);
   calib.solve();
 
   // Next best view poses
@@ -316,7 +294,6 @@ int test_calib_camera_find_nbv() {
   calib.find_nbv(nbv_poses, cam_idx, nbv_idx);
   printf("cam_idx: %d\n", cam_idx);
   printf("nbv_idx: %d\n", nbv_idx);
-  calib.solve();
 
   return 0;
 }
@@ -330,8 +307,6 @@ int test_calib_camera_filter_all_views() {
   calib_camera_t calib{calib_target};
   calib.add_camera(0, cam_res, proj_model, dist_model);
   calib.add_camera(1, cam_res, proj_model, dist_model);
-  calib.add_camera_extrinsics(0);
-  calib.add_camera_extrinsics(1);
   calib.add_camera_data(0, test_data.at(0));
   calib.add_camera_data(1, test_data.at(1));
 
@@ -356,8 +331,6 @@ int test_calib_camera_remove_all_views() {
   calib_camera_t calib{calib_target};
   calib.add_camera(0, cam_res, proj_model, dist_model);
   calib.add_camera(1, cam_res, proj_model, dist_model);
-  calib.add_camera_extrinsics(0);
-  calib.add_camera_extrinsics(1);
   calib.add_camera_data(0, test_data.at(0));
   calib.add_camera_data(1, test_data.at(1));
 
@@ -383,8 +356,6 @@ int test_calib_camera_remove_outliers() {
   calib_camera_t calib{calib_target};
   calib.add_camera(0, cam_res, proj_model, dist_model);
   calib.add_camera(1, cam_res, proj_model, dist_model);
-  calib.add_camera_extrinsics(0);
-  calib.add_camera_extrinsics(1);
   calib.add_camera_data(0, test_data.at(0));
   calib.add_camera_data(1, test_data.at(1));
 
@@ -415,8 +386,7 @@ int test_calib_camera_solve_batch() {
   calib.enable_nbv = false;
   calib.add_camera_data(0, test_data.at(0));
   calib.add_camera(0, cam_res, proj_model, dist_model);
-  calib.add_camera_extrinsics(0);
-  calib._solve_batch(true);
+  calib._solve_batch();
   calib.show_results();
 
   return 0;
@@ -507,8 +477,6 @@ int test_marg_error() {
   calib.add_camera_data(1, cam1_grids);
   calib.add_camera(0, cam_res, proj_model, dist_model);
   calib.add_camera(1, cam_res, proj_model, dist_model);
-  calib.add_camera_extrinsics(0);
-  calib.add_camera_extrinsics(1);
 
   // Build problem
   for (const auto ts : calib.timestamps) {
@@ -551,7 +519,6 @@ void test_suite() {
   MU_ADD_TEST(test_calib_view);
   MU_ADD_TEST(test_calib_camera_add_camera_data);
   MU_ADD_TEST(test_calib_camera_add_camera);
-  MU_ADD_TEST(test_calib_camera_add_camera_extrinsics);
   MU_ADD_TEST(test_calib_camera_add_pose);
   MU_ADD_TEST(test_calib_camera_add_and_remove_view);
   MU_ADD_TEST(test_calib_camera_add_nbv_view);

@@ -5,7 +5,7 @@ namespace yac {
 // CAMCHAIN ////////////////////////////////////////////////////////////////////
 
 camchain_t::camchain_t(const camera_data_t &cam_data,
-                       const std::map<int, camera_geometry_t *> &cam_geoms,
+                       const CamIdx2Geometry &cam_geoms,
                        const std::map<int, camera_params_t *> &cam_params) {
   for (const auto &kv : cam_data) {
     const auto &ts = kv.first;
@@ -169,6 +169,13 @@ calib_view_t::calib_view_t(const timestamp_t ts_,
       cam_params{cam_params_}, cam_exts{cam_exts_}, T_C0F{T_C0F_} {
   const mat2_t covar = I(2);
   for (const auto &[cam_idx, cam_grid] : grids_) {
+    if (cam_params->count(cam_idx) == 0) {
+      continue;
+    }
+    if (cam_grid.detected == false) {
+      continue;
+    }
+
     // Get AprilGrid measurements
     std::vector<int> tag_ids;
     std::vector<int> corner_idxs;
@@ -375,6 +382,170 @@ void calib_view_t::marginalize(marg_residual_t *marg_residual) {
 
 // CALIB CAMERA ////////////////////////////////////////////////////////////////
 
+static void print_calib_target(FILE *out, calib_target_t &calib_target) {
+  fprintf(out, "calib_target:\n");
+  fprintf(out, "  target_type: %s\n", calib_target.target_type.c_str());
+  fprintf(out, "  tag_rows: %d\n", calib_target.tag_rows);
+  fprintf(out, "  tag_cols: %d\n", calib_target.tag_cols);
+  fprintf(out, "  tag_size: %f\n", calib_target.tag_size);
+  fprintf(out, "  tag_spacing: %f\n", calib_target.tag_spacing);
+  fprintf(out, "\n");
+}
+
+static void print_estimates(FILE *out,
+                            CamIdx2Parameters &cam_params,
+                            CamIdx2Extrinsics &cam_exts) {
+  const bool max_digits = (out == stdout) ? false : true;
+
+  // Camera parameters
+  for (auto &kv : cam_params) {
+    const auto cam_idx = kv.first;
+    const auto cam = kv.second;
+    const int *cam_res = cam->resolution;
+    const char *proj_model = cam->proj_model.c_str();
+    const char *dist_model = cam->dist_model.c_str();
+    const auto proj_params = vec2str(cam->proj_params(), true, max_digits);
+    const auto dist_params = vec2str(cam->dist_params(), true, max_digits);
+
+    fprintf(out, "cam%d:\n", cam_idx);
+    fprintf(out, "  fixed: %s\n", cam->fixed ? "true" : "false");
+    fprintf(out, "  resolution: [%d, %d]\n", cam_res[0], cam_res[1]);
+    fprintf(out, "  proj_model: \"%s\"\n", proj_model);
+    fprintf(out, "  dist_model: \"%s\"\n", dist_model);
+    fprintf(out, "  proj_params: %s\n", proj_params.c_str());
+    fprintf(out, "  dist_params: %s\n", dist_params.c_str());
+    fprintf(out, "\n");
+  }
+
+  // Camera-Camera extrinsics
+  const mat4_t T_BC0 = cam_exts[0]->tf();
+  const mat4_t T_C0B = tf_inv(T_BC0);
+  for (auto &kv : cam_exts) {
+    const auto cam_idx = kv.first;
+    const auto cam_ext = kv.second;
+    if (cam_idx == 0) {
+      continue;
+    }
+
+    const mat4_t T_BCi = cam_ext->tf();
+    const mat4_t T_C0Ci = T_C0B * T_BCi;
+    fprintf(out, "T_cam0_cam%d:\n", cam_idx);
+    fprintf(out, "  fixed: %s\n", cam_ext->fixed ? "true" : "false");
+    fprintf(out, "  rows: 4\n");
+    fprintf(out, "  cols: 4\n");
+    fprintf(out, "  data: [\n");
+    fprintf(out, "%s\n", mat2str(T_C0Ci, "    ", max_digits).c_str());
+    fprintf(out, "  ]\n");
+    fprintf(out, "\n");
+  }
+}
+
+static void calib_initialize(const calib_target_t &calib_target,
+                             const camera_data_t &calib_data,
+                             const std::string &solver_type,
+                             CamIdx2Geometry &cam_geoms,
+                             CamIdx2Parameters &cam_params,
+                             CamIdx2Extrinsics &cam_exts,
+                             std::map<timestamp_t, pose_t *> &poses) {
+  // Setup solver
+  solver_t *solver = nullptr;
+  if (solver_type == "CERES-SOLVER") {
+    solver = new ceres_solver_t();
+  } else if (solver_type == "YAC-SOLVER") {
+    solver = new yac_solver_t();
+  } else {
+    FATAL("Unsupported solver type [%s]", solver_type.c_str());
+  }
+
+  // Corners
+  auto corners = new fiducial_corners_t(calib_target);
+  const int nb_tags = calib_target.tag_rows * calib_target.tag_cols;
+  for (int tag_id = 0; tag_id < nb_tags; tag_id++) {
+    for (int corner_idx = 0; corner_idx < 4; corner_idx++) {
+      solver->add_param(corners->get_corner(tag_id, corner_idx));
+    }
+  }
+
+  // Data
+  poses.clear();
+  std::map<timestamp_t, calib_view_t *> calib_views;
+
+  // Setup problem
+  // -- Add camera parameters
+  for (auto &[cam_idx, param] : cam_params) {
+    UNUSED(cam_idx);
+    solver->add_param(param);
+  }
+  // -- Add camera extrinsics
+  for (auto &[cam_idx, param] : cam_exts) {
+    UNUSED(cam_idx);
+    solver->add_param(param);
+  }
+  // -- Add reprojection errors
+  for (auto &[ts, cam_grids] : calib_data) {
+    // Find the AprilGrid that has the most observations at timestamp ts
+    int best_cam_idx = -1;
+    aprilgrid_t best_grid;
+    for (const auto &[cam_idx, grid] : cam_grids) {
+      if (cam_params.count(cam_idx) == 0) {
+        continue;
+      }
+      if (cam_exts.count(cam_idx) == 0) {
+        continue;
+      }
+      if (grid.detected == false) {
+        continue;
+      }
+      if (grid.nb_detections > best_grid.nb_detections) {
+        best_cam_idx = cam_idx;
+        best_grid = grid;
+      }
+    }
+    if (best_cam_idx == -1) {
+      continue;
+    }
+    // -- Estimate relative pose T_C0F
+    const auto cam_geom = cam_geoms[best_cam_idx];
+    const vecx_t param = cam_params[best_cam_idx]->param;
+    const auto res = cam_params[best_cam_idx]->resolution;
+    mat4_t T_CiF;
+    if (best_grid.estimate(cam_geom, res, param, T_CiF) != 0) {
+      FATAL("Failed to estimate relative pose!");
+    }
+    // -- Add relative pose T_C0F
+    const mat4_t T_C0Ci = cam_exts.at(best_cam_idx)->tf();
+    const mat4_t T_C0F = T_C0Ci * T_CiF;
+    poses[ts] = new pose_t{ts, T_C0F};
+    solver->add_param(poses[ts]);
+
+    // Add calibration view
+    calib_views[ts] = new calib_view_t{ts,
+                                       cam_grids,
+                                       corners,
+                                       solver,
+                                       &cam_geoms,
+                                       &cam_params,
+                                       &cam_exts,
+                                       poses[ts]};
+  }
+
+  // Solve
+  // printf("Before:\n");
+  // print_estimates(stdout, cam_params, cam_exts);
+  // printf("\n");
+  solver->solve(50, true, 0);
+  // printf("After:\n");
+  // print_estimates(stdout, cam_params, cam_exts);
+  // printf("\n");
+
+  // Clean up
+  for (auto &[ts, view] : calib_views) {
+    delete view;
+  }
+  delete corners;
+  delete solver;
+}
+
 calib_camera_t::calib_camera_t(const calib_target_t &calib_target_)
     : calib_target{calib_target_},
       calib_rng(std::chrono::system_clock::now().time_since_epoch().count()) {
@@ -463,23 +634,23 @@ calib_camera_t::calib_camera_t(const std::string &config_path)
   }
   // -- Parse camera extrinsics
   for (const auto cam_idx : get_camera_indices()) {
-    // First camera
-    if (cam_idx == 0) {
-      add_camera_extrinsics(0);
-    }
+    // // First camera
+    // if (cam_idx == 0) {
+    //   add_camera_extrinsics(0);
+    // }
 
     // Check if key exists
     const std::string cam_str = "cam" + std::to_string(cam_idx);
     const std::string key = "T_cam0_" + cam_str;
     if (yaml_has_key(config, key) == 0) {
-      add_camera_extrinsics(cam_idx);
+      // add_camera_extrinsics(cam_idx);
       continue;
     }
 
     // Extract and add camera extrinsics
     mat4_t T_C0Ci = zeros(4, 4);
     parse(config, key, T_C0Ci);
-    add_camera_extrinsics(cam_idx, T_C0Ci);
+    cam_exts[cam_idx]->param = tf_vec(T_C0Ci);
   }
 
   // Load calibration data
@@ -656,9 +827,9 @@ void calib_camera_t::add_camera_data(const int cam_idx,
     }
   }
 
-  if (cam_params.count(cam_idx)) {
-    if (focal_lengths.size()) {
-      focal_length_init[cam_idx] = median(focal_lengths);
+  if (focal_lengths.size() > 3) {
+    focal_length_init[cam_idx] = median(focal_lengths);
+    if (cam_params.count(cam_idx)) {
       cam_params[cam_idx]->param[0] = focal_length_init[cam_idx];
       cam_params[cam_idx]->param[1] = focal_length_init[cam_idx];
     }
@@ -684,7 +855,9 @@ void calib_camera_t::add_camera(const int cam_idx,
                                 const std::string &dist_model,
                                 const vecx_t &proj_params,
                                 const vecx_t &dist_params,
-                                const bool fixed) {
+                                const mat4_t &ext,
+                                const bool fix_intrinsics,
+                                const bool fix_extrinsics) {
   // Camera parameters
   cam_params[cam_idx] = new camera_params_t{cam_idx,
                                             cam_res,
@@ -692,7 +865,7 @@ void calib_camera_t::add_camera(const int cam_idx,
                                             dist_model,
                                             proj_params,
                                             dist_params,
-                                            fixed};
+                                            fix_intrinsics};
 
   // Camera geometry
   if (proj_model == "pinhole" && dist_model == "radtan4") {
@@ -703,15 +876,21 @@ void calib_camera_t::add_camera(const int cam_idx,
     FATAL("Unsupported [%s]-[%s]!", proj_model.c_str(), dist_model.c_str());
   }
 
+  // Camera extrinsics
+  cam_exts[cam_idx] = new extrinsics_t{ext, fix_extrinsics};
+
   // Add parameter
   solver->add_param(cam_params[cam_idx]);
+  solver->add_param(cam_exts[cam_idx]);
 }
 
 void calib_camera_t::add_camera(const int cam_idx,
                                 const int cam_res[2],
                                 const std::string &proj_model,
                                 const std::string &dist_model,
-                                const bool fixed) {
+                                const mat4_t &ext,
+                                const bool fix_intrinsics,
+                                const bool fix_extrinsics) {
   // Projection params
   vecx_t proj_params;
   if (proj_model == "pinhole") {
@@ -721,8 +900,8 @@ void calib_camera_t::add_camera(const int cam_idx,
       fx = focal_length_init[cam_idx];
       fy = focal_length_init[cam_idx];
     }
-    const double cx = cam_res[0] / 2.0;
-    const double cy = cam_res[1] / 2.0;
+    const double cx = (cam_res[0] - 1) / 2.0;
+    const double cy = (cam_res[1] - 1) / 2.0;
     proj_params.resize(4);
     proj_params << fx, fy, cx, cy;
   } else {
@@ -744,16 +923,9 @@ void calib_camera_t::add_camera(const int cam_idx,
              dist_model,
              proj_params,
              dist_params,
-             fixed);
-}
-
-void calib_camera_t::add_camera_extrinsics(const int cam_idx,
-                                           const mat4_t &ext,
-                                           const bool fixed) {
-  if (cam_exts.count(cam_idx) == 0) {
-    cam_exts[cam_idx] = new extrinsics_t{ext, (cam_idx == 0 || fixed)};
-  }
-  solver->add_param(cam_exts[cam_idx]);
+             ext,
+             fix_intrinsics,
+             (cam_idx == 0 || fix_extrinsics));
 }
 
 bool calib_camera_t::add_measurement(const timestamp_t ts,
@@ -938,7 +1110,6 @@ void calib_camera_t::remove_all_views() {
   for (const auto ts : view_timestamps) {
     remove_view(ts);
   }
-  problem_init = false;
   removed_outliers = 0;
 
   // Assert
@@ -1060,34 +1231,83 @@ int calib_camera_t::find_nbv(const std::map<int, mat4s_t> &nbv_poses,
 }
 
 void calib_camera_t::_initialize_intrinsics() {
+  // Lambda function to extract camera data
+  auto extract = [](const camera_data_t &calib_data, const int target_cam_idx) {
+    camera_data_t cam_data;
+    for (auto &[ts, cam_grids] : calib_data) {
+      for (const auto &[cam_idx, grid] : cam_grids) {
+        if (cam_idx == target_cam_idx) {
+          cam_data[ts] = {{cam_idx, grid}};
+        }
+      }
+    }
+
+    return cam_data;
+  };
+
+  // clang-format off
+  cam_params[0]->param(0) = 497.21158318;
+	cam_params[0]->param(1) = 497.21158318;
+	cam_params[0]->param(2) = 375.5;
+	cam_params[0]->param(3) = 239.5;
+
+  cam_params[1]->param(0) = 498.9019214;
+  cam_params[1]->param(1) = 498.9019214;
+  cam_params[1]->param(2) = 375.5;
+  cam_params[1]->param(3) = 239.5;
+
+	// cam_params[0]->param(0) = 460.24828848;
+	// cam_params[0]->param(1) = 459.0251254;
+	// cam_params[0]->param(2) = 369.72328368;
+	// cam_params[0]->param(3) = 245.36683352;
+	// cam_params[0]->param(4) = -0.2767399;
+	// cam_params[0]->param(5) = 0.06819449;
+	// cam_params[0]->param(6) = 0.00070068;
+	// cam_params[0]->param(7) = -0.00050046;
+
+	// cam_params[1]->param(0) = 458.77365347;
+	// cam_params[1]->param(1) = 457.44196865;
+	// cam_params[1]->param(2) = 377.68011614;
+	// cam_params[1]->param(3) = 250.77194059;
+	// cam_params[1]->param(4) = -0.2730006;
+	// cam_params[1]->param(5) = 0.06511653;
+	// cam_params[1]->param(6) = 0.00052369;
+	// cam_params[1]->param(7) = -0.00005088;
+  // clang-format on
+
+  // Initialize camera intrinsics
   for (const auto &cam_idx : get_camera_indices()) {
     if (verbose) {
       printf("Initializing cam%d intrinsics ...\n", cam_idx);
     }
 
-    const aprilgrids_t grids = get_camera_data(cam_idx);
-    auto cam_param = cam_params[cam_idx];
-    const auto cam_res = cam_param->resolution;
-    const auto proj_model = cam_param->proj_model;
-    const auto dist_model = cam_param->dist_model;
-    const vecx_t k = cam_param->proj_params();
-    const vecx_t d = cam_param->dist_params();
+    // Fix camera extrinsics
+    cam_exts[cam_idx]->fixed = true;
 
-    calib_camera_t calib{calib_target};
-    calib.verbose = true;
-    calib.enable_nbv = false;
-    calib.enable_outlier_filter = false;
-    calib.initialized = true;
-    calib.add_camera(0, cam_res, proj_model, dist_model, k, d);
-    calib.add_camera_extrinsics(0);
-    calib.add_camera_data(0, grids);
-    calib.solve();
-    cam_params[cam_idx]->param = calib.cam_params[0]->param;
+    // Initialize camera
+    std::map<timestamp_t, pose_t *> init_poses;
+    calib_initialize(calib_target,
+                     extract(calib_data, cam_idx),
+                     solver_type,
+                     cam_geoms,
+                     cam_params,
+                     cam_exts,
+                     init_poses);
+
+    // Clean up
+    for (auto &[ts, pose] : init_poses) {
+      UNUSED(ts);
+      delete pose;
+    }
+
+    // Un-fix camera extrinsics
+    if (cam_idx != 0) {
+      cam_exts[cam_idx]->fixed = false;
+    }
   }
 }
 
 void calib_camera_t::_initialize_extrinsics() {
-  add_camera_extrinsics(0);
   if (nb_cameras() == 1) {
     return;
   }
@@ -1096,6 +1316,7 @@ void calib_camera_t::_initialize_extrinsics() {
     printf("Initializing extrinsics ...\n");
   }
 
+  // Initialize camera extrinsics using solve-pnp
   camchain_t camchain{calib_data, cam_geoms, cam_params};
   for (const auto cam_idx : get_camera_indices()) {
     if (get_camera_data(cam_idx).size() == 0) {
@@ -1106,14 +1327,25 @@ void calib_camera_t::_initialize_extrinsics() {
     if (camchain.find(0, cam_idx, T_C0Ci) != 0) {
       FATAL("Failed to initialze T_C0C%d", cam_idx);
     }
-    add_camera_extrinsics(cam_idx, T_C0Ci);
+    cam_exts[cam_idx]->set_tf(T_C0Ci);
   }
 
-  // Initialize
-  if (enable_nbv) {
-    _solve_batch(false);
-    remove_all_views();
+  // Refine camera extrinsics via joint-optimization
+  std::map<timestamp_t, pose_t *> init_poses;
+  calib_initialize(calib_target,
+                   calib_data,
+                   solver_type,
+                   cam_geoms,
+                   cam_params,
+                   cam_exts,
+                   init_poses);
+
+  // Clean up
+  for (auto &[ts, pose] : init_poses) {
+    UNUSED(ts);
+    delete pose;
   }
+  init_poses.clear();
 }
 
 int calib_camera_t::_filter_all_views() {
@@ -1347,48 +1579,11 @@ void calib_camera_t::_print_stats(const size_t ts_idx,
   }
 }
 
-void calib_camera_t::_solve_batch(const bool filter_outliers) {
-  // Setup batch problem
-  if (problem_init == false) {
-    for (const auto ts : timestamps) {
-      add_view(calib_data[ts]);
-    }
-    problem_init = true;
+void calib_camera_t::_solve_batch() {
+  for (const auto &ts : timestamps) {
+    add_view(calib_data[ts]);
   }
-
-  // Solve
-  const int max_iter = 50;
-  solver->solve(max_iter, true, 1);
-
-  // std::vector<real_t> reproj_errors;
-  // for (auto &[ts, view] : calib_views) {
-  //   auto errors = view->get_reproj_errors();
-  //   reproj_errors.push_back(rmse(errors));
-  // }
-  // auto threshold = 4.0 * stddev(reproj_errors);
-  // timestamps_t bad_views;
-  // for (auto &[ts, view] : calib_views) {
-  //   if (rmse(view->get_reproj_errors()) >= threshold) {
-  //     bad_views.push_back(ts);
-  //   }
-  // }
-  // for (auto ts : bad_views) {
-  //   remove_view(ts);
-  // }
-  // printf("removed bad views: %ld\n", bad_views.size());
-  // solver->solve(max_iter, true, 1);
-
-  // // Final outlier rejection
-  // if (filter_outliers) {
-  //   removed_outliers = _filter_all_views();
-  //   if (verbose) {
-  //     printf("Final outlier rejectionn\n");
-  //     printf("Removed %d outliers!\n", removed_outliers);
-  //   }
-  //
-  //   // Solve again - second pass
-  //   solver->solve(max_iter);
-  // }
+  solver->solve(50, true, 1);
 }
 
 void calib_camera_t::_solve_inc() {
@@ -1414,7 +1609,6 @@ void calib_camera_t::_solve_inc() {
 
     // Update
     ts_idx++;
-    problem_init = true;
   }
 
   if (verbose) {
@@ -1458,9 +1652,6 @@ void calib_camera_t::_solve_nbv() {
       //     (calib_views.size() > (size_t)sliding_window_size)) {
       //   marginalize();
       // }
-
-      // Update
-      problem_init = true;
     }
 
     // Print stats
@@ -1489,22 +1680,6 @@ void calib_camera_t::_solve_nbv() {
   solver->solve(5, true, 1);
 }
 
-void calib_camera_t::batch_solve(const std::map<int, aprilgrids_t> &grids) {
-  // Print Calibration settings
-  if (verbose) {
-    print_settings(stdout);
-  }
-
-  // Setup problem
-  for (const auto ts : timestamps) {
-    add_view(calib_data[ts]);
-  }
-
-  // Solve
-  const int max_iter = 50;
-  solver->solve(max_iter, true, 1);
-}
-
 void calib_camera_t::solve() {
   // Print Calibration settings
   if (verbose) {
@@ -1512,24 +1687,21 @@ void calib_camera_t::solve() {
   }
 
   // Initialize camera intrinsics and extrinsics
-  if (initialized == false) {
-    _initialize_intrinsics();
-    _initialize_extrinsics();
-    initialized = true;
-  }
-
-  // Show initializations
+  _initialize_intrinsics();
+  _initialize_extrinsics();
   if (verbose) {
     printf("Initial camera intrinsics and extrinsics:\n");
-    print_estimates(stdout);
+    print_estimates(stdout, cam_params, cam_exts);
   }
 
   // Solve
   if (enable_nbv) {
+    printf("Solve NBV:\n");
     solver->algorithm_type = "GAUSS-NEWTON";
     _solve_nbv();
   } else {
-    _solve_batch(enable_outlier_filter);
+    printf("Solve Batch:\n");
+    _solve_batch();
   }
 
   // Show results
@@ -1579,56 +1751,6 @@ void calib_camera_t::print_metrics(
   }
 }
 
-void calib_camera_t::print_calib_target(FILE *out) {
-  fprintf(out, "calib_target:\n");
-  fprintf(out, "  target_type: %s\n", calib_target.target_type.c_str());
-  fprintf(out, "  tag_rows: %d\n", calib_target.tag_rows);
-  fprintf(out, "  tag_cols: %d\n", calib_target.tag_cols);
-  fprintf(out, "  tag_size: %f\n", calib_target.tag_size);
-  fprintf(out, "  tag_spacing: %f\n", calib_target.tag_spacing);
-  fprintf(out, "\n");
-}
-
-void calib_camera_t::print_estimates(FILE *out) {
-  const bool max_digits = (out == stdout) ? false : true;
-
-  // Camera parameters
-  for (auto &kv : cam_params) {
-    const auto cam_idx = kv.first;
-    const auto cam = cam_params.at(cam_idx);
-    const int *cam_res = cam->resolution;
-    const char *proj_model = cam->proj_model.c_str();
-    const char *dist_model = cam->dist_model.c_str();
-    const auto proj_params = vec2str(cam->proj_params(), true, max_digits);
-    const auto dist_params = vec2str(cam->dist_params(), true, max_digits);
-
-    fprintf(out, "cam%d:\n", cam_idx);
-    fprintf(out, "  resolution: [%d, %d]\n", cam_res[0], cam_res[1]);
-    fprintf(out, "  proj_model: \"%s\"\n", proj_model);
-    fprintf(out, "  dist_model: \"%s\"\n", dist_model);
-    fprintf(out, "  proj_params: %s\n", proj_params.c_str());
-    fprintf(out, "  dist_params: %s\n", dist_params.c_str());
-    fprintf(out, "\n");
-  }
-
-  // Camera-Camera extrinsics
-  const mat4_t T_BC0 = get_camera_extrinsics(0);
-  const mat4_t T_C0B = tf_inv(T_BC0);
-  if (nb_cameras() >= 2) {
-    for (int i = 1; i < nb_cameras(); i++) {
-      const mat4_t T_BCi = get_camera_extrinsics(i);
-      const mat4_t T_C0Ci = T_C0B * T_BCi;
-      fprintf(out, "T_cam0_cam%d:\n", i);
-      fprintf(out, "  rows: 4\n");
-      fprintf(out, "  cols: 4\n");
-      fprintf(out, "  data: [\n");
-      fprintf(out, "%s\n", mat2str(T_C0Ci, "    ", max_digits).c_str());
-      fprintf(out, "  ]\n");
-      fprintf(out, "\n");
-    }
-  }
-}
-
 void calib_camera_t::show_results() {
   const auto reproj_errors = get_reproj_errors();
   const auto reproj_errors_all = get_all_reproj_errors();
@@ -1636,7 +1758,7 @@ void calib_camera_t::show_results() {
   printf("---------------------\n");
   print_settings(stdout);
   print_metrics(stdout, reproj_errors, reproj_errors_all);
-  print_estimates(stdout);
+  print_estimates(stdout, cam_params, cam_exts);
 }
 
 int calib_camera_t::save_results(const std::string &save_path) {
@@ -1653,8 +1775,8 @@ int calib_camera_t::save_results(const std::string &save_path) {
   const auto reproj_errors_all = get_all_reproj_errors();
   print_settings(outfile);
   print_metrics(outfile, reproj_errors, reproj_errors_all);
-  print_calib_target(outfile);
-  print_estimates(outfile);
+  print_calib_target(outfile, calib_target);
+  print_estimates(outfile, cam_params, cam_exts);
 
   // Write estimates to file
   FILE *cam0 = fopen("/tmp/cam0.csv", "w");

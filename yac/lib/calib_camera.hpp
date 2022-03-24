@@ -20,7 +20,7 @@ struct camchain_t {
 
   /** Constructor */
   camchain_t(const camera_data_t &cam_data,
-             const std::map<int, camera_geometry_t *> &cam_geoms,
+             const CamIdx2Geometry &cam_geoms,
              const std::map<int, camera_params_t *> &cam_params);
 
   void _get_aprilgrids(const timestamp_t &ts,
@@ -88,8 +88,6 @@ struct calib_view_t {
 /** Camera Calibrator **/
 struct calib_camera_t {
   // Flags
-  bool initialized = false;
-  bool problem_init = false;
   bool filter_all = true;
 
   // Settings
@@ -111,7 +109,7 @@ struct calib_camera_t {
   // Data
   calib_target_t calib_target;
   std::set<timestamp_t> timestamps;
-  std::map<timestamp_t, std::map<int, aprilgrid_t>> calib_data;
+  camera_data_t calib_data;
   std::map<int, aprilgrids_t> validation_data;
   std::map<int, real_t> focal_length_init;
   int removed_outliers = 0;
@@ -188,15 +186,16 @@ struct calib_camera_t {
                   const std::string &dist_model,
                   const vecx_t &proj_params,
                   const vecx_t &dist_params,
-                  const bool fixed = false);
+                  const mat4_t &ext = I(4),
+                  const bool fix_intrinsics = false,
+                  const bool fix_extrinsics = false);
   void add_camera(const int cam_idx,
                   const int cam_res[2],
                   const std::string &proj_model,
                   const std::string &dist_model,
-                  const bool fixed = false);
-  void add_camera_extrinsics(const int cam_idx,
-                             const mat4_t &ext = I(4),
-                             const bool fixed = false);
+                  const mat4_t &ext = I(4),
+                  const bool fix_intrinsics = false,
+                  const bool fix_extrinsics = false);
   bool add_measurement(const timestamp_t ts,
                        const int cam_idx,
                        const cv::Mat &cam_img);
@@ -223,18 +222,15 @@ struct calib_camera_t {
   int _remove_outliers(const bool filter_all);
   void _track_estimates(const timestamp_t ts, const bool view_accepted);
   void _print_stats(const size_t ts_idx, const size_t nb_timestamps);
-  void _solve_batch(const bool filter_outliers);
+  void _solve_batch();
   void _solve_inc();
   void _solve_nbv();
-  void batch_solve(const std::map<int, aprilgrids_t> &grids);
   void solve();
 
   void print_settings(FILE *out);
   void print_metrics(FILE *out,
                      const std::map<int, std::vector<real_t>> &reproj_errors,
                      const std::vector<real_t> &reproj_errors_all);
-  void print_calib_target(FILE *out);
-  void print_estimates(FILE *out);
   void show_results();
 
   int save_results(const std::string &save_path);

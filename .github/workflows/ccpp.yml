@@ -12,8 +12,5 @@ jobs:
     - name: build yac
       run: sudo make lib
 
-    - name: build yac_ros
-      run: make release
-
     - name: run tests
       run: make tests

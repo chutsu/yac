@@ -57,10 +57,6 @@ struct pose_t : param_t {
   vec3_t trans() const;
   mat4_t tf() const;
 
-  quat_t rot();
-  vec3_t trans();
-  mat4_t tf();
-
   void set_trans(const vec3_t &r);
   void set_rot(const quat_t &q);
   void set_rot(const mat3_t &C);

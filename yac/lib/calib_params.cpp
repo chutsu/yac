@@ -63,10 +63,6 @@ vec3_t pose_t::trans() const { return vec3_t{param[0], param[1], param[2]}; }
 
 mat4_t pose_t::tf() const { return yac::tf(rot(), trans()); }
 
-quat_t pose_t::rot() { return static_cast<const pose_t &>(*this).rot(); }
-vec3_t pose_t::trans() { return static_cast<const pose_t &>(*this).trans(); }
-mat4_t pose_t::tf() { return static_cast<const pose_t &>(*this).tf(); }
-
 void pose_t::set_trans(const vec3_t &r) {
   param(0) = r(0);
   param(1) = r(1);

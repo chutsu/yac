@@ -370,7 +370,8 @@ bool reproj_residual_t::EvaluateWithMinimalJacobians(
     const mat4_t T_CiF = T_CiC0 * T_C0F;
     const mat3_t C_CiF = tf_rot(T_CiF);
     const matx_t J_min = Jh_weighted * C_CiF;
-    J = J_min;
+    // J = J_min;
+    J = (valid) ? J_min : zeros(2, 3);
 
     if (min_jacs && min_jacs[2]) {
       Eigen::Map<mat_t<2, 3, row_major_t>> min_J(min_jacs[2]);
@@ -383,7 +384,8 @@ bool reproj_residual_t::EvaluateWithMinimalJacobians(
     Eigen::Map<mat_t<2, 8, row_major_t>> J(jacs[3]);
     const matx_t J_cam = cam_geom->params_jacobian(param, p_CiFi);
     const matx_t J_min = -1 * sqrt_info * J_cam;
-    J = J_min;
+    // J = J_min;
+    J = (valid) ? J_min : zeros(2, 8);
 
     if (min_jacs && min_jacs[3]) {
       Eigen::Map<mat_t<2, 8, row_major_t>> min_J(min_jacs[3]);

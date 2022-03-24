@@ -95,8 +95,8 @@ struct calib_camera_t {
   // Settings
   // -- General
   bool verbose = true;
-  // std::string solver_type = "CERES-SOLVER";
-  std::string solver_type = "YAC-SOLVER";
+  std::string solver_type = "CERES-SOLVER";
+  // std::string solver_type = "YAC-SOLVER";
   int max_num_threads = 8;
   bool enable_nbv = true;
   bool enable_shuffle_views = true;
@@ -113,6 +113,7 @@ struct calib_camera_t {
   std::set<timestamp_t> timestamps;
   std::map<timestamp_t, std::map<int, aprilgrid_t>> calib_data;
   std::map<int, aprilgrids_t> validation_data;
+  std::map<int, real_t> focal_length_init;
   int removed_outliers = 0;
 
   // Buffers
@@ -225,6 +226,7 @@ struct calib_camera_t {
   void _solve_batch(const bool filter_outliers);
   void _solve_inc();
   void _solve_nbv();
+  void batch_solve(const std::map<int, aprilgrids_t> &grids);
   void solve();
 
   void print_settings(FILE *out);

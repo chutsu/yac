@@ -647,6 +647,21 @@ void calib_camera_t::add_camera_data(const int cam_idx,
     const auto ts = grid.timestamp;
     timestamps.insert(ts);
     calib_data[ts][cam_idx] = grid;
+
+    real_t focal = 0.0;
+    if (grid.detected && grid.fully_observable()) {
+      if (focal_init(grid, 0, focal) == 0) {
+        focal_lengths.push_back(focal);
+      }
+    }
+  }
+
+  if (cam_params.count(cam_idx)) {
+    if (focal_lengths.size()) {
+      focal_length_init[cam_idx] = median(focal_lengths);
+      cam_params[cam_idx]->param[0] = focal_length_init[cam_idx];
+      cam_params[cam_idx]->param[1] = focal_length_init[cam_idx];
+    }
   }
 }
 
@@ -700,8 +715,12 @@ void calib_camera_t::add_camera(const int cam_idx,
   // Projection params
   vecx_t proj_params;
   if (proj_model == "pinhole") {
-    const double fx = pinhole_focal(cam_res[0], 120);
-    const double fy = pinhole_focal(cam_res[0], 120);
+    double fx = pinhole_focal(cam_res[0], 120);
+    double fy = pinhole_focal(cam_res[0], 120);
+    if (focal_length_init.count(cam_idx)) {
+      fx = focal_length_init[cam_idx];
+      fy = focal_length_init[cam_idx];
+    }
     const double cx = cam_res[0] / 2.0;
     const double cy = cam_res[1] / 2.0;
     proj_params.resize(4);
@@ -1055,12 +1074,13 @@ void calib_camera_t::_initialize_intrinsics() {
     const vecx_t d = cam_param->dist_params();
 
     calib_camera_t calib{calib_target};
+    calib.verbose = true;
+    calib.enable_nbv = false;
+    calib.enable_outlier_filter = false;
+    calib.initialized = true;
     calib.add_camera(0, cam_res, proj_model, dist_model, k, d);
     calib.add_camera_extrinsics(0);
     calib.add_camera_data(0, grids);
-    calib.verbose = false;
-    calib.enable_nbv = false;
-    calib.initialized = true;
     calib.solve();
     cam_params[cam_idx]->param = calib.cam_params[0]->param;
   }
@@ -1358,17 +1378,17 @@ void calib_camera_t::_solve_batch(const bool filter_outliers) {
   // printf("removed bad views: %ld\n", bad_views.size());
   // solver->solve(max_iter, true, 1);
 
-  // Final outlier rejection
-  if (filter_outliers) {
-    removed_outliers = _filter_all_views();
-    if (verbose) {
-      printf("Final outlier rejectionn\n");
-      printf("Removed %d outliers!\n", removed_outliers);
-    }
-
-    // Solve again - second pass
-    solver->solve(max_iter);
-  }
+  // // Final outlier rejection
+  // if (filter_outliers) {
+  //   removed_outliers = _filter_all_views();
+  //   if (verbose) {
+  //     printf("Final outlier rejectionn\n");
+  //     printf("Removed %d outliers!\n", removed_outliers);
+  //   }
+  //
+  //   // Solve again - second pass
+  //   solver->solve(max_iter);
+  // }
 }
 
 void calib_camera_t::_solve_inc() {
@@ -1454,19 +1474,35 @@ void calib_camera_t::_solve_nbv() {
   }
 
   // Final outlier rejection, then batch solve
-  if (enable_outlier_filter) {
-    if (verbose) {
-      printf("Performing Final Outlier Rejection\n");
-    }
-    removed_outliers += _remove_outliers(true);
-    if (verbose) {
-      printf("Removed %d outliers\n", removed_outliers);
-    }
-  }
+  // if (enable_outlier_filter) {
+  //   if (verbose) {
+  //     printf("Performing Final Outlier Rejection\n");
+  //   }
+  //   removed_outliers += _remove_outliers(true);
+  //   if (verbose) {
+  //     printf("Removed %d outliers\n", removed_outliers);
+  //   }
+  // }
 
   // Final Solve
-  // removed_outliers = _filter_all_views();
+  removed_outliers = _filter_all_views();
   solver->solve(5, true, 1);
+}
+
+void calib_camera_t::batch_solve(const std::map<int, aprilgrids_t> &grids) {
+  // Print Calibration settings
+  if (verbose) {
+    print_settings(stdout);
+  }
+
+  // Setup problem
+  for (const auto ts : timestamps) {
+    add_view(calib_data[ts]);
+  }
+
+  // Solve
+  const int max_iter = 50;
+  solver->solve(max_iter, true, 1);
 }
 
 void calib_camera_t::solve() {

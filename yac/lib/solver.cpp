@@ -394,6 +394,17 @@ void solver_t::_update(const ParameterOrder &param_order, const vecx_t &dx) {
   }
 }
 
+void solver_t::clear() {
+  tsolver.clear();
+  marg_idx = 0;
+
+  res_fns.clear();
+  params.clear();
+  params_cache.clear();
+  param2res.clear();
+  res2param.clear();
+}
+
 int solver_t::estimate_covariance(const std::vector<param_t *> params,
                                   matx_t &calib_covar) const {
   // Evaluate residuals

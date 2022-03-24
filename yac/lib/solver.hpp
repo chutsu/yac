@@ -70,6 +70,7 @@ struct solver_t {
   void _form_hessian(ParameterOrder &param_order, matx_t &H, vecx_t &b);
   void _update(const ParameterOrder &param_order, const vecx_t &dx);
 
+  void clear();
   virtual int estimate_covariance(const std::vector<param_t *> params,
                                   matx_t &calib_covar) const;
   virtual int estimate_covariance_determinant(

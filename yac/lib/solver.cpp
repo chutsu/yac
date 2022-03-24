@@ -382,10 +382,10 @@ void solver_t::_form_hessian(ParameterOrder &param_order,
   }
   prof.stop("form_hessian-fill_values");
 
-  printf("profile:\n");
-  prof.print("form_hessian-eval_residuals");
-  prof.print("form_hessian-fill_values");
-  printf("\n");
+  // printf("profile:\n");
+  // prof.print("form_hessian-eval_residuals");
+  // prof.print("form_hessian-fill_values");
+  // printf("\n");
 }
 
 void solver_t::_update(const ParameterOrder &param_order, const vecx_t &dx) {
@@ -665,7 +665,7 @@ void yac_solver_t::_solve_gn(const int max_iter,
     cost_km1 = cost_k;
 
     // Print stats
-    if (verbose && verbose_level == 1) {
+    if (verbose) {
       print_stats(iter, cost_k, dcost);
     }
   }
@@ -675,7 +675,7 @@ void yac_solver_t::_solve_gn(const int max_iter,
     _restore_params();
   }
 
-  if (verbose && verbose_level == 1) {
+  if (verbose) {
     const real_t cost_final = _calculate_cost();
     printf("Initial cost: %.4e\n", cost_init);
     printf("Final cost: %.4e\n", cost_final);
@@ -800,7 +800,7 @@ void yac_solver_t::_solve_lm(const int max_iter,
     // Calculate convergence and print stats
     cost_k = _calculate_cost();
     dcost = cost_k - cost_km1;
-    if (verbose && verbose_level == 1) {
+    if (verbose) {
       print_stats(iter, cost_k, dcost, lambda_k);
     }
 
@@ -816,15 +816,15 @@ void yac_solver_t::_solve_lm(const int max_iter,
     }
 
     // Limit lambda_k value
-    lambda_k = std::max(1e-10, lambda_k);
-    lambda_k = std::min(1e10, lambda_k);
+    // lambda_k = std::max(1e-10, lambda_k);
+    // lambda_k = std::min(1e10, lambda_k);
   }
 
   // Clean up cholmod
   SuiteSparseQR_free(&QR, &cc);
   cholmod_l_finish(&cc);
 
-  if (verbose && verbose_level == 1) {
+  if (verbose) {
     const real_t cost_final = _calculate_cost();
     printf("Initial cost: %.4e\n", cost_init);
     printf("Final cost: %.4e\n", cost_final);
@@ -1044,9 +1044,17 @@ void ceres_solver_t::solve(const int max_iter,
                            const int verbose_level) {
   // Solve
   ceres::Solver::Options options;
-  options.minimizer_progress_to_stdout = false;
+  options.minimizer_progress_to_stdout = verbose;
   options.max_num_iterations = max_iter;
   options.num_threads = max_num_threads;
+
+  options.initial_trust_region_radius = 10; // Default: 1e4
+  options.min_trust_region_radius = 1e-50;  // Default: 1e-32
+  options.function_tolerance = 1e-20;       // Default: 1e-6
+  options.gradient_tolerance = 1e-20;       // Default: 1e-10
+  options.parameter_tolerance = 1e-20;      // Default: 1e-8
+  // options.preconditioner_type = ceres::IDENTITY; // Default: ceres::JACOBI
+
   ceres::Solver::Summary summary;
   ceres::Solve(options, problem, &summary);
 
@@ -1059,10 +1067,10 @@ void ceres_solver_t::solve(const int max_iter,
   if (verbose) {
     switch (verbose_level) {
       case 0:
-        std::cout << summary.BriefReport() << std::endl;
+        std::cout << summary.BriefReport() << std::endl << std::endl;
         break;
       case 1:
-        std::cout << summary.FullReport() << std::endl;
+        std::cout << summary.FullReport() << std::endl << std::endl;
         break;
       default:
         FATAL("Implementation Error!");

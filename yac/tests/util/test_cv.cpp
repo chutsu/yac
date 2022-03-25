@@ -45,35 +45,6 @@ void setup_pinhole_equi4_test(int res[2], vecx_t &params) {
   params << fx, fy, cx, cy, k1, k2, k3, k4;
 }
 
-int test_feature_mask() {
-  const auto image = cv::imread(CV_TEST_IMAGE);
-  if (image.empty()) {
-    LOG_ERROR("Cannot load image [%s]!", CV_TEST_IMAGE);
-    return -1;
-  }
-
-  const int image_width = image.cols;
-  const int image_height = image.rows;
-  auto keypoints = grid_fast(image, 100, 5, 5, 30);
-  std::vector<cv::Point2f> points;
-  for (auto kp : keypoints) {
-    points.emplace_back(kp);
-  }
-  points.emplace_back(0, 0);
-  points.emplace_back(image_height, image_width);
-  points.emplace_back(0, image_width);
-  points.emplace_back(image_height, 0);
-
-  auto mask = feature_mask(image_width, image_height, points, 4);
-  const bool debug = false;
-  if (debug) {
-    cv::imshow("Mask", convert(mask));
-    cv::waitKey(0);
-  }
-
-  return 0;
-}
-
 int test_grid_fast() {
   const cv::Mat image = cv::imread(CV_TEST_IMAGE);
   if (image.empty()) {
@@ -619,7 +590,6 @@ int test_pinhole_equi4_undistort() {
 
 void test_suite() {
   // Vision
-  MU_ADD_TEST(test_feature_mask);
   MU_ADD_TEST(test_grid_fast);
   MU_ADD_TEST(test_grid_good);
   // MU_ADD_TEST(benchmark_grid_fast);

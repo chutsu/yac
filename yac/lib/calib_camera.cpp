@@ -1658,22 +1658,18 @@ void calib_camera_t::_solve_nbv() {
     if (verbose) {
       _print_stats(ts_idx++, nbv_timestamps.size());
     }
-
-    // if (nb_views() > 30) {
-    //   break;
-    // }
   }
 
   // Final outlier rejection, then batch solve
-  // if (enable_outlier_filter) {
-  //   if (verbose) {
-  //     printf("Performing Final Outlier Rejection\n");
-  //   }
-  //   removed_outliers += _remove_outliers(true);
-  //   if (verbose) {
-  //     printf("Removed %d outliers\n", removed_outliers);
-  //   }
-  // }
+  if (enable_outlier_filter) {
+    if (verbose) {
+      printf("Performing Final Outlier Rejection\n");
+    }
+    removed_outliers += _remove_outliers(true);
+    if (verbose) {
+      printf("Removed %d outliers\n", removed_outliers);
+    }
+  }
 
   // Final Solve
   removed_outliers = _filter_all_views();

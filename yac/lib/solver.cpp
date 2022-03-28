@@ -268,8 +268,9 @@ real_t solver_t::_calculate_cost() {
   real_t cost = 0.0;
   for (calib_residual_t *res_fn : res_fns) {
     vecx_t r;
-    _eval_residual(res_fn, r);
-    cost += 0.5 * r.transpose() * r;
+    if (_eval_residual(res_fn, r)) {
+      cost += 0.5 * r.transpose() * r;
+    }
   }
 
   return cost;
@@ -630,7 +631,7 @@ void yac_solver_t::_solve_gn(const int max_iter,
   real_t cost_km1 = cost_init;
   real_t cost_k = 0.0;
   real_t dcost = 0.0;
-  if (verbose && verbose_level == 1) {
+  if (verbose) {
     print_stats(0, cost_km1, dcost);
   }
 
@@ -704,7 +705,7 @@ void yac_solver_t::_solve_lm(const int max_iter,
   real_t cost_km1 = cost_init;
   real_t cost_k = 0.0;
   real_t dcost = 0.0;
-  if (verbose && verbose_level == 1) {
+  if (verbose) {
     print_stats(0, cost_km1, dcost, lambda_k);
   }
 
@@ -835,6 +836,10 @@ void yac_solver_t::_solve_lm(const int max_iter,
 void yac_solver_t::solve(const int max_iter,
                          const bool verbose,
                          const int verbose_level) {
+  printf("num residual blocks: %ld\n", res_fns.size());
+  printf("num parameter blocks: %ld\n", params.size());
+  printf("\n");
+
   tsolver.clear();
   if (algorithm_type == "LEVENBERG-MARQUARDT") {
     _solve_lm(max_iter, verbose, verbose_level);
@@ -855,7 +860,12 @@ ceres_solver_t::ceres_solver_t() {
   problem = new ceres::Problem(prob_options);
 }
 
-ceres_solver_t::~ceres_solver_t() { delete problem; }
+ceres_solver_t::~ceres_solver_t() {
+  delete problem;
+  if (loss != nullptr) {
+    delete loss;
+  }
+}
 
 size_t ceres_solver_t::num_residuals() { return problem->NumResidualBlocks(); }
 
@@ -899,7 +909,7 @@ void ceres_solver_t::add_residual(calib_residual_t *res_fn) {
 
   // Add residual to ceres::Problem
   auto param_blocks = res_fn->param_block_ptrs();
-  auto res_id = problem->AddResidualBlock(res_fn, nullptr, param_blocks);
+  auto res_id = problem->AddResidualBlock(res_fn, loss, param_blocks);
   res2id[res_fn] = res_id;
 }
 
@@ -1067,6 +1077,9 @@ void ceres_solver_t::solve(const int max_iter,
   if (verbose) {
     switch (verbose_level) {
       case 0:
+        printf("num residual blocks: %d\n", problem->NumResidualBlocks());
+        printf("num parameter blocks: %d\n", problem->NumParameterBlocks());
+        printf("\n");
         std::cout << summary.BriefReport() << std::endl << std::endl;
         break;
       case 1:

@@ -6,6 +6,7 @@
 
 #include <Eigen/SparseQR>
 #include <Eigen/SparseCholesky>
+#include <boost/math/distributions/chi_squared.hpp>
 
 namespace yac {
 
@@ -104,10 +105,59 @@ struct yac_solver_t : solver_t {
 
 // #define ENABLE_CERES_COVARIANCE_ESTIMATOR
 
+/**
+ * Modified Blake-Zisserman Loss function
+ *
+ * Reference:
+ *
+ *   "Online Self-Calibration for Robotic Systems", by Jerome Maye.
+ *   https://doi.org/10.3929/ethz-a-010213941
+ *
+ * and page 618 in:
+ *
+ *   "MULTIPLE VIEW GEOMETRY IN COMPUTER VISION, by Richard Hartley and Andrew
+ *   Zisserman, Cambridge University Press, Cambridge, 2000.
+ *
+ */
+class BlakeZissermanLoss : public ceres::LossFunction {
+public:
+  double eps;
+
+  /**
+   * Constructor
+   *
+   * @param df    Dimension of the error term
+   * @param p     Probability of the error you want to down-weight. Setting
+   *              p to 0.99 implies 99% of squared errors will not be
+   *              down-weighted.
+   * @param w_q   Weight (between 0 and 1 not inclusive)
+   */
+  BlakeZissermanLoss(size_t df, double p = 0.999, double w_q = 0.1) {
+    const auto chisq_dist = boost::math::chi_squared_distribution<>(df);
+    const auto q = boost::math::quantile(chisq_dist, p);
+    eps = ((1.0 - w_q) / w_q) * exp(-q);
+  }
+
+  virtual void Evaluate(double sq_norm, double rho[3]) const {
+    const double x = eps * exp(sq_norm) + 1.0;
+    const double x2 = x * x;
+    const double x3 = x2 * x;
+
+    rho[0] = -log(eps + exp(-sq_norm));
+    rho[1] = 1.0 / x;
+    rho[2] = (x - x2) / x3;
+
+    rho[1] = std::max(std::numeric_limits<double>::min(), rho[1]);
+    rho[2] = std::max(std::numeric_limits<double>::min(), rho[2]);
+  }
+};
+
 struct ceres_solver_t : solver_t {
   int max_num_threads = 4;
   ceres::Problem::Options prob_options;
   ceres::Problem *problem;
+  // ceres::LossFunction *loss = new ceres::CauchyLoss(0.5);
+  ceres::LossFunction *loss = new BlakeZissermanLoss(2);
 
   PoseLocalParameterization pose_plus;
   std::unordered_map<calib_residual_t *, ceres::ResidualBlockId> res2id;

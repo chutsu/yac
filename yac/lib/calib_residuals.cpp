@@ -234,7 +234,6 @@ reproj_residual_t::reproj_residual_t(camera_geometry_t *cam_geom_,
   // Data
   param_blocks.push_back(T_BCi_);
   param_blocks.push_back(T_C0F_);
-  param_blocks.push_back(p_FFi_);
   param_blocks.push_back(cam_params_);
 
   // Ceres-Solver
@@ -242,7 +241,6 @@ reproj_residual_t::reproj_residual_t(camera_geometry_t *cam_geom_,
   auto block_sizes = mutable_parameter_block_sizes();
   block_sizes->push_back(7); // Camera-camera extrinsics
   block_sizes->push_back(7); // Camera-fiducial relative pose
-  block_sizes->push_back(3); // Fiducial corner parameter
   block_sizes->push_back(8); // Camera parameters
 }
 
@@ -300,13 +298,12 @@ bool reproj_residual_t::EvaluateWithMinimalJacobians(
   // Map parameters out
   const mat4_t T_C0Ci = tf(params[0]);
   const mat4_t T_C0F = tf(params[1]);
-  Eigen::Map<const vecx_t> p_FFi(params[2], 3);
-  Eigen::Map<const vecx_t> param(params[3], 8);
+  Eigen::Map<const vecx_t> param(params[2], 8);
 
   // Transform and project point to image plane
   // -- Transform point from fiducial frame to camera-n
   const mat4_t T_CiC0 = tf_inv(T_C0Ci);
-  const vec3_t p_CiFi = tf_point(T_CiC0 * T_C0F, p_FFi);
+  const vec3_t p_CiFi = tf_point(T_CiC0 * T_C0F, p_FFi->param);
   // -- Project point from camera frame to image plane
   auto cam_res = cam_params->resolution;
   vec2_t z_hat;
@@ -318,11 +315,13 @@ bool reproj_residual_t::EvaluateWithMinimalJacobians(
   // Residual
   Eigen::Map<vec2_t> r(res);
   r = sqrt_info * (z - z_hat);
+  // if (valid == false) {
+  //   r.setZero();
+  // }
 
   // Jacobians
   const matx_t Jh = cam_geom->project_jacobian(param, p_CiFi);
-  const matx_t Jh_weighted = -1 * sqrt_info * Jh;
-
+  const matx_t Jh_weighted = -1.0 * sqrt_info * Jh;
   if (jacs == nullptr) {
     return true;
   }
@@ -332,10 +331,10 @@ bool reproj_residual_t::EvaluateWithMinimalJacobians(
     // clang-format off
     const mat3_t C_CiC0 = tf_rot(T_CiC0);
     const mat3_t C_C0Ci = C_CiC0.transpose();
-    const vec3_t p_CiFi = tf_point(T_CiC0 * T_C0F, p_FFi);
+    const vec3_t p_CiFi = tf_point(T_CiC0 * T_C0F, p_FFi->param);
     matx_t J_min = zeros(2, 6);
-    J_min.block(0, 0, 2, 3) = -1 * Jh_weighted * C_CiC0;
-    J_min.block(0, 3, 2, 3) = -1 * Jh_weighted * C_CiC0 * -skew(C_C0Ci * p_CiFi);
+    J_min.block(0, 0, 2, 3) = -1.0 * Jh_weighted * C_CiC0;
+    J_min.block(0, 3, 2, 3) = -1.0 * Jh_weighted * C_CiC0 * -skew(C_C0Ci * p_CiFi);
     // clang-format on
 
     Eigen::Map<mat_t<2, 7, row_major_t>> J(jacs[0]);
@@ -349,11 +348,13 @@ bool reproj_residual_t::EvaluateWithMinimalJacobians(
 
   // Jacobians w.r.t T_C0F
   if (jacs[1]) {
+    // clang-format off
     const mat3_t C_CiC0 = tf_rot(T_CiC0);
     const mat3_t C_C0F = tf_rot(T_C0F);
     matx_t J_min = zeros(2, 6);
     J_min.block(0, 0, 2, 3) = Jh_weighted * C_CiC0;
-    J_min.block(0, 3, 2, 3) = Jh_weighted * C_CiC0 * -skew(C_C0F * p_FFi);
+    J_min.block(0, 3, 2, 3) = Jh_weighted * C_CiC0 * -skew(C_C0F * p_FFi->param);
+    // clang-format on
 
     Eigen::Map<mat_t<2, 7, row_major_t>> J(jacs[1]);
     J = (valid) ? J_min * lift_pose_jacobian(T_C0F) : zeros(2, 7);
@@ -364,31 +365,15 @@ bool reproj_residual_t::EvaluateWithMinimalJacobians(
     }
   }
 
-  // Jacobians w.r.t fiducial corner
-  if (jacs[2]) {
-    Eigen::Map<mat_t<2, 3, row_major_t>> J(jacs[2]);
-    const mat4_t T_CiF = T_CiC0 * T_C0F;
-    const mat3_t C_CiF = tf_rot(T_CiF);
-    const matx_t J_min = Jh_weighted * C_CiF;
-    // J = J_min;
-    J = (valid) ? J_min : zeros(2, 3);
-
-    if (min_jacs && min_jacs[2]) {
-      Eigen::Map<mat_t<2, 3, row_major_t>> min_J(min_jacs[2]);
-      min_J = (valid) ? J_min : zeros(2, 3);
-    }
-  }
-
   // Jacobians w.r.t cam params
-  if (jacs[3]) {
-    Eigen::Map<mat_t<2, 8, row_major_t>> J(jacs[3]);
+  if (jacs[2]) {
+    Eigen::Map<mat_t<2, 8, row_major_t>> J(jacs[2]);
     const matx_t J_cam = cam_geom->params_jacobian(param, p_CiFi);
     const matx_t J_min = -1 * sqrt_info * J_cam;
-    // J = J_min;
     J = (valid) ? J_min : zeros(2, 8);
 
-    if (min_jacs && min_jacs[3]) {
-      Eigen::Map<mat_t<2, 8, row_major_t>> min_J(min_jacs[3]);
+    if (min_jacs && min_jacs[2]) {
+      Eigen::Map<mat_t<2, 8, row_major_t>> min_J(min_jacs[2]);
       min_J = (valid) ? J_min : zeros(2, 8);
     }
   }

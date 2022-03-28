@@ -10,6 +10,9 @@ set -e
 # RUN_CMD="./test_util_aprilgrid --target test_aprilgrid_profile"
 # RUN_CMD="./test_util_config"
 # RUN_CMD="./test_util_cv"
+# RUN_CMD="./test_util_cv --target test_pinhole_radtan4_project"
+# RUN_CMD="./test_util_cv --target test_pinhole_radtan4_project_jacobian"
+# RUN_CMD="./test_util_cv --target test_pinhole_radtan4_undistort"
 # RUN_CMD="./test_util_core"
 # RUN_CMD="./test_util_data"
 # RUN_CMD="./test_util_fs"
@@ -33,7 +36,6 @@ set -e
 # RUN_CMD="./test_calib_camera --target test_calib_view"
 # RUN_CMD="./test_calib_camera --target test_calib_camera_add_camera_data"
 # RUN_CMD="./test_calib_camera --target test_calib_camera_add_camera"
-# RUN_CMD="./test_calib_camera --target test_calib_camera_add_camera_extrinsics"
 # RUN_CMD="./test_calib_camera --target test_calib_camera_add_pose"
 # RUN_CMD="./test_calib_camera --target test_calib_camera_add_and_remove_view"
 # RUN_CMD="./test_calib_camera --target test_calib_camera_add_nbv_view"
@@ -121,6 +123,7 @@ exit
 
 # python3 scripts/aprilgrid_generate.py --nx 6 --ny 6 --tsize 0.088
 # python3 scripts/marg_sandbox.py
+python3 scripts/blake_zisserman.py
 # python3 scripts/plot_frames.py
 # python3 scripts/plot_imu.py
 # python3 scripts/plot_info.py

@@ -392,6 +392,25 @@ static void print_calib_target(FILE *out, calib_target_t &calib_target) {
   fprintf(out, "\n");
 }
 
+static void print_camera_params(FILE *out,
+                                const int cam_idx,
+                                const camera_params_t *cam) {
+  const bool max_digits = (out == stdout) ? false : true;
+  const int *cam_res = cam->resolution;
+  const char *proj_model = cam->proj_model.c_str();
+  const char *dist_model = cam->dist_model.c_str();
+  const auto proj_params = vec2str(cam->proj_params(), true, max_digits);
+  const auto dist_params = vec2str(cam->dist_params(), true, max_digits);
+
+  fprintf(out, "cam%d:\n", cam_idx);
+  fprintf(out, "  fixed: %s\n", cam->fixed ? "true" : "false");
+  fprintf(out, "  resolution: [%d, %d]\n", cam_res[0], cam_res[1]);
+  fprintf(out, "  proj_model: \"%s\"\n", proj_model);
+  fprintf(out, "  dist_model: \"%s\"\n", dist_model);
+  fprintf(out, "  proj_params: %s\n", proj_params.c_str());
+  fprintf(out, "  dist_params: %s\n", dist_params.c_str());
+}
+
 static void print_estimates(FILE *out,
                             CamIdx2Parameters &cam_params,
                             CamIdx2Extrinsics &cam_exts) {
@@ -401,19 +420,7 @@ static void print_estimates(FILE *out,
   for (auto &kv : cam_params) {
     const auto cam_idx = kv.first;
     const auto cam = kv.second;
-    const int *cam_res = cam->resolution;
-    const char *proj_model = cam->proj_model.c_str();
-    const char *dist_model = cam->dist_model.c_str();
-    const auto proj_params = vec2str(cam->proj_params(), true, max_digits);
-    const auto dist_params = vec2str(cam->dist_params(), true, max_digits);
-
-    fprintf(out, "cam%d:\n", cam_idx);
-    fprintf(out, "  fixed: %s\n", cam->fixed ? "true" : "false");
-    fprintf(out, "  resolution: [%d, %d]\n", cam_res[0], cam_res[1]);
-    fprintf(out, "  proj_model: \"%s\"\n", proj_model);
-    fprintf(out, "  dist_model: \"%s\"\n", dist_model);
-    fprintf(out, "  proj_params: %s\n", proj_params.c_str());
-    fprintf(out, "  dist_params: %s\n", dist_params.c_str());
+    print_camera_params(out, cam_idx, cam);
     fprintf(out, "\n");
   }
 
@@ -457,18 +464,10 @@ static void calib_initialize(const calib_target_t &calib_target,
     FATAL("Unsupported solver type [%s]", solver_type.c_str());
   }
 
-  // Corners
-  auto corners = new fiducial_corners_t(calib_target);
-  const int nb_tags = calib_target.tag_rows * calib_target.tag_cols;
-  for (int tag_id = 0; tag_id < nb_tags; tag_id++) {
-    for (int corner_idx = 0; corner_idx < 4; corner_idx++) {
-      solver->add_param(corners->get_corner(tag_id, corner_idx));
-    }
-  }
-
   // Data
   poses.clear();
   std::map<timestamp_t, calib_view_t *> calib_views;
+  auto corners = new fiducial_corners_t(calib_target);
 
   // Setup problem
   // -- Add camera parameters
@@ -504,7 +503,8 @@ static void calib_initialize(const calib_target_t &calib_target,
     if (best_cam_idx == -1) {
       continue;
     }
-    // -- Estimate relative pose T_C0F
+
+    // Estimate relative pose T_C0F
     const auto cam_geom = cam_geoms[best_cam_idx];
     const vecx_t param = cam_params[best_cam_idx]->param;
     const auto res = cam_params[best_cam_idx]->resolution;
@@ -512,7 +512,8 @@ static void calib_initialize(const calib_target_t &calib_target,
     if (best_grid.estimate(cam_geom, res, param, T_CiF) != 0) {
       FATAL("Failed to estimate relative pose!");
     }
-    // -- Add relative pose T_C0F
+
+    // Add relative pose T_C0F
     const mat4_t T_C0Ci = cam_exts.at(best_cam_idx)->tf();
     const mat4_t T_C0F = T_C0Ci * T_CiF;
     poses[ts] = new pose_t{ts, T_C0F};
@@ -558,16 +559,8 @@ calib_camera_t::calib_camera_t(const calib_target_t &calib_target_)
     FATAL("Unsupported solver type [%s]", solver_type.c_str());
   }
 
-  // Add fiducial corners to problem
+  // AprilGrid
   corners = new fiducial_corners_t(calib_target);
-  const int nb_tags = calib_target.tag_rows * calib_target.tag_cols;
-  for (int tag_id = 0; tag_id < nb_tags; tag_id++) {
-    for (int corner_idx = 0; corner_idx < 4; corner_idx++) {
-      solver->add_param(corners->get_corner(tag_id, corner_idx));
-    }
-  }
-
-  // AprilGrid detector
   detector = std::make_unique<aprilgrid_detector_t>(calib_target.tag_rows,
                                                     calib_target.tag_cols,
                                                     calib_target.tag_size,
@@ -677,16 +670,8 @@ calib_camera_t::calib_camera_t(const std::string &config_path)
     add_camera_data(data);
   }
 
-  // Add fiducial corners to problem
+  // AprilGrid
   corners = new fiducial_corners_t(calib_target);
-  const int nb_tags = calib_target.tag_rows * calib_target.tag_cols;
-  for (int tag_id = 0; tag_id < nb_tags; tag_id++) {
-    for (int corner_idx = 0; corner_idx < 4; corner_idx++) {
-      solver->add_param(corners->get_corner(tag_id, corner_idx));
-    }
-  }
-
-  // AprilGrid detector
   detector = std::make_unique<aprilgrid_detector_t>(calib_target.tag_rows,
                                                     calib_target.tag_cols,
                                                     calib_target.tag_size,
@@ -1246,24 +1231,32 @@ void calib_camera_t::_initialize_intrinsics() {
   };
 
   // clang-format off
-  cam_params[0]->param(0) = 497.21158318;
-	cam_params[0]->param(1) = 497.21158318;
-	cam_params[0]->param(2) = 375.5;
-	cam_params[0]->param(3) = 239.5;
+  // cam_params[0]->param(0) = 497.21158318;
+	// cam_params[0]->param(1) = 497.21158318;
+	// cam_params[0]->param(2) = 375.5;
+	// cam_params[0]->param(3) = 239.5;
+	// cam_params[0]->param(4) = 0.0;
+	// cam_params[0]->param(5) = 0.0;
+	// cam_params[0]->param(6) = 0.0;
+	// cam_params[0]->param(7) = 0.0;
 
-  cam_params[1]->param(0) = 498.9019214;
-  cam_params[1]->param(1) = 498.9019214;
-  cam_params[1]->param(2) = 375.5;
-  cam_params[1]->param(3) = 239.5;
+  // cam_params[1]->param(0) = 498.9019214;
+  // cam_params[1]->param(1) = 498.9019214;
+  // cam_params[1]->param(2) = 375.5;
+  // cam_params[1]->param(3) = 239.5;
+	// cam_params[1]->param(4) = 0.0;
+	// cam_params[1]->param(5) = 0.0;
+	// cam_params[1]->param(6) = 0.0;
+	// cam_params[1]->param(7) = 0.0;
 
-	// cam_params[0]->param(0) = 460.24828848;
-	// cam_params[0]->param(1) = 459.0251254;
-	// cam_params[0]->param(2) = 369.72328368;
-	// cam_params[0]->param(3) = 245.36683352;
-	// cam_params[0]->param(4) = -0.2767399;
-	// cam_params[0]->param(5) = 0.06819449;
-	// cam_params[0]->param(6) = 0.00070068;
-	// cam_params[0]->param(7) = -0.00050046;
+	// cam_params[0]->param(0) = 460.24828847503169981792;
+	// cam_params[0]->param(1) = 459.02512539620562392884;
+	// cam_params[0]->param(2) = 369.72328368432960132850;
+	// cam_params[0]->param(3) = 245.36683352163470317464;
+	// cam_params[0]->param(4) = -0.27673989991043390635;
+	// cam_params[0]->param(5) = 0.06819449295308478709;
+	// cam_params[0]->param(6) = 0.00070068424679062778;
+	// cam_params[0]->param(7) = -0.00050046413414543721;
 
 	// cam_params[1]->param(0) = 458.77365347;
 	// cam_params[1]->param(1) = 457.44196865;
@@ -1283,6 +1276,9 @@ void calib_camera_t::_initialize_intrinsics() {
 
     // Fix camera extrinsics
     cam_exts[cam_idx]->fixed = true;
+    printf("cam%d ", cam_idx);
+    print_vector("initial initial params", cam_params[cam_idx]->param);
+    printf("\n");
 
     // Initialize camera
     std::map<timestamp_t, pose_t *> init_poses;
@@ -1293,6 +1289,9 @@ void calib_camera_t::_initialize_intrinsics() {
                      cam_params,
                      cam_exts,
                      init_poses);
+    printf("Initialized to:\n");
+    print_camera_params(stdout, cam_idx, cam_params[cam_idx]);
+    printf("\n");
 
     // Clean up
     for (auto &[ts, pose] : init_poses) {
@@ -1330,6 +1329,13 @@ void calib_camera_t::_initialize_extrinsics() {
     cam_exts[cam_idx]->set_tf(T_C0Ci);
   }
 
+  // Print initial extrinsics
+  for (const auto cam_idx : get_camera_indices()) {
+    printf("cam%d_", cam_idx);
+    print_vector("exts", cam_exts[cam_idx]->param);
+  }
+  printf("\n");
+
   // Refine camera extrinsics via joint-optimization
   std::map<timestamp_t, pose_t *> init_poses;
   calib_initialize(calib_target,
@@ -1339,6 +1345,13 @@ void calib_camera_t::_initialize_extrinsics() {
                    cam_params,
                    cam_exts,
                    init_poses);
+
+  // Print optimized initial extrinsics
+  for (const auto cam_idx : get_camera_indices()) {
+    printf("cam%d_", cam_idx);
+    print_vector("exts", cam_exts[cam_idx]->param);
+  }
+  printf("\n");
 
   // Clean up
   for (auto &[ts, pose] : init_poses) {
@@ -1430,16 +1443,20 @@ int calib_camera_t::_calc_info(real_t *info) {
 }
 
 int calib_camera_t::_remove_outliers(const bool filter_all) {
-  // Make a copy of the timestamps in reverse order
+  // Make a copy of the timestamps
   timestamps_t view_timestamps;
   if (filter_all) {
-    // Filter all views
+    // Filter all views - in reverse order
     for (int k = calib_view_timestamps.size() - 1; k >= 0; k--) {
       view_timestamps.push_back(calib_view_timestamps[k]);
     }
   } else {
     // Only filter last view
-    view_timestamps.push_back(calib_view_timestamps.back());
+    const auto last_ts = calib_view_timestamps.back();
+    if (filtered_timestamps.count(last_ts) == 0) {
+      view_timestamps.push_back(last_ts);
+      filtered_timestamps.insert(last_ts);
+    }
   }
 
   // Iterate through views in reverse
@@ -1519,7 +1536,7 @@ int calib_camera_t::_remove_outliers(const bool filter_all) {
   }
 
   // Update info_k
-  if (_calc_info(&info_k) != 0) {
+  if (view_timestamps.size() && _calc_info(&info_k) != 0) {
     return nb_outliers;
   }
 
@@ -1553,7 +1570,7 @@ void calib_camera_t::_print_stats(const size_t ts_idx,
   const auto reproj_errors_all = get_all_reproj_errors();
   printf("[%.2f%%] ", progress);
   printf("nb_views: %d  ", nb_views());
-  printf("reproj_error: %.4f  ", rmse(reproj_errors_all));
+  printf("reproj_error: %.4f  ", mean(reproj_errors_all));
   printf("info_k: %.4f  ", info_k);
   printf("\n");
   // printf("\n");
@@ -1672,8 +1689,8 @@ void calib_camera_t::_solve_nbv() {
   }
 
   // Final Solve
-  removed_outliers = _filter_all_views();
-  solver->solve(5, true, 1);
+  // removed_outliers = _filter_all_views();
+  solver->solve(10, true, 1);
 }
 
 void calib_camera_t::solve() {
@@ -1681,6 +1698,62 @@ void calib_camera_t::solve() {
   if (verbose) {
     print_settings(stdout);
   }
+
+  // cam_params[0]->param(0) = 460.90472525;
+  // cam_params[0]->param(1) = 459.69099754;
+  // cam_params[0]->param(2) = 368.28333008;
+  // cam_params[0]->param(3) = 244.72215637;
+  // cam_params[0]->param(4) = -0.2767399;
+  // cam_params[0]->param(5) = 0.06819449;
+  // cam_params[0]->param(6) = 0.00070068;
+  // cam_params[0]->param(7) = -0.00050046;
+  //
+  // cam_params[1]->param(0) = 459.45006181;
+  // cam_params[1]->param(1) = 458.13159027;
+  // cam_params[1]->param(2) = 378.95483909;
+  // cam_params[1]->param(3) = 251.36315161;
+  // cam_params[1]->param(4) = -0.2730006;
+  // cam_params[1]->param(5) = 0.06511653;
+  // cam_params[1]->param(6) = 0.00052369;
+  // cam_params[1]->param(7) = -0.00005088;
+  //
+  // // clang-format off
+  // mat4_t T;
+  // T<< 0.99998759,  0.00247109  , 0.00432683 ,-0.10960741,
+  // -0.00253273   ,  0.99989459  , 0.0142969  , 0.00053714,
+  // -0.00429104 	, 	-0.01430768,  0.99988843, -0.0004162,
+  // 	0.          ,	0.           , 0.         , 1.0;
+  // cam_exts[1]->set_tf(T.inverse());
+  // // clang-format off
+
+  // EuRoC Calibration
+  // // clang-format off
+  // cam_params[0]->param(0) = 458.654;
+  // cam_params[0]->param(1) = 457.296;
+  // cam_params[0]->param(2) = 367.215;
+  // cam_params[0]->param(3) = 248.375;
+  // cam_params[0]->param(4) = -0.28340811;
+  // cam_params[0]->param(5) = 0.07395907;
+  // cam_params[0]->param(6) = 0.00019359;
+  // cam_params[0]->param(7) = 1.76187114e-05;
+  //
+  // cam_params[1]->param(0) = 457.587;
+  // cam_params[1]->param(1) = 456.134;
+  // cam_params[1]->param(2) = 379.999;
+  // cam_params[1]->param(3) = 255.238;
+  // cam_params[1]->param(4) = -0.28368365;
+  // cam_params[1]->param(5) = 0.07451284;
+  // cam_params[1]->param(6) = -0.00010473;
+  // cam_params[1]->param(7) = -3.55590700e-05;
+  //
+  // mat4_t T;
+  // T <<  0.9999972564777967, -0.0023171357232751057, -0.0003433931206204861,
+  // 0.11007413780047799,
+  //   0.0023120671924322465, 0.9998980485071031, -0.014090668452683376,
+  //   -0.00015661205439167214, 0.00037600810231955327, 0.01408983584669108,
+  //   0.9999006626380811, 0.0008893827854321804, 0.0, 0.0, 0.0, 1.0;
+  // cam_exts[1]->set_tf(T);
+  // // clang-format on
 
   // Initialize camera intrinsics and extrinsics
   _initialize_intrinsics();

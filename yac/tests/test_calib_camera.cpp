@@ -172,7 +172,7 @@ int test_calib_camera_add_and_remove_view() {
   MU_CHECK(calib.poses.count(view_ts));
   MU_CHECK(calib.calib_views.size() == 5);
   MU_CHECK(calib.calib_views.begin()->second->get_camera_indices().size() == 2);
-  // 144 corners + 2 camera parameters + 2 camera extrinsics + 1 pose
+  // 2 camera parameters + 2 camera extrinsics + 1 pose
 
   // Remove view
   calib.remove_view(view_ts);
@@ -186,8 +186,8 @@ int test_calib_camera_add_and_remove_view() {
   MU_CHECK(calib.poses.size() == 0);
   MU_CHECK(calib.calib_views.size() == 0);
   MU_CHECK(calib.solver->num_residuals() == 0);
-  MU_CHECK(calib.solver->num_params() == 148);
-  // 144 corners + 2 camera parameters + 2 camera extrinsics
+  MU_CHECK(calib.solver->num_params() == 4);
+  // 2 camera parameters + 2 camera extrinsics
 
   return 0;
 }
@@ -240,8 +240,8 @@ int test_calib_camera_add_nbv_view() {
   MU_CHECK(calib.poses.size() == 0);
   MU_CHECK(calib.calib_views.size() == 0);
   MU_CHECK(calib.solver->num_residuals() == 0);
-  MU_CHECK(calib.solver->num_params() == 148);
-  // 144 corners + 2 camera parameters + 2 camera extrinsics
+  MU_CHECK(calib.solver->num_params() == 4);
+  // 2 camera parameters + 2 camera extrinsics
 
   return 0;
 }

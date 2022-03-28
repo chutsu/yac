@@ -592,8 +592,8 @@ std::vector<cv::Point2f> grid_good(const cv::Mat &image,
 /********************************* RADTAN4 ************************************/
 
 vec2_t radtan4_distort(const vec4_t &dist_params, const vec2_t &p) {
-  const real_t x = p(0);
-  const real_t y = p(1);
+  const real_t x = p.x();
+  const real_t y = p.y();
 
   const real_t k1 = dist_params(0);
   const real_t k2 = dist_params(1);
@@ -605,21 +605,21 @@ vec2_t radtan4_distort(const vec4_t &dist_params, const vec2_t &p) {
   const real_t y2 = y * y;
   const real_t r2 = x2 + y2;
   const real_t r4 = r2 * r2;
-  const real_t radial_factor = 1 + (k1 * r2) + (k2 * r4);
+  const real_t radial_factor = 1.0 + (k1 * r2) + (k2 * r4);
   const real_t x_dash = x * radial_factor;
   const real_t y_dash = y * radial_factor;
 
   // Apply tangential distortion
   const real_t xy = x * y;
-  const real_t x_ddash = x_dash + (2 * p1 * xy + p2 * (r2 + 2 * x2));
-  const real_t y_ddash = y_dash + (p1 * (r2 + 2 * y2) + 2 * p2 * xy);
+  const real_t x_ddash = x_dash + (2.0 * p1 * xy + p2 * (r2 + 2.0 * x2));
+  const real_t y_ddash = y_dash + (2.0 * p2 * xy + p1 * (r2 + 2.0 * y2));
 
   return vec2_t{x_ddash, y_ddash};
 }
 
 vec2_t radtan4_undistort(const vec4_t &dist_params, const vec2_t &p0) {
-  vec2_t p = p0;
   int max_iter = 5;
+  vec2_t p = p0;
 
   for (int i = 0; i < max_iter; i++) {
     // Error
@@ -628,8 +628,7 @@ vec2_t radtan4_undistort(const vec4_t &dist_params, const vec2_t &p0) {
 
     // Jacobian
     const mat2_t J = radtan4_point_jacobian(dist_params, p);
-    const mat2_t pinv = (J.transpose() * J).inverse() * J.transpose();
-    const vec2_t dp = pinv * err;
+    const vec2_t dp = (J.transpose() * J).inverse() * J.transpose() * err;
     p = p + dp;
 
     if ((err.transpose() * err) < 1.0e-15) {
@@ -658,16 +657,25 @@ mat2_t radtan4_point_jacobian(const vec4_t &dist_params, const vec2_t &p) {
   // Let p' be the distorted p
   // The jacobian of p' w.r.t. p (or dp'/dp) is:
   mat2_t J_point;
-  J_point(0, 0) = 1 + k1 * r2 + k2 * r4;
-  J_point(0, 0) += 2 * p1 * y + 6 * p2 * x;
-  J_point(0, 0) += x * (2 * k1 * x + 4 * k2 * x * r2);
-  J_point(1, 0) = 2 * p1 * x + 2 * p2 * y;
-  J_point(1, 0) += y * (2 * k1 * x + 4 * k2 * x * r2);
+  J_point(0, 0) = 1.0 + k1 * r2 + k2 * r4;
+  J_point(0, 0) += 2.0 * p1 * y + 6.0 * p2 * x;
+  J_point(0, 0) += x * (2.0 * k1 * x + 4.0 * k2 * x * r2);
+  J_point(1, 0) = 2.0 * p1 * x + 2.0 * p2 * y;
+  J_point(1, 0) += y * (2.0 * k1 * x + 4.0 * k2 * x * r2);
   J_point(0, 1) = J_point(1, 0);
-  J_point(1, 1) = 1 + k1 * r2 + k2 * r4;
-  J_point(1, 1) += 6 * p1 * y + 2 * p2 * x;
-  J_point(1, 1) += y * (2 * k1 * y + 4 * k2 * y * r2);
+  J_point(1, 1) = 1.0 + k1 * r2 + k2 * r4;
+  J_point(1, 1) += 6.0 * p1 * y + 2.0 * p2 * x;
+  J_point(1, 1) += y * (2.0 * k1 * y + 4.0 * k2 * y * r2);
   // Above is generated using sympy
+
+  // const auto radtan = k1 * r2 + k2 * r2 * r2;
+  // J_point(0, 0) = 1 + radtan + k1 * 2.0 * x2 + k2 * r2 * 4 * x2 +
+  //                 2.0 * p1 * p.y() + 6 * p2 * p.x();
+  // J_point(1, 0) = k1 * 2.0 * p.x() * p.y() + k2 * 4 * r2 * p.x() * p.y() +
+  //                 p1 * 2.0 * p.x() + 2.0 * p2 * p.y();
+  // J_point(0, 1) = J_point(1, 0);
+  // J_point(1, 1) = 1 + radtan + k1 * 2.0 * y2 + k2 * r2 * 4 * y2 +
+  //                 6 * p1 * p.y() + 2.0 * p2 * p.x();
 
   return J_point;
 }
@@ -852,11 +860,6 @@ int pinhole_project(const int res[2],
                     const vec4_t &proj_params,
                     const vec3_t &p_C,
                     vec2_t &z_hat) {
-  // Check validity of the point, simple depth test.
-  if (p_C(2) < 0.0) {
-    return -1;
-  }
-
   const real_t fx = proj_params(0);
   const real_t fy = proj_params(1);
   const real_t cx = proj_params(2);
@@ -870,11 +873,10 @@ int pinhole_project(const int res[2],
   // Check projection
   const bool x_ok = (z_hat(0) >= 0 && z_hat(0) <= res[0]);
   const bool y_ok = (z_hat(1) >= 0 && z_hat(1) <= res[1]);
-  if (x_ok == false || y_ok == false) {
-    return -2;
-  }
+  const bool z_ok = (p_C.z() > 0.0);
+  const bool valid = (x_ok && y_ok && z_ok) ? true : false;
 
-  return 0;
+  return (valid) ? 0 : -1;
 }
 
 mat2_t pinhole_point_jacobian(const vec4_t &proj_params) {
@@ -906,11 +908,6 @@ int pinhole_radtan4_project(const int res[2],
   const vec4_t proj_params = params.head(4);
   const vec4_t dist_params = params.tail(4);
 
-  // Check validity of the point, simple depth test.
-  if (p_C.z() < 0.0) {
-    return -1;
-  }
-
   // Project, distort and then scale and center
   const real_t fx = proj_params(0);
   const real_t fy = proj_params(1);
@@ -922,11 +919,12 @@ int pinhole_radtan4_project(const int res[2],
   z_hat.y() = fy * p_d.y() + cy;
 
   // Check projection is within image frame
-  const bool x_ok = (z_hat.x() >= 0 && z_hat.x() <= res[0]);
-  const bool y_ok = (z_hat.y() >= 0 && z_hat.y() <= res[1]);
-  const bool valid = (x_ok && y_ok) ? true : false;
+  const bool x_ok = (z_hat.x() >= 0 && z_hat.x() < res[0]);
+  const bool y_ok = (z_hat.y() >= 0 && z_hat.y() < res[1]);
+  const bool z_ok = (p_C.z() > 0.0);
+  const bool valid = (x_ok && y_ok && z_ok) ? true : false;
 
-  return (valid) ? 0 : -2;
+  return (valid) ? 0 : -1;
 }
 
 matx_t pinhole_radtan4_project_jacobian(const vecx_t &params,
@@ -974,10 +972,10 @@ int pinhole_radtan4_back_project(const vecx_t &params,
   const real_t py = (x.y() - cy) / fy;
   const vec2_t p{px, py};
 
-  const vec2_t p_undist = radtan4_undistort(params.tail(4), p);
-  ray(0) = p_undist(0);
-  ray(1) = p_undist(1);
-  ray(2) = 1.0;
+  const vec2_t kp = radtan4_undistort(params.tail(4), p);
+  ray.x() = kp.x();
+  ray.y() = kp.y();
+  ray.z() = 1.0;
 
   return 0;
 }
@@ -1104,6 +1102,95 @@ vec2_t pinhole_equi4_undistort(const vecx_t &params, const vec2_t &z) {
   return z_undist;
 }
 
+static vec2_t opencv_undistort_point(const vecx_t &cam_params,
+                                     const vec2_t &kp) {
+  std::vector<cv::Point2f> pts_in;
+  pts_in.emplace_back(kp.x(), kp.y());
+
+  std::vector<cv::Point2f> pts_out;
+
+  cv::Mat K = cv::Mat::eye(3, 3, CV_64F);
+  K.at<double>(0, 0) = cam_params(0);
+  K.at<double>(1, 1) = cam_params(1);
+  K.at<double>(0, 2) = cam_params(2);
+  K.at<double>(1, 2) = cam_params(3);
+
+  std::vector<double> D;
+  D.push_back(cam_params(4));
+  D.push_back(cam_params(5));
+  D.push_back(cam_params(6));
+  D.push_back(cam_params(7));
+
+  cv::undistortPoints(pts_in, pts_out, K, D, cv::noArray(), K);
+  const vec2_t kp_opencv{pts_out[0].x, pts_out[0].y};
+
+  return kp_opencv;
+}
+
+void kalibr_distort(const real_t k1,
+                    const real_t k2,
+                    const real_t p1,
+                    const real_t p2,
+                    vec2_t &y,
+                    mat2_t &J) {
+  double mx2_u = y[0] * y[0];
+  double my2_u = y[1] * y[1];
+  double mxy_u = y[0] * y[1];
+  double rho2_u = mx2_u + my2_u;
+  double rad_dist_u = k1 * rho2_u + k2 * rho2_u * rho2_u;
+
+  J.setZero();
+  J(0, 0) = 1 + rad_dist_u + k1 * 2.0 * mx2_u + k2 * rho2_u * 4 * mx2_u +
+            2.0 * p1 * y[1] + 6 * p2 * y[0];
+  J(1, 0) = k1 * 2.0 * y[0] * y[1] + k2 * 4 * rho2_u * y[0] * y[1] +
+            p1 * 2.0 * y[0] + 2.0 * p2 * y[1];
+  J(0, 1) = J(1, 0);
+  J(1, 1) = 1 + rad_dist_u + k1 * 2.0 * my2_u + k2 * rho2_u * 4 * my2_u +
+            6 * p1 * y[1] + 2.0 * p2 * y[0];
+
+  y[0] += y[0] * rad_dist_u + 2.0 * p1 * mxy_u + p2 * (rho2_u + 2.0 * mx2_u);
+  y[1] += y[1] * rad_dist_u + 2.0 * p2 * mxy_u + p1 * (rho2_u + 2.0 * my2_u);
+}
+
+bool kalibr_back_project(const vecx_t &params, const vec2_t &kp, vec3_t &ray) {
+  const real_t fx = params(0);
+  const real_t fy = params(1);
+  const real_t cx = params(2);
+  const real_t cy = params(3);
+
+  const real_t k1 = params(4);
+  const real_t k2 = params(5);
+  const real_t p1 = params(6);
+  const real_t p2 = params(7);
+
+  // back-project
+  const real_t px = (kp.x() - cx) / fx;
+  const real_t py = (kp.y() - cy) / fy;
+  vec2_t p{px, py};
+
+  // undistort
+  vec2_t pbar = p;
+  mat2_t F;
+  vec2_t p_tmp;
+  for (int i = 0; i < 5; i++) {
+    p_tmp = pbar;
+    kalibr_distort(k1, k2, p1, p2, p_tmp, F);
+    vec2_t e(p - p_tmp);
+    vec2_t du = (F.transpose() * F).inverse() * F.transpose() * e;
+    pbar += du;
+    if (e.dot(e) < 1e-15) {
+      break;
+    }
+  }
+  p = pbar;
+
+  ray.x() = p.x();
+  ray.y() = p.y();
+  ray.z() = 1.0;
+
+  return true;
+}
+
 int solvepnp(const camera_geometry_t *cam,
              const int cam_res[2],
              const vecx_t &cam_params,
@@ -1114,43 +1201,51 @@ int solvepnp(const camera_geometry_t *cam,
   assert(keypoints.size() == object_points.size());
 
   // Create object points (counter-clockwise, from bottom left)
+  // Note: SolvPnP assumes radtan which may not be true, therefore we
+  // have to manually undistort the keypoints ourselves
   size_t nb_points = keypoints.size();
   std::vector<cv::Point2f> img_pts;
   std::vector<cv::Point3f> obj_pts;
   for (size_t i = 0; i < nb_points; i++) {
-    const vec2_t kp = cam->undistort(cam_params, keypoints[i]);
-    const vec3_t pt = object_points[i];
-    img_pts.emplace_back(kp(0), kp(1));
-    obj_pts.emplace_back(pt(0), pt(1), pt(2));
+    // Check keypoint is valid
+    const vec2_t z = keypoints[i];
+    const bool x_ok = (z.x() >= 0 && z.x() <= cam_res[0]);
+    const bool y_ok = (z.y() >= 0 && z.y() <= cam_res[1]);
+    const bool valid = (x_ok && y_ok) ? true : false;
+    if (valid == false) {
+      printf("INVALID!\n");
+      continue;
+    }
+
+    // Keypoint
+    const vec2_t &kp = cam->undistort(cam_params, z);
+    // const vec2_t &kp = opencv_undistort_point(cam_params, keypoints[i]);
+    //   vec3_t p;
+    //   if (kalibr_back_project(cam_params, img_pt, p)) {
+    //     img_pts.emplace_back(p.x() / p.z(), p.y() / p.z());
+    //   }
+    img_pts.emplace_back(kp.x(), kp.y());
+
+    // Object point
+    const vec3_t &pt = object_points[i];
+    obj_pts.emplace_back(pt.x(), pt.y(), pt.z());
   }
 
-  // Extract out pinhole parameters
-  const double fx = cam_params(0);
-  const double fy = cam_params(1);
-  const double cx = cam_params(2);
-  const double cy = cam_params(3);
+  cv::Mat K = cv::Mat::eye(3, 3, CV_64F);
+  K.at<double>(0, 0) = cam_params(0);
+  K.at<double>(1, 1) = cam_params(1);
+  K.at<double>(0, 2) = cam_params(2);
+  K.at<double>(1, 2) = cam_params(3);
 
-  // Solve pnp
-  cv::Mat camera_matrix(3, 3, CV_32FC1, 0.0f);
-  camera_matrix.at<float>(0, 0) = fx;
-  camera_matrix.at<float>(1, 1) = fy;
-  camera_matrix.at<float>(0, 2) = cx;
-  camera_matrix.at<float>(1, 2) = cy;
-  camera_matrix.at<float>(2, 2) = 1.0;
-  cv::Vec4f distortion_params(0, 0, 0, 0);
-  // SolvPnP assumes radtan which may not be true, therefore we manually
-  // distort the points ourselves above
+  cv::Mat D = cv::Mat::zeros(4, 1, CV_64F);
+  // D.at<double>(0) = cam_params(4);
+  // D.at<double>(1) = cam_params(5);
+  // D.at<double>(2) = cam_params(6);
+  // D.at<double>(3) = cam_params(7);
 
-  cv::Mat rvec;
-  cv::Mat tvec;
-  cv::solvePnP(obj_pts,
-               img_pts,
-               camera_matrix,
-               distortion_params,
-               rvec,
-               tvec,
-               false,
-               cv::SOLVEPNP_ITERATIVE);
+  cv::Mat rvec(3, 1, CV_64F);
+  cv::Mat tvec(3, 1, CV_64F);
+  cv::solvePnP(obj_pts, img_pts, K, D, rvec, tvec);
 
   // Form relative tag pose as a 4x4 tfation matrix
   // -- Convert Rodrigues rotation vector to rotation matrix

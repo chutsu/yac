@@ -1235,9 +1235,9 @@ mat3_t rvec2rot(const vec3_t &rvec, const real_t eps) {
   if (theta < eps) {
     // clang-format off
     mat3_t R;
-    R << 1, -rvec(2), rvec(1),
-         rvec(2), 1, -rvec(0),
-         -rvec(1), rvec(0), 1;
+    R << 1.0, -rvec.z(), rvec.y(),
+         rvec.z(), 1.0, -rvec.x(),
+         -rvec.y(), rvec.x(), 1.0;
     return R;
     // clang-format on
   }
@@ -1250,7 +1250,7 @@ mat3_t rvec2rot(const vec3_t &rvec, const real_t eps) {
 
   const real_t c = cos(theta);
   const real_t s = sin(theta);
-  const real_t C = 1 - c;
+  const real_t C = 1.0 - c;
 
   const real_t xs = x * s;
   const real_t ys = y * s;

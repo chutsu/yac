@@ -171,8 +171,7 @@ int test_reproj_residual() {
 
   MU_CHECK(r.check_jacs(0, "J_cam_exts"));
   MU_CHECK(r.check_jacs(1, "J_rel_pose"));
-  MU_CHECK(r.check_jacs(2, "J_fiducial"));
-  MU_CHECK(r.check_jacs(3, "J_cam"));
+  MU_CHECK(r.check_jacs(2, "J_cam"));
 
   return 0;
 }

@@ -1230,44 +1230,6 @@ void calib_camera_t::_initialize_intrinsics() {
     return cam_data;
   };
 
-  // clang-format off
-  // cam_params[0]->param(0) = 497.21158318;
-	// cam_params[0]->param(1) = 497.21158318;
-	// cam_params[0]->param(2) = 375.5;
-	// cam_params[0]->param(3) = 239.5;
-	// cam_params[0]->param(4) = 0.0;
-	// cam_params[0]->param(5) = 0.0;
-	// cam_params[0]->param(6) = 0.0;
-	// cam_params[0]->param(7) = 0.0;
-
-  // cam_params[1]->param(0) = 498.9019214;
-  // cam_params[1]->param(1) = 498.9019214;
-  // cam_params[1]->param(2) = 375.5;
-  // cam_params[1]->param(3) = 239.5;
-	// cam_params[1]->param(4) = 0.0;
-	// cam_params[1]->param(5) = 0.0;
-	// cam_params[1]->param(6) = 0.0;
-	// cam_params[1]->param(7) = 0.0;
-
-	// cam_params[0]->param(0) = 460.24828847503169981792;
-	// cam_params[0]->param(1) = 459.02512539620562392884;
-	// cam_params[0]->param(2) = 369.72328368432960132850;
-	// cam_params[0]->param(3) = 245.36683352163470317464;
-	// cam_params[0]->param(4) = -0.27673989991043390635;
-	// cam_params[0]->param(5) = 0.06819449295308478709;
-	// cam_params[0]->param(6) = 0.00070068424679062778;
-	// cam_params[0]->param(7) = -0.00050046413414543721;
-
-	// cam_params[1]->param(0) = 458.77365347;
-	// cam_params[1]->param(1) = 457.44196865;
-	// cam_params[1]->param(2) = 377.68011614;
-	// cam_params[1]->param(3) = 250.77194059;
-	// cam_params[1]->param(4) = -0.2730006;
-	// cam_params[1]->param(5) = 0.06511653;
-	// cam_params[1]->param(6) = 0.00052369;
-	// cam_params[1]->param(7) = -0.00005088;
-  // clang-format on
-
   // Initialize camera intrinsics
   for (const auto &cam_idx : get_camera_indices()) {
     if (verbose) {
@@ -1698,62 +1660,6 @@ void calib_camera_t::solve() {
   if (verbose) {
     print_settings(stdout);
   }
-
-  // cam_params[0]->param(0) = 460.90472525;
-  // cam_params[0]->param(1) = 459.69099754;
-  // cam_params[0]->param(2) = 368.28333008;
-  // cam_params[0]->param(3) = 244.72215637;
-  // cam_params[0]->param(4) = -0.2767399;
-  // cam_params[0]->param(5) = 0.06819449;
-  // cam_params[0]->param(6) = 0.00070068;
-  // cam_params[0]->param(7) = -0.00050046;
-  //
-  // cam_params[1]->param(0) = 459.45006181;
-  // cam_params[1]->param(1) = 458.13159027;
-  // cam_params[1]->param(2) = 378.95483909;
-  // cam_params[1]->param(3) = 251.36315161;
-  // cam_params[1]->param(4) = -0.2730006;
-  // cam_params[1]->param(5) = 0.06511653;
-  // cam_params[1]->param(6) = 0.00052369;
-  // cam_params[1]->param(7) = -0.00005088;
-  //
-  // // clang-format off
-  // mat4_t T;
-  // T<< 0.99998759,  0.00247109  , 0.00432683 ,-0.10960741,
-  // -0.00253273   ,  0.99989459  , 0.0142969  , 0.00053714,
-  // -0.00429104 	, 	-0.01430768,  0.99988843, -0.0004162,
-  // 	0.          ,	0.           , 0.         , 1.0;
-  // cam_exts[1]->set_tf(T.inverse());
-  // // clang-format off
-
-  // EuRoC Calibration
-  // // clang-format off
-  // cam_params[0]->param(0) = 458.654;
-  // cam_params[0]->param(1) = 457.296;
-  // cam_params[0]->param(2) = 367.215;
-  // cam_params[0]->param(3) = 248.375;
-  // cam_params[0]->param(4) = -0.28340811;
-  // cam_params[0]->param(5) = 0.07395907;
-  // cam_params[0]->param(6) = 0.00019359;
-  // cam_params[0]->param(7) = 1.76187114e-05;
-  //
-  // cam_params[1]->param(0) = 457.587;
-  // cam_params[1]->param(1) = 456.134;
-  // cam_params[1]->param(2) = 379.999;
-  // cam_params[1]->param(3) = 255.238;
-  // cam_params[1]->param(4) = -0.28368365;
-  // cam_params[1]->param(5) = 0.07451284;
-  // cam_params[1]->param(6) = -0.00010473;
-  // cam_params[1]->param(7) = -3.55590700e-05;
-  //
-  // mat4_t T;
-  // T <<  0.9999972564777967, -0.0023171357232751057, -0.0003433931206204861,
-  // 0.11007413780047799,
-  //   0.0023120671924322465, 0.9998980485071031, -0.014090668452683376,
-  //   -0.00015661205439167214, 0.00037600810231955327, 0.01408983584669108,
-  //   0.9999006626380811, 0.0008893827854321804, 0.0, 0.0, 0.0, 1.0;
-  // cam_exts[1]->set_tf(T);
-  // // clang-format on
 
   // Initialize camera intrinsics and extrinsics
   _initialize_intrinsics();

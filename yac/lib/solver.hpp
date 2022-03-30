@@ -72,10 +72,10 @@ struct solver_t {
   void _update(const ParameterOrder &param_order, const vecx_t &dx);
 
   void clear();
-  virtual int estimate_covariance(const std::vector<param_t *> params,
+  virtual int estimate_covariance(const std::vector<param_t *> &params,
                                   matx_t &calib_covar) const;
-  virtual int estimate_covariance_determinant(
-      const std::vector<param_t *> params, real_t &covar_det);
+  virtual int estimate_log_covariance_determinant(
+      const std::vector<param_t *> &params, real_t &covar_det);
   virtual void solve(const int max_iter = 30,
                      const bool verbose = false,
                      const int verbose_level = 0) = 0;
@@ -103,15 +103,15 @@ struct yac_solver_t : solver_t {
 
 // CERES-SOLVER ////////////////////////////////////////////////////////////////
 
-// #define ENABLE_CERES_COVARIANCE_ESTIMATOR
+#define ENABLE_CERES_COVARIANCE_ESTIMATOR
 
 struct ceres_solver_t : solver_t {
   int max_num_threads = 4;
   ceres::Problem::Options prob_options;
   ceres::Problem *problem;
-  calib_loss_t *loss = nullptr;
-  // calib_loss_t *loss = new ceres::CauchyLoss(0.5);
-  // calib_loss_t *loss = new BlakeZissermanLoss(2);
+  // calib_loss_t *loss = nullptr;
+  // calib_loss_t *loss = new CauchyLoss(0.5);
+  calib_loss_t *loss = new BlakeZissermanLoss(2);
 
   PoseLocalParameterization pose_plus;
   std::unordered_map<calib_residual_t *, ceres::ResidualBlockId> res2id;
@@ -128,9 +128,10 @@ struct ceres_solver_t : solver_t {
   void remove_residual(calib_residual_t *res_fn) override;
 
 #ifdef ENABLE_CERES_COVARIANCE_ESTIMATOR
-  int estimate_covariance(const std::vector<param_t *> params,
-                          matx_t &covar,
-                          const bool verbose = true) const override;
+  int estimate_covariance(const std::vector<param_t *> &params,
+                          matx_t &covar) const override;
+  int estimate_log_covariance_determinant(const std::vector<param_t *> &params,
+                                          real_t &covar_det) override;
 #endif // ENABLE_CERES_COVARIANCE_ESTIMATOR
 
   void solve(const int max_iter = 30,

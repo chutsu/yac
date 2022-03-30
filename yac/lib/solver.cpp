@@ -406,7 +406,7 @@ void solver_t::clear() {
   res2param.clear();
 }
 
-int solver_t::estimate_covariance(const std::vector<param_t *> params,
+int solver_t::estimate_covariance(const std::vector<param_t *> &params,
                                   matx_t &calib_covar) const {
   // Evaluate residuals
   ResidualJacobians res_jacs;
@@ -588,8 +588,8 @@ int solver_t::estimate_covariance(const std::vector<param_t *> params,
   return 0;
 }
 
-int solver_t::estimate_covariance_determinant(
-    const std::vector<param_t *> params, real_t &covar_det) {
+int solver_t::estimate_log_covariance_determinant(
+    const std::vector<param_t *> &params, real_t &covar_det) {
   UNUSED(params);
 
   // Form dense jacobian
@@ -604,7 +604,7 @@ int solver_t::estimate_covariance_determinant(
   tsolver.analyze_marginal(J_sparse, marg_idx);
   cholmod_l_free_sparse(&J_sparse, &tsolver.cholmod_);
 
-  // estimate covariance determinant
+  // Estimate covariance determinant: log(det(covar))
   const auto sv_rank = tsolver.svdRank_;
   const vecx_t s = tsolver.getSingularValues();
   covar_det = -1.0 * s.head(sv_rank).array().log().sum();
@@ -617,6 +617,8 @@ int solver_t::estimate_covariance_determinant(
 void yac_solver_t::_solve_gn(const int max_iter,
                              const bool verbose,
                              const int verbose_level) {
+  UNUSED(verbose_level);
+
   // Lambda function to print status
   auto print_stats =
       [&](const int iter, const real_t cost, const real_t dcost) {
@@ -687,6 +689,8 @@ void yac_solver_t::_solve_gn(const int max_iter,
 void yac_solver_t::_solve_lm(const int max_iter,
                              const bool verbose,
                              const int verbose_level) {
+  UNUSED(verbose_level);
+
   // Lambda function to print status
   auto print_stats = [&](const int iter,
                          const real_t cost,
@@ -964,9 +968,8 @@ void ceres_solver_t::remove_residual(calib_residual_t *res_fn) {
 
 #ifdef ENABLE_CERES_COVARIANCE_ESTIMATOR
 
-int ceres_solver_t::estimate_covariance(const std::vector<param_t *> params,
-                                        matx_t &covar,
-                                        bool verbose) const {
+int ceres_solver_t::estimate_covariance(const std::vector<param_t *> &params,
+                                        matx_t &covar) const {
   // Setup covariance blocks to estimate
   int covar_size = 0;
   std::map<param_t *, int> param_indices;
@@ -992,10 +995,8 @@ int ceres_solver_t::estimate_covariance(const std::vector<param_t *> params,
   ::ceres::Covariance::Options options;
   ::ceres::Covariance covar_est(options);
   if (covar_est.Compute(covar_blocks, problem) == false) {
-    if (verbose) {
-      LOG_ERROR("Failed to estimate covariance!");
-      LOG_ERROR("Maybe Hessian is not full rank?");
-    }
+    LOG_ERROR("Failed to estimate covariance!");
+    LOG_ERROR("Maybe Hessian is not full rank?");
     return -1;
   }
   // -- Form covariance matrix
@@ -1025,6 +1026,9 @@ int ceres_solver_t::estimate_covariance(const std::vector<param_t *> params,
         retval = covar_est.GetCovarianceBlock(ptr_i, ptr_j, data);
       }
       if (retval == false) {
+        LOG_ERROR("Failed to get covariance block for [%s-%s]",
+                  param_i->type.c_str(),
+                  param_j->type.c_str());
         return -1;
       }
       covar.block(idx_i, idx_j, size_i, size_j) = block;
@@ -1038,11 +1042,23 @@ int ceres_solver_t::estimate_covariance(const std::vector<param_t *> params,
 
   // Check if covar is full-rank?
   if (rank(covar) != covar.rows()) {
-    if (verbose) {
-      LOG_ERROR("covar is not full rank!");
-    }
+    LOG_ERROR("covar is not full rank!");
     return -1;
   }
+
+  return 0;
+}
+
+int ceres_solver_t::estimate_log_covariance_determinant(
+    const std::vector<param_t *> &params, real_t &covar_det) {
+  // Estimate covariance
+  matx_t covar;
+  if (estimate_covariance(params, covar)) {
+    return -1;
+  }
+
+  // Return covariance determinant: log(det(covar))
+  covar_det = std::log(covar.determinant());
 
   return 0;
 }

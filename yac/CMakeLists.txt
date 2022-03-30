@@ -88,6 +88,7 @@ ADD_LIBRARY(
   lib/util/timeline.cpp
   lib/calib_camera.cpp
   lib/calib_data.cpp
+  lib/calib_loss.cpp
   lib/calib_residuals.cpp
   # lib/calib_mocap.cpp
   lib/calib_nbt.cpp

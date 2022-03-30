@@ -156,8 +156,9 @@ struct ceres_solver_t : solver_t {
   int max_num_threads = 4;
   ceres::Problem::Options prob_options;
   ceres::Problem *problem;
+  ceres::LossFunction *loss = nullptr;
   // ceres::LossFunction *loss = new ceres::CauchyLoss(0.5);
-  ceres::LossFunction *loss = new BlakeZissermanLoss(2);
+  // ceres::LossFunction *loss = new BlakeZissermanLoss(2);
 
   PoseLocalParameterization pose_plus;
   std::unordered_map<calib_residual_t *, ceres::ResidualBlockId> res2id;

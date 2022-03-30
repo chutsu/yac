@@ -20,5 +20,6 @@ int main(int argc, char *argv[]) {
   const auto inspect_data = load_dataset(dataset_path);
   yac::calib_camera_t calib{config_file};
   calib.inspect(inspect_data);
+
   return 0;
 }

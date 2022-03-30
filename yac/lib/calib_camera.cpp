@@ -2008,7 +2008,6 @@ real_t calib_camera_t::inspect(const std::map<int, aprilgrids_t> &valid_data) {
     const auto cam_res = cam_param->resolution;
     const auto T_C0Ci = cam_exts[cam_idx]->tf();
 
-#pragma omp parallel for shared(fiducial_poses)
     for (size_t k = 0; k < valid_data.at(cam_idx).size(); k++) {
       const auto &grid = valid_data.at(cam_idx)[k];
 
@@ -2028,7 +2027,6 @@ real_t calib_camera_t::inspect(const std::map<int, aprilgrids_t> &valid_data) {
         continue;
       }
 
-#pragma omp critical
       fiducial_poses[grid.timestamp] = T_C0Ci * T_CiF;
     }
   }

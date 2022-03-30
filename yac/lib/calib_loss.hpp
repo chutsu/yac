@@ -41,7 +41,6 @@ public:
 
 class CauchyLoss : public calib_loss_t {
 public:
-  double s;
   ceres::CauchyLoss *loss;
 
   /* Constructor */

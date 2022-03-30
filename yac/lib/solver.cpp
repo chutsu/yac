@@ -840,10 +840,6 @@ void yac_solver_t::_solve_lm(const int max_iter,
 void yac_solver_t::solve(const int max_iter,
                          const bool verbose,
                          const int verbose_level) {
-  printf("num residual blocks: %ld\n", res_fns.size());
-  printf("num parameter blocks: %ld\n", params.size());
-  printf("\n");
-
   tsolver.clear();
   if (algorithm_type == "LEVENBERG-MARQUARDT") {
     _solve_lm(max_iter, verbose, verbose_level);
@@ -1093,9 +1089,6 @@ void ceres_solver_t::solve(const int max_iter,
   if (verbose) {
     switch (verbose_level) {
       case 0:
-        printf("num residual blocks: %d\n", problem->NumResidualBlocks());
-        printf("num parameter blocks: %d\n", problem->NumParameterBlocks());
-        printf("\n");
         std::cout << summary.BriefReport() << std::endl << std::endl;
         break;
       case 1:

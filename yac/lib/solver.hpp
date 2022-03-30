@@ -1,8 +1,8 @@
 #ifndef YAC_SOLVER_HPP
 #define YAC_SOLVER_HPP
 #include "calib_params.hpp"
-#include "calib_residuals.hpp"
 #include "calib_loss.hpp"
+#include "calib_residuals.hpp"
 #include "suitesparse.hpp"
 
 #include <Eigen/SparseQR>

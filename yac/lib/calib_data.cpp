@@ -183,6 +183,7 @@ calib_data_preprocess(const calib_target_t &calib_target,
     // Loop through image files
     printf("Preprocessing %s data: ", cam_str.c_str());
 
+#pragma omp parallel for num_threads(4) shared(cam_grids)
     for (size_t k = 0; k < img_paths.size(); k++) {
       const std::string img_fname = img_paths[k];
       const std::string img_path = cam_path + "/" + img_fname;
@@ -218,6 +219,7 @@ calib_data_preprocess(const calib_target_t &calib_target,
         cv::waitKey(1);
       }
 
+#pragma omp critical
       cam_grids[cam_idx].push_back(grid);
       if ((k % 100) == 0) {
         printf(".");

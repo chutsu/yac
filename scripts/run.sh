@@ -25,6 +25,7 @@ set -e
 
 # YAC - RESIDUALS
 # RUN_CMD="./test_calib_residuals"
+# RUN_CMD="./test_calib_residuals --target test_eval"
 # RUN_CMD="./test_calib_residuals --target test_prior"
 # RUN_CMD="./test_calib_residuals --target test_pose_prior"
 # RUN_CMD="./test_calib_residuals --target test_reproj_residual"
@@ -45,16 +46,14 @@ set -e
 # RUN_CMD="./test_calib_camera --target test_calib_camera_remove_outliers"
 # RUN_CMD="./test_calib_camera --target test_calib_camera_solve_batch"
 # RUN_CMD="./test_calib_camera --target test_calib_camera_solve_inc"
-# RUN_CMD="./test_calib_camera --target test_calib_camera_mono"
+# RUN_CMD="time ./test_calib_camera --target test_calib_camera_mono"
 # RUN_CMD="./test_calib_camera --target test_calib_camera_stereo"
 # RUN_CMD="./test_calib_camera --target test_marg_residual"
-RUN_CMD="./calib_euroc"
+RUN_CMD="time ./calib_euroc"
 # RUN_CMD="./calib_inspect '/tmp/calib-results.yaml' /data/euroc/cam_april"
 # RUN_CMD="./calib_inspect '/home/chutsu/projects/yac/yac/configs/calib-kalibr.yaml' /data/euroc/imu_april"
 # RUN_CMD="./calib_inspect '/home/chutsu/projects/yac/yac/configs/calib-yac.yaml' /data/euroc/cam_april"
 # RUN_CMD="./calib_inspect '/data/euroc_results/configs/euroc/euroc.yaml' /data/euroc/cam_april"
-# RUN_CMD="./calib_sandbox '/tmp/yac_data/calib.yaml'"
-
 
 # YAC - MOCAP CALIBRATION
 # RUN_CMD="test_calib_mocap"
@@ -90,6 +89,10 @@ RUN_CMD="./calib_euroc"
 # RUN_CMD="./test_calib_nbv --target test_simulate_imu"
 # RUN_CMD="./test_calib_nbv --target test_nbt_eval_traj"
 
+# YAC - SOLVER
+# RUN_CMD="./test_solver"
+# gdb -ex run -ex bt
+
 # YAC - MARG RESIDUAL
 # RUN_CMD="./test_marg_residual"
 # RUN_CMD="./test_marg_residual --target test_marg_block"
@@ -116,14 +119,14 @@ RUN_CMD="./calib_euroc"
 tmux send-keys -t dev -R C-l C-m
 tmux send-keys -t dev -R "\
 cd ~/projects/yac \
-&& sudo make lib_relwithdeb \
+&& sudo make lib \
 && cd build && ${RUN_CMD}
 " C-m C-m
 exit
 
 # python3 scripts/aprilgrid_generate.py --nx 6 --ny 6 --tsize 0.088
 # python3 scripts/marg_sandbox.py
-python3 scripts/blake_zisserman.py
+# python3 scripts/blake_zisserman.py
 # python3 scripts/plot_frames.py
 # python3 scripts/plot_imu.py
 # python3 scripts/plot_info.py

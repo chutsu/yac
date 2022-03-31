@@ -420,7 +420,7 @@ void solver_t::_form_hessian(ParameterOrder &param_order,
   H = zeros(params_length, params_length);
   b = zeros(params_length, 1);
 
-  for (auto res_fn : res_evaled) {
+  for (calib_residual_t *res_fn : res_evaled) {
     const vecx_t r = res_fn->residuals;
 
     for (size_t i = 0; i < res_fn->param_blocks.size(); i++) {
@@ -940,12 +940,7 @@ ceres_solver_t::ceres_solver_t() {
   problem = new ceres::Problem(prob_options);
 }
 
-ceres_solver_t::~ceres_solver_t() {
-  delete problem;
-  if (loss != nullptr) {
-    delete loss;
-  }
-}
+ceres_solver_t::~ceres_solver_t() { delete problem; }
 
 size_t ceres_solver_t::num_residuals() { return problem->NumResidualBlocks(); }
 
@@ -989,7 +984,8 @@ void ceres_solver_t::add_residual(calib_residual_t *res_fn) {
 
   // Add residual to ceres::Problem
   auto param_blocks = res_fn->param_block_ptrs();
-  auto res_id = problem->AddResidualBlock(res_fn, loss, param_blocks);
+  auto res_id =
+      problem->AddResidualBlock(res_fn, res_fn->loss_fn, param_blocks);
   res2id[res_fn] = res_id;
 }
 

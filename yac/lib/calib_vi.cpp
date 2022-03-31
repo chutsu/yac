@@ -314,7 +314,6 @@ calib_vi_t::calib_vi_t(const calib_vi_t &calib) {
       continue;
     }
 
-    auto view_kp1 = calib.calib_views[k + 1];
     auto imu_data = view_k->imu_residual->imu_data_;
     auto pose_j = &calib_views[k + 1]->pose;
     auto sb_j = &calib_views[k + 1]->sb;
@@ -1270,7 +1269,6 @@ int calib_vi_t::save_results(const std::string &save_path) const {
     for (int i = 1; i < nb_cams(); i++) {
       const mat4_t T_BCi = get_camera_extrinsics(i);
       const mat4_t T_C0Ci = T_C0B * T_BCi;
-      const mat4_t T_CiC0 = T_C0Ci.inverse();
       fprintf(outfile, "T_cam0_cam%d:\n", i);
       fprintf(outfile, "  rows: 4\n");
       fprintf(outfile, "  cols: 4\n");

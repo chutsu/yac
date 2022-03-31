@@ -89,42 +89,58 @@ int test_yac_solver() {
   }
 
   // Old eval
-  // {
-  //   profiler_t prof;
-  //   prof.start("eval_residuals");
-  //   ParameterOrder param_order;
-  //   std::vector<calib_residual_t *> res_evaled;
-  //   ResidualJacobians res_jacs;
-  //   ResidualJacobians res_min_jacs;
-  //   ResidualValues res_vals;
-  //   size_t residuals_length;
-  //   size_t params_length;
-  //   solver._eval_residuals(param_order,
-  //                          res_evaled,
-  //                          res_jacs,
-  //                          res_min_jacs,
-  //                          res_vals,
-  //                          residuals_length,
-  //                          params_length);
-  // prof.stop("eval_residuals");
-  // prof.print("eval_residuals");
-  // }
+  {
+    profiler_t prof;
+    prof.start("eval_residuals");
+    ParameterOrder param_order;
+    std::vector<calib_residual_t *> res_evaled;
+    ResidualJacobians res_jacs;
+    ResidualJacobians res_min_jacs;
+    ResidualValues res_vals;
+    size_t residuals_length;
+    size_t params_length;
+    solver._eval_residuals(param_order,
+                           res_evaled,
+                           res_jacs,
+                           res_min_jacs,
+                           res_vals,
+                           residuals_length,
+                           params_length);
+    prof.stop("eval_residuals");
+    prof.print("eval_residuals");
 
-  // // New eval
-  // {
-  //   profiler_t prof;
-  //   prof.start("eval_residuals");
-  //   ParameterOrder param_order;
-  //   std::vector<calib_residual_t *> res_evaled;
-  //   size_t residuals_length;
-  //   size_t params_length;
-  //   solver._eval_residuals(param_order,
-  //                          res_evaled,
-  //                          residuals_length,
-  //                          params_length);
-  //   prof.stop("eval_residuals");
-  //   prof.print("eval_residuals");
-  // }
+    printf("nb residuals evaluated: %ld\n", res_evaled.size());
+    printf("residuals length: %ld\n", residuals_length);
+    printf("params length: %ld\n", params_length);
+
+    print_matrix("J0", res_min_jacs[res_evaled.back()][0]);
+    print_matrix("J1", res_min_jacs[res_evaled.back()][1]);
+    print_matrix("J2", res_min_jacs[res_evaled.back()][2]);
+  }
+
+  // New eval
+  {
+    profiler_t prof;
+    prof.start("eval_residuals");
+    ParameterOrder param_order;
+    std::vector<calib_residual_t *> res_evaled;
+    size_t residuals_length;
+    size_t params_length;
+    solver._eval_residuals(param_order,
+                           res_evaled,
+                           residuals_length,
+                           params_length);
+    prof.stop("eval_residuals");
+    prof.print("eval_residuals");
+
+    printf("nb residuals evaluated: %ld\n", res_evaled.size());
+    printf("residuals length: %ld\n", residuals_length);
+    printf("params length: %ld\n", params_length);
+
+    print_matrix("J0", res_evaled.back()->min_jacobian_blocks[0]);
+    print_matrix("J1", res_evaled.back()->min_jacobian_blocks[1]);
+    print_matrix("J2", res_evaled.back()->min_jacobian_blocks[2]);
+  }
 
   // Form hessian
   // {

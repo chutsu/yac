@@ -1423,7 +1423,7 @@ int calib_camera_t::_remove_outliers(const bool filter_all) {
 
   // Iterate through views in reverse
   if (filter_all) {
-    printf("\nFiltering all views\n");
+    printf("\nFiltering all views: ");
   }
 
   int nb_views_removed = 0;
@@ -1437,6 +1437,9 @@ int calib_camera_t::_remove_outliers(const bool filter_all) {
       const vec2_t cam_stddev = stddev(cam_r);
       cam_thresholds[cam_idx] = outlier_threshold * cam_stddev;
     }
+    if (filter_all) {
+      printf(".");
+    }
 
     // Cache estimates
     _cache_estimates();
@@ -1445,9 +1448,12 @@ int calib_camera_t::_remove_outliers(const bool filter_all) {
     auto &view = calib_views[ts];
     const auto grids_cache = view->grids;
     int removed = view->filter_view(cam_thresholds);
-    solver->solve(5);
+    if (removed == 0) {
+      continue;
+    }
 
     // Get info with filtered view
+    solver->solve(5);
     real_t info_before;
     if (_calc_info(&info_before) != 0) {
       printf("Failed to evaluate info!");
@@ -1473,17 +1479,10 @@ int calib_camera_t::_remove_outliers(const bool filter_all) {
     if (info_gain > info_gain_threshold) {
       // Add view back and restore estimates
       add_view(grids);
-
       removed_outliers += removed;
       nb_outliers += removed;
-      if (filter_all) {
-        printf("Keep view [%ld], outliers: %d\n", ts, removed);
-      }
     } else {
       nb_views_removed++;
-      if (filter_all) {
-        printf("Remove view [%ld], outliers: %d\n", ts, removed);
-      }
     }
 
     // Restore estimates
@@ -1492,7 +1491,7 @@ int calib_camera_t::_remove_outliers(const bool filter_all) {
 
   // Print stats
   if (filter_all) {
-    printf("[Stats] kept views: %d, removed views: %d\n\n",
+    printf("\n[Stats] kept views: %d, removed views: %d\n\n",
            nb_views(),
            nb_views_removed);
   }

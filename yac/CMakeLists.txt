@@ -157,6 +157,9 @@ TARGET_LINK_LIBRARIES(test_calib_nbv yac ${DEPS})
 ADD_EXECUTABLE(test_calib_vi tests/test_calib_vi.cpp)
 TARGET_LINK_LIBRARIES(test_calib_vi yac ${DEPS})
 
+ADD_EXECUTABLE(test_solver tests/test_solver.cpp)
+TARGET_LINK_LIBRARIES(test_solver yac ${DEPS})
+
 # DEMO
 ADD_EXECUTABLE(calib_euroc demo/calib_euroc.cpp)
 TARGET_LINK_LIBRARIES(calib_euroc yac ${DEPS})

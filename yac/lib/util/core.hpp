@@ -1256,19 +1256,23 @@ real_t time_now();
  */
 struct profiler_t {
   std::map<std::string, timespec> timers;
-  std::map<std::string, float> record;
+  std::map<std::string, std::vector<real_t>> record;
 
   profiler_t() {}
 
   void start(const std::string &key) { timers[key] = tic(); }
 
   float stop(const std::string &key) {
-    record[key] = toc(&timers[key]);
-    return record[key];
+    record[key].push_back(toc(&timers[key]));
+    return record[key].back();
   }
 
-  void print(const std::string &key) {
-    printf("[%s]: %.4fs\n", key.c_str(), record[key]);
+  void print(const std::string &key, const bool show_last = true) {
+    if (show_last) {
+      printf("[%s]: %.4fs\n", key.c_str(), record[key].back());
+    } else {
+      printf("Total [%s]: %.4fs\n", key.c_str(), sum(record[key]));
+    }
   }
 };
 

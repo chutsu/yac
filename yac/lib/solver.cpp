@@ -672,22 +672,35 @@ int solver_t::estimate_log_covariance_determinant(
     const std::vector<param_t *> &params, real_t &covar_det) {
   UNUSED(params);
 
-  // Form dense jacobian
-  ParameterOrder param_order;
-  matx_t J;
-  vecx_t r;
-  _form_jacobian(param_order, J, r);
+  {
+    // Form dense jacobian
+    prof.start("log(det(covar))-form_jacobian");
+    ParameterOrder param_order;
+    matx_t J;
+    vecx_t r;
+    _form_jacobian(param_order, J, r);
+    prof.stop("log(det(covar))-form_jacobian");
 
-  // Convert to sparse jacobian
-  const auto eps = std::numeric_limits<double>::epsilon();
-  cholmod_sparse *J_sparse = cholmod_convert(J, &tsolver.cholmod_, eps);
-  tsolver.analyze_marginal(J_sparse, marg_idx);
-  cholmod_l_free_sparse(&J_sparse, &tsolver.cholmod_);
+    // Convert to sparse jacobian
+    prof.start("log(det(covar))-convert_dense_to_sparse");
+    const auto eps = std::numeric_limits<double>::epsilon();
+    cholmod_sparse *J_sparse = cholmod_convert(J, &tsolver.cholmod_, eps);
+    prof.stop("log(det(covar))-convert_dense_to_sparse");
 
-  // Estimate covariance determinant: log(det(covar))
-  const auto sv_rank = tsolver.svdRank_;
-  const vecx_t s = tsolver.getSingularValues();
-  covar_det = -1.0 * s.head(sv_rank).array().log().sum();
+    // Estimate covariance determinant: log(det(covar))
+    prof.start("log(det(covar))-estimate");
+    tsolver.analyze_marginal(J_sparse, marg_idx);
+    cholmod_l_free_sparse(&J_sparse, &tsolver.cholmod_);
+    const auto sv_rank = tsolver.svdRank_;
+    const vecx_t s = tsolver.getSingularValues();
+    covar_det = -1.0 * s.head(sv_rank).array().log().sum();
+    prof.stop("log(det(covar))-estimate");
+  }
+
+  printf("profile:\n");
+  prof.print("log(det(covar))-form_jacobian");
+  prof.print("log(det(covar))-convert_dense_to_sparse");
+  prof.print("log(det(covar))-estimate");
 
   return 0;
 }
@@ -1041,7 +1054,7 @@ void ceres_solver_t::remove_residual(calib_residual_t *res_fn) {
 #ifdef ENABLE_CERES_COVARIANCE_ESTIMATOR
 
 int ceres_solver_t::estimate_covariance(const std::vector<param_t *> &params,
-                                        matx_t &covar) const {
+                                        matx_t &covar) {
   // Setup covariance blocks to estimate
   int covar_size = 0;
   std::map<param_t *, int> param_indices;
@@ -1151,7 +1164,6 @@ void ceres_solver_t::solve(const int max_iter,
   options.function_tolerance = 1e-20;       // Default: 1e-6
   options.gradient_tolerance = 1e-20;       // Default: 1e-10
   options.parameter_tolerance = 1e-20;      // Default: 1e-8
-  // options.preconditioner_type = ceres::IDENTITY; // Default: ceres::JACOBI
 
   ceres::Solver::Summary summary;
   ceres::Solve(options, problem, &summary);

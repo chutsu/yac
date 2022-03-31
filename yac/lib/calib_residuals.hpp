@@ -18,8 +18,8 @@ struct calib_residual_t : public ceres::CostFunction {
   std::string type;
   vecx_t residuals;
   std::vector<param_t *> param_blocks;
-  matxs_t jacobian_blocks;
-  matxs_t min_jacobian_blocks;
+  matxs_row_major_t jacobian_blocks;
+  matxs_row_major_t min_jacobian_blocks;
   calib_loss_t *loss_fn = nullptr;
 
   /* Constructor */
@@ -104,6 +104,8 @@ struct pose_prior_t : public calib_residual_t {
 /** Reprojection Residual */
 struct reproj_residual_t : public calib_residual_t {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+  // calib_loss_t *loss = new CauchyLoss(0.5);
+  calib_loss_t *loss_fn = new BlakeZissermanLoss(2);
 
   // Data
   // -- Parameters
@@ -129,7 +131,7 @@ struct reproj_residual_t : public calib_residual_t {
                     const mat2_t &covar_);
 
   /* Destructor */
-  ~reproj_residual_t() = default;
+  ~reproj_residual_t();
 
   /** Get residual */
   int get_residual(vec2_t &z_hat, vec2_t &r) const;

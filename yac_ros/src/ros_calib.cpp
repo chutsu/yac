@@ -217,24 +217,6 @@ void update_aprilgrid_model(const ros::Time &ts,
   rviz_pub.publish(marker);
 }
 
-void publish_nbt(const ctraj_t &traj, ros::Publisher &pub) {
-  auto ts = ros::Time::now();
-  auto frame_id = "map";
-
-  nav_msgs::Path path_msg;
-  path_msg.header.seq = 0;
-  path_msg.header.stamp = ts;
-  path_msg.header.frame_id = frame_id;
-
-  for (size_t i = 0; i < traj.timestamps.size(); i++) {
-    auto pose = tf(traj.orientations[i], traj.positions[i]);
-    auto pose_stamped = msg_build(0, ts, frame_id, pose);
-    path_msg.poses.push_back(pose_stamped);
-  }
-
-  pub.publish(path_msg);
-}
-
 void publish_fiducial_tf(const ros::Time &ts,
                          const calib_target_t &target,
                          const mat4_t &T_WF,

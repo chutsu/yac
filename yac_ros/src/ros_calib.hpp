@@ -29,7 +29,6 @@ void update_aprilgrid_model(const ros::Time &ts,
                             const calib_target_t &target,
                             ros::Publisher &rviz_pub);
 
-void publish_nbt(const ctraj_t &traj, ros::Publisher &pub);
 void publish_fiducial_tf(const ros::Time &ts,
                          const calib_target_t &target,
                          const mat4_t &T_WF,

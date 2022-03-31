@@ -104,7 +104,6 @@ struct calib_nbv_t {
     bool ready = true;
     for (auto &[cam_idx, data] : img_buffer) {
       const auto img_ts = data.first;
-      const auto &img = data.second;
       if (ts_k > img_ts) {
         ready = false;
       }
@@ -194,7 +193,7 @@ struct calib_nbv_t {
     }
 
     // NBV reached! Now add measurements to calibrator
-    calib->add_view(grid_buffer, true);
+    calib->add_view(grid_buffer);
     calib->enable_nbv = false;
     calib->enable_outlier_filter = false;
     calib->solve();
@@ -212,7 +211,7 @@ struct calib_nbv_t {
     // Form calibration data
     for (auto &[cam_idx, data] : img_buffer) {
       // Check if have enough grids already
-      if (cam_grids[cam_idx].size() >= min_intrinsics_views) {
+      if (cam_grids[cam_idx].size() >= (size_t)min_intrinsics_views) {
         continue;
       }
 
@@ -255,7 +254,7 @@ struct calib_nbv_t {
 
     // Check if we have enough grids for all cameras
     for (const auto [cam_idx, grids] : cam_grids) {
-      if (grids.size() < min_intrinsics_views) {
+      if (grids.size() < (size_t)min_intrinsics_views) {
         goto viz_init;
       }
     }

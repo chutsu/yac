@@ -14,6 +14,24 @@
 
 namespace yac {
 
+void publish_nbt(const ctraj_t &traj, ros::Publisher &pub) {
+  auto ts = ros::Time::now();
+  auto frame_id = "map";
+
+  nav_msgs::Path path_msg;
+  path_msg.header.seq = 0;
+  path_msg.header.stamp = ts;
+  path_msg.header.frame_id = frame_id;
+
+  for (size_t i = 0; i < traj.timestamps.size(); i++) {
+    auto pose = tf(traj.orientations[i], traj.positions[i]);
+    auto pose_stamped = msg_build(0, ts, frame_id, pose);
+    path_msg.poses.push_back(pose_stamped);
+  }
+
+  pub.publish(path_msg);
+}
+
 struct calib_nbt_t {
   // Calibration state
   enum CALIB_STATE {

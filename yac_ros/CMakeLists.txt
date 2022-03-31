@@ -118,8 +118,8 @@ TARGET_LINK_LIBRARIES(calib_imucam_node ${DEPS})
 # ADD_EXECUTABLE(calib_mocap_node src/nodes/calib_mocap_node.cpp)
 # TARGET_LINK_LIBRARIES(calib_mocap_node ${DEPS})
 
-ADD_EXECUTABLE(calib_nbt_node src/nodes/calib_nbt_node.cpp)
-TARGET_LINK_LIBRARIES(calib_nbt_node ${DEPS})
+# ADD_EXECUTABLE(calib_nbt_node src/nodes/calib_nbt_node.cpp)
+# TARGET_LINK_LIBRARIES(calib_nbt_node ${DEPS})
 
 ADD_EXECUTABLE(calib_nbv_node src/nodes/calib_nbv_node.cpp)
 TARGET_LINK_LIBRARIES(calib_nbv_node ${DEPS})

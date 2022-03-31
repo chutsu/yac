@@ -10,6 +10,8 @@
 
 namespace yac {
 
+// LINSOLVE ////////////////////////////////////////////////////////////////////
+
 vecx_t linsolve_dense_cholesky(const matx_t &A, const vecx_t &b);
 vecx_t linsolve_dense_svd(const matx_t &A, const vecx_t &b);
 vecx_t linsolve_dense_qr(const matx_t &A, const vecx_t &b);
@@ -18,9 +20,9 @@ vecx_t linsolve_sparse_qr(const matx_t &A, const vecx_t &b);
 // SOLVER BASE /////////////////////////////////////////////////////////////////
 
 // clang-format off
-using ResidualJacobians = std::map<calib_residual_t *, std::vector<matx_row_major_t>>;
-using ResidualValues = std::map<calib_residual_t *, vecx_t>;
-using ParameterOrder = std::map<param_t *, int>;
+using ResidualJacobians = std::unordered_map<calib_residual_t *, std::vector<matx_row_major_t>>;
+using ResidualValues = std::unordered_map<calib_residual_t *, vecx_t>;
+using ParameterOrder = std::unordered_map<param_t *, int>;
 // clang-format on
 
 struct solver_t {
@@ -54,16 +56,20 @@ struct solver_t {
 
   void _cache_params();
   void _restore_params();
-  bool _eval_residual(calib_residual_t *res_fn, vecx_t &r) const;
+  bool _eval_residual(calib_residual_t *res_fn, vecx_t &r);
   bool _eval_residual(calib_residual_t *res_fn,
                       ResidualJacobians &res_jacs,
                       ResidualJacobians &res_min_jacs,
-                      ResidualValues &res_vals) const;
+                      ResidualValues &res_vals);
   void _eval_residuals(ParameterOrder &param_order,
                        std::vector<calib_residual_t *> &res_evaled,
                        ResidualJacobians &res_jacs,
                        ResidualJacobians &res_min_jacs,
                        ResidualValues &res_vals,
+                       size_t &residuals_length,
+                       size_t &params_length);
+  void _eval_residuals(ParameterOrder &param_order,
+                       std::vector<calib_residual_t *> &res_evaled,
                        size_t &residuals_length,
                        size_t &params_length);
   real_t _calculate_cost();
@@ -73,7 +79,7 @@ struct solver_t {
 
   void clear();
   virtual int estimate_covariance(const std::vector<param_t *> &params,
-                                  matx_t &calib_covar) const;
+                                  matx_t &calib_covar);
   virtual int estimate_log_covariance_determinant(
       const std::vector<param_t *> &params, real_t &covar_det);
   virtual void solve(const int max_iter = 30,
@@ -103,7 +109,7 @@ struct yac_solver_t : solver_t {
 
 // CERES-SOLVER ////////////////////////////////////////////////////////////////
 
-#define ENABLE_CERES_COVARIANCE_ESTIMATOR
+// #define ENABLE_CERES_COVARIANCE_ESTIMATOR
 
 struct ceres_solver_t : solver_t {
   int max_num_threads = 4;

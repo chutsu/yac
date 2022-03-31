@@ -7,6 +7,7 @@
 #include "util/util.hpp"
 #include "calib_data.hpp"
 #include "calib_params.hpp"
+#include "calib_loss.hpp"
 
 namespace yac {
 
@@ -15,8 +16,11 @@ namespace yac {
 struct calib_residual_t : public ceres::CostFunction {
   // Data
   std::string type;
+  vecx_t residuals;
   std::vector<param_t *> param_blocks;
-  ceres::LossFunction *loss_fn = nullptr;
+  matxs_t jacobian_blocks;
+  matxs_t min_jacobian_blocks;
+  calib_loss_t *loss_fn = nullptr;
 
   /* Constructor */
   calib_residual_t() = default;
@@ -38,10 +42,7 @@ struct calib_residual_t : public ceres::CostFunction {
   bool Evaluate(double const *const *params, double *res, double **jacs) const;
 
   /* Evaluate */
-  bool eval(double const *const *params,
-            double *res,
-            double **jacs,
-            double **min_jacs) const;
+  bool eval();
 
   /* Check jacobians */
   bool check_jacs(const int param_idx,

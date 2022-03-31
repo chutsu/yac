@@ -20,44 +20,65 @@ bool calib_residual_t::Evaluate(double const *const *params,
   return EvaluateWithMinimalJacobians(params, res, jacs, nullptr);
 }
 
-bool calib_residual_t::eval(double const *const *params,
-                            double *res,
-                            double **jacs,
-                            double **min_jacs) const {
-  // Evaluate cost function to obtain the jacobians and residuals
-  EvaluateWithMinimalJacobians(params, res, jacs, min_jacs);
-
-  // Scale jacobians and residuals if using loss function
-  // following ceres-sovler in `internal/ceres/corrector.cc`
-  if (loss_fn) {
-    Eigen::Map<Eigen::VectorXd> r(res, num_residuals());
-    double residual_scaling = 0.0;
-    double alpha_sq_norm = 0.0;
-    double rho[3] = {0.0};
-
-    double sq_norm = r.squaredNorm();
-    loss_fn->Evaluate(sq_norm, rho);
-    double sqrt_rho1 = sqrt(rho[1]);
-
-    if ((sq_norm == 0.0) || (rho[2] <= 0.0)) {
-      residual_scaling = sqrt_rho1;
-      alpha_sq_norm = 0.0;
-    } else {
-      const double D = 1.0 + 2.0 * sq_norm * rho[2] / rho[1];
-      const double alpha = 1.0 - sqrt(D);
-      residual_scaling = sqrt_rho1 / (1 - alpha);
-      alpha_sq_norm = alpha / sq_norm;
-    }
-
-    for (size_t i = 0; i < param_blocks.size(); i++) {
-      const size_t param_size = param_blocks[i]->global_size;
-      Eigen::Map<matx_row_major_t> J(jacs[i], num_residuals(), param_size);
-      J = sqrt_rho1 * (J - alpha_sq_norm * r * (r.transpose() * J));
-    }
-    r *= residual_scaling;
+bool calib_residual_t::eval() {
+  // Setup parameter data
+  std::vector<double *> param_ptrs;
+  param_ptrs.reserve(param_blocks.size());
+  for (auto param_block : param_blocks) {
+    param_ptrs.push_back(param_block->data());
   }
 
-  return true;
+  // Setup Jacobians data
+  std::vector<double *> jac_ptrs;
+  jac_ptrs.reserve(param_blocks.size());
+  for (size_t i = 0; i < param_blocks.size(); i++) {
+    jac_ptrs.push_back(jacobian_blocks[i].data());
+  }
+
+  // Setup Min-Jacobians data
+  std::vector<double *> min_jac_ptrs;
+  min_jac_ptrs.reserve(param_blocks.size());
+  for (size_t i = 0; i < param_blocks.size(); i++) {
+    min_jac_ptrs.push_back(min_jacobian_blocks[i].data());
+  }
+
+  // Evaluate cost function to obtain the jacobians and residuals
+  auto status = EvaluateWithMinimalJacobians(param_ptrs.data(),
+                                             residuals.data(),
+                                             jac_ptrs.data(),
+                                             min_jac_ptrs.data());
+
+  // // Scale jacobians and residuals if using loss function
+  // // following ceres-sovler in `internal/ceres/corrector.cc`
+  // if (loss_fn) {
+  //   Eigen::Map<vecx_t> r(res, num_residuals());
+  //   double residual_scaling = 0.0;
+  //   double alpha_sq_norm = 0.0;
+  //   double rho[3] = {0.0};
+  //
+  //   double sq_norm = r.squaredNorm();
+  //   loss_fn->Evaluate(sq_norm, rho);
+  //   double sqrt_rho1 = sqrt(rho[1]);
+  //
+  //   if ((sq_norm == 0.0) || (rho[2] <= 0.0)) {
+  //     residual_scaling = sqrt_rho1;
+  //     alpha_sq_norm = 0.0;
+  //   } else {
+  //     const double D = 1.0 + 2.0 * sq_norm * rho[2] / rho[1];
+  //     const double alpha = 1.0 - sqrt(D);
+  //     residual_scaling = sqrt_rho1 / (1 - alpha);
+  //     alpha_sq_norm = alpha / sq_norm;
+  //   }
+  //
+  //   for (size_t i = 0; i < param_blocks.size(); i++) {
+  //     const size_t param_size = param_blocks[i]->global_size;
+  //     Eigen::Map<matx_row_major_t> J(jacs[i], num_residuals(), param_size);
+  //     J = sqrt_rho1 * (J - alpha_sq_norm * r * (r.transpose() * J));
+  //   }
+  //   r *= residual_scaling;
+  // }
+
+  return status;
 }
 
 bool calib_residual_t::check_jacs(const int param_idx,
@@ -125,7 +146,10 @@ prior_t::prior_t(param_t *param_, const matx_t &covar_)
     : calib_residual_t{"prior_t"}, param{param_}, param_meas{param_->param},
       covar{covar_}, info{covar.inverse()}, sqrt_info{info.llt().matrixU()} {
   // Data
+  residuals.resize(param_->global_size);
   param_blocks.push_back(param_);
+  jacobian_blocks.push_back(zeros(param_->global_size, param_->global_size));
+  min_jacobian_blocks.push_back(zeros(param_->local_size, param_->local_size));
 
   // Ceres-Solver
   set_num_residuals(param->global_size);
@@ -167,7 +191,10 @@ pose_prior_t::pose_prior_t(pose_t *pose_, const mat_t<6, 6> &covar_)
     : calib_residual_t{"pose_prior_t"}, pose{pose_}, pose_meas{pose_->tf()},
       covar{covar_}, info{covar.inverse()}, sqrt_info{info.llt().matrixU()} {
   // Data
+  residuals.resize(pose_->local_size);
   param_blocks.push_back(pose_);
+  jacobian_blocks.push_back(zeros(7, 7));
+  min_jacobian_blocks.push_back(zeros(6, 6));
 
   // Ceres-Solver
   set_num_residuals(6);
@@ -232,9 +259,16 @@ reproj_residual_t::reproj_residual_t(camera_geometry_t *cam_geom_,
       z{z_}, covar(covar_), info(covar.inverse()),
       sqrt_info(info.llt().matrixU()) {
   // Data
+  residuals.resize(2);
   param_blocks.push_back(T_BCi_);
   param_blocks.push_back(T_C0F_);
   param_blocks.push_back(cam_params_);
+  jacobian_blocks.push_back(zeros(2, 7));
+  jacobian_blocks.push_back(zeros(2, 7));
+  jacobian_blocks.push_back(zeros(2, 8));
+  min_jacobian_blocks.push_back(zeros(2, 6));
+  min_jacobian_blocks.push_back(zeros(2, 6));
+  min_jacobian_blocks.push_back(zeros(2, 8));
 
   // Ceres-Solver
   set_num_residuals(2);
@@ -402,11 +436,22 @@ fiducial_residual_t::fiducial_residual_t(const timestamp_t &ts,
       T_WF_{fiducial->estimate()}, covar_{covar}, info_{covar.inverse()},
       sqrt_info_{info_.llt().matrixU()} {
   // Data
+  residuals.resize(2);
   param_blocks.push_back(fiducial_);
   param_blocks.push_back(pose_);
   param_blocks.push_back(imu_exts_);
   param_blocks.push_back(cam_exts_);
   param_blocks.push_back(cam_params_);
+  jacobian_blocks.push_back(zeros(2, fiducial_->global_size));
+  jacobian_blocks.push_back(zeros(2, pose_->global_size));
+  jacobian_blocks.push_back(zeros(2, imu_exts_->global_size));
+  jacobian_blocks.push_back(zeros(2, cam_exts_->global_size));
+  jacobian_blocks.push_back(zeros(2, cam_params_->global_size));
+  min_jacobian_blocks.push_back(zeros(2, fiducial_->local_size));
+  min_jacobian_blocks.push_back(zeros(2, pose_->local_size));
+  min_jacobian_blocks.push_back(zeros(2, imu_exts_->local_size));
+  min_jacobian_blocks.push_back(zeros(2, cam_exts_->local_size));
+  min_jacobian_blocks.push_back(zeros(2, cam_params_->local_size));
 
   // Ceres-Solver
   set_num_residuals(2);
@@ -680,10 +725,19 @@ imu_residual_t::imu_residual_t(const imu_params_t &imu_params,
       imu_data_{imu_data}, t0_{pose_i->ts}, t1_{pose_j->ts}, pose_i_{pose_i},
       sb_i_{sb_i}, pose_j_{pose_j}, sb_j_{sb_j} {
   // Data
+  residuals.resize(15);
   param_blocks.push_back(pose_i);
   param_blocks.push_back(sb_i);
   param_blocks.push_back(pose_j);
   param_blocks.push_back(sb_j);
+  jacobian_blocks.push_back(zeros(15, pose_i->global_size));
+  jacobian_blocks.push_back(zeros(15, sb_i->global_size));
+  jacobian_blocks.push_back(zeros(15, pose_j->global_size));
+  jacobian_blocks.push_back(zeros(15, sb_j->global_size));
+  min_jacobian_blocks.push_back(zeros(15, pose_i->local_size));
+  min_jacobian_blocks.push_back(zeros(15, sb_i->local_size));
+  min_jacobian_blocks.push_back(zeros(15, pose_j->local_size));
+  min_jacobian_blocks.push_back(zeros(15, sb_j->local_size));
 
   // Ceres-Solver
   set_num_residuals(15);
@@ -1482,6 +1536,13 @@ void marg_residual_t::form_hessian(matx_t &H, vecx_t &b) {
   // !! VERY IMPORTANT !! Now we know the Hessian size, we can update the
   // number of residuals for ceres::CostFunction
   set_num_residuals(r_);
+
+  // Allocate memory for residuals and jacobians
+  residuals.resize(r_);
+  for (auto param : param_blocks) {
+    jacobian_blocks.push_back(zeros(r_, param->global_size));
+    min_jacobian_blocks.push_back(zeros(r_, param->local_size));
+  }
 
   // Form the H and b. Left and RHS of Gauss-Newton.
   // H = J.T * J

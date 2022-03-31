@@ -81,6 +81,26 @@ timeline_t setup_camimu_test_data() {
   return timeline;
 }
 
+int test_eval() {
+  const int cam_idx = 0;
+  const int cam_res[2] = {752, 480};
+  const std::string proj_model = "pinhole";
+  const std::string dist_model = "radtan4";
+  const vec4_t proj_params{458.654, 457.296, 367.215, 248.375};
+  const vec4_t dist_params{-0.28340811, 0.07395907, 0.00019359, 1.76187114e-05};
+  camera_params_t cam_params{cam_idx,
+                             cam_res,
+                             proj_model,
+                             dist_model,
+                             proj_params,
+                             dist_params};
+  mat_t<8, 8> covar = I(8);
+  prior_t r(&cam_params, covar);
+  r.eval();
+
+  return 0;
+}
+
 int test_prior() {
   const int cam_idx = 0;
   const int cam_res[2] = {752, 480};
@@ -277,6 +297,7 @@ int test_fiducial_residual() {
 }
 
 void test_suite() {
+  MU_ADD_TEST(test_eval);
   MU_ADD_TEST(test_prior);
   MU_ADD_TEST(test_pose_prior);
   MU_ADD_TEST(test_reproj_residual);

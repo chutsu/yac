@@ -2,6 +2,8 @@
 
 namespace yac {
 
+// LINSOLVE ////////////////////////////////////////////////////////////////////
+
 vecx_t linsolve_dense_cholesky(const matx_t &A, const vecx_t &b) {
   return A.ldlt().solve(b);
 }
@@ -11,13 +13,10 @@ vecx_t linsolve_dense_svd(const matx_t &A, const vecx_t &b) {
   const matx_t U = svd.matrixU();
   const matx_t V = svd.matrixV();
   const vecx_t sv = svd.singularValues();
-  // const auto svd_rank = svd.rank();
-  // const vecx_t dx = V.leftCols(svd_rank) *
-  //                   sv.head(svd_rank).asDiagonal().inverse() *
-  //                   U.leftCols(svd_rank).adjoint() * b;
-  // const vecx_t dx = V * sv.asDiagonal().inverse() * U.transpose() * b;
-  const vecx_t dx = svd.solve(b);
-
+  const auto svd_rank = svd.rank();
+  const vecx_t dx = V.leftCols(svd_rank) *
+                    sv.head(svd_rank).asDiagonal().inverse() *
+                    U.leftCols(svd_rank).adjoint() * b;
   return dx;
 }
 
@@ -141,7 +140,7 @@ void solver_t::_restore_params() {
   params_cache.clear();
 }
 
-bool solver_t::_eval_residual(calib_residual_t *res_fn, vecx_t &r) const {
+bool solver_t::_eval_residual(calib_residual_t *res_fn, vecx_t &r) {
   // Setup parameter data
   std::vector<double *> param_ptrs;
   for (auto param_block : res_fn->param_blocks) {
@@ -159,9 +158,11 @@ bool solver_t::_eval_residual(calib_residual_t *res_fn, vecx_t &r) const {
 bool solver_t::_eval_residual(calib_residual_t *res_fn,
                               ResidualJacobians &res_jacs,
                               ResidualJacobians &res_min_jacs,
-                              ResidualValues &res_vals) const {
+                              ResidualValues &res_vals) {
+  prof.start("eval_residual-setup_data");
   // Setup parameter data
   std::vector<double *> param_ptrs;
+  param_ptrs.reserve(res_fn->param_blocks.size());
   for (auto param_block : res_fn->param_blocks) {
     param_ptrs.push_back(param_block->data());
   }
@@ -169,6 +170,7 @@ bool solver_t::_eval_residual(calib_residual_t *res_fn,
   // Setup Jacobians data
   const int r_size = res_fn->num_residuals();
   std::vector<double *> jac_ptrs;
+  jac_ptrs.reserve(res_fn->param_blocks.size());
   for (auto param_block : res_fn->param_blocks) {
     res_jacs[res_fn].push_back(zeros(r_size, param_block->global_size));
     jac_ptrs.push_back(res_jacs[res_fn].back().data());
@@ -176,17 +178,23 @@ bool solver_t::_eval_residual(calib_residual_t *res_fn,
 
   // Setup Min-Jacobians data
   std::vector<double *> min_jac_ptrs;
+  min_jac_ptrs.reserve(res_fn->param_blocks.size());
   for (auto param_block : res_fn->param_blocks) {
     res_min_jacs[res_fn].push_back(zeros(r_size, param_block->local_size));
     min_jac_ptrs.push_back(res_min_jacs[res_fn].back().data());
   }
+  prof.stop("eval_residual-setup_data");
 
   // Evaluate residual block
+  prof.start("eval_residual-eval");
   res_vals[res_fn] = zeros(r_size, 1);
-  return res_fn->EvaluateWithMinimalJacobians(param_ptrs.data(),
-                                              res_vals[res_fn].data(),
-                                              jac_ptrs.data(),
-                                              min_jac_ptrs.data());
+  auto status = res_fn->EvaluateWithMinimalJacobians(param_ptrs.data(),
+                                                     res_vals[res_fn].data(),
+                                                     jac_ptrs.data(),
+                                                     min_jac_ptrs.data());
+  prof.stop("eval_residual-eval");
+
+  return status;
 }
 
 void solver_t::_eval_residuals(ParameterOrder &param_order,
@@ -197,6 +205,7 @@ void solver_t::_eval_residuals(ParameterOrder &param_order,
                                size_t &residuals_length,
                                size_t &params_length) {
   // Evaluate residuals
+  prof.start("eval_residuals-eval");
   residuals_length = 0;
   for (calib_residual_t *res_fn : res_fns) {
     if (_eval_residual(res_fn, res_jacs, res_min_jacs, res_vals)) {
@@ -204,8 +213,10 @@ void solver_t::_eval_residuals(ParameterOrder &param_order,
       residuals_length += res_fn->num_residuals();
     }
   }
+  prof.stop("eval_residuals-eval");
 
   // Track unique parameters
+  prof.start("eval_residuals-track_params");
   std::map<param_t *, bool> params_seen;
   std::vector<param_t *> pose_ptrs;
   std::vector<param_t *> sb_ptrs;
@@ -242,8 +253,10 @@ void solver_t::_eval_residuals(ParameterOrder &param_order,
       params_length += param_block->local_size;
     }
   }
+  prof.stop("eval_residuals-track_params");
 
   // Determine parameter block column indicies for Hessian matrix H
+  prof.start("eval_residuals-assign_order");
   size_t idx = 0;
   std::vector<std::vector<param_t *> *> param_groups = {
       &pose_ptrs,
@@ -259,6 +272,86 @@ void solver_t::_eval_residuals(ParameterOrder &param_order,
       idx += param_block->local_size;
     }
   }
+  prof.stop("eval_residuals-assign_order");
+
+  // Keep a note of the marginalization index
+  marg_idx = param_order[cam_ptrs[0]];
+}
+
+void solver_t::_eval_residuals(ParameterOrder &param_order,
+                               std::vector<calib_residual_t *> &res_evaled,
+                               size_t &residuals_length,
+                               size_t &params_length) {
+  // Evaluate residuals
+  prof.start("eval_residuals-eval");
+  residuals_length = 0;
+  for (calib_residual_t *res_fn : res_fns) {
+    if (res_fn->eval() == false) {
+      FATAL("Residual evaulation failure!");
+    }
+    res_evaled.push_back(res_fn);
+    residuals_length += res_fn->num_residuals();
+  }
+  prof.stop("eval_residuals-eval");
+
+  // Track unique parameters
+  prof.start("eval_residuals-track_params");
+  std::map<param_t *, bool> params_seen;
+  std::vector<param_t *> pose_ptrs;
+  std::vector<param_t *> sb_ptrs;
+  std::vector<param_t *> cam_ptrs;
+  std::vector<param_t *> extrinsics_ptrs;
+  std::vector<param_t *> fiducial_ptrs;
+  params_length = 0;
+
+  for (auto res_fn : res_evaled) {
+    for (auto param_block : res_fn->param_blocks) {
+      // Check if parameter block seen already
+      if (params_seen.count(param_block)) {
+        continue;
+      }
+      params_seen[param_block] = true;
+
+      // Check if parameter is fixed
+      if (param_block->fixed) {
+        continue;
+      }
+
+      // Track parameter
+      if (param_block->type == "pose_t") {
+        pose_ptrs.push_back(param_block);
+      } else if (param_block->type == "sb_params_t") {
+        sb_ptrs.push_back(param_block);
+      } else if (param_block->type == "camera_params_t") {
+        cam_ptrs.push_back(param_block);
+      } else if (param_block->type == "extrinsics_t") {
+        extrinsics_ptrs.push_back(param_block);
+      } else if (param_block->type == "fiducial_t") {
+        fiducial_ptrs.push_back(param_block);
+      }
+      params_length += param_block->local_size;
+    }
+  }
+  prof.stop("eval_residuals-track_params");
+
+  // Determine parameter block column indicies for Hessian matrix H
+  prof.start("eval_residuals-assign_order");
+  size_t idx = 0;
+  std::vector<std::vector<param_t *> *> param_groups = {
+      &pose_ptrs,
+      &sb_ptrs,
+      &cam_ptrs,
+      &extrinsics_ptrs,
+      &fiducial_ptrs,
+  };
+  param_order.clear();
+  for (const auto &param_ptrs : param_groups) {
+    for (const auto &param_block : *param_ptrs) {
+      param_order.insert({param_block, idx});
+      idx += param_block->local_size;
+    }
+  }
+  prof.stop("eval_residuals-assign_order");
 
   // Keep a note of the marginalization index
   marg_idx = param_order[cam_ptrs[0]];
@@ -281,18 +374,9 @@ void solver_t::_form_jacobian(ParameterOrder &param_order,
                               vecx_t &r) {
   // Evaluate residuals
   std::vector<calib_residual_t *> res_evaled;
-  ResidualJacobians res_jacs;
-  ResidualJacobians res_min_jacs;
-  ResidualValues res_vals;
   size_t residuals_length = 0;
   size_t params_length = 0;
-  _eval_residuals(param_order,
-                  res_evaled,
-                  res_jacs,
-                  res_min_jacs,
-                  res_vals,
-                  residuals_length,
-                  params_length);
+  _eval_residuals(param_order, res_evaled, residuals_length, params_length);
 
   // Form Jacobian J and r
   J = zeros(residuals_length, params_length);
@@ -300,7 +384,7 @@ void solver_t::_form_jacobian(ParameterOrder &param_order,
   size_t res_idx = 0;
 
   for (calib_residual_t *res_fn : res_evaled) {
-    const vecx_t r_val = res_vals[res_fn];
+    const vecx_t &r_val = res_fn->residuals;
     const int res_size = r_val.size();
     r.segment(res_idx, res_size) = r_val;
 
@@ -312,7 +396,7 @@ void solver_t::_form_jacobian(ParameterOrder &param_order,
 
       const int param_idx = param_order[param_i];
       const int param_size = param_i->local_size;
-      const matx_t J_param = res_min_jacs[res_fn][i];
+      const matx_t &J_param = res_fn->min_jacobian_blocks[i];
       J.block(res_idx, param_idx, res_size, param_size) = J_param;
     }
 
@@ -326,18 +410,9 @@ void solver_t::_form_hessian(ParameterOrder &param_order,
   // Evaluate residuals
   prof.start("form_hessian-eval_residuals");
   std::vector<calib_residual_t *> res_evaled;
-  ResidualJacobians res_jacs;
-  ResidualJacobians res_min_jacs;
-  ResidualValues res_vals;
   size_t residuals_length = 0;
   size_t params_length = 0;
-  _eval_residuals(param_order,
-                  res_evaled,
-                  res_jacs,
-                  res_min_jacs,
-                  res_vals,
-                  residuals_length,
-                  params_length);
+  _eval_residuals(param_order, res_evaled, residuals_length, params_length);
   prof.stop("form_hessian-eval_residuals");
 
   // Form Hessian H and R.H.S b
@@ -346,7 +421,7 @@ void solver_t::_form_hessian(ParameterOrder &param_order,
   b = zeros(params_length, 1);
 
   for (auto res_fn : res_evaled) {
-    const vecx_t r = res_vals[res_fn];
+    const vecx_t r = res_fn->residuals;
 
     for (size_t i = 0; i < res_fn->param_blocks.size(); i++) {
       const auto &param_i = res_fn->param_blocks[i];
@@ -355,7 +430,7 @@ void solver_t::_form_hessian(ParameterOrder &param_order,
       }
       const int idx_i = param_order[param_i];
       const int size_i = param_i->local_size;
-      const matx_t J_i = res_min_jacs.at(res_fn)[i];
+      const matx_t &J_i = res_fn->min_jacobian_blocks[i];
 
       for (size_t j = i; j < res_fn->param_blocks.size(); j++) {
         const auto &param_j = res_fn->param_blocks[j];
@@ -364,7 +439,7 @@ void solver_t::_form_hessian(ParameterOrder &param_order,
         }
         const int idx_j = param_order[param_j];
         const int size_j = param_j->local_size;
-        const matx_t J_j = res_min_jacs.at(res_fn)[j];
+        const matx_t &J_j = res_fn->min_jacobian_blocks[j];
 
         if (i == j) {
           // Form diagonals of H
@@ -385,6 +460,11 @@ void solver_t::_form_hessian(ParameterOrder &param_order,
 
   // printf("profile:\n");
   // prof.print("form_hessian-eval_residuals");
+  // prof.print("eval_residuals-eval");
+  // prof.print("eval_residuals-track_params");
+  // prof.print("eval_residuals-assign_order");
+  // prof.print("eval_residual-setup_data", false);
+  // prof.print("eval_residual-eval", false);
   // prof.print("form_hessian-fill_values");
   // printf("\n");
 }
@@ -407,7 +487,7 @@ void solver_t::clear() {
 }
 
 int solver_t::estimate_covariance(const std::vector<param_t *> &params,
-                                  matx_t &calib_covar) const {
+                                  matx_t &calib_covar) {
   // Evaluate residuals
   ResidualJacobians res_jacs;
   ResidualJacobians res_min_jacs;

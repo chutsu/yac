@@ -59,7 +59,6 @@ vecx_t linsolve_sparse_qr(const matx_t &A, const vecx_t &b) {
 
 solver_t::solver_t(const solver_t *solver) {
   algorithm_type = solver->algorithm_type;
-  // tsolver = solver->tsolver;
   marg_idx = solver->marg_idx;
   prof = solver->prof;
 

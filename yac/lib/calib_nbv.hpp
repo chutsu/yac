@@ -85,8 +85,8 @@ mat4s_t calib_init_poses(const calib_target_t &target,
 mat4s_t calib_nbv_poses(const calib_target_t &target,
                         const camera_geometry_t *cam_geom,
                         const camera_params_t *cam_params,
-                        const int range_x_size = 5,
-                        const int range_y_size = 5,
+                        const int range_x_size = 4,
+                        const int range_y_size = 4,
                         const int range_z_size = 2);
 
 /**
@@ -106,8 +106,8 @@ std::map<int, mat4s_t> calib_nbv_poses(const calib_target_t &target,
                                        const CamIdx2Geometry &cam_geoms,
                                        const CamIdx2Parameters &cam_params,
                                        const CamIdx2Extrinsics &cam_exts,
-                                       const int range_x_size = 5,
-                                       const int range_y_size = 5,
+                                       const int range_x_size = 4,
+                                       const int range_y_size = 4,
                                        const int range_z_size = 2);
 
 /**

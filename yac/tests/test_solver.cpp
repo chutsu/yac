@@ -153,13 +153,13 @@ int test_yac_solver() {
     solver.estimate_log_covariance_determinant(params, covar_det);
     prof.stop("solver.estimate_log_covariance_determinant()");
 
+    printf("num_residuals: %ld\n", solver.num_residuals());
+    printf("num_parameters: %ld\n", solver.num_params());
     printf("log(det(covar)): %.10f\n", covar_det);
     prof.print("solver.estimate_log_covariance_determinant()");
   }
 
   // // Solve
-  // printf("num_residuals: %ld\n", solver.num_residuals());
-  // printf("num_parameters: %ld\n", solver.num_params());
   // solver.solve(30, true, 1);
 
   // Clean up

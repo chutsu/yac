@@ -44,6 +44,7 @@ struct solver_t {
   real_t num_iterations = 0.0;
 
   solver_t() = default;
+  solver_t(const solver_t *solver);
   virtual ~solver_t() = default;
 
   virtual size_t num_residuals();
@@ -93,6 +94,7 @@ struct yac_solver_t : solver_t {
   real_t lambda = 1e-4;
 
   yac_solver_t() = default;
+  yac_solver_t(const solver_t *solver);
   ~yac_solver_t() = default;
 
   void _solve_gn(const int max_iter,

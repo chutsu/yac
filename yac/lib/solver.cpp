@@ -57,6 +57,23 @@ vecx_t linsolve_sparse_qr(const matx_t &A, const vecx_t &b) {
 
 // SOLVER BASE /////////////////////////////////////////////////////////////////
 
+solver_t::solver_t(const solver_t *solver) {
+  algorithm_type = solver->algorithm_type;
+  // tsolver = solver->tsolver;
+  marg_idx = solver->marg_idx;
+  prof = solver->prof;
+
+  res_fns = solver->res_fns;
+  params = solver->params;
+  params_cache = solver->params_cache;
+  param2res = solver->param2res;
+  res2param = solver->res2param;
+
+  initial_cost = solver->initial_cost;
+  final_cost = solver->final_cost;
+  num_iterations = solver->num_iterations;
+}
+
 size_t solver_t::num_residuals() { return res_fns.size(); }
 
 bool solver_t::has_param(param_t *param) { return params.count(param->data()); }
@@ -707,6 +724,8 @@ int solver_t::estimate_log_covariance_determinant(
 
 // SOLVER /////////////////////////////////////////////////////////////////////
 
+yac_solver_t::yac_solver_t(const solver_t *solver) : solver_t{solver} {}
+
 void yac_solver_t::_solve_gn(const int max_iter,
                              const bool verbose,
                              const int verbose_level) {
@@ -943,7 +962,8 @@ void yac_solver_t::solve(const int max_iter,
   }
 }
 
-// CERES-SOLVER ////////////////////////////////////////////////////////////////
+// CERES-SOLVER
+// ////////////////////////////////////////////////////////////////
 
 ceres_solver_t::ceres_solver_t() {
   prob_options.local_parameterization_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;

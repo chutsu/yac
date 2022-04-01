@@ -276,6 +276,7 @@ int test_calib_camera_find_nbv() {
 
   // Calibrator
   calib_camera_t calib{calib_target};
+  calib.verbose = false;
   calib.enable_nbv = false;
   calib.enable_outlier_filter = false;
   calib.add_camera_data(0, cam0_grids);
@@ -290,13 +291,22 @@ int test_calib_camera_find_nbv() {
                                    calib.cam_params,
                                    calib.cam_exts);
 
+  profiler_t prof;
   int cam_idx = 0;
   int nbv_idx = 0;
   real_t nbv_info = 0.0;
+  real_t info = 0.0;
   real_t info_gain = 0.0;
-  calib.find_nbv(nbv_poses, cam_idx, nbv_idx, nbv_info, info_gain);
+  prof.start("find_nbv");
+  calib.find_nbv(nbv_poses, cam_idx, nbv_idx, nbv_info, info, info_gain);
+  prof.stop("find_nbv");
+  prof.print("find_nbv");
+
   printf("cam_idx: %d\n", cam_idx);
   printf("nbv_idx: %d\n", nbv_idx);
+  printf("nbv_info: %f\n", nbv_info);
+  printf("info: %f\n", info);
+  printf("info_gain: %f\n", info_gain);
 
   return 0;
 }

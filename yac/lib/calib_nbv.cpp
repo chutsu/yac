@@ -214,6 +214,8 @@ mat4s_t calib_nbv_poses(const calib_target_t &target,
   for (const auto &cam_pos : cam_positions) {
     const mat4_t T_FCi = lookat(cam_pos, target_center);
     poses.push_back(T_FCi);
+
+    // Randomly perturb the pose a little
     // const auto roll = deg2rad(randf(-5.0, 5.0));
     // const auto pitch = deg2rad(randf(-5.0, 5.0));
     // const auto yaw = deg2rad(randf(-5.0, 5.0));

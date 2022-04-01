@@ -449,7 +449,8 @@ static void print_estimates(FILE *out,
   }
 }
 
-static void calib_initialize(const calib_target_t &calib_target,
+static void calib_initialize(const bool verbose,
+                             const calib_target_t &calib_target,
                              const camera_data_t &calib_data,
                              const std::string &solver_type,
                              CamIdx2Geometry &cam_geoms,
@@ -535,13 +536,17 @@ static void calib_initialize(const calib_target_t &calib_target,
   }
 
   // Solve
-  // printf("Before:\n");
-  // print_estimates(stdout, cam_params, cam_exts);
-  // printf("\n");
-  solver->solve(50, true, 0);
-  // printf("After:\n");
-  // print_estimates(stdout, cam_params, cam_exts);
-  // printf("\n");
+  if (verbose) {
+    printf("Before:\n");
+    print_estimates(stdout, cam_params, cam_exts);
+    printf("\n");
+  }
+  solver->solve(50, verbose, 0);
+  if (verbose) {
+    printf("After:\n");
+    print_estimates(stdout, cam_params, cam_exts);
+    printf("\n");
+  }
 
   // Clean up
   for (auto &[ts, view] : calib_views) {
@@ -1145,6 +1150,7 @@ int calib_camera_t::find_nbv(const std::map<int, mat4s_t> &nbv_poses,
                              int &cam_idx,
                              int &nbv_idx,
                              real_t &nbv_info,
+                             real_t &info,
                              real_t &info_gain) {
   // Pre-check
   if (nbv_poses.size() == 0) {
@@ -1155,8 +1161,8 @@ int calib_camera_t::find_nbv(const std::map<int, mat4s_t> &nbv_poses,
   }
 
   // Current info
-  real_t info_k = 0.0;
-  if (_calc_info(&info_k) != 0) {
+  info = 0.0;
+  if (_calc_info(&info) != 0) {
     return -1;
   }
 
@@ -1172,7 +1178,9 @@ int calib_camera_t::find_nbv(const std::map<int, mat4s_t> &nbv_poses,
     total_nbv_poses += nbv_cam_poses.size();
   }
   progressbar bar(total_nbv_poses);
-  printf("Finding NBV: ");
+  printf("Finding NBV [out of %d poses]: ", total_nbv_poses);
+
+  yac_solver_t yac_solver{solver};
 
   for (const auto &[nbv_cam_idx, nbv_cam_poses] : nbv_poses) {
     for (size_t i = 0; i < nbv_cam_poses.size(); i++) {
@@ -1212,11 +1220,10 @@ int calib_camera_t::find_nbv(const std::map<int, mat4s_t> &nbv_poses,
   printf("\n");
 
   // Return
-  printf("info_k: %f\n", info_k);
   cam_idx = best_cam;
   nbv_idx = best_idx;
   nbv_info = best_info;
-  info_gain = 0.5 * (info_k - best_info);
+  info_gain = 0.5 * (info - best_info);
   if (info_gain < info_gain_threshold) {
     return -1;
   }
@@ -1247,13 +1254,16 @@ void calib_camera_t::_initialize_intrinsics() {
 
     // Fix camera extrinsics
     cam_exts[cam_idx]->fixed = true;
-    printf("cam%d ", cam_idx);
-    print_vector("initial initial params", cam_params[cam_idx]->param);
-    printf("\n");
+    if (verbose) {
+      printf("cam%d ", cam_idx);
+      print_vector("initial initial params", cam_params[cam_idx]->param);
+      printf("\n");
+    }
 
     // Initialize camera
     std::map<timestamp_t, pose_t *> init_poses;
-    calib_initialize(calib_target,
+    calib_initialize(verbose,
+                     calib_target,
                      extract(calib_data, cam_idx),
                      solver_type,
                      cam_geoms,
@@ -1261,9 +1271,11 @@ void calib_camera_t::_initialize_intrinsics() {
                      cam_exts,
                      init_poses,
                      loss_fn);
-    printf("Initialized to:\n");
-    print_camera_params(stdout, cam_idx, cam_params[cam_idx]);
-    printf("\n");
+    if (verbose) {
+      printf("Initialized to:\n");
+      print_camera_params(stdout, cam_idx, cam_params[cam_idx]);
+      printf("\n");
+    }
 
     // Clean up
     for (auto &[ts, pose] : init_poses) {
@@ -1302,15 +1314,18 @@ void calib_camera_t::_initialize_extrinsics() {
   }
 
   // Print initial extrinsics
-  for (const auto cam_idx : get_camera_indices()) {
-    printf("cam%d_", cam_idx);
-    print_vector("exts", cam_exts[cam_idx]->param);
+  if (verbose) {
+    for (const auto cam_idx : get_camera_indices()) {
+      printf("cam%d_", cam_idx);
+      print_vector("exts", cam_exts[cam_idx]->param);
+      printf("\n");
+    }
   }
-  printf("\n");
 
   // Refine camera extrinsics via joint-optimization
   std::map<timestamp_t, pose_t *> init_poses;
-  calib_initialize(calib_target,
+  calib_initialize(verbose,
+                   calib_target,
                    calib_data,
                    solver_type,
                    cam_geoms,
@@ -1320,11 +1335,13 @@ void calib_camera_t::_initialize_extrinsics() {
                    loss_fn);
 
   // Print optimized initial extrinsics
-  for (const auto cam_idx : get_camera_indices()) {
-    printf("cam%d_", cam_idx);
-    print_vector("exts", cam_exts[cam_idx]->param);
+  if (verbose) {
+    for (const auto cam_idx : get_camera_indices()) {
+      printf("cam%d_", cam_idx);
+      print_vector("exts", cam_exts[cam_idx]->param);
+    }
+    printf("\n");
   }
-  printf("\n");
 
   // Clean up
   for (auto &[ts, pose] : init_poses) {
@@ -1695,11 +1712,11 @@ void calib_camera_t::solve(bool skip_init) {
 
   // Solve
   if (enable_nbv) {
-    printf("Solve NBV:\n");
-    solver->algorithm_type = "GAUSS-NEWTON";
+    if (solver_type == "YAC-SOLVER") {
+      solver->algorithm_type = "GAUSS-NEWTON";
+    }
     _solve_nbv();
   } else {
-    printf("Solve Batch:\n");
     _solve_batch();
   }
 

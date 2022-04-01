@@ -220,6 +220,7 @@ struct calib_camera_t {
                int &cam_idx,
                int &nbv_idx,
                real_t &nbv_info,
+               real_t &info,
                real_t &info_gain);
 
   void _initialize_intrinsics();

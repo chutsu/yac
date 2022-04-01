@@ -1676,7 +1676,7 @@ void calib_camera_t::solve(bool skip_init) {
   if (enable_loss_fn) {
     if (loss_fn_type == "BLAKE-ZISSERMAN") {
       loss_fn = new BlakeZissermanLoss((int)loss_fn_param);
-    } else if (loss_fn_type == "CAUCHY-LOSS") {
+    } else if (loss_fn_type == "CAUCHY") {
       loss_fn = new CauchyLoss(loss_fn_param);
     } else {
       FATAL("Unsupported loss function type [%s]!", loss_fn_type.c_str());

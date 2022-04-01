@@ -284,12 +284,6 @@ reproj_residual_t::reproj_residual_t(camera_geometry_t *cam_geom_,
   block_sizes->push_back(8); // Camera parameters
 }
 
-reproj_residual_t::~reproj_residual_t() {
-  // if (loss_fn != nullptr) {
-  //   delete loss_fn;
-  // }
-}
-
 int reproj_residual_t::get_residual(vec2_t &z_hat, vec2_t &r) const {
   assert(T_BCi != nullptr);
   assert(T_C0F != nullptr);

@@ -216,7 +216,9 @@ struct calib_camera_t {
   int recover_calib_covar(matx_t &calib_covar, bool verbose = false);
   int find_nbv(const std::map<int, mat4s_t> &nbv_poses,
                int &cam_idx,
-               int &nbv_idx);
+               int &nbv_idx,
+               real_t &nbv_info,
+               real_t &info_gain);
 
   void _initialize_intrinsics();
   void _initialize_extrinsics();
@@ -230,7 +232,7 @@ struct calib_camera_t {
   void _solve_batch();
   void _solve_inc();
   void _solve_nbv();
-  void solve();
+  void solve(bool skip_init = false);
 
   void print_settings(FILE *out);
   void print_metrics(FILE *out,

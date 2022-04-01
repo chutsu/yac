@@ -18,17 +18,19 @@ ADD_COMPILE_OPTIONS(
 # )
 
 # DEPENDENCIES
-IF (NOT DEFINED Eigen3_DIR)
-  SET(Eigen3_DIR "/opt/yac/share/eigen3/cmake")
-ENDIF()
+LIST(APPEND CMAKE_MODULE_PATH "../cmake")
+
+# IF (NOT DEFINED Eigen3_DIR)
+#   SET(Eigen3_DIR "/opt/yac/share/eigen3/cmake")
+# ENDIF()
 
 IF (NOT DEFINED apriltag3_DIR)
   SET(apriltag3_DIR "/opt/yac/share/apriltag3/cmake")  # Use custom AprilTag3
 ENDIF()
 
-IF (NOT DEFINED Ceres_DIR OR "${Ceres_DIR}" STREQUAL "Ceres_DIR-NOTFOUND")
-  SET(Ceres_DIR "/opt/yac/lib/cmake/Ceres")
-ENDIF()
+# IF (NOT DEFINED Ceres_DIR OR "${Ceres_DIR}" STREQUAL "Ceres_DIR-NOTFOUND")
+#   SET(Ceres_DIR "/opt/yac/lib/cmake/Ceres")
+# ENDIF()
 
 IF (NOT DEFINED USE_OPENMP)
   SET(USE_OPENMP ON)
@@ -47,8 +49,13 @@ ENDIF(USE_OPENMP)
 FIND_PACKAGE(Ceres REQUIRED)
 FIND_PACKAGE(OpenCV REQUIRED)
 FIND_PACKAGE(Eigen3 REQUIRED)
+FIND_PACKAGE(TBB REQUIRED)
+# FIND_PACKAGE(SuiteSparse REQUIRED CHOLMOD SPQR)
 INCLUDE_DIRECTORIES(${OpenCV_INCLUDE_DIRS})
 INCLUDE_DIRECTORIES(${EIGEN3_INCLUDE_DIR})
+INCLUDE_DIRECTORIES(${CHOLMOD_INCLUDE_DIR})
+INCLUDE_DIRECTORIES(${SUITESPARSEQR_INCLUDE_DIR})
+INCLUDE_DIRECTORIES(${SUITESPARSE_CONFIG_INCLUDE_DIR})
 INCLUDE_DIRECTORIES("/opt/yac/include")
 LINK_DIRECTORIES("/opt/yac/lib")
 
@@ -94,8 +101,19 @@ CATKIN_PACKAGE(
 )
 
 # LINK
-SET(YAC_LIBRARIES yaml-cpp glog ceres apriltag3 apriltag ${OpenCV_LIBS} cholmod spqr)
-SET(DEPS yac_ros yac ${catkin_LIBRARIES} ${YAC_LIBRARIES})
+SET(YAC_DEPS
+  yaml-cpp
+  glog
+  ceres
+  apriltag3
+  apriltag
+  ${OpenCV_LIBS}
+	${CHOLMOD_LIBRARY}
+	${SUITESPARSEQR_LIBRARY}
+	${SUITESPARSE_CONFIG_LIBRARY}
+	${TBB_LIBRARY}
+)
+SET(DEPS yac_ros yac ${catkin_LIBRARIES} ${YAC_DEPS})
 
 # YAC ROS
 ADD_LIBRARY(

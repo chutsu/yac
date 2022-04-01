@@ -49,7 +49,7 @@ set -e
 # RUN_CMD="time ./test_calib_camera --target test_calib_camera_mono"
 # RUN_CMD="./test_calib_camera --target test_calib_camera_stereo"
 # RUN_CMD="./test_calib_camera --target test_marg_residual"
-RUN_CMD="time ./calib_euroc"
+# RUN_CMD="time ./calib_euroc"
 # RUN_CMD="./calib_inspect '/tmp/calib-results.yaml' /data/euroc/cam_april"
 # RUN_CMD="./calib_inspect '/home/chutsu/projects/yac/yac/configs/calib-kalibr.yaml' /data/euroc/imu_april"
 # RUN_CMD="./calib_inspect '/home/chutsu/projects/yac/yac/configs/calib-yac.yaml' /data/euroc/cam_april"
@@ -108,8 +108,8 @@ RUN_CMD="time ./calib_euroc"
 # RUN_CMD="roslaunch yac_ros calib_imucam.launch \
 #   config_file:=/home/chutsu/projects/yac/yac_ros/config/euroc-calib_imucam.yaml"
 
-# RUN_CMD="roslaunch yac_ros intel_d435i-calib_camera.launch \
-#   config_file:=/home/chutsu/projects/yac/yac_ros/config/intel_d435i-calib_camera.yaml"
+RUN_CMD="roslaunch yac_ros intel_d435i-calib_camera.launch \
+  config_file:=/home/chutsu/projects/yac/yac_ros/config/intel_d435i-calib_camera.yaml"
 
 # RUN_CMD="roslaunch yac_ros intel_d435i-calib_imucam.launch \
 #   config_file:=/home/chutsu/projects/yac/yac_ros/config/intel_d435i-calib_imucam.yaml"
@@ -117,17 +117,21 @@ RUN_CMD="time ./calib_euroc"
 # RUN_CMD="roslaunch yac_ros intel_d435i-calib_imucam.launch"
 
 tmux send-keys -t dev -R C-l C-m
+# tmux send-keys -t dev -R "\
+# cd ~/projects/yac \
+# && sudo make lib \
+# && cd build && ${RUN_CMD}
+# " C-m C-m
+# exit
 tmux send-keys -t dev -R "\
 cd ~/projects/yac \
 && sudo make lib \
-&& cd build && ${RUN_CMD}
+&& make release \
+&& cd ~/yac_ws \
+&& source devel/setup.bash \
+&& ${RUN_CMD}
 " C-m C-m
 exit
-# tmux send-keys -t dev -R "\
-# cd ~/projects/yac \
-# && make release
-# " C-m C-m
-# exit
 
 # python3 scripts/aprilgrid_generate.py --nx 6 --ny 6 --tsize 0.088
 # python3 scripts/marg_sandbox.py

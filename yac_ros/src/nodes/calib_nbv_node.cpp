@@ -47,8 +47,11 @@ struct calib_nbv_t {
   std::map<int, mat4s_t> nbv_poses;
   int nbv_cam_idx = 0;
   int nbv_idx = 0;
+  real_t nbv_info = 0.0;
+  real_t info_gain = 0.0;
   aprilgrid_t nbv_target;
-  double nbv_reproj_err = std::numeric_limits<double>::max();
+  // double nbv_reproj_err = std::numeric_limits<double>::max();
+  double nbv_reproj_err = -1.0;
   struct timespec nbv_hold_tic = (struct timespec){0, 0};
 
   // NBV Settings
@@ -153,7 +156,7 @@ struct calib_nbv_t {
     draw_nbv_reproj_error(nbv_reproj_err, img);
 
     // Show NBV status
-    if (nbv_reproj_err < (nbv_reproj_threshold * 1.5)) {
+    if (nbv_reproj_err > 0.0 && nbv_reproj_err < (nbv_reproj_threshold * 1.5)) {
       std::string text = "Nearly There!";
       if (nbv_reproj_err <= nbv_reproj_threshold) {
         text = "HOLD IT!";
@@ -194,9 +197,10 @@ struct calib_nbv_t {
 
     // NBV reached! Now add measurements to calibrator
     calib->add_view(grid_buffer);
+    calib->verbose = false;
     calib->enable_nbv = false;
     calib->enable_outlier_filter = false;
-    calib->solve();
+    calib->solve(true);
 
     return true;
   }
@@ -313,7 +317,10 @@ struct calib_nbv_t {
     // Find NBV
     nbv_cam_idx = 0;
     nbv_idx = 0;
-    if (calib->find_nbv(nbv_poses, nbv_cam_idx, nbv_idx) == 0) {
+    nbv_info = 0.0;
+    info_gain = 0.0;
+    if (calib->find_nbv(nbv_poses, nbv_cam_idx, nbv_idx, nbv_info, info_gain) ==
+        0) {
       // Form target grid
       const mat4_t T_FC0 = nbv_poses.at(nbv_cam_idx).at(nbv_idx);
       const mat4_t T_C0Ci = calib->cam_exts[nbv_cam_idx]->tf();
@@ -325,10 +332,11 @@ struct calib_nbv_t {
                                    T_FCi);
 
       // Reset NBV data
-      nbv_reproj_err = std::numeric_limits<double>::max();
+      nbv_reproj_err = -1.0;
       nbv_hold_tic = (struct timespec){0, 0};
       find_nbv_event = false;
       printf("nbv_cam_idx: %d, nbv_idx: %d\n", nbv_cam_idx, nbv_idx);
+      printf("info_kp1: %f, info_gain: %f\n", nbv_info, info_gain);
     } else {
       FATAL("Failed to find NBV!");
     }

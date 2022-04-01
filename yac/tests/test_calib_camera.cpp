@@ -291,7 +291,9 @@ int test_calib_camera_find_nbv() {
 
   int cam_idx = 0;
   int nbv_idx = 0;
-  calib.find_nbv(nbv_poses, cam_idx, nbv_idx);
+  real_t nbv_info = 0.0;
+  real_t info_gain = 0.0;
+  calib.find_nbv(nbv_poses, cam_idx, nbv_idx, nbv_info, info_gain);
   printf("cam_idx: %d\n", cam_idx);
   printf("nbv_idx: %d\n", nbv_idx);
 

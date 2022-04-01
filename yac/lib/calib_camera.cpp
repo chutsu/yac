@@ -1138,7 +1138,9 @@ void calib_camera_t::marginalize() {
 
 int calib_camera_t::find_nbv(const std::map<int, mat4s_t> &nbv_poses,
                              int &cam_idx,
-                             int &nbv_idx) {
+                             int &nbv_idx,
+                             real_t &nbv_info,
+                             real_t &info_gain) {
   // Pre-check
   if (nbv_poses.size() == 0) {
     FATAL("NBV poses empty!?");
@@ -1205,9 +1207,11 @@ int calib_camera_t::find_nbv(const std::map<int, mat4s_t> &nbv_poses,
   printf("\n");
 
   // Return
+  printf("info_k: %f\n", info_k);
   cam_idx = best_cam;
   nbv_idx = best_idx;
-  const auto info_gain = 0.5 * (info_k - best_info);
+  nbv_info = best_info;
+  info_gain = 0.5 * (info_k - best_info);
   if (info_gain < info_gain_threshold) {
     return -1;
   }
@@ -1562,7 +1566,7 @@ void calib_camera_t::_solve_batch() {
   for (const auto &ts : timestamps) {
     add_view(calib_data[ts]);
   }
-  solver->solve(50, true, 1);
+  solver->solve(50, verbose, 1);
 }
 
 void calib_camera_t::_solve_inc() {
@@ -1655,18 +1659,20 @@ void calib_camera_t::_solve_nbv() {
   solver->solve(10, true, 1);
 }
 
-void calib_camera_t::solve() {
+void calib_camera_t::solve(bool skip_init) {
   // Print Calibration settings
   if (verbose) {
     print_settings(stdout);
   }
 
   // Initialize camera intrinsics and extrinsics
-  _initialize_intrinsics();
-  _initialize_extrinsics();
-  if (verbose) {
-    printf("Initial camera intrinsics and extrinsics:\n");
-    print_estimates(stdout, cam_params, cam_exts);
+  if (skip_init == false) {
+    _initialize_intrinsics();
+    _initialize_extrinsics();
+    if (verbose) {
+      printf("Initial camera intrinsics and extrinsics:\n");
+      print_estimates(stdout, cam_params, cam_exts);
+    }
   }
 
   // Solve

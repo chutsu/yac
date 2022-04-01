@@ -55,13 +55,18 @@ void draw_camera_index(const int cam_idx, cv::Mat &image) {
   const float scale = 1.0;
   const int thickness = 1;
   const cv::Scalar color{0, 255, 0};
-  int baseline = 0;
-  auto size = cv::getTextSize(text, font, scale, thickness, &baseline);
+  // int baseline = 0;
+  // auto size = cv::getTextSize(text, font, scale, thickness, &baseline);
   const cv::Point pos{10, 30}; // Bottom left of text string
   cv::putText(image, text, pos, font, scale, color, thickness, cv::LINE_AA);
 }
 
 void draw_nbv_reproj_error(const real_t nbv_reproj_error, cv::Mat &image) {
+  // Pre-check
+  if (nbv_reproj_error < 0.0) {
+    return;
+  }
+
   // -- Create NBV Reproj Error str (1 decimal places)
   std::ostringstream out;
   out.precision(1);

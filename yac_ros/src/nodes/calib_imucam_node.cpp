@@ -89,7 +89,7 @@ void process_rosbag(const std::string &config_file,
   }
   // -- IMU messages
   if (nb_imu_msgs) {
-    LOG_INFO("- imu0 msgs: %d", nb_imu_msgs);
+    LOG_INFO("- imu0 msgs: %ld", nb_imu_msgs);
   } else {
     LOG_WARN("No imu msgs were processed!");
   }

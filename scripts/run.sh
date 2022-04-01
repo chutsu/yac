@@ -123,6 +123,11 @@ cd ~/projects/yac \
 && cd build && ${RUN_CMD}
 " C-m C-m
 exit
+# tmux send-keys -t dev -R "\
+# cd ~/projects/yac \
+# && make release
+# " C-m C-m
+# exit
 
 # python3 scripts/aprilgrid_generate.py --nx 6 --ny 6 --tsize 0.088
 # python3 scripts/marg_sandbox.py

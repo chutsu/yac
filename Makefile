@@ -64,8 +64,9 @@ tests: ## Build and run tests
 		&& ./test_util_fs \
 		&& ./test_util_net \
 		&& ./test_util_timeline \
-		&& ./test_calib_data \
 		&& ./test_calib_camera \
+		&& ./test_calib_data \
+		&& ./test_calib_residuals \
 		&& ./test_calib_vi
 
 debug: ${CATKIN_WS} ${YAC_PATH} ## Build libyac and yac_ros in debug mode

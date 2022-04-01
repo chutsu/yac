@@ -1439,6 +1439,7 @@ int calib_camera_t::_remove_outliers(const bool filter_all) {
     }
     if (filter_all) {
       printf(".");
+      fflush(stdout);
     }
 
     // Cache estimates

@@ -69,7 +69,8 @@ int test_calib_view() {
                &cam_geoms,
                &cam_params,
                &cam_exts,
-               &rel_pose);
+               &rel_pose,
+               nullptr);
 
   return 0;
 }

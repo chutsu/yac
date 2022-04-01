@@ -25,6 +25,7 @@ struct calib_residual_t : public ceres::CostFunction {
   /* Constructor */
   calib_residual_t() = default;
   calib_residual_t(const std::string &type);
+  calib_residual_t(const std::string &type, calib_loss_t *loss_fn);
 
   /* Destructor */
   virtual ~calib_residual_t() = default;
@@ -104,8 +105,6 @@ struct pose_prior_t : public calib_residual_t {
 /** Reprojection Residual */
 struct reproj_residual_t : public calib_residual_t {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-  // calib_loss_t *loss = new CauchyLoss(0.5);
-  calib_loss_t *loss_fn = new BlakeZissermanLoss(2);
 
   // Data
   // -- Parameters
@@ -128,10 +127,11 @@ struct reproj_residual_t : public calib_residual_t {
                     pose_t *T_C0F_,
                     fiducial_corner_t *p_FFi_,
                     const vec2_t &z_,
-                    const mat2_t &covar_);
+                    const mat2_t &covar_,
+                    calib_loss_t *loss_fn = nullptr);
 
   /* Destructor */
-  ~reproj_residual_t();
+  ~reproj_residual_t() = default;
 
   /** Get residual */
   int get_residual(vec2_t &z_hat, vec2_t &r) const;

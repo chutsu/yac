@@ -6,6 +6,10 @@ namespace yac {
 
 calib_residual_t::calib_residual_t(const std::string &type_) : type{type_} {}
 
+calib_residual_t::calib_residual_t(const std::string &type_,
+                                   calib_loss_t *loss_fn_)
+    : type{type_}, loss_fn{loss_fn_} {}
+
 std::vector<double *> calib_residual_t::param_block_ptrs() {
   std::vector<double *> ptrs;
   for (auto &param : param_blocks) {
@@ -253,11 +257,13 @@ reproj_residual_t::reproj_residual_t(camera_geometry_t *cam_geom_,
                                      pose_t *T_C0F_,
                                      fiducial_corner_t *p_FFi_,
                                      const vec2_t &z_,
-                                     const mat2_t &covar_)
-    : calib_residual_t{"reproj_residual_t"}, cam_geom{cam_geom_},
+                                     const mat2_t &covar_,
+                                     calib_loss_t *loss_fn)
+    : calib_residual_t{"reproj_residual_t", loss_fn}, cam_geom{cam_geom_},
       cam_params{cam_params_}, T_BCi{T_BCi_}, T_C0F{T_C0F_}, p_FFi{p_FFi_},
       z{z_}, covar(covar_), info(covar.inverse()),
       sqrt_info(info.llt().matrixU()) {
+
   // Data
   residuals.resize(2);
   param_blocks.push_back(T_BCi_);
@@ -279,9 +285,9 @@ reproj_residual_t::reproj_residual_t(camera_geometry_t *cam_geom_,
 }
 
 reproj_residual_t::~reproj_residual_t() {
-  if (loss_fn != nullptr) {
-    delete loss_fn;
-  }
+  // if (loss_fn != nullptr) {
+  //   delete loss_fn;
+  // }
 }
 
 int reproj_residual_t::get_residual(vec2_t &z_hat, vec2_t &r) const {

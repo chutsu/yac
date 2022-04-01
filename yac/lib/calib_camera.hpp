@@ -69,7 +69,8 @@ struct calib_view_t {
                CamIdx2Geometry *cam_geom_,
                CamIdx2Parameters *cam_params_,
                CamIdx2Extrinsics *cam_exts_,
-               pose_t *T_C0F_);
+               pose_t *T_C0F_,
+               calib_loss_t *loss);
   ~calib_view_t();
 
   int nb_detections() const;
@@ -100,6 +101,9 @@ struct calib_camera_t {
   bool enable_nbv_filter = true;
   bool enable_outlier_filter = true;
   bool enable_marginalization = false;
+  bool enable_loss_fn = true;
+  std::string loss_fn_type = "BLAKE-ZISSERMAN";
+  double loss_fn_param = 2;
   int min_nbv_views = 40;
   real_t outlier_threshold = 4.0;
   real_t info_gain_threshold = 0.2;
@@ -137,6 +141,7 @@ struct calib_camera_t {
   std::default_random_engine calib_rng;
   solver_t *solver = nullptr;
   marg_residual_t *marg_residual = nullptr;
+  calib_loss_t *loss_fn = nullptr;
 
   // State variables
   fiducial_corners_t *corners;

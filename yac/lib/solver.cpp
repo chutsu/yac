@@ -997,7 +997,8 @@ void ceres_solver_t::add_residual(calib_residual_t *res_fn) {
 
   // Add residual to ceres::Problem
   auto param_blocks = res_fn->param_block_ptrs();
-  auto res_id = problem->AddResidualBlock(res_fn, loss_fn, param_blocks);
+  auto res_id =
+      problem->AddResidualBlock(res_fn, res_fn->loss_fn, param_blocks);
   // TODO: Fix the loss so it is in the residual not in the solver!
 
   // printf("loss_fn: %s\n", res_fn->loss_fn->type.c_str());

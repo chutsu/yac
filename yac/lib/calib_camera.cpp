@@ -163,7 +163,8 @@ calib_view_t::calib_view_t(const timestamp_t ts_,
                            CamIdx2Geometry *cam_geoms_,
                            CamIdx2Parameters *cam_params_,
                            CamIdx2Extrinsics *cam_exts_,
-                           pose_t *T_C0F_)
+                           pose_t *T_C0F_,
+                           calib_loss_t *loss)
     : ts{ts_}, grids{grids_}, corners{corners_}, solver{solver_},
       cam_geoms{cam_geoms_},
       cam_params{cam_params_}, cam_exts{cam_exts_}, T_C0F{T_C0F_} {
@@ -195,7 +196,8 @@ calib_view_t::calib_view_t(const timestamp_t ts_,
                                           T_C0F_,
                                           p_FFi_,
                                           z,
-                                          covar);
+                                          covar,
+                                          loss);
       solver->add_residual(res_fn);
       res_fns[cam_idx].push_back(res_fn);
     }
@@ -384,7 +386,7 @@ void calib_view_t::marginalize(marg_residual_t *marg_residual) {
 
 static void print_calib_target(FILE *out, calib_target_t &calib_target) {
   fprintf(out, "calib_target:\n");
-  fprintf(out, "  target_type: %s\n", calib_target.target_type.c_str());
+  fprintf(out, "  target_type: \"%s\"\n", calib_target.target_type.c_str());
   fprintf(out, "  tag_rows: %d\n", calib_target.tag_rows);
   fprintf(out, "  tag_cols: %d\n", calib_target.tag_cols);
   fprintf(out, "  tag_size: %f\n", calib_target.tag_size);
@@ -453,7 +455,8 @@ static void calib_initialize(const calib_target_t &calib_target,
                              CamIdx2Geometry &cam_geoms,
                              CamIdx2Parameters &cam_params,
                              CamIdx2Extrinsics &cam_exts,
-                             std::map<timestamp_t, pose_t *> &poses) {
+                             std::map<timestamp_t, pose_t *> &poses,
+                             calib_loss_t *loss_fn) {
   // Setup solver
   solver_t *solver = nullptr;
   if (solver_type == "CERES-SOLVER") {
@@ -527,7 +530,8 @@ static void calib_initialize(const calib_target_t &calib_target,
                                        &cam_geoms,
                                        &cam_params,
                                        &cam_exts,
-                                       poses[ts]};
+                                       poses[ts],
+                                       loss_fn};
   }
 
   // Solve
@@ -1016,7 +1020,8 @@ bool calib_camera_t::add_view(const std::map<int, aprilgrid_t> &cam_grids) {
                                      &cam_geoms,
                                      &cam_params,
                                      &cam_exts,
-                                     poses[ts]};
+                                     poses[ts],
+                                     loss_fn};
 
   return true;
 }
@@ -1250,7 +1255,8 @@ void calib_camera_t::_initialize_intrinsics() {
                      cam_geoms,
                      cam_params,
                      cam_exts,
-                     init_poses);
+                     init_poses,
+                     loss_fn);
     printf("Initialized to:\n");
     print_camera_params(stdout, cam_idx, cam_params[cam_idx]);
     printf("\n");
@@ -1306,7 +1312,8 @@ void calib_camera_t::_initialize_extrinsics() {
                    cam_geoms,
                    cam_params,
                    cam_exts,
-                   init_poses);
+                   init_poses,
+                   loss_fn);
 
   // Print optimized initial extrinsics
   for (const auto cam_idx : get_camera_indices()) {
@@ -1449,9 +1456,9 @@ int calib_camera_t::_remove_outliers(const bool filter_all) {
     auto &view = calib_views[ts];
     const auto grids_cache = view->grids;
     int removed = view->filter_view(cam_thresholds);
-    if (removed == 0) {
-      continue;
-    }
+    // if (removed == 0) {
+    //   continue;
+    // }
 
     // Get info with filtered view
     solver->solve(5);
@@ -1661,6 +1668,17 @@ void calib_camera_t::solve() {
     print_settings(stdout);
   }
 
+  // Setup Loss function
+  if (enable_loss_fn) {
+    if (loss_fn_type == "BLAKE-ZISSERMAN") {
+      loss_fn = new BlakeZissermanLoss((int)loss_fn_param);
+    } else if (loss_fn_type == "CAUCHY-LOSS") {
+      loss_fn = new CauchyLoss(loss_fn_param);
+    } else {
+      FATAL("Unsupported loss function type [%s]!", loss_fn_type.c_str());
+    }
+  }
+
   // Initialize camera intrinsics and extrinsics
   _initialize_intrinsics();
   _initialize_extrinsics();
@@ -1689,13 +1707,16 @@ void calib_camera_t::print_settings(FILE *out) {
   // clang-format off
   fprintf(out, "settings:\n");
   fprintf(out, "  verbose: %s\n", verbose ? "true" : "false");
-  fprintf(out, "  solver: %s\n", solver_type.c_str());
+  fprintf(out, "  solver: \"%s\"\n", solver_type.c_str());
   fprintf(out, "  max_num_threads: %d\n", max_num_threads);
   fprintf(out, "  enable_nbv: %s\n", enable_nbv ? "true" : "false");
   fprintf(out, "  enable_shuffle_views: %s\n", enable_shuffle_views ? "true" : "false");
   fprintf(out, "  enable_nbv_filter: %s\n", enable_nbv_filter ? "true" : "false");
   fprintf(out, "  enable_outlier_filter: %s\n", enable_outlier_filter ? "true" : "false");
   fprintf(out, "  enable_marginalization: %s\n", enable_marginalization ? "true" : "false");
+  fprintf(out, "  enable_loss_fn: %s\n", enable_loss_fn ? "true" : "false");
+  fprintf(out, "  loss_fn_type: \"%s\"\n", loss_fn_type.c_str());
+  fprintf(out, "  loss_fn_param: %f\n", loss_fn_param);
   fprintf(out, "  min_nbv_views: %d\n", min_nbv_views);
   fprintf(out, "  outlier_threshold: %f\n", outlier_threshold);
   fprintf(out, "  info_gain_threshold: %f\n", info_gain_threshold);

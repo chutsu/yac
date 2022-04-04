@@ -111,7 +111,7 @@ struct yac_solver_t : solver_t {
 
 // CERES-SOLVER ////////////////////////////////////////////////////////////////
 
-// #define ENABLE_CERES_COVARIANCE_ESTIMATOR
+#define ENABLE_CERES_COVARIANCE_ESTIMATOR
 
 struct ceres_solver_t : solver_t {
   int max_num_threads = 4;

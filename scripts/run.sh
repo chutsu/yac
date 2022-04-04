@@ -97,6 +97,14 @@ RUN_CMD="time ./calib_euroc"
 # RUN_CMD="./test_marg_residual"
 # RUN_CMD="./test_marg_residual --target test_marg_block"
 
+tmux send-keys -t dev -R C-l C-m
+tmux send-keys -t dev -R "\
+cd ~/projects/yac \
+&& sudo make lib \
+&& cd build && ${RUN_CMD}
+" C-m
+exit
+
 # YAC - ROS NODES
 # RUN_CMD="roslaunch yac_ros record_camera.launch"
 # RUN_CMD="roslaunch yac_ros record_mocap.launch"
@@ -116,13 +124,7 @@ RUN_CMD="time ./calib_euroc"
 
 # RUN_CMD="roslaunch yac_ros intel_d435i-calib_imucam.launch"
 
-tmux send-keys -t dev -R C-l C-m
-tmux send-keys -t dev -R "\
-cd ~/projects/yac \
-&& sudo make lib \
-&& cd build && ${RUN_CMD}
-" C-m C-m
-exit
+# tmux send-keys -t dev -R C-l C-m
 # tmux send-keys -t dev -R "\
 # cd ~/projects/yac \
 # && sudo make lib \

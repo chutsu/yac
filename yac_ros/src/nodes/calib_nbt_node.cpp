@@ -23,7 +23,7 @@ void publish_nbt(const ctraj_t &traj, ros::Publisher &pub) {
   path_msg.header.stamp = ts;
   path_msg.header.frame_id = frame_id;
 
-  for (size_t i = 0; i < traj.timestamps.size(); i++) {
+  for (size_t i = 0; i < traj.orientations.size(); i++) {
     auto pose = tf(traj.orientations[i], traj.positions[i]);
     auto pose_stamped = msg_build(0, ts, frame_id, pose);
     path_msg.poses.push_back(pose_stamped);

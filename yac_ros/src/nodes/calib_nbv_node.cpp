@@ -44,6 +44,7 @@ struct calib_nbv_t {
   std::map<int, aprilgrids_t> cam_grids;
 
   // NBV Data
+  profiler_t prof;
   std::map<int, mat4s_t> nbv_poses;
   int nbv_cam_idx = 0;
   int nbv_idx = 0;
@@ -321,12 +322,13 @@ struct calib_nbv_t {
     nbv_info = 0.0;
     info = 0.0;
     info_gain = 0.0;
-    if (calib->find_nbv(nbv_poses,
-                        nbv_cam_idx,
-                        nbv_idx,
-                        nbv_info,
-                        info,
-                        info_gain) == 0) {
+    prof.start("find_nbt");
+    if (calib->find_nbv_fast(nbv_poses,
+                             nbv_cam_idx,
+                             nbv_idx,
+                             nbv_info,
+                             info,
+                             info_gain) == 0) {
       // Form target grid
       const mat4_t T_FC0 = nbv_poses.at(nbv_cam_idx).at(nbv_idx);
       const mat4_t T_C0Ci = calib->cam_exts[nbv_cam_idx]->tf();
@@ -346,6 +348,7 @@ struct calib_nbv_t {
              info,
              nbv_info,
              info_gain);
+      printf("time_taken: %f [s]\n", prof.stop("find_nbt"));
     } else {
       FATAL("Failed to find NBV!");
     }

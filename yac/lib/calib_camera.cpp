@@ -596,7 +596,11 @@ calib_camera_t::calib_camera_t(const std::string &config_path)
   parse(config, "settings.enable_nbv", enable_nbv, true);
   parse(config, "settings.enable_shuffle_views", enable_shuffle_views, true);
   parse(config, "settings.enable_nbv_filter", enable_nbv_filter, true);
+  parse(config, "settings.enable_outlier_filter", enable_outlier_filter, true);
   parse(config, "settings.enable_marginalization", enable_marginalization, true);
+  parse(config, "settings.enable_loss_fn", enable_loss_fn, true);
+  parse(config, "settings.loss_fn_type", loss_fn_type, true);
+  parse(config, "settings.loss_fn_param", loss_fn_param, true);
   parse(config, "settings.min_nbv_views", min_nbv_views, true);
   parse(config, "settings.outlier_threshold", outlier_threshold, true);
   parse(config, "settings.info_gain_threshold", info_gain_threshold, true);
@@ -636,20 +640,14 @@ calib_camera_t::calib_camera_t(const std::string &config_path)
   }
   // -- Parse camera extrinsics
   for (const auto cam_idx : get_camera_indices()) {
-    // // First camera
-    // if (cam_idx == 0) {
-    //   add_camera_extrinsics(0);
-    // }
-
     // Check if key exists
     const std::string cam_str = "cam" + std::to_string(cam_idx);
     const std::string key = "T_cam0_" + cam_str;
     if (yaml_has_key(config, key) == 0) {
-      // add_camera_extrinsics(cam_idx);
       continue;
     }
 
-    // Extract and add camera extrinsics
+    // Extract and set camera extrinsics
     mat4_t T_C0Ci = zeros(4, 4);
     parse(config, key, T_C0Ci);
     cam_exts[cam_idx]->param = tf_vec(T_C0Ci);
@@ -681,6 +679,112 @@ calib_camera_t::calib_camera_t(const std::string &config_path)
 
   // AprilGrid
   corners = new fiducial_corners_t(calib_target);
+  detector = std::make_unique<aprilgrid_detector_t>(calib_target.tag_rows,
+                                                    calib_target.tag_cols,
+                                                    calib_target.tag_size,
+                                                    calib_target.tag_spacing);
+}
+
+calib_camera_t::calib_camera_t(const calib_camera_t *calib) {
+  // Flags
+  filter_all = calib->filter_all;
+
+  // Settings
+  // -- General
+  verbose = calib->verbose;
+  solver_type = calib->solver_type;
+  max_num_threads = calib->max_num_threads;
+  enable_nbv = calib->enable_nbv;
+  enable_shuffle_views = calib->enable_shuffle_views;
+  enable_nbv_filter = calib->enable_nbv_filter;
+  enable_outlier_filter = calib->enable_outlier_filter;
+  enable_marginalization = calib->enable_marginalization;
+  enable_loss_fn = calib->enable_loss_fn;
+  loss_fn_type = calib->loss_fn_type;
+  loss_fn_param = calib->loss_fn_param;
+  min_nbv_views = calib->min_nbv_views;
+  outlier_threshold = calib->outlier_threshold;
+  info_gain_threshold = calib->info_gain_threshold;
+  sliding_window_size = calib->sliding_window_size;
+
+  // Data
+  calib_target = calib->calib_target;
+  timestamps = calib->timestamps;
+  calib_data = calib->calib_data;
+  validation_data = calib->validation_data;
+  focal_length_init = calib->focal_length_init;
+  removed_outliers = calib->removed_outliers;
+
+  // Buffers
+  img_buf = calib->img_buf;
+  grid_buf = calib->grid_buf;
+
+  // NBV
+  info_k = calib->info_k;
+  cam_estimates = calib->cam_estimates;
+  exts_estimates = calib->exts_estimates;
+  nbv_timestamps = calib->nbv_timestamps;
+  nbv_costs = calib->nbv_costs;
+  nbv_reproj_errors = calib->nbv_reproj_errors;
+  nbv_accepted = calib->nbv_accepted;
+
+  // Temporary Storage
+  cam_params_tmp = calib->cam_params_tmp;
+  cam_exts_tmp = calib->cam_exts_tmp;
+  poses_tmp = calib->poses_tmp;
+
+  // Problem
+  // -- Solver
+  if (calib->solver_type == "CERES-SOLVER") {
+    solver = new ceres_solver_t();
+  } else if (calib->solver_type == "YAC-SOLVER") {
+    solver = new yac_solver_t();
+  } else {
+    FATAL("Implementation Error!");
+  }
+  // -- Loss Function
+  if (calib->loss_fn_type == "BLAKE-ZISSERMAN") {
+    loss_fn = new BlakeZissermanLoss(calib->loss_fn_param);
+  } else if (calib->loss_fn_type == "CAUCHY") {
+    loss_fn = new CauchyLoss(calib->loss_fn_param);
+  } else {
+    FATAL("Implementation Error!");
+  }
+
+  // State Variables - Make copies
+  // -- Fiducial corners
+  corners = new fiducial_corners_t(calib_target);
+  // -- Camera geometries
+  for (const auto &[cam_idx, cam_geom] : calib->cam_geoms) {
+    if (cam_geom->type == "PINHOLE-RADTAN4") {
+      cam_geoms[cam_idx] = &pinhole_radtan4;
+    } else if (cam_geom->type == "PINHOLE-EQUI4") {
+      cam_geoms[cam_idx] = &pinhole_equi4;
+    } else {
+      FATAL("Implementation Error!");
+    }
+  }
+  // -- Camera parameters and extrinsics
+  for (const auto &[cam_idx, cam] : calib->cam_params) {
+    add_camera(cam_idx,
+               cam->resolution,
+               cam->proj_model,
+               cam->dist_model,
+               cam->proj_params(),
+               cam->dist_params(),
+               calib->cam_exts.at(cam_idx)->tf(),
+               cam->fixed,
+               calib->cam_exts.at(cam_idx)->fixed);
+  }
+
+  // Sliding window
+  calib_view_timestamps = calib->calib_view_timestamps;
+  filtered_timestamps = calib->filtered_timestamps;
+  for (const auto &[ts, view] : calib->calib_views) {
+    add_view(view->grids);
+  }
+
+  // AprilGrid
   detector = std::make_unique<aprilgrid_detector_t>(calib_target.tag_rows,
                                                     calib_target.tag_cols,
                                                     calib_target.tag_size,
@@ -1178,9 +1282,11 @@ int calib_camera_t::find_nbv(const std::map<int, mat4s_t> &nbv_poses,
     total_nbv_poses += nbv_cam_poses.size();
   }
   progressbar bar(total_nbv_poses);
+  printf("Num residuals: %ld\n", solver->num_residuals());
+  printf("Num parameters: %ld\n", solver->num_params());
   printf("Finding NBV [out of %d poses]: ", total_nbv_poses);
+  printf("\n");
 
-  yac_solver_t yac_solver{solver};
   for (const auto &[nbv_cam_idx, nbv_cam_poses] : nbv_poses) {
     for (size_t i = 0; i < nbv_cam_poses.size(); i++) {
       // Add NBV pose
@@ -1210,13 +1316,314 @@ int calib_camera_t::find_nbv(const std::map<int, mat4s_t> &nbv_poses,
         best_idx = i;
         best_info = info_kp1;
       }
+      printf("i: %ld, info_kp1: %f\n", i, info_kp1);
 
       // Remove view and update
       remove_view(nbv_ts);
-      bar.update();
+      // bar.update();
     }
   }
   printf("\n");
+
+  // Return
+  cam_idx = best_cam;
+  nbv_idx = best_idx;
+  nbv_info = best_info;
+  info_gain = 0.5 * (info - best_info);
+  if (info_gain < info_gain_threshold) {
+    return -1;
+  }
+
+  return 0;
+}
+
+static void form_hessian(const size_t H_size,
+                         const std::unordered_set<calib_residual_t *> &res_fns,
+                         std::map<param_t *, bool> &params_seen,
+                         std::vector<param_t *> &pose_ptrs,
+                         std::vector<param_t *> &cam_ptrs,
+                         std::vector<param_t *> &extrinsics_ptrs,
+                         ParameterOrder &param_order,
+                         matx_t &H) {
+  // Evaluate residuals
+  profiler_t prof;
+  prof.start("eval_residuals");
+  size_t residuals_length = 0;
+  std::vector<calib_residual_t *> res_evaled;
+  for (calib_residual_t *res_fn : res_fns) {
+    if (res_fn->eval() == false) {
+      FATAL("Residual evaulation failure!");
+    }
+    res_evaled.push_back(res_fn);
+    residuals_length += res_fn->num_residuals();
+  }
+  prof.stop("eval_residuals");
+
+  // Track unique parameters
+  prof.start("track_params");
+
+  for (auto res_fn : res_evaled) {
+    for (auto param_block : res_fn->param_blocks) {
+      // Check if parameter block seen already
+      if (params_seen.count(param_block)) {
+        continue;
+      }
+      params_seen[param_block] = true;
+
+      // Check if parameter is fixed
+      if (param_block->fixed) {
+        continue;
+      }
+
+      // Track parameter
+      if (param_block->type == "pose_t") {
+        pose_ptrs.push_back(param_block);
+      } else if (param_block->type == "camera_params_t") {
+        cam_ptrs.push_back(param_block);
+      } else if (param_block->type == "extrinsics_t") {
+        extrinsics_ptrs.push_back(param_block);
+      }
+    }
+  }
+  prof.stop("track_params");
+
+  // Determine parameter block column indicies for Hessian matrix H
+  prof.start("assign_order");
+  size_t idx = 0;
+  std::vector<std::vector<param_t *> *> param_groups = {
+      &cam_ptrs,
+      &extrinsics_ptrs,
+      &pose_ptrs,
+  };
+  for (const auto &param_ptrs : param_groups) {
+    for (const auto &param_block : *param_ptrs) {
+      param_order.insert({param_block, idx});
+      idx += param_block->local_size;
+    }
+  }
+  prof.stop("assign_order");
+
+  // Form Hessian H
+  prof.start("form_hessian");
+  H = zeros(H_size, H_size);
+
+  for (calib_residual_t *res_fn : res_evaled) {
+    const vecx_t r = res_fn->residuals;
+
+    for (size_t i = 0; i < res_fn->param_blocks.size(); i++) {
+      const auto &param_i = res_fn->param_blocks[i];
+      if (param_i->fixed) {
+        continue;
+      }
+      const int idx_i = param_order[param_i];
+      const int size_i = param_i->local_size;
+      const matx_t &J_i = res_fn->min_jacobian_blocks[i];
+
+      for (size_t j = i; j < res_fn->param_blocks.size(); j++) {
+        const auto &param_j = res_fn->param_blocks[j];
+        if (param_j->fixed) {
+          continue;
+        }
+        const int idx_j = param_order[param_j];
+        const int size_j = param_j->local_size;
+        const matx_t &J_j = res_fn->min_jacobian_blocks[j];
+
+        if (i == j) {
+          // Form diagonals of H
+          H.block(idx_i, idx_i, size_i, size_i) += J_i.transpose() * J_i;
+        } else {
+          // Form off-diagonals of H
+          // clang-format off
+          H.block(idx_i, idx_j, size_i, size_j) += J_i.transpose() * J_j;
+          H.block(idx_j, idx_i, size_j, size_i) += (J_i.transpose() * J_j).transpose();
+          // clang-format on
+        }
+      }
+    }
+  }
+  prof.stop("form_hessian");
+
+  // printf("\nprofile:\n");
+  // prof.print("eval_residuals");
+  // prof.print("track_params");
+  // prof.print("assign_order");
+  // prof.print("form_hessian");
+}
+
+static real_t calculate_info(const matx_t &H, const size_t r, const size_t m) {
+  profiler_t prof;
+
+  // Invert sub-matrix block Hmm
+  prof.start("marg_hessian");
+  matx_t Hmm = H.block(r, r, m, m);
+  Hmm = 0.5 * (Hmm.transpose() + Hmm);
+  const Eigen::SelfAdjointEigenSolver<matx_t> eig(Hmm);
+  const matx_t V = eig.eigenvectors();
+  const double eps = 1.0e-8;
+  const auto eigvals_inv = (eig.eigenvalues().array() > eps)
+                               .select(eig.eigenvalues().array().inverse(), 0);
+  const matx_t Lambda_inv = vecx_t(eigvals_inv).asDiagonal();
+  const matx_t Hmm_inv = V * Lambda_inv * V.transpose();
+  const double inv_check = ((Hmm * Hmm_inv) - I(m, m)).norm();
+  if (inv_check > 1e-4) {
+    LOG_WARN("Inverse identity check: %f", inv_check);
+    LOG_WARN("This is bad ... Usually means marg_residual_t is bad!");
+  }
+
+  // Calculate Schur's complement
+  const matx_t Hrr = H.block(0, 0, r, r);
+  const matx_t Hrm = H.block(0, r, r, m);
+  const matx_t Hmr = H.block(r, 0, m, r);
+  const matx_t H_covar = Hrr - Hrm * Hmm_inv * Hmr;
+
+  // Calculate information
+  const auto svd_options = Eigen::ComputeThinU | Eigen::ComputeThinV;
+  Eigen::JacobiSVD<matx_t> SVD(H_covar, svd_options);
+  const vecx_t s = SVD.singularValues();
+  const real_t info = -1.0 * s.array().log().sum() / log(2.0);
+  prof.stop("marg_hessian");
+
+  return info;
+}
+
+int calib_camera_t::find_nbv_fast(const std::map<int, mat4s_t> &nbv_poses,
+                                  int &cam_idx,
+                                  int &nbv_idx,
+                                  real_t &nbv_info,
+                                  real_t &info,
+                                  real_t &info_gain) {
+  // Pre-check
+  if (nbv_poses.size() == 0) {
+    FATAL("NBV poses empty!?");
+  }
+  if (nb_views() == 0) {
+    FATAL("Calibration problem is empty!?");
+  }
+
+  // Current info
+  info = 0.0;
+  if (_calc_info(&info) != 0) {
+    return -1;
+  }
+
+  // Find NBV
+  const timestamp_t last_ts = *timestamps.rbegin(); // std::set is orderd
+  const timestamp_t nbv_ts = last_ts + 1;
+
+  int total_nbv_poses = 0;
+  for (const auto &[nbv_cam_idx, nbv_cam_poses] : nbv_poses) {
+    total_nbv_poses += nbv_cam_poses.size();
+  }
+  progressbar bar(total_nbv_poses);
+  printf("Num residuals: %ld\n", solver->num_residuals());
+  printf("Num parameters: %ld\n", solver->num_params());
+  // printf("Finding NBV [out of %d poses]: ", total_nbv_poses);
+
+  // Current Information at k
+  auto r = cam_params.size() * 8 + (cam_exts.size() - 1) * 6;
+  auto m = calib_views.size() * 6;
+  std::map<param_t *, bool> params_seen;
+  std::vector<param_t *> pose_ptrs;
+  std::vector<param_t *> cam_ptrs;
+  std::vector<param_t *> extrinsics_ptrs;
+  ParameterOrder param_order;
+  matx_t H_k;
+  form_hessian(r + m + 6,
+               solver->res_fns,
+               params_seen,
+               pose_ptrs,
+               cam_ptrs,
+               extrinsics_ptrs,
+               param_order,
+               H_k);
+
+  mat4_t nbv_tf = I(4);
+  pose_t nbv_pose{nbv_ts, nbv_tf};
+  std::map<int, std::map<int, real_t>> nbv_scores;
+
+  for (const auto &[nbv_cam_idx, nbv_cam_poses] : nbv_poses) {
+    for (size_t i = 0; i < nbv_cam_poses.size(); i++) {
+      // Set NBV pose
+      const mat4_t T_FC0 = nbv_cam_poses.at(i);
+      const mat4_t T_C0F = tf_inv(T_FC0);
+      nbv_pose.set_tf(T_C0F);
+
+      // Simulate NBV views
+      std::map<int, aprilgrid_t> cam_grids;
+      for (const auto cam_idx : get_camera_indices()) {
+        const mat4_t T_C0Ci = cam_exts[cam_idx]->tf();
+        cam_grids[cam_idx] = nbv_target_grid(calib_target,
+                                             cam_geoms[cam_idx],
+                                             cam_params[cam_idx],
+                                             nbv_ts,
+                                             T_FC0 * T_C0Ci);
+      }
+
+      // Form reprojection errors
+      const mat2_t covar = I(2);
+      std::unordered_set<calib_residual_t *> res_fns;
+      for (const auto &[cam_idx, cam_grid] : cam_grids) {
+        if (cam_params.count(cam_idx) == 0) {
+          continue;
+        }
+        if (cam_grid.detected == false) {
+          continue;
+        }
+
+        // Get AprilGrid measurements
+        std::vector<int> tag_ids;
+        std::vector<int> corner_idxs;
+        vec2s_t kps;
+        vec3s_t pts;
+        cam_grid.get_measurements(tag_ids, corner_idxs, kps, pts);
+
+        // Add reprojection errors
+        for (size_t i = 0; i < tag_ids.size(); i++) {
+          const int tag_id = tag_ids[i];
+          const int corner_idx = corner_idxs[i];
+          const vec2_t z = kps[i];
+          auto p_FFi = corners->get_corner(tag_id, corner_idx);
+          auto res_fn = new reproj_residual_t(cam_geoms.at(cam_idx),
+                                              cam_params.at(cam_idx),
+                                              cam_exts.at(cam_idx),
+                                              &nbv_pose,
+                                              p_FFi,
+                                              z,
+                                              covar,
+                                              nullptr);
+          res_fns.insert(res_fn);
+        }
+      }
+
+      // Information at kp1
+      matx_t H_kp1;
+      form_hessian(r + m + 6,
+                   res_fns,
+                   params_seen,
+                   pose_ptrs,
+                   cam_ptrs,
+                   extrinsics_ptrs,
+                   param_order,
+                   H_kp1);
+      const matx_t H_new = H_k + H_kp1;
+      const real_t info_kp1 = calculate_info(H_new, r, m + 6);
+      nbv_scores[nbv_cam_idx][i] = info_kp1;
+    }
+  }
+
+  // Extract NBV
+  int best_cam = 0;
+  int best_idx = 0;
+  real_t best_info = 0;
+  for (const auto &[nbv_cam_idx, nbv_cam_poses] : nbv_poses) {
+    for (size_t i = 0; i < nbv_cam_poses.size(); i++) {
+      if (nbv_scores[nbv_cam_idx][i] < best_info) {
+        best_cam = nbv_cam_idx;
+        best_idx = i;
+        best_info = nbv_scores[nbv_cam_idx][i];
+      }
+    }
+  }
 
   // Return
   cam_idx = best_cam;

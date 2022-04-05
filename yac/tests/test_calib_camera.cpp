@@ -298,7 +298,7 @@ int test_calib_camera_find_nbv() {
   real_t info = 0.0;
   real_t info_gain = 0.0;
   prof.start("find_nbv");
-  calib.find_nbv(nbv_poses, cam_idx, nbv_idx, nbv_info, info, info_gain);
+  calib.find_nbv_fast(nbv_poses, cam_idx, nbv_idx, nbv_info, info, info_gain);
   prof.stop("find_nbv");
   prof.print("find_nbv");
 

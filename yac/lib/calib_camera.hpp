@@ -95,7 +95,7 @@ struct calib_camera_t {
   // -- General
   bool verbose = true;
   std::string solver_type = "CERES-SOLVER";
-  int max_num_threads = 8;
+  int max_num_threads = 2;
   bool enable_nbv = true;
   bool enable_shuffle_views = true;
   bool enable_nbv_filter = true;
@@ -168,6 +168,7 @@ struct calib_camera_t {
   calib_camera_t() = delete;
   calib_camera_t(const calib_target_t &calib_target_);
   calib_camera_t(const std::string &config_path);
+  calib_camera_t(const calib_camera_t *calib);
   ~calib_camera_t();
 
   int nb_cameras() const;
@@ -222,6 +223,12 @@ struct calib_camera_t {
                real_t &nbv_info,
                real_t &info,
                real_t &info_gain);
+  int find_nbv_fast(const std::map<int, mat4s_t> &nbv_poses,
+                    int &cam_idx,
+                    int &nbv_idx,
+                    real_t &nbv_info,
+                    real_t &info,
+                    real_t &info_gain);
 
   void _initialize_intrinsics();
   void _initialize_extrinsics();

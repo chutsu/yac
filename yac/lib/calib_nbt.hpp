@@ -5,6 +5,7 @@
 #include "calib_data.hpp"
 #include "calib_params.hpp"
 #include "calib_nbv.hpp"
+#include "calib_vi.hpp"
 
 namespace yac {
 

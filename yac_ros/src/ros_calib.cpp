@@ -138,33 +138,49 @@ void draw_status_text(const std::string &text, cv::Mat &image) {
 }
 
 void draw_detected(const aprilgrid_t &grid, cv::Mat &image) {
-  // Visualize detected
-  std::string text = "AprilGrid: ";
-  cv::Scalar text_color;
-  if (grid.detected) {
-    text += "detected!";
-    text_color = cv::Scalar(0, 255, 0);
-  } else {
-    text += "not detected!";
-    text_color = cv::Scalar(0, 0, 255);
+  // Pre-check
+  if (grid.detected == false) {
+    return;
   }
-  const cv::Point text_pos{10, 30};
-  const int text_font = cv::FONT_HERSHEY_PLAIN;
-  const float text_scale = 1.0;
-  const int text_thickness = 1;
-  cv::putText(image,
-              text,
-              text_pos,
-              text_font,
-              text_scale,
-              text_color,
-              text_thickness,
-              cv::LINE_AA);
 
-  // Visualize detected corners
-  const auto corner_color = cv::Scalar(0, 255, 0);
-  for (const vec2_t &kp : grid.keypoints()) {
-    cv::circle(image, cv::Point(kp(0), kp(1)), 1.0, corner_color, 2, 8);
+  // Draw settings
+  const auto red = cv::Scalar(0, 0, 255);
+  const auto green = cv::Scalar(0, 255, 0);
+  const auto blue = cv::Scalar(255, 0, 0);
+  const auto yellow = cv::Scalar(0, 255, 255);
+  const auto kp_color = cv::Scalar(0, 255, 0);
+  const auto nb_tags = grid.tag_rows * grid.tag_cols;
+  const int radius = 3;
+  const int thickness = 5;
+  const int line_type = 8;
+
+  // Draw corners
+  std::vector<int> tag_ids;
+  std::vector<int> corner_idxs;
+  vec2s_t keypoints;
+  vec3s_t object_points;
+  grid.get_measurements(tag_ids, corner_idxs, keypoints, object_points);
+
+  for (size_t i = 0; i < tag_ids.size(); i++) {
+    const vec2_t kp = keypoints[i];
+    const cv::Point p(kp.x(), kp.y());
+
+    if (tag_ids[i] == 0 && corner_idxs[i] == 0) {
+      // Bottom left corner
+      cv::circle(image, p, radius, red, thickness, line_type);
+    } else if (tag_ids[i] == (grid.tag_cols - 1) && corner_idxs[i] == 1) {
+      // Bottom right corner
+      cv::circle(image, p, radius, green, thickness, line_type);
+    } else if (tag_ids[i] == (nb_tags - 1) && corner_idxs[i] == 2) {
+      // Top right corner
+      cv::circle(image, p, radius, blue, thickness, line_type);
+    } else if (tag_ids[i] == (nb_tags - grid.tag_cols) && corner_idxs[i] == 3) {
+      // Top left corner
+      cv::circle(image, p, radius, yellow, thickness, line_type);
+    } else {
+      // Other
+      cv::circle(image, p, 1.0, kp_color, 2, 8);
+    }
   }
 }
 

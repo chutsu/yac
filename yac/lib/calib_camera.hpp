@@ -257,5 +257,45 @@ struct calib_camera_t {
   real_t inspect(const std::map<int, aprilgrids_t> &cam_data);
 };
 
+// NBV EVALUATOR //////////////////////////////////////////////////////////////
+
+/**
+ * NBV Evaluator
+ */
+struct nbv_evaluator_t {
+  // Data
+  calib_target_t calib_target;
+  std::vector<int> cam_indices;
+  std::map<int, camera_params_t *> cam_params;
+  std::map<int, extrinsics_t *> cam_exts;
+  std::map<int, camera_geometry_t *> cam_geoms;
+  fiducial_corners_t *corners = nullptr;
+
+  // Hessian
+  size_t remain_size = 0;
+  size_t marg_size = 0;
+  ParameterOrder param_order;
+  std::map<param_t *, bool> params_seen;
+  std::vector<param_t *> pose_ptrs;
+  std::vector<param_t *> cam_ptrs;
+  std::vector<param_t *> extrinsics_ptrs;
+  matx_t H_k;
+
+  // Camera geometries
+  pinhole_radtan4_t pinhole_radtan4;
+  pinhole_equi4_t pinhole_equi4;
+
+  nbv_evaluator_t() = delete;
+  nbv_evaluator_t(calib_camera_t *calib);
+  ~nbv_evaluator_t();
+
+  void form_param_order(const std::unordered_set<calib_residual_t *> &res_fns);
+  void form_hessian(const size_t H_size,
+                    const std::unordered_set<calib_residual_t *> &res_fns,
+                    matx_t &H);
+  real_t estimate_log_det_covar(const matx_t &H);
+  real_t eval(const mat4_t &T_FC0);
+};
+
 } //  namespace yac
 #endif // YAC_CALIB_CAMERA_HPP

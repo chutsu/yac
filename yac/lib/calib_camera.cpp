@@ -822,6 +822,10 @@ calib_camera_t::~calib_camera_t() {
   if (marg_residual) {
     delete marg_residual;
   }
+
+  if (loss_fn) {
+    delete loss_fn;
+  }
 }
 
 int calib_camera_t::nb_cameras() const { return cam_params.size(); }
@@ -1282,8 +1286,6 @@ int calib_camera_t::find_nbv(const std::map<int, mat4s_t> &nbv_poses,
     total_nbv_poses += nbv_cam_poses.size();
   }
   progressbar bar(total_nbv_poses);
-  printf("Num residuals: %ld\n", solver->num_residuals());
-  printf("Num parameters: %ld\n", solver->num_params());
   printf("Finding NBV [out of %d poses]: ", total_nbv_poses);
   printf("\n");
 
@@ -1316,11 +1318,11 @@ int calib_camera_t::find_nbv(const std::map<int, mat4s_t> &nbv_poses,
         best_idx = i;
         best_info = info_kp1;
       }
-      printf("i: %ld, info_kp1: %f\n", i, info_kp1);
+      // printf("i: %ld, info_kp1: %f\n", i, info_kp1);
 
       // Remove view and update
       remove_view(nbv_ts);
-      // bar.update();
+      bar.update();
     }
   }
   printf("\n");
@@ -1335,155 +1337,6 @@ int calib_camera_t::find_nbv(const std::map<int, mat4s_t> &nbv_poses,
   }
 
   return 0;
-}
-
-static void form_hessian(const size_t H_size,
-                         const std::unordered_set<calib_residual_t *> &res_fns,
-                         std::map<param_t *, bool> &params_seen,
-                         std::vector<param_t *> &pose_ptrs,
-                         std::vector<param_t *> &cam_ptrs,
-                         std::vector<param_t *> &extrinsics_ptrs,
-                         ParameterOrder &param_order,
-                         matx_t &H) {
-  // Evaluate residuals
-  profiler_t prof;
-  prof.start("eval_residuals");
-  size_t residuals_length = 0;
-  std::vector<calib_residual_t *> res_evaled;
-  for (calib_residual_t *res_fn : res_fns) {
-    if (res_fn->eval() == false) {
-      FATAL("Residual evaulation failure!");
-    }
-    res_evaled.push_back(res_fn);
-    residuals_length += res_fn->num_residuals();
-  }
-  prof.stop("eval_residuals");
-
-  // Track unique parameters
-  prof.start("track_params");
-
-  for (auto res_fn : res_evaled) {
-    for (auto param_block : res_fn->param_blocks) {
-      // Check if parameter block seen already
-      if (params_seen.count(param_block)) {
-        continue;
-      }
-      params_seen[param_block] = true;
-
-      // Check if parameter is fixed
-      if (param_block->fixed) {
-        continue;
-      }
-
-      // Track parameter
-      if (param_block->type == "pose_t") {
-        pose_ptrs.push_back(param_block);
-      } else if (param_block->type == "camera_params_t") {
-        cam_ptrs.push_back(param_block);
-      } else if (param_block->type == "extrinsics_t") {
-        extrinsics_ptrs.push_back(param_block);
-      }
-    }
-  }
-  prof.stop("track_params");
-
-  // Determine parameter block column indicies for Hessian matrix H
-  prof.start("assign_order");
-  size_t idx = 0;
-  std::vector<std::vector<param_t *> *> param_groups = {
-      &cam_ptrs,
-      &extrinsics_ptrs,
-      &pose_ptrs,
-  };
-  for (const auto &param_ptrs : param_groups) {
-    for (const auto &param_block : *param_ptrs) {
-      param_order.insert({param_block, idx});
-      idx += param_block->local_size;
-    }
-  }
-  prof.stop("assign_order");
-
-  // Form Hessian H
-  prof.start("form_hessian");
-  H = zeros(H_size, H_size);
-
-  for (calib_residual_t *res_fn : res_evaled) {
-    const vecx_t r = res_fn->residuals;
-
-    for (size_t i = 0; i < res_fn->param_blocks.size(); i++) {
-      const auto &param_i = res_fn->param_blocks[i];
-      if (param_i->fixed) {
-        continue;
-      }
-      const int idx_i = param_order[param_i];
-      const int size_i = param_i->local_size;
-      const matx_t &J_i = res_fn->min_jacobian_blocks[i];
-
-      for (size_t j = i; j < res_fn->param_blocks.size(); j++) {
-        const auto &param_j = res_fn->param_blocks[j];
-        if (param_j->fixed) {
-          continue;
-        }
-        const int idx_j = param_order[param_j];
-        const int size_j = param_j->local_size;
-        const matx_t &J_j = res_fn->min_jacobian_blocks[j];
-
-        if (i == j) {
-          // Form diagonals of H
-          H.block(idx_i, idx_i, size_i, size_i) += J_i.transpose() * J_i;
-        } else {
-          // Form off-diagonals of H
-          // clang-format off
-          H.block(idx_i, idx_j, size_i, size_j) += J_i.transpose() * J_j;
-          H.block(idx_j, idx_i, size_j, size_i) += (J_i.transpose() * J_j).transpose();
-          // clang-format on
-        }
-      }
-    }
-  }
-  prof.stop("form_hessian");
-
-  // printf("\nprofile:\n");
-  // prof.print("eval_residuals");
-  // prof.print("track_params");
-  // prof.print("assign_order");
-  // prof.print("form_hessian");
-}
-
-static real_t calculate_info(const matx_t &H, const size_t r, const size_t m) {
-  profiler_t prof;
-
-  // Invert sub-matrix block Hmm
-  prof.start("marg_hessian");
-  matx_t Hmm = H.block(r, r, m, m);
-  Hmm = 0.5 * (Hmm.transpose() + Hmm);
-  const Eigen::SelfAdjointEigenSolver<matx_t> eig(Hmm);
-  const matx_t V = eig.eigenvectors();
-  const double eps = 1.0e-8;
-  const auto eigvals_inv = (eig.eigenvalues().array() > eps)
-                               .select(eig.eigenvalues().array().inverse(), 0);
-  const matx_t Lambda_inv = vecx_t(eigvals_inv).asDiagonal();
-  const matx_t Hmm_inv = V * Lambda_inv * V.transpose();
-  const double inv_check = ((Hmm * Hmm_inv) - I(m, m)).norm();
-  if (inv_check > 1e-4) {
-    LOG_WARN("Inverse identity check: %f", inv_check);
-    LOG_WARN("This is bad ... Usually means marg_residual_t is bad!");
-  }
-
-  // Calculate Schur's complement
-  const matx_t Hrr = H.block(0, 0, r, r);
-  const matx_t Hrm = H.block(0, r, r, m);
-  const matx_t Hmr = H.block(r, 0, m, r);
-  const matx_t H_covar = Hrr - Hrm * Hmm_inv * Hmr;
-
-  // Calculate information
-  const auto svd_options = Eigen::ComputeThinU | Eigen::ComputeThinV;
-  Eigen::JacobiSVD<matx_t> SVD(H_covar, svd_options);
-  const vecx_t s = SVD.singularValues();
-  const real_t info = -1.0 * s.array().log().sum() / log(2.0);
-  prof.stop("marg_hessian");
-
-  return info;
 }
 
 int calib_camera_t::find_nbv_fast(const std::map<int, mat4s_t> &nbv_poses,
@@ -1507,107 +1360,27 @@ int calib_camera_t::find_nbv_fast(const std::map<int, mat4s_t> &nbv_poses,
   }
 
   // Find NBV
-  const timestamp_t last_ts = *timestamps.rbegin(); // std::set is orderd
-  const timestamp_t nbv_ts = last_ts + 1;
+  // const timestamp_t last_ts = *timestamps.rbegin(); // std::set is orderd
+  // const timestamp_t nbv_ts = last_ts + 1;
 
   int total_nbv_poses = 0;
   for (const auto &[nbv_cam_idx, nbv_cam_poses] : nbv_poses) {
     total_nbv_poses += nbv_cam_poses.size();
   }
   progressbar bar(total_nbv_poses);
-  printf("Num residuals: %ld\n", solver->num_residuals());
-  printf("Num parameters: %ld\n", solver->num_params());
+  // printf("Num residuals: %ld\n", solver->num_residuals());
+  // printf("Num parameters: %ld\n", solver->num_params());
   // printf("Finding NBV [out of %d poses]: ", total_nbv_poses);
 
-  // Current Information at k
-  auto r = cam_params.size() * 8 + (cam_exts.size() - 1) * 6;
-  auto m = calib_views.size() * 6;
-  std::map<param_t *, bool> params_seen;
-  std::vector<param_t *> pose_ptrs;
-  std::vector<param_t *> cam_ptrs;
-  std::vector<param_t *> extrinsics_ptrs;
-  ParameterOrder param_order;
-  matx_t H_k;
-  form_hessian(r + m + 6,
-               solver->res_fns,
-               params_seen,
-               pose_ptrs,
-               cam_ptrs,
-               extrinsics_ptrs,
-               param_order,
-               H_k);
-
-  mat4_t nbv_tf = I(4);
-  pose_t nbv_pose{nbv_ts, nbv_tf};
+  // Evaluate NBVs
+  nbv_evaluator_t nbv_eval(this);
   std::map<int, std::map<int, real_t>> nbv_scores;
-
   for (const auto &[nbv_cam_idx, nbv_cam_poses] : nbv_poses) {
+#pragma omp parallel for num_threads(4)
     for (size_t i = 0; i < nbv_cam_poses.size(); i++) {
-      // Set NBV pose
       const mat4_t T_FC0 = nbv_cam_poses.at(i);
-      const mat4_t T_C0F = tf_inv(T_FC0);
-      nbv_pose.set_tf(T_C0F);
-
-      // Simulate NBV views
-      std::map<int, aprilgrid_t> cam_grids;
-      for (const auto cam_idx : get_camera_indices()) {
-        const mat4_t T_C0Ci = cam_exts[cam_idx]->tf();
-        cam_grids[cam_idx] = nbv_target_grid(calib_target,
-                                             cam_geoms[cam_idx],
-                                             cam_params[cam_idx],
-                                             nbv_ts,
-                                             T_FC0 * T_C0Ci);
-      }
-
-      // Form reprojection errors
-      const mat2_t covar = I(2);
-      std::unordered_set<calib_residual_t *> res_fns;
-      for (const auto &[cam_idx, cam_grid] : cam_grids) {
-        if (cam_params.count(cam_idx) == 0) {
-          continue;
-        }
-        if (cam_grid.detected == false) {
-          continue;
-        }
-
-        // Get AprilGrid measurements
-        std::vector<int> tag_ids;
-        std::vector<int> corner_idxs;
-        vec2s_t kps;
-        vec3s_t pts;
-        cam_grid.get_measurements(tag_ids, corner_idxs, kps, pts);
-
-        // Add reprojection errors
-        for (size_t i = 0; i < tag_ids.size(); i++) {
-          const int tag_id = tag_ids[i];
-          const int corner_idx = corner_idxs[i];
-          const vec2_t z = kps[i];
-          auto p_FFi = corners->get_corner(tag_id, corner_idx);
-          auto res_fn = new reproj_residual_t(cam_geoms.at(cam_idx),
-                                              cam_params.at(cam_idx),
-                                              cam_exts.at(cam_idx),
-                                              &nbv_pose,
-                                              p_FFi,
-                                              z,
-                                              covar,
-                                              nullptr);
-          res_fns.insert(res_fn);
-        }
-      }
-
-      // Information at kp1
-      matx_t H_kp1;
-      form_hessian(r + m + 6,
-                   res_fns,
-                   params_seen,
-                   pose_ptrs,
-                   cam_ptrs,
-                   extrinsics_ptrs,
-                   param_order,
-                   H_kp1);
-      const matx_t H_new = H_k + H_kp1;
-      const real_t info_kp1 = calculate_info(H_new, r, m + 6);
-      nbv_scores[nbv_cam_idx][i] = info_kp1;
+      const real_t nbv_score = nbv_eval.eval(T_FC0);
+      nbv_scores[nbv_cam_idx][i] = nbv_score;
     }
   }
 
@@ -2439,6 +2212,290 @@ real_t calib_camera_t::inspect(const std::map<int, aprilgrids_t> &valid_data) {
   }
 
   return rmse(reproj_errors_all);
+}
+
+// NBV EVALUATOR //////////////////////////////////////////////////////////////
+
+nbv_evaluator_t::nbv_evaluator_t(calib_camera_t *calib) {
+  // Calibration target
+  calib_target = calib->calib_target;
+
+  // Camera parameters
+  cam_params = calib->cam_params;
+  for (const auto &[cam_idx, cam] : calib->cam_params) {
+    cam_indices.push_back(cam_idx);
+    remain_size += cam->local_size;
+  }
+
+  // Camera extrinsics
+  cam_exts = calib->cam_exts;
+  for (const auto &[cam_idx, exts] : calib->cam_exts) {
+    if (exts->fixed == false) {
+      remain_size += exts->local_size;
+    }
+  }
+
+  // Camera geometries
+  for (const auto &[cam_idx, cam_geom] : calib->cam_geoms) {
+    if (cam_geom->type == "PINHOLE-RADTAN4") {
+      cam_geoms[cam_idx] = &pinhole_radtan4;
+    } else if (cam_geom->type == "PINHOLE-EQUI4") {
+      cam_geoms[cam_idx] = &pinhole_equi4;
+    } else {
+      FATAL("Implementation Error!");
+    }
+  }
+
+  // Camera poses
+  marg_size = calib->calib_views.size() * 6;
+
+  // Fiducial corners
+  corners = new fiducial_corners_t(calib->calib_target);
+
+  // Form Hessian
+  size_t H_size = remain_size + marg_size + 6;
+  form_hessian(H_size, calib->solver->res_fns, H_k);
+}
+
+nbv_evaluator_t::~nbv_evaluator_t() {
+  if (corners) {
+    delete corners;
+  }
+}
+
+void nbv_evaluator_t::form_param_order(
+    const std::unordered_set<calib_residual_t *> &res_fns) {
+  // Evaluate residuals
+  size_t residuals_length = 0;
+  std::vector<calib_residual_t *> res_evaled;
+  for (calib_residual_t *res_fn : res_fns) {
+    if (res_fn->eval() == false) {
+      FATAL("Residual evaulation failure!");
+    }
+    res_evaled.push_back(res_fn);
+    residuals_length += res_fn->num_residuals();
+  }
+
+  // Track unique parameters
+  for (auto res_fn : res_evaled) {
+    for (auto param_block : res_fn->param_blocks) {
+      // Check if parameter block seen already
+      if (params_seen.count(param_block)) {
+        continue;
+      }
+      params_seen[param_block] = true;
+
+      // Check if parameter is fixed
+      if (param_block->fixed) {
+        continue;
+      }
+
+      // Track parameter
+      if (param_block->type == "pose_t") {
+        pose_ptrs.push_back(param_block);
+      } else if (param_block->type == "camera_params_t") {
+        cam_ptrs.push_back(param_block);
+      } else if (param_block->type == "extrinsics_t") {
+        extrinsics_ptrs.push_back(param_block);
+      }
+    }
+  }
+
+  // Determine parameter block column indicies for Hessian matrix H
+  size_t idx = 0;
+  std::vector<std::vector<param_t *> *> param_groups = {
+      &cam_ptrs,
+      &extrinsics_ptrs,
+      &pose_ptrs,
+  };
+  for (const auto &param_ptrs : param_groups) {
+    for (const auto &param_block : *param_ptrs) {
+      param_order.insert({param_block, idx});
+      idx += param_block->local_size;
+    }
+  }
+}
+
+void nbv_evaluator_t::form_hessian(
+    const size_t H_size,
+    const std::unordered_set<calib_residual_t *> &res_fns,
+    matx_t &H) {
+  // Form Hessian H
+  H = zeros(H_size, H_size);
+  form_param_order(res_fns);
+
+  for (calib_residual_t *res_fn : res_fns) {
+    const vecx_t r = res_fn->residuals;
+
+    for (size_t i = 0; i < res_fn->param_blocks.size(); i++) {
+      const auto &param_i = res_fn->param_blocks[i];
+      if (param_i->fixed) {
+        continue;
+      }
+      const int idx_i = param_order[param_i];
+      const int size_i = param_i->local_size;
+      const matx_t &J_i = res_fn->min_jacobian_blocks[i];
+
+      for (size_t j = i; j < res_fn->param_blocks.size(); j++) {
+        const auto &param_j = res_fn->param_blocks[j];
+        if (param_j->fixed) {
+          continue;
+        }
+        const int idx_j = param_order[param_j];
+        const int size_j = param_j->local_size;
+        const matx_t &J_j = res_fn->min_jacobian_blocks[j];
+
+        if (i == j) {
+          // Form diagonals of H
+          H.block(idx_i, idx_i, size_i, size_i) += J_i.transpose() * J_i;
+        } else {
+          // Form off-diagonals of H
+          // clang-format off
+            H.block(idx_i, idx_j, size_i, size_j) += J_i.transpose() * J_j;
+            H.block(idx_j, idx_i, size_j, size_i) += (J_i.transpose() * J_j).transpose();
+          // clang-format on
+        }
+      }
+    }
+  }
+}
+
+real_t nbv_evaluator_t::estimate_log_det_covar(const matx_t &H) {
+  // Marginalize out camera poses
+  const auto r = remain_size;
+  const auto m = H.rows() - r;
+  matx_t Hmm = H.block(r, r, m, m);
+  // -- Invert sub-matrix block Hmm
+  Hmm = 0.5 * (Hmm.transpose() + Hmm);
+  const double eps = 1.0e-8;
+  const Eigen::SelfAdjointEigenSolver<matx_t> eig(Hmm);
+  const matx_t V = eig.eigenvectors();
+  const auto s_array = eig.eigenvalues().array();
+  const auto eigvals_inv = (s_array > eps).select(s_array.inverse(), 0);
+  const matx_t Lambda_inv = vecx_t(eigvals_inv).asDiagonal();
+  const matx_t Hmm_inv = V * Lambda_inv * V.transpose();
+  // const double inv_check = ((Hmm * Hmm_inv) - I(m, m)).norm();
+  // if (inv_check > 1e-4) {
+  //   LOG_WARN("Inverse identity check: %f", inv_check);
+  // }
+  // -- Calculate Schur's complement
+  const matx_t Hrr = H.block(0, 0, r, r);
+  const matx_t Hrm = H.block(0, r, r, m);
+  const matx_t Hmr = H.block(r, 0, m, r);
+  const matx_t H_covar = Hrr - Hrm * Hmm_inv * Hmr;
+
+  // Calculate information
+  const auto svd_options = Eigen::ComputeThinU | Eigen::ComputeThinV;
+  Eigen::JacobiSVD<matx_t> SVD(H_covar, svd_options);
+  const vecx_t s = SVD.singularValues();
+  const real_t info = -1.0 * s.array().log().sum() / log(2.0);
+
+  return info;
+}
+
+real_t nbv_evaluator_t::eval(const mat4_t &T_FC0) {
+  // Setup NBV pose
+  const timestamp_t nbv_ts = 0;
+  const mat4_t T_C0F = tf_inv(T_FC0);
+  pose_t nbv_pose(nbv_ts, T_C0F);
+
+  // Simulate NBV views
+  std::map<int, aprilgrid_t> cam_grids;
+  for (const auto cam_idx : cam_indices) {
+    const mat4_t T_C0Ci = cam_exts[cam_idx]->tf();
+    cam_grids[cam_idx] = nbv_target_grid(calib_target,
+                                         cam_geoms[cam_idx],
+                                         cam_params[cam_idx],
+                                         nbv_ts,
+                                         T_FC0 * T_C0Ci);
+  }
+
+  // Form reprojection errors
+  const mat2_t covar = I(2);
+  std::unordered_set<calib_residual_t *> res_fns;
+  for (const auto &[cam_idx, cam_grid] : cam_grids) {
+    if (cam_params.count(cam_idx) == 0) {
+      continue;
+    }
+    if (cam_grid.detected == false) {
+      continue;
+    }
+
+    // Get AprilGrid measurements
+    std::vector<int> tag_ids;
+    std::vector<int> corner_idxs;
+    vec2s_t kps;
+    vec3s_t pts;
+    cam_grid.get_measurements(tag_ids, corner_idxs, kps, pts);
+
+    // Add reprojection errors
+    for (size_t i = 0; i < tag_ids.size(); i++) {
+      const int tag_id = tag_ids[i];
+      const int corner_idx = corner_idxs[i];
+      const vec2_t z = kps[i];
+      auto p_FFi = corners->get_corner(tag_id, corner_idx);
+      auto res_fn = new reproj_residual_t(cam_geoms.at(cam_idx),
+                                          cam_params.at(cam_idx),
+                                          cam_exts.at(cam_idx),
+                                          &nbv_pose,
+                                          p_FFi,
+                                          z,
+                                          covar,
+                                          nullptr);
+      res_fns.insert(res_fn);
+    }
+  }
+
+  // Form NBV Hessian
+  param_order.insert({&nbv_pose, param_order[pose_ptrs.back()] + 6});
+  matx_t H_kp1 = zeros(H_k.rows(), H_k.cols());
+
+  for (calib_residual_t *res_fn : res_fns) {
+    // Evaluate residual
+    res_fn->eval();
+    const vecx_t r = res_fn->residuals;
+
+    // Fill Hessian values
+    for (size_t i = 0; i < res_fn->param_blocks.size(); i++) {
+      const auto &param_i = res_fn->param_blocks[i];
+      if (param_i->fixed) {
+        continue;
+      }
+      const int idx_i = param_order[param_i];
+      const int size_i = param_i->local_size;
+      const matx_t &J_i = res_fn->min_jacobian_blocks[i];
+
+      for (size_t j = i; j < res_fn->param_blocks.size(); j++) {
+        const auto &param_j = res_fn->param_blocks[j];
+        if (param_j->fixed) {
+          continue;
+        }
+        const int idx_j = param_order[param_j];
+        const int size_j = param_j->local_size;
+        const matx_t &J_j = res_fn->min_jacobian_blocks[j];
+
+        if (i == j) {
+          // Form diagonals of H
+          H_kp1.block(idx_i, idx_i, size_i, size_i) += J_i.transpose() * J_i;
+        } else {
+          // Form off-diagonals of H
+          // clang-format off
+            H_kp1.block(idx_i, idx_j, size_i, size_j) += J_i.transpose() * J_j;
+            H_kp1.block(idx_j, idx_i, size_j, size_i) += (J_i.transpose() * J_j).transpose();
+          // clang-format on
+        }
+      }
+    }
+  }
+
+  // Clean up
+  for (auto &res_fn : res_fns) {
+    delete res_fn;
+  }
+
+  const matx_t H_new = H_k + H_kp1;
+  const real_t info_kp1 = estimate_log_det_covar(H_new);
+  return info_kp1;
 }
 
 } //  namespace yac

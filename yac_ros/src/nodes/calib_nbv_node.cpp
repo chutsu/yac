@@ -40,7 +40,8 @@ struct calib_nbv_t {
 
   // Data
   std::map<int, std::pair<timestamp_t, cv::Mat>> img_buffer;
-  std::map<int, aprilgrid_t> grid_buffer;
+  std::map<int, std::pair<aprilgrid_t, cv::Mat>> grid_buffer;
+  std::map<int, std::map<timestamp_t, cv::Mat>> cam_images;
   std::map<int, aprilgrids_t> cam_grids;
 
   // NBV Data
@@ -52,12 +53,11 @@ struct calib_nbv_t {
   real_t info = 0.0;
   real_t info_gain = 0.0;
   aprilgrid_t nbv_target;
-  // double nbv_reproj_err = std::numeric_limits<double>::max();
   double nbv_reproj_err = -1.0;
   struct timespec nbv_hold_tic = (struct timespec){0, 0};
 
   // NBV Settings
-  int min_intrinsics_views = 10;
+  int min_intrinsics_views = 5;
   real_t min_intrinsics_view_diff = 10.0;
   double nbv_reproj_threshold = 10.0;
   double nbv_hold_threshold = 1.0;
@@ -126,7 +126,7 @@ struct calib_nbv_t {
       const auto &img = data.second;
       const auto grid = calib->detector->detect(img_ts, img);
       if (grid.detected) {
-        grid_buffer[cam_idx] = grid;
+        grid_buffer[cam_idx] = {grid, img};
       }
     }
   }
@@ -178,7 +178,7 @@ struct calib_nbv_t {
     // Check if NBV reached
     std::vector<double> reproj_errors;
     const bool reached = nbv_reached(nbv_target,
-                                     grid_buffer[nbv_cam_idx],
+                                     grid_buffer[nbv_cam_idx].first,
                                      nbv_reproj_threshold,
                                      reproj_errors);
     nbv_reproj_err = mean(reproj_errors);
@@ -198,7 +198,11 @@ struct calib_nbv_t {
     }
 
     // NBV reached! Now add measurements to calibrator
-    calib->add_view(grid_buffer);
+    std::map<int, aprilgrid_t> view_data;
+    for (const auto &[cam_idx, data] : grid_buffer) {
+      view_data[cam_idx] = data.first;
+    }
+    calib->add_view(view_data);
     calib->verbose = false;
     calib->enable_nbv = false;
     calib->enable_outlier_filter = false;
@@ -225,7 +229,7 @@ struct calib_nbv_t {
       if (grid_buffer.count(cam_idx) == 0) {
         continue;
       }
-      const auto &grid_k = grid_buffer[cam_idx];
+      const auto &grid_k = grid_buffer[cam_idx].first;
       if (grid_k.detected == false || grid_k.fully_observable() == false) {
         continue;
       }
@@ -287,7 +291,8 @@ struct calib_nbv_t {
 
       // Draw "detected" if AprilGrid was observed
       if (grid_buffer.count(cam_idx)) {
-        draw_detected(grid_buffer[cam_idx], img);
+        const auto &grid = grid_buffer[cam_idx].first;
+        draw_detected(grid, img);
       }
 
       // Stack the images up
@@ -309,6 +314,12 @@ struct calib_nbv_t {
     if (find_nbv_event == false && check_nbv_reached() == false) {
       goto viz_nbv;
     }
+
+    // Solve
+    calib->verbose = true;
+    calib->enable_nbv = false;
+    calib->enable_outlier_filter = false;
+    calib->_solve_batch(false, 5);
 
     // Create NBV poses based on current calibrations
     nbv_poses = calib_nbv_poses(calib->calib_target,
@@ -343,12 +354,14 @@ struct calib_nbv_t {
       nbv_reproj_err = -1.0;
       nbv_hold_tic = (struct timespec){0, 0};
       find_nbv_event = false;
+      printf("mean_reproj_errors: %f\n", mean(calib->get_all_reproj_errors()));
       printf("nbv_cam_idx: %d, nbv_idx: %d\n", nbv_cam_idx, nbv_idx);
       printf("info_k: %f, info_kp1: %f, info_gain: %f\n",
              info,
              nbv_info,
              info_gain);
       printf("time_taken: %f [s]\n", prof.stop("find_nbt"));
+      printf("\n");
     } else {
       FATAL("Failed to find NBV!");
     }
@@ -361,6 +374,11 @@ struct calib_nbv_t {
       draw_nbv(viz);
     } else {
       draw_status_text("Finding NBV!", viz);
+    }
+
+    // Draw detected
+    if (grid_buffer.count(nbv_cam_idx)) {
+      draw_detected(grid_buffer[nbv_cam_idx].first, viz);
     }
 
     cv::imshow("Viz", viz);

@@ -684,8 +684,8 @@ int solver_t::estimate_covariance(const std::vector<param_t *> &params,
   return 0;
 }
 
-int solver_t::estimate_log_covariance_determinant(
-    const std::vector<param_t *> &params, real_t &covar_det) {
+int solver_t::estimate_log_det_covar(const std::vector<param_t *> &params,
+                                     real_t &covar_det) {
   UNUSED(params);
 
   {
@@ -1156,8 +1156,8 @@ int ceres_solver_t::estimate_covariance(const std::vector<param_t *> &params,
   return 0;
 }
 
-int ceres_solver_t::estimate_log_covariance_determinant(
-    const std::vector<param_t *> &params, real_t &covar_det) {
+int ceres_solver_t::estimate_log_det_covar(const std::vector<param_t *> &params,
+                                           real_t &covar_det) {
   // Estimate covariance
   matx_t covar;
   if (estimate_covariance(params, covar)) {
@@ -1210,5 +1210,13 @@ void ceres_solver_t::solve(const int max_iter,
     }
   }
 }
+
+// COVARIANCE ESTIMATOR //////////////////////////////////////////////////////
+
+covariance_estimator_t::covariance_estimator_t(const solver_t *solver) {
+  UNUSED(solver);
+}
+
+covariance_estimator_t::~covariance_estimator_t() {}
 
 } // namespace yac

@@ -384,7 +384,7 @@ void calib_view_t::marginalize(marg_residual_t *marg_residual) {
 
 // CALIB CAMERA ////////////////////////////////////////////////////////////////
 
-static void print_calib_target(FILE *out, calib_target_t &calib_target) {
+void print_calib_target(FILE *out, calib_target_t &calib_target) {
   fprintf(out, "calib_target:\n");
   fprintf(out, "  target_type: \"%s\"\n", calib_target.target_type.c_str());
   fprintf(out, "  tag_rows: %d\n", calib_target.tag_rows);
@@ -394,9 +394,9 @@ static void print_calib_target(FILE *out, calib_target_t &calib_target) {
   fprintf(out, "\n");
 }
 
-static void print_camera_params(FILE *out,
-                                const int cam_idx,
-                                const camera_params_t *cam) {
+void print_camera_params(FILE *out,
+                         const int cam_idx,
+                         const camera_params_t *cam) {
   const bool max_digits = (out == stdout) ? false : true;
   const int *cam_res = cam->resolution;
   const char *proj_model = cam->proj_model.c_str();
@@ -413,9 +413,9 @@ static void print_camera_params(FILE *out,
   fprintf(out, "  dist_params: %s\n", dist_params.c_str());
 }
 
-static void print_estimates(FILE *out,
-                            CamIdx2Parameters &cam_params,
-                            CamIdx2Extrinsics &cam_exts) {
+void print_estimates(FILE *out,
+                     CamIdx2Parameters &cam_params,
+                     CamIdx2Extrinsics &cam_exts) {
   const bool max_digits = (out == stdout) ? false : true;
 
   // Camera parameters
@@ -1764,11 +1764,11 @@ void calib_camera_t::_print_stats(const size_t ts_idx,
   }
 }
 
-void calib_camera_t::_solve_batch() {
+void calib_camera_t::_solve_batch(const bool verbose, const int max_iter) {
   for (const auto &ts : timestamps) {
     add_view(calib_data[ts]);
   }
-  solver->solve(50, verbose, 1);
+  solver->solve(max_iter, verbose, 1);
 }
 
 void calib_camera_t::_solve_inc() {
@@ -1861,14 +1861,14 @@ void calib_camera_t::_solve_nbv() {
   solver->solve(10, true, 1);
 }
 
-void calib_camera_t::solve(bool skip_init) {
+void calib_camera_t::solve(const bool skip_init) {
   // Print Calibration settings
   if (verbose) {
     print_settings(stdout);
   }
 
   // Setup Loss function
-  if (enable_loss_fn) {
+  if (enable_loss_fn && loss_fn == nullptr) {
     if (loss_fn_type == "BLAKE-ZISSERMAN") {
       loss_fn = new BlakeZissermanLoss((int)loss_fn_param);
     } else if (loss_fn_type == "CAUCHY") {
@@ -1895,7 +1895,7 @@ void calib_camera_t::solve(bool skip_init) {
     }
     _solve_nbv();
   } else {
-    _solve_batch();
+    _solve_batch(verbose);
   }
 
   // Show results

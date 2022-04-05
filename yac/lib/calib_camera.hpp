@@ -86,6 +86,14 @@ struct calib_view_t {
 
 // CALIBRATOR //////////////////////////////////////////////////////////////////
 
+void print_calib_target(FILE *out, calib_target_t &calib_target);
+void print_camera_params(FILE *out,
+                         const int cam_idx,
+                         const camera_params_t *cam);
+void print_estimates(FILE *out,
+                     CamIdx2Parameters &cam_params,
+                     CamIdx2Extrinsics &cam_exts);
+
 /** Camera Calibrator **/
 struct calib_camera_t {
   // Flags
@@ -239,10 +247,10 @@ struct calib_camera_t {
   int _remove_outliers(const bool filter_all);
   void _track_estimates(const timestamp_t ts, const bool view_accepted);
   void _print_stats(const size_t ts_idx, const size_t nb_timestamps);
-  void _solve_batch();
+  void _solve_batch(const bool verbose = false, const int max_iter = 50);
   void _solve_inc();
   void _solve_nbv();
-  void solve(bool skip_init = false);
+  void solve(const bool skip_init = false);
 
   void print_settings(FILE *out);
   void print_metrics(FILE *out,

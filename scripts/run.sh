@@ -40,7 +40,7 @@ set -e
 # RUN_CMD="./test_calib_camera --target test_calib_camera_add_pose"
 # RUN_CMD="./test_calib_camera --target test_calib_camera_add_and_remove_view"
 # RUN_CMD="./test_calib_camera --target test_calib_camera_add_nbv_view"
-# RUN_CMD="./test_calib_camera --target test_calib_camera_find_nbv"
+RUN_CMD="./test_calib_camera --target test_calib_camera_find_nbv"
 # RUN_CMD="./test_calib_camera --target test_calib_camera_filter_all_views"
 # RUN_CMD="./test_calib_camera --target test_calib_camera_remove_all_views"
 # RUN_CMD="./test_calib_camera --target test_calib_camera_remove_outliers"
@@ -49,7 +49,7 @@ set -e
 # RUN_CMD="time ./test_calib_camera --target test_calib_camera_mono"
 # RUN_CMD="./test_calib_camera --target test_calib_camera_stereo"
 # RUN_CMD="./test_calib_camera --target test_marg_residual"
-RUN_CMD="time ./calib_euroc"
+# RUN_CMD="time ./calib_euroc"
 # RUN_CMD="./calib_inspect '/tmp/calib-results.yaml' /data/euroc/cam_april"
 # RUN_CMD="./calib_inspect '/home/chutsu/projects/yac/yac/configs/calib-kalibr.yaml' /data/euroc/imu_april"
 # RUN_CMD="./calib_inspect '/home/chutsu/projects/yac/yac/configs/calib-yac.yaml' /data/euroc/cam_april"
@@ -65,16 +65,6 @@ RUN_CMD="time ./calib_euroc"
 # RUN_CMD="./test_calib_vi --target test_calib_vi_online"
 # RUN_CMD="./test_calib_vi --target test_calib_vi_copy_constructor"
 
-# YAC - NBT
-# RUN_CMD="./test_calib_nbt"
-# RUN_CMD="./test_calib_nbt --target test_nbt_orbit_trajs"
-# RUN_CMD="./test_calib_nbt --target test_nbt_pan_trajs"
-# RUN_CMD="./test_calib_nbt --target test_nbt_figure8_trajs"
-# RUN_CMD="./test_calib_nbt --target test_simulate_cameras"
-# RUN_CMD="./test_calib_nbt --target test_simulate_imu"
-# RUN_CMD="./test_calib_nbt --target test_nbt_eval"
-# RUN_CMD="./test_calib_nbt --target test_nbt_find"
-
 # YAC - NBV
 # RUN_CMD="./test_calib_nbv"
 # RUN_CMD="./test_calib_nbv --target test_calib_target_origin"
@@ -88,6 +78,16 @@ RUN_CMD="time ./calib_euroc"
 # RUN_CMD="./test_calib_nbv --target test_simulate_cameras"
 # RUN_CMD="./test_calib_nbv --target test_simulate_imu"
 # RUN_CMD="./test_calib_nbv --target test_nbt_eval_traj"
+
+# YAC - NBT
+# RUN_CMD="./test_calib_nbt"
+# RUN_CMD="./test_calib_nbt --target test_nbt_orbit_trajs"
+# RUN_CMD="./test_calib_nbt --target test_nbt_pan_trajs"
+# RUN_CMD="./test_calib_nbt --target test_nbt_figure8_trajs"
+# RUN_CMD="./test_calib_nbt --target test_simulate_cameras"
+# RUN_CMD="./test_calib_nbt --target test_simulate_imu"
+# RUN_CMD="./test_calib_nbt --target test_nbt_eval"
+# RUN_CMD="./test_calib_nbt --target test_nbt_find"
 
 # YAC - SOLVER
 # RUN_CMD="./test_solver"
@@ -116,24 +116,24 @@ exit
 # RUN_CMD="roslaunch yac_ros calib_imucam.launch \
 #   config_file:=/home/chutsu/projects/yac/yac_ros/config/euroc-calib_imucam.yaml"
 
-# RUN_CMD="roslaunch yac_ros intel_d435i-calib_camera.launch \
-#   config_file:=/home/chutsu/projects/yac/yac_ros/config/intel_d435i-calib_camera.yaml"
+RUN_CMD="roslaunch yac_ros intel_d435i-calib_camera.launch \
+  config_file:=/home/chutsu/projects/yac/yac_ros/config/intel_d435i-calib_camera.yaml"
 
 # RUN_CMD="roslaunch yac_ros intel_d435i-calib_imucam.launch \
 #   config_file:=/home/chutsu/projects/yac/yac_ros/config/intel_d435i-calib_imucam.yaml"
 
 # RUN_CMD="roslaunch yac_ros intel_d435i-calib_imucam.launch"
 
-# tmux send-keys -t dev -R C-l C-m
-# tmux send-keys -t dev -R "\
-# cd ~/projects/yac \
-# && sudo make lib \
-# && make release \
-# && cd ~/yac_ws \
-# && source devel/setup.bash \
-# && ${RUN_CMD}
-# " C-m C-m
-# exit
+tmux send-keys -t dev -R C-l C-m
+tmux send-keys -t dev -R "\
+cd ~/projects/yac \
+&& sudo make lib \
+&& make release \
+&& cd ~/yac_ws \
+&& source devel/setup.bash \
+&& ${RUN_CMD}
+" C-m
+exit
 
 # python3 scripts/aprilgrid_generate.py --nx 6 --ny 6 --tsize 0.088
 # python3 scripts/marg_sandbox.py

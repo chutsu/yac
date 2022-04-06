@@ -366,36 +366,44 @@ struct calib_nbv_t {
     info = 0.0;
     info_gain = 0.0;
     prof.start("find_nbt");
-    if (calib->find_nbv_fast(nbv_poses,
-                             nbv_cam_idx,
-                             nbv_idx,
-                             nbv_info,
-                             info,
-                             info_gain) == 0) {
-      // Form target grid
-      const mat4_t T_FC0 = nbv_poses.at(nbv_cam_idx).at(nbv_idx);
-      const mat4_t T_C0Ci = calib->cam_exts[nbv_cam_idx]->tf();
-      const mat4_t T_FCi = T_FC0 * T_C0Ci;
-      nbv_target = nbv_target_grid(calib->calib_target,
-                                   calib->cam_geoms[nbv_cam_idx],
-                                   calib->cam_params[nbv_cam_idx],
-                                   0,
-                                   T_FCi);
+    {
+      int retval = calib->find_nbv_fast(nbv_poses,
+                                        nbv_cam_idx,
+                                        nbv_idx,
+                                        nbv_info,
+                                        info,
+                                        info_gain);
+      if (retval == 0) {
+        // Form target grid
+        const mat4_t T_FC0 = nbv_poses.at(nbv_cam_idx).at(nbv_idx);
+        const mat4_t T_C0Ci = calib->cam_exts[nbv_cam_idx]->tf();
+        const mat4_t T_FCi = T_FC0 * T_C0Ci;
+        nbv_target = nbv_target_grid(calib->calib_target,
+                                     calib->cam_geoms[nbv_cam_idx],
+                                     calib->cam_params[nbv_cam_idx],
+                                     0,
+                                     T_FCi);
 
-      // Reset NBV data
-      nbv_reproj_err = -1.0;
-      nbv_hold_tic = (struct timespec){0, 0};
-      find_nbv_event = false;
-      printf("mean_reproj_errors: %f\n", mean(calib->get_all_reproj_errors()));
-      printf("nbv_cam_idx: %d, nbv_idx: %d\n", nbv_cam_idx, nbv_idx);
-      printf("info_k: %f, info_kp1: %f, info_gain: %f\n",
-             info,
-             nbv_info,
-             info_gain);
-      printf("time_taken: %f [s]\n", prof.stop("find_nbt"));
-      printf("\n");
-    } else {
-      FATAL("Failed to find NBV!");
+        // Reset NBV data
+        nbv_reproj_err = -1.0;
+        nbv_hold_tic = (struct timespec){0, 0};
+        find_nbv_event = false;
+        printf("mean_reproj_errors: %f\n",
+               mean(calib->get_all_reproj_errors()));
+        printf("nbv_cam_idx: %d, nbv_idx: %d\n", nbv_cam_idx, nbv_idx);
+        printf("info_k: %f, info_kp1: %f, info_gain: %f\n",
+               info,
+               nbv_info,
+               info_gain);
+        printf("time_taken: %f [s]\n", prof.stop("find_nbt"));
+        printf("\n");
+      } else if (retval == -2) {
+        LOG_INFO("NBV Threshold met!");
+        LOG_INFO("Finishing!");
+
+      } else {
+        FATAL("Failed to find NBV!");
+      }
     }
 
     // Reset nbv reached flag
@@ -444,6 +452,14 @@ struct calib_nbv_t {
     // Show viz
     cv::imshow("Viz", viz);
     event_handler(cv::waitKey(1));
+  }
+
+  /** finish */
+  void finish() {
+    printf("Run final batch solve on all NBVs\n");
+    calib->verbose = true;
+    calib->enable_nbv = false;
+    calib->_solve_batch(false, 5);
   }
 
   /**

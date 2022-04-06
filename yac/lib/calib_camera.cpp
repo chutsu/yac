@@ -536,17 +536,17 @@ static void calib_initialize(const bool verbose,
   }
 
   // Solve
-  if (verbose) {
-    printf("Before:\n");
-    print_estimates(stdout, cam_params, cam_exts);
-    printf("\n");
-  }
+  // if (verbose) {
+  //   printf("Before:\n");
+  //   print_estimates(stdout, cam_params, cam_exts);
+  //   printf("\n");
+  // }
   solver->solve(50, verbose, 0);
-  if (verbose) {
-    printf("After:\n");
-    print_estimates(stdout, cam_params, cam_exts);
-    printf("\n");
-  }
+  // if (verbose) {
+  //   printf("After:\n");
+  //   print_estimates(stdout, cam_params, cam_exts);
+  //   printf("\n");
+  // }
 
   // Clean up
   for (auto &[ts, view] : calib_views) {
@@ -1333,7 +1333,7 @@ int calib_camera_t::find_nbv(const std::map<int, mat4s_t> &nbv_poses,
   nbv_info = best_info;
   info_gain = 0.5 * (info - best_info);
   if (info_gain < info_gain_threshold) {
-    return -1;
+    return -2;
   }
 
   return 0;
@@ -1376,7 +1376,6 @@ int calib_camera_t::find_nbv_fast(const std::map<int, mat4s_t> &nbv_poses,
   nbv_evaluator_t nbv_eval(this);
   std::map<int, std::map<int, real_t>> nbv_scores;
   for (const auto &[nbv_cam_idx, nbv_cam_poses] : nbv_poses) {
-#pragma omp parallel for num_threads(4)
     for (size_t i = 0; i < nbv_cam_poses.size(); i++) {
       const mat4_t T_FC0 = nbv_cam_poses.at(i);
       const real_t nbv_score = nbv_eval.eval(T_FC0);
@@ -1404,7 +1403,7 @@ int calib_camera_t::find_nbv_fast(const std::map<int, mat4s_t> &nbv_poses,
   nbv_info = best_info;
   info_gain = 0.5 * (info - best_info);
   if (info_gain < info_gain_threshold) {
-    return -1;
+    return -2;
   }
 
   return 0;
@@ -1493,13 +1492,13 @@ void calib_camera_t::_initialize_extrinsics() {
   }
 
   // Print initial extrinsics
-  if (verbose) {
-    for (const auto cam_idx : get_camera_indices()) {
-      printf("cam%d_", cam_idx);
-      print_vector("exts", cam_exts[cam_idx]->param);
-      printf("\n");
-    }
-  }
+  // if (verbose) {
+  //   for (const auto cam_idx : get_camera_indices()) {
+  //     printf("cam%d_", cam_idx);
+  //     print_vector("exts", cam_exts[cam_idx]->param);
+  //   }
+  //   printf("\n");
+  // }
 
   // Refine camera extrinsics via joint-optimization
   std::map<timestamp_t, pose_t *> init_poses;
@@ -1514,13 +1513,13 @@ void calib_camera_t::_initialize_extrinsics() {
                    loss_fn);
 
   // Print optimized initial extrinsics
-  if (verbose) {
-    for (const auto cam_idx : get_camera_indices()) {
-      printf("cam%d_", cam_idx);
-      print_vector("exts", cam_exts[cam_idx]->param);
-    }
-    printf("\n");
-  }
+  // if (verbose) {
+  //   for (const auto cam_idx : get_camera_indices()) {
+  //     printf("cam%d_", cam_idx);
+  //     print_vector("exts", cam_exts[cam_idx]->param);
+  //   }
+  //   printf("\n");
+  // }
 
   // Clean up
   for (auto &[ts, pose] : init_poses) {

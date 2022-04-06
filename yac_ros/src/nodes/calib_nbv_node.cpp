@@ -140,6 +140,26 @@ struct calib_nbv_t {
     }
   }
 
+  /** Add view to calibrator */
+  void add_view() {
+    std::map<int, aprilgrid_t> view_data;
+    for (const auto &[cam_idx, data] : grid_buffer) {
+      const auto &grid = data.first;
+      const auto ts = grid.timestamp;
+      const auto &img = data.second;
+      view_data[cam_idx] = data.first;
+
+      // Keep track of all aprilgrids and images
+      cam_images[cam_idx][ts] = img;
+      cam_grids[cam_idx].push_back(grid);
+    }
+    calib->add_view(view_data);
+    calib->verbose = false;
+    calib->enable_nbv = false;
+    calib->enable_outlier_filter = false;
+    calib->solve(true);
+  }
+
   /** Event Keyboard Handler */
   void event_handler(int key) {
     if (key != EOF) {
@@ -149,23 +169,18 @@ struct calib_nbv_t {
           LOG_INFO("Exiting ...");
           keep_running = false;
           break;
+        case 'f':
+          LOG_INFO("Finish!");
+          finish();
+          keep_running = false;
+          break;
         case 'r':
           LOG_INFO("Manual Reset!");
           reset();
           break;
         case 'c':
           LOG_INFO("Manual NBV reached!");
-
-          std::map<int, aprilgrid_t> view_data;
-          for (const auto &[cam_idx, data] : grid_buffer) {
-            view_data[cam_idx] = data.first;
-          }
-          calib->add_view(view_data);
-          calib->verbose = false;
-          calib->enable_nbv = false;
-          calib->enable_outlier_filter = false;
-          calib->solve(true);
-
+          add_view();
           nbv_reached_event = true;
           break;
       }
@@ -226,15 +241,7 @@ struct calib_nbv_t {
     }
 
     // NBV reached! Now add measurements to calibrator
-    std::map<int, aprilgrid_t> view_data;
-    for (const auto &[cam_idx, data] : grid_buffer) {
-      view_data[cam_idx] = data.first;
-    }
-    calib->add_view(view_data);
-    calib->verbose = false;
-    calib->enable_nbv = false;
-    calib->enable_outlier_filter = false;
-    calib->solve(true);
+    add_view();
 
     return true;
   }
@@ -286,6 +293,10 @@ struct calib_nbv_t {
         LOG_INFO("Adding cam%d data - still needs %ld views",
                  cam_idx,
                  views_left);
+
+        const auto ts = data.first;
+        const auto &img = data.second;
+        cam_images[cam_idx][ts] = img;
         cam_grids[cam_idx].push_back(grid_k);
       }
     }
@@ -300,10 +311,7 @@ struct calib_nbv_t {
     // Initialize camera intrinsics + extrinsics
     calib->add_camera_data(cam_grids);
     calib->enable_nbv = false;
-    calib->enable_outlier_filter = false;
     calib->solve();
-    calib->show_results();
-    calib->enable_outlier_filter = true;
 
     // Transition to NBV mode
     state = NBV;
@@ -457,9 +465,45 @@ struct calib_nbv_t {
   /** finish */
   void finish() {
     printf("Run final batch solve on all NBVs\n");
-    calib->verbose = true;
-    calib->enable_nbv = false;
-    calib->_solve_batch(false, 5);
+
+    // Create calib data directory
+    const std::string calib_data_path = "/tmp/calib_data";
+    std::map<int, std::string> cam_dirs;
+    // -- Calibration data directory
+    if (system(("mkdir -p " + calib_data_path).c_str()) != 0) {
+      FATAL("Failed to create dir [%s]", calib_data_path.c_str());
+    }
+    // -- Camera directories
+    for (const auto &[cam_idx, data] : cam_images) {
+      const auto cam_dir = calib_data_path + "/cam" + std::to_string(cam_idx);
+
+      // Create camera directory
+      if (system(("mkdir -p " + cam_dir).c_str()) != 0) {
+        FATAL("Failed to create dir [%s]", cam_dir.c_str());
+      }
+
+      // Make sure it is empty
+      if (system(("rm " + cam_dir + "/*.png").c_str()) != 0) {
+        FATAL("Failed to create dir [%s]", cam_dir.c_str());
+      }
+
+      cam_dirs[cam_idx] = cam_dir;
+    }
+
+    // Save images
+    for (const auto &[cam_idx, data] : cam_images) {
+      for (const auto &[ts, cam_img] : data) {
+        const auto img_fname = std::to_string(ts) + ".png";
+        const auto img_path = cam_dirs[cam_idx] + "/" + img_fname;
+        cv::imwrite(img_path, cam_img);
+      }
+    }
+
+    // Final solve and save results
+    calib_camera_t nbv_calib(config_file);
+    nbv_calib.add_camera_data(cam_grids);
+    nbv_calib.solve();
+    nbv_calib.save_results(calib_data_path + "/calib-camera.yaml");
   }
 
   /**

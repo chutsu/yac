@@ -29,13 +29,19 @@ struct calib_nbv_t {
   image_transport::ImageTransport img_trans{ros_nh};
   std::map<int, std::string> mcam_topics;
   std::map<int, image_transport::Subscriber> mcam_subs;
+  // -- TF broadcaster
+  tf2_ros::TransformBroadcaster tf_br;
+  // -- Rviz marker publisher
+  ros::Publisher rviz_pub;
 
   // Flags
-  std::mutex calib_mutex;
+  std::mutex mtx;
   bool keep_running = true;
   bool find_nbv_event = false;
+  bool nbv_reached_event = false;
 
   // Calibration
+  std::string config_file;
   std::unique_ptr<calib_camera_t> calib;
 
   // Data
@@ -67,7 +73,6 @@ struct calib_nbv_t {
 
   /* Constructor */
   calib_nbv_t(const std::string &node_name_) : node_name{node_name_} {
-    std::string config_file;
     ROS_PARAM(ros_nh, node_name + "/config_file", config_file);
 
     // Setup calibrator
@@ -81,6 +86,10 @@ struct calib_nbv_t {
     if (mcam_topics.size() == 0) {
       FATAL("No camera topics found in [%s]!", config_file.c_str());
     }
+    // -- Publishers
+    // clang-format off
+    rviz_pub = ros_nh.advertise<visualization_msgs::Marker>("/yac_ros/rviz", 0);
+    // clang-format on
     // -- Subscribe
     for (const auto [cam_idx, topic] : mcam_topics) {
       LOG_INFO("Subscribing to cam%d @ [%s]", cam_idx, topic.c_str());
@@ -139,6 +148,25 @@ struct calib_nbv_t {
           LOG_INFO("User requested program termination!");
           LOG_INFO("Exiting ...");
           keep_running = false;
+          break;
+        case 'r':
+          LOG_INFO("Manual Reset!");
+          reset();
+          break;
+        case 'c':
+          LOG_INFO("Manual NBV reached!");
+
+          std::map<int, aprilgrid_t> view_data;
+          for (const auto &[cam_idx, data] : grid_buffer) {
+            view_data[cam_idx] = data.first;
+          }
+          calib->add_view(view_data);
+          calib->verbose = false;
+          calib->enable_nbv = false;
+          calib->enable_outlier_filter = false;
+          calib->solve(true);
+
+          nbv_reached_event = true;
           break;
       }
     }
@@ -292,7 +320,7 @@ struct calib_nbv_t {
       // Draw "detected" if AprilGrid was observed
       if (grid_buffer.count(cam_idx)) {
         const auto &grid = grid_buffer[cam_idx].first;
-        draw_detected(grid, img);
+        draw_detected(grid_buffer[cam_idx].first, img);
       }
 
       // Stack the images up
@@ -311,11 +339,15 @@ struct calib_nbv_t {
   /** NBV Mode */
   void mode_nbv() {
     // Pre-check
-    if (find_nbv_event == false && check_nbv_reached() == false) {
+    if (nbv_reached_event == false) {
+      nbv_reached_event = check_nbv_reached();
+    }
+    if (find_nbv_event == false && nbv_reached_event == false) {
       goto viz_nbv;
     }
 
     // Solve
+    printf("Finding NBV\n");
     calib->verbose = true;
     calib->enable_nbv = false;
     calib->enable_outlier_filter = false;
@@ -366,6 +398,9 @@ struct calib_nbv_t {
       FATAL("Failed to find NBV!");
     }
 
+    // Reset nbv reached flag
+    nbv_reached_event = false;
+
   viz_nbv:
     // Visualize NBV mode
     cv::Mat viz = gray2rgb(img_buffer[nbv_cam_idx].second);
@@ -381,6 +416,32 @@ struct calib_nbv_t {
       draw_detected(grid_buffer[nbv_cam_idx].first, viz);
     }
 
+    // Publish fiducial pose
+    const ros::Time ros_ts = ros::Time::now();
+    const vec3_t rpy_WF{deg2rad(90.0), 0.0, deg2rad(0.0)};
+    const vec3_t r_WF{0.0, 0.0, 0.0};
+    const mat4_t T_WF = tf(euler321(rpy_WF), r_WF);
+    publish_fiducial_tf(ros_ts, calib->calib_target, T_WF, tf_br, rviz_pub);
+
+    // Publish NBV and camera pose
+    if (grid_buffer.count(nbv_cam_idx)) {
+      const auto &grid = grid_buffer[nbv_cam_idx].first;
+      const auto cam_geom = calib->cam_geoms[nbv_cam_idx];
+      const auto cam_res = calib->cam_params[nbv_cam_idx]->resolution;
+      const vecx_t &cam_param = calib->cam_params[nbv_cam_idx]->param;
+      const mat4_t &cam_exts = calib->cam_exts[nbv_cam_idx]->tf();
+      const mat4_t &nbv_pose = nbv_poses[nbv_cam_idx][nbv_idx];
+
+      mat4_t T_CiF;
+      if (grid.estimate(cam_geom, cam_res, cam_param, T_CiF) != 0) {
+        FATAL("Failed to estimate relative pose!");
+      }
+
+      publish_tf(ros_ts, "Camera", T_WF * T_CiF.inverse(), tf_br);
+      publish_tf(ros_ts, "NBV", T_WF * nbv_pose * cam_exts, tf_br);
+    }
+
+    // Show viz
     cv::imshow("Viz", viz);
     event_handler(cv::waitKey(1));
   }
@@ -392,8 +453,9 @@ struct calib_nbv_t {
    */
   void image_callback(const sensor_msgs::ImageConstPtr &msg,
                       const int cam_idx) {
+    std::lock_guard<std::mutex> guard(mtx);
+
     // Update image buffer
-    std::lock_guard<std::mutex> guard(calib_mutex);
     if (update_image_buffer(cam_idx, msg) == false) {
       return;
     }
@@ -413,6 +475,41 @@ struct calib_nbv_t {
         FATAL("Implementation Error!");
         break;
     }
+  }
+
+  void reset() {
+    // Flags
+    state = INITIALIZE;
+    keep_running = true;
+    find_nbv_event = false;
+    nbv_reached_event = false;
+
+    // Calibration
+    calib.reset();
+    calib = std::make_unique<calib_camera_t>(config_file);
+
+    // Data
+    img_buffer.clear();
+    grid_buffer.clear();
+    cam_images.clear();
+    cam_grids.clear();
+
+    // NBV data
+    nbv_poses.clear();
+    nbv_cam_idx = 0;
+    nbv_idx = 0;
+    nbv_info = 0.0;
+    info = 0.0;
+    info_gain = 0.0;
+    nbv_target = aprilgrid_t();
+    nbv_reproj_err = -1.0;
+    nbv_hold_tic = (struct timespec){0, 0};
+
+    // NBV Settings
+    min_intrinsics_views = 5;
+    min_intrinsics_view_diff = 10.0;
+    nbv_reproj_threshold = 10.0;
+    nbv_hold_threshold = 1.0;
   }
 
   void loop() {

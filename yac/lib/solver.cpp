@@ -1147,11 +1147,11 @@ int ceres_solver_t::estimate_covariance(const std::vector<param_t *> &params,
     }
   }
 
-  // Check if covar is full-rank?
-  if (rank(covar) != covar.rows()) {
-    LOG_ERROR("covar is not full rank!");
-    return -1;
-  }
+  // // Check if covar is full-rank?
+  // if (rank(covar) != covar.rows()) {
+  //   LOG_ERROR("covar is not full rank!");
+  //   return -1;
+  // }
 
   return 0;
 }

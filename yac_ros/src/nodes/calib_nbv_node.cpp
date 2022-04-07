@@ -23,6 +23,9 @@ struct calib_nbv_t {
   };
   int state = INITIALIZE;
 
+  // Settings
+  bool enable_auto_init = false;
+
   // ROS
   const std::string node_name;
   ros::NodeHandle ros_nh;
@@ -179,7 +182,7 @@ struct calib_nbv_t {
           reset();
           break;
         case 'c':
-          LOG_INFO("Manual NBV reached!");
+          LOG_INFO("Manual Capture!");
           add_view();
           nbv_reached_event = true;
           break;
@@ -253,52 +256,60 @@ struct calib_nbv_t {
       goto viz_init;
     }
 
-    // Form calibration data
-    for (auto &[cam_idx, data] : img_buffer) {
-      // Check if have enough grids already
-      if (cam_grids[cam_idx].size() >= (size_t)min_intrinsics_views) {
-        continue;
-      }
-
-      // Check if aprilgrid is detected and fully observable
-      if (grid_buffer.count(cam_idx) == 0) {
-        continue;
-      }
-      const auto &grid_k = grid_buffer[cam_idx].first;
-      if (grid_k.detected == false || grid_k.fully_observable() == false) {
-        continue;
-      }
-
-      // Check current grid against previous grid to see if the view has
-      // changed enough via reprojection error
-      if (cam_grids[cam_idx].size()) {
-        const auto &grid_km1 = cam_grids[cam_idx].back();
-        const vec2s_t kps_km1 = grid_km1.keypoints();
-        const vec2s_t kps_k = grid_k.keypoints();
-
-        std::vector<real_t> errors;
-        for (size_t i = 0; i < kps_km1.size(); i++) {
-          const vec2_t diff = kps_km1[i] - kps_k[i];
-          errors.push_back(diff.norm());
-        }
-
-        if (rmse(errors) < min_intrinsics_view_diff) {
+    // Auto initializer - capture images without user intervention
+    if (enable_auto_init) {
+      for (auto &[cam_idx, data] : img_buffer) {
+        // Check if have enough grids already
+        if (cam_grids[cam_idx].size() >= (size_t)min_intrinsics_views) {
           continue;
         }
-      }
 
-      // Add to calibration data
-      const auto views_left = min_intrinsics_views - cam_grids[cam_idx].size();
-      if (views_left) {
-        LOG_INFO("Adding cam%d data - still needs %ld views",
-                 cam_idx,
-                 views_left);
+        // Check if aprilgrid is detected and fully observable
+        if (grid_buffer.count(cam_idx) == 0) {
+          continue;
+        }
+        const auto &grid_k = grid_buffer[cam_idx].first;
+        if (grid_k.detected == false || grid_k.fully_observable() == false) {
+          continue;
+        }
 
-        const auto ts = data.first;
-        const auto &img = data.second;
-        cam_images[cam_idx][ts] = img;
-        cam_grids[cam_idx].push_back(grid_k);
+        // Check current grid against previous grid to see if the view has
+        // changed enough via reprojection error
+        if (cam_grids[cam_idx].size()) {
+          const auto &grid_km1 = cam_grids[cam_idx].back();
+          const vec2s_t kps_km1 = grid_km1.keypoints();
+          const vec2s_t kps_k = grid_k.keypoints();
+
+          std::vector<real_t> errors;
+          for (size_t i = 0; i < kps_km1.size(); i++) {
+            const vec2_t diff = kps_km1[i] - kps_k[i];
+            errors.push_back(diff.norm());
+          }
+
+          if (rmse(errors) < min_intrinsics_view_diff) {
+            continue;
+          }
+        }
+
+        // Add to calibration data
+        const auto nb_views = cam_grids[cam_idx].size();
+        const auto views_left = min_intrinsics_views - nb_views;
+        if (views_left) {
+          LOG_INFO("Adding cam%d data - still needs %ld views",
+                   cam_idx,
+                   views_left);
+
+          const auto ts = data.first;
+          const auto &img = data.second;
+          cam_images[cam_idx][ts] = img;
+          cam_grids[cam_idx].push_back(grid_k);
+        }
       }
+    }
+
+    // Check if we have detected anything
+    if (cam_grids.size() == 0) {
+      goto viz_init;
     }
 
     // Check if we have enough grids for all cameras

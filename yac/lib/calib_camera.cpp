@@ -914,7 +914,8 @@ std::map<int, vec2s_t> calib_camera_t::get_residuals() {
 }
 
 void calib_camera_t::add_camera_data(const int cam_idx,
-                                     const aprilgrids_t &grids) {
+                                     const aprilgrids_t &grids,
+                                     const bool init_intrinsics) {
   std::vector<real_t> focal_lengths;
   for (const auto &grid : grids) {
     const auto ts = grid.timestamp;
@@ -922,14 +923,14 @@ void calib_camera_t::add_camera_data(const int cam_idx,
     calib_data[ts][cam_idx] = grid;
 
     real_t focal = 0.0;
-    if (grid.detected && grid.fully_observable()) {
+    if (init_intrinsics && grid.detected && grid.fully_observable()) {
       if (focal_init(grid, 0, focal) == 0) {
         focal_lengths.push_back(focal);
       }
     }
   }
 
-  if (focal_lengths.size() > 3) {
+  if (init_intrinsics && focal_lengths.size() > 3) {
     focal_length_init[cam_idx] = median(focal_lengths);
     if (cam_params.count(cam_idx)) {
       cam_params[cam_idx]->param[0] = focal_length_init[cam_idx];
@@ -938,9 +939,23 @@ void calib_camera_t::add_camera_data(const int cam_idx,
   }
 }
 
-void calib_camera_t::add_camera_data(const std::map<int, aprilgrids_t> &grids) {
+void calib_camera_t::add_camera_data(
+    const std::map<int, std::map<timestamp_t, aprilgrid_t>> &grids,
+    const bool init_intrinsics) {
+  for (const auto &[cam_idx, cam_data] : grids) {
+    aprilgrids_t cam_grids;
+    for (const auto &[ts, grid] : cam_data) {
+      UNUSED(ts);
+      cam_grids.push_back(grid);
+    }
+    add_camera_data(cam_idx, cam_grids, init_intrinsics);
+  }
+}
+
+void calib_camera_t::add_camera_data(const std::map<int, aprilgrids_t> &grids,
+                                     const bool init_intrinsics) {
   for (const auto &[cam_idx, cam_grids] : grids) {
-    add_camera_data(cam_idx, cam_grids);
+    add_camera_data(cam_idx, cam_grids, init_intrinsics);
   }
 }
 

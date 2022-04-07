@@ -192,8 +192,14 @@ struct calib_camera_t {
   std::map<int, std::vector<real_t>> get_reproj_errors();
   std::map<int, vec2s_t> get_residuals();
 
-  void add_camera_data(const int cam_idx, const aprilgrids_t &grids);
-  void add_camera_data(const std::map<int, aprilgrids_t> &grids);
+  void add_camera_data(const int cam_idx,
+                       const aprilgrids_t &grids,
+                       const bool init_intrinsics = true);
+  void add_camera_data(
+      const std::map<int, std::map<timestamp_t, aprilgrid_t>> &grids,
+      const bool init_intrinsics = true);
+  void add_camera_data(const std::map<int, aprilgrids_t> &grids,
+                       const bool init_intrinsics = true);
   void add_camera_data(const std::map<int, aprilgrids_t> &train_data,
                        const std::map<int, aprilgrids_t> &valid_data);
   void add_camera(const int cam_idx,

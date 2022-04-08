@@ -20,7 +20,6 @@ struct calib_nbv_t {
     INIT_INTRINSICS = 0,
     INIT_EXTRINSICS = 1,
     NBV = 2,
-    BATCH = 3,
   };
   int state = INIT_INTRINSICS;
 
@@ -45,12 +44,14 @@ struct calib_nbv_t {
   // Flags
   std::mutex mtx;
   bool keep_running = true;
+  bool init_extrinsics_ready = false;
   bool find_nbv_event = false;
   bool nbv_reached_event = false;
+  int missing_cam_idx = -1;
 
   // Calibration
   std::string config_file;
-  std::unique_ptr<calib_camera_t> calib;
+  calib_camera_t *calib;
 
   // Data
   std::map<int, vecx_t> cam_params_init;
@@ -80,7 +81,7 @@ struct calib_nbv_t {
 
     // Setup calibrator
     LOG_INFO("Setting up camera calibrator ...");
-    calib = std::make_unique<calib_camera_t>(config_file);
+    calib = new calib_camera_t{config_file};
 
     // Setup ROS topics
     LOG_INFO("Setting up ROS subscribers ...");
@@ -103,7 +104,11 @@ struct calib_nbv_t {
   }
 
   /* Destructor */
-  ~calib_nbv_t() = default;
+  ~calib_nbv_t() {
+    if (calib) {
+      delete calib;
+    }
+  }
 
   /**
    * Update image buffer
@@ -170,12 +175,11 @@ struct calib_nbv_t {
         case 'q':
           LOG_INFO("User requested program termination!");
           LOG_INFO("Exiting ...");
-          keep_running = false;
+          quit();
           break;
         case 'f':
           LOG_INFO("Finish!");
           finish();
-          keep_running = false;
           break;
         case 'r':
           LOG_INFO("Manual Reset!");
@@ -183,8 +187,22 @@ struct calib_nbv_t {
           break;
         case 'c':
           LOG_INFO("Manual Capture!");
-          add_view();
-          nbv_reached_event = true;
+          if (state == INIT_INTRINSICS || state == INIT_EXTRINSICS) {
+            for (auto &[cam_idx, cam_data] : grid_buffer) {
+              const auto &grid = cam_data.first;
+              const auto &img = cam_data.second;
+              const auto ts = grid.timestamp;
+              cam_images[cam_idx][ts] = img;
+              cam_grids[cam_idx][ts] = grid;
+            }
+            init_extrinsics_ready = true;
+
+          } else if (state == NBV) {
+            add_view();
+            nbv_reached_event = true;
+          } else {
+            FATAL("Implementation Error!");
+          }
           break;
       }
     }
@@ -211,6 +229,33 @@ struct calib_nbv_t {
       }
       draw_status_text(text, img);
     }
+  }
+
+  /* Check if extrinsics can be initialized */
+  bool check_init_extrinsics(int &missing_cam_idx) {
+    // Setup data
+    std::map<timestamp_t, std::map<int, aprilgrid_t>> camchain_data;
+    for (const auto &[cam_idx, cam_data] : cam_grids) {
+      for (const auto &[ts, grid] : cam_data) {
+        camchain_data[ts][cam_idx] = grid;
+      }
+    }
+
+    // Check
+    camchain_t camchain(camchain_data, calib->cam_geoms, calib->cam_params);
+    for (const auto &[cam_idx, param] : cam_params_init) {
+      mat4_t T_C0Ci;
+      if (camchain.find(0, cam_idx, T_C0Ci) != 0) {
+        LOG_ERROR("Cannot find extrinsics between cam0-cam%d", cam_idx);
+        LOG_ERROR(
+            "Capture an image where both cameras can detect the AprilGrid!");
+        LOG_ERROR("Press 'c' to trigger a manual image capture");
+        missing_cam_idx = cam_idx;
+        return false;
+      }
+    }
+
+    return true;
   }
 
   /** Check if reached NBV */
@@ -250,10 +295,10 @@ struct calib_nbv_t {
   }
 
   /** Initialize Intrinsics + Extrinsics Mode */
-  int mode_init_intrinsics() {
+  void mode_init_intrinsics() {
     // Pre-check
     if (grid_buffer.size() == 0) {
-      goto viz_init;
+      goto viz_init_intrinsics;
     }
 
     // Auto initializer - capture images without user intervention
@@ -309,13 +354,13 @@ struct calib_nbv_t {
 
     // Check if we have detected anything
     if (cam_grids.size() == 0) {
-      goto viz_init;
+      goto viz_init_intrinsics;
     }
 
     // Check if we have enough grids for all cameras
     for (const auto [cam_idx, cam_data] : cam_grids) {
       if (cam_data.size() < (size_t)min_intrinsics_views) {
-        goto viz_init;
+        goto viz_init_intrinsics;
       }
     }
 
@@ -335,7 +380,7 @@ struct calib_nbv_t {
       calib_camera_t calib_init{config_file};
       calib_init.verbose = false;
       calib_init.enable_nbv = false;
-      calib_init.add_camera_data(cam_idx, grids);
+      calib_init.add_camera_data(cam_idx, grids, false);
       calib_init.solve(true);
       cam_params_init[cam_idx] = calib_init.cam_params[cam_idx]->param;
 
@@ -347,9 +392,10 @@ struct calib_nbv_t {
     // Transition to initialize extrinsics mode
     if (cam_params_init.size() == (size_t)calib->nb_cameras()) {
       state = INIT_EXTRINSICS;
+      init_extrinsics_ready = true;
     }
 
-  viz_init:
+  viz_init_intrinsics:
     // Visualize Initialization mode
     cv::Mat viz;
 
@@ -372,26 +418,19 @@ struct calib_nbv_t {
       cv::imshow("Viz", viz);
       event_handler(cv::waitKey(1));
     }
-
-    return 0;
   }
 
   /** Initialize Extrinsics */
-  int mode_init_extrinsics() {
-    // Check camera extrinsics
-    std::map<timestamp_t, std::map<int, aprilgrid_t>> camchain_data;
-    for (const auto &[cam_idx, cam_data] : cam_grids) {
-      for (const auto &[ts, grid] : cam_data) {
-        camchain_data[ts][cam_idx] = grid;
-      }
+  void mode_init_extrinsics() {
+    // Pre-check
+    if (init_extrinsics_ready == false) {
+      goto viz_init_extrinsics;
     }
 
-    camchain_t camchain(camchain_data, calib->cam_geoms, calib->cam_params);
-    for (const auto &[cam_idx, param] : cam_params_init) {
-      mat4_t T_C0Ci;
-      if (camchain.find(0, cam_idx, T_C0Ci) != 0) {
-        return 0;
-      }
+    // Check extrinsics
+    if (check_init_extrinsics(missing_cam_idx) == false) {
+      init_extrinsics_ready = false;
+      goto viz_init_extrinsics;
     }
 
     // Initialize calibrator
@@ -405,9 +444,31 @@ struct calib_nbv_t {
     calib->solve();
 
     // Transition to NBV mode
+    LOG_INFO("Transitioning to NBV mode!");
     state = NBV;
     find_nbv_event = true;
-    return 0;
+    return;
+
+  viz_init_extrinsics:
+    // Visualize Initialization mode
+    // -- Draw cam0
+    cv::Mat cam0_img = gray2rgb(img_buffer[0].second);
+    draw_camera_index(0, cam0_img);
+    if (grid_buffer.count(0)) {
+      draw_detected(grid_buffer[0].first, cam0_img);
+    }
+    // -- Draw cam-i
+    cv::Mat cami_img = gray2rgb(img_buffer[missing_cam_idx].second);
+    draw_camera_index(missing_cam_idx, cami_img);
+    if (grid_buffer.count(missing_cam_idx)) {
+      draw_detected(grid_buffer[missing_cam_idx].first, cami_img);
+    }
+    // -- Concatenate images horizontally
+    cv::Mat viz;
+    cv::hconcat(cam0_img, cami_img, viz);
+    // -- Visualize
+    cv::imshow("Viz", viz);
+    event_handler(cv::waitKey(1));
   }
 
   /** NBV Mode */
@@ -428,10 +489,16 @@ struct calib_nbv_t {
     calib->_solve_batch(false, 5);
 
     // Create NBV poses based on current calibrations
-    nbv_poses = calib_nbv_poses(calib->calib_target,
-                                calib->cam_geoms,
-                                calib->cam_params,
-                                calib->cam_exts);
+    if (calib_nbv_poses(nbv_poses,
+                        calib->calib_target,
+                        calib->cam_geoms,
+                        calib->cam_params,
+                        calib->cam_exts) != 0) {
+      LOG_ERROR("Cannot form NBV poses - Might be bad initialization?");
+      LOG_ERROR("Resetting ...");
+      reset();
+      return;
+    }
 
     // Find NBV
     nbv_cam_idx = 0;
@@ -462,21 +529,20 @@ struct calib_nbv_t {
         nbv_reproj_err = -1.0;
         nbv_hold_tic = (struct timespec){0, 0};
         find_nbv_event = false;
-        printf("mean_reproj_errors: %f\n",
-               mean(calib->get_all_reproj_errors()));
         printf("nbv_cam_idx: %d, nbv_idx: %d\n", nbv_cam_idx, nbv_idx);
         printf("info_k: %f, info_kp1: %f, info_gain: %f\n",
                info,
                nbv_info,
                info_gain);
-        printf("time_taken: %f [s]\n", prof.stop("find_nbt"));
+        printf("find_nbv() took: %f [s]\n", prof.stop("find_nbt"));
         printf("\n");
       } else if (retval == -2) {
         LOG_INFO("NBV Threshold met!");
         LOG_INFO("Finishing!");
+        finish();
 
       } else {
-        FATAL("Failed to find NBV!");
+        FATAL("find_nbv() failed!");
       }
     }
 
@@ -528,6 +594,9 @@ struct calib_nbv_t {
     event_handler(cv::waitKey(1));
   }
 
+  /** Quit */
+  void quit() { keep_running = false; }
+
   /** finish */
   void finish() {
     printf("Run final batch solve on all NBVs\n");
@@ -576,6 +645,9 @@ struct calib_nbv_t {
     }
     nbv_calib.solve();
     nbv_calib.save_results(calib_data_path + "/calib-camera.yaml");
+
+    // Stop NBV node
+    keep_running = false;
   }
 
   /**
@@ -620,10 +692,13 @@ struct calib_nbv_t {
     nbv_reached_event = false;
 
     // Calibration
-    calib.reset();
-    calib = std::make_unique<calib_camera_t>(config_file);
+    if (calib) {
+      delete calib;
+    }
+    calib = new calib_camera_t{config_file};
 
     // Data
+    cam_params_init.clear();
     img_buffer.clear();
     grid_buffer.clear();
     cam_images.clear();
@@ -639,12 +714,6 @@ struct calib_nbv_t {
     nbv_target = aprilgrid_t();
     nbv_reproj_err = -1.0;
     nbv_hold_tic = (struct timespec){0, 0};
-
-    // NBV Settings
-    min_intrinsics_views = 5;
-    min_intrinsics_view_diff = 10.0;
-    nbv_reproj_threshold = 10.0;
-    nbv_hold_threshold = 1.0;
   }
 
   void loop() {
@@ -652,7 +721,7 @@ struct calib_nbv_t {
       ros::spinOnce();
     }
   }
-};
+}; // namespace yac
 
 } // namespace yac
 

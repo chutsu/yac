@@ -209,9 +209,12 @@ struct calib_nbt_t {
     ctrajs_t trajs;
     const timestamp_t ts_start = calib_copy.calib_views.back()->ts + 1;
     const timestamp_t ts_end = ts_start + sec2ts(2.0);
-    const mat4_t T_FO = calib_target_origin(calib_copy.calib_target,
-                                            calib_copy.cam_geoms[cam_idx],
-                                            calib_copy.cam_params[cam_idx]);
+    mat4_t T_FO;
+    calib_target_origin(T_FO,
+                        calib_copy.calib_target,
+                        calib_copy.cam_geoms[cam_idx],
+                        calib_copy.cam_params[cam_idx]);
+
     nbt_orbit_trajs(ts_start,
                     ts_end,
                     calib_copy.calib_target,

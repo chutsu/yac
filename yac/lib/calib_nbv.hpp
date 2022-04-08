@@ -45,6 +45,7 @@ bool nbv_reached(const aprilgrid_t &nbv_target,
 /**
  * Calibration target origin
  *
+ * @param[in] T_FO Calibration target origin
  * @param[in] target Calibration target configuration
  * @param[in] cam_geom Camera Geometry
  * @param[in] cam_params Camera parameters
@@ -52,27 +53,31 @@ bool nbv_reached(const aprilgrid_t &nbv_target,
  *
  * @returns Calibration target origin
  */
-mat4_t calib_target_origin(const calib_target_t &target,
-                           const camera_geometry_t *cam_geom,
-                           const camera_params_t *cam_params,
-                           const double target_scale = 0.5);
+int calib_target_origin(mat4_t &T_FO,
+                        const calib_target_t &target,
+                        const camera_geometry_t *cam_geom,
+                        const camera_params_t *cam_params,
+                        const double target_scale = 0.5);
 
 /**
  * Calibration initial poses
  *
+ * @param[out] poses Poses
  * @param[in] target Calibration target configuration
  * @param[in] cam_geom Camera Geometry
  * @param[in] cam_params Camera parameters
  *
  * @returns Calibration initial poses
  */
-mat4s_t calib_init_poses(const calib_target_t &target,
-                         const camera_geometry_t *cam_geom,
-                         const camera_params_t *cam_params);
+int calib_init_poses(mat4s_t &poses,
+                     const calib_target_t &target,
+                     const camera_geometry_t *cam_geom,
+                     const camera_params_t *cam_params);
 
 /**
  * Calibration NBV poses
  *
+ * @param[out] poses Poses
  * @param[in] target Calibration target configuration
  * @param[in] cam_geom Camera Geometry
  * @param[in] cam_params Camera parameters
@@ -82,16 +87,18 @@ mat4s_t calib_init_poses(const calib_target_t &target,
  *
  * @returns Calibration NBV poses
  */
-mat4s_t calib_nbv_poses(const calib_target_t &target,
-                        const camera_geometry_t *cam_geom,
-                        const camera_params_t *cam_params,
-                        const int range_x_size = 5,
-                        const int range_y_size = 5,
-                        const int range_z_size = 3);
+int calib_nbv_poses(mat4s_t &nbv_poses,
+                    const calib_target_t &target,
+                    const camera_geometry_t *cam_geom,
+                    const camera_params_t *cam_params,
+                    const int range_x_size = 5,
+                    const int range_y_size = 5,
+                    const int range_z_size = 3);
 
 /**
  * Calibration NBV poses
  *
+ * @param[out] poses Poses
  * @param[in] target Calibration target configuration
  * @param[in] cam_geoms Camera Geometry
  * @param[in] cam_params Camera parameters
@@ -102,13 +109,14 @@ mat4s_t calib_nbv_poses(const calib_target_t &target,
  *
  * @returns Calibration NBV poses
  */
-std::map<int, mat4s_t> calib_nbv_poses(const calib_target_t &target,
-                                       const CamIdx2Geometry &cam_geoms,
-                                       const CamIdx2Parameters &cam_params,
-                                       const CamIdx2Extrinsics &cam_exts,
-                                       const int range_x_size = 5,
-                                       const int range_y_size = 5,
-                                       const int range_z_size = 3);
+int calib_nbv_poses(std::map<int, mat4s_t> &nbv_poses,
+                    const calib_target_t &target,
+                    const CamIdx2Geometry &cam_geoms,
+                    const CamIdx2Parameters &cam_params,
+                    const CamIdx2Extrinsics &cam_exts,
+                    const int range_x_size = 5,
+                    const int range_y_size = 5,
+                    const int range_z_size = 3);
 
 /**
  * NBV Target Grid

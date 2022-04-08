@@ -53,7 +53,7 @@ static void setup_calib_target(const camera_params_t &cam,
   // Create calibration origin
   pinhole_radtan4_t cam_geom;
   target = calib_target_t{"aprilgrid", 6, 6, 0.088, 0.3};
-  T_FO = calib_target_origin(target, &cam_geom, &cam);
+  calib_target_origin(T_FO, target, &cam_geom, &cam);
 
   // Calibration target pose
   if (T_WF) {
@@ -495,9 +495,12 @@ int test_nbt_eval() {
   ctrajs_t trajs;
   const timestamp_t ts_start = calib.calib_views.back()->ts + 1;
   const timestamp_t ts_end = ts_start + sec2ts(2.0);
-  const mat4_t T_FO = calib_target_origin(calib.calib_target,
-                                          calib.cam_geoms[cam_idx],
-                                          calib.cam_params[cam_idx]);
+  mat4_t T_FO;
+  calib_target_origin(T_FO,
+                      calib.calib_target,
+                      calib.cam_geoms[cam_idx],
+                      calib.cam_params[cam_idx]);
+
   nbt_orbit_trajs(ts_start,
                   ts_end,
                   calib.calib_target,
@@ -569,9 +572,12 @@ int test_nbt_find() {
   ctrajs_t trajs;
   const timestamp_t ts_start = calib.calib_views.back()->ts + 1;
   const timestamp_t ts_end = ts_start + sec2ts(2.0);
-  const mat4_t T_FO = calib_target_origin(calib.calib_target,
-                                          calib.cam_geoms[cam_idx],
-                                          calib.cam_params[cam_idx]);
+  mat4_t T_FO;
+  calib_target_origin(T_FO,
+                      calib.calib_target,
+                      calib.cam_geoms[cam_idx],
+                      calib.cam_params[cam_idx]);
+
   nbt_orbit_trajs(ts_start,
                   ts_end,
                   calib.calib_target,

@@ -24,6 +24,7 @@ struct calib_nbv_t {
   int state = INIT_INTRINSICS;
 
   // Settings
+  std::string data_path = "/tmp/calib_data";
   bool enable_auto_init = true;
   int min_intrinsics_views = 5;
   real_t min_intrinsics_view_diff = 10.0;
@@ -51,6 +52,7 @@ struct calib_nbv_t {
 
   // Calibration
   std::string config_file;
+  std::map<int, std::string> cam_dirs;
   calib_camera_t *calib;
 
   // Data
@@ -79,13 +81,19 @@ struct calib_nbv_t {
   calib_nbv_t(const std::string &node_name_) : node_name{node_name_} {
     ROS_PARAM(ros_nh, node_name + "/config_file", config_file);
 
+    // Load config file
+    config_t config{config_file};
+
+    // Parse calib data path
+    parse(config, "settings.data_path", data_path);
+
     // Setup calibrator
     LOG_INFO("Setting up camera calibrator ...");
     calib = new calib_camera_t{config_file};
+    prep_dirs();
 
     // Setup ROS topics
     LOG_INFO("Setting up ROS subscribers ...");
-    config_t config{config_file};
     parse_camera_topics(config, mcam_topics);
     if (mcam_topics.size() == 0) {
       FATAL("No camera topics found in [%s]!", config_file.c_str());
@@ -107,6 +115,34 @@ struct calib_nbv_t {
   ~calib_nbv_t() {
     if (calib) {
       delete calib;
+    }
+  }
+
+  /** Prepare output directories */
+  void prep_dirs() {
+    // Create calib data directory
+    // -- Check to see if directory already exists
+    if (opendir(data_path.c_str())) {
+      FATAL("Output directory [%s] already exists!", data_path.c_str());
+    }
+    // -- Calibration data directory
+    LOG_INFO("Creating dir [%s]", data_path.c_str());
+    if (system(("mkdir -p " + data_path).c_str()) != 0) {
+      FATAL("Failed to create dir [%s]", data_path.c_str());
+    }
+    // -- Camera directories
+    for (const auto &cam_idx : calib->get_camera_indices()) {
+      auto cam_dir = data_path;
+      cam_dir += "/cam" + std::to_string(cam_idx);
+      cam_dir += "/data";
+      LOG_INFO("Creating dir [%s]", cam_dir.c_str());
+
+      // Create camera directory
+      if (system(("mkdir -p " + cam_dir).c_str()) != 0) {
+        FATAL("Failed to create dir [%s]", cam_dir.c_str());
+      }
+
+      cam_dirs[cam_idx] = cam_dir;
     }
   }
 
@@ -599,34 +635,11 @@ struct calib_nbv_t {
 
   /** finish */
   void finish() {
-    printf("Run final batch solve on all NBVs\n");
-
-    // Create calib data directory
-    const std::string calib_data_path = "/tmp/calib_data";
-    std::map<int, std::string> cam_dirs;
-    // -- Calibration data directory
-    if (system(("mkdir -p " + calib_data_path).c_str()) != 0) {
-      FATAL("Failed to create dir [%s]", calib_data_path.c_str());
-    }
-    // -- Camera directories
-    for (const auto &[cam_idx, data] : cam_images) {
-      const auto cam_dir = calib_data_path + "/cam" + std::to_string(cam_idx);
-
-      // Create camera directory
-      if (system(("mkdir -p " + cam_dir).c_str()) != 0) {
-        FATAL("Failed to create dir [%s]", cam_dir.c_str());
-      }
-
-      // Make sure it is empty
-      if (system(("rm " + cam_dir + "/*.png").c_str()) != 0) {
-        FATAL("Failed to create dir [%s]", cam_dir.c_str());
-      }
-
-      cam_dirs[cam_idx] = cam_dir;
-    }
+    LOG_INFO("Saving calibration data to [%s]", data_path.c_str());
 
     // Save images
     for (const auto &[cam_idx, data] : cam_images) {
+      LOG_INFO("Saving cam%d images to %s", cam_idx, cam_dirs[cam_idx].c_str());
       for (const auto &[ts, cam_img] : data) {
         const auto img_fname = std::to_string(ts) + ".png";
         const auto img_path = cam_dirs[cam_idx] + "/" + img_fname;
@@ -635,6 +648,7 @@ struct calib_nbv_t {
     }
 
     // Final solve and save results
+    LOG_INFO("Optimize over all NBVs");
     calib_camera_t nbv_calib(config_file);
     nbv_calib.add_camera_data(cam_grids, false);
     for (const auto &[cam_idx, cam_param] : calib->cam_params) {
@@ -644,7 +658,7 @@ struct calib_nbv_t {
       nbv_calib.cam_exts[cam_idx]->param = cam_ext->param;
     }
     nbv_calib.solve();
-    nbv_calib.save_results(calib_data_path + "/calib-camera.yaml");
+    nbv_calib.save_results(data_path + "/calib-results.yaml");
 
     // Stop NBV node
     keep_running = false;

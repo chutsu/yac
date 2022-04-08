@@ -3,6 +3,10 @@ ros:
   cam1_topic: "/rs/ir1/image"
   imu0_topic: "/rs/imu0/data"
 
+settings:
+  data_path: "/tmp/calib_data"
+  info_gain_threshold: 0.5
+
 calib_target:
   target_type: 'aprilgrid'  # Target type
   tag_rows: 6               # Number of rows

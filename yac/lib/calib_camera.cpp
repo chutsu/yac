@@ -668,13 +668,13 @@ calib_camera_t::calib_camera_t(const std::string &config_path)
       FATAL("Failed to parse any camera parameters...");
     }
 
-    // Preprocess / load calibration data
-    const std::string grids_path = data_path + "/grids0";
-    auto data = calib_data_preprocess(calib_target, cam_paths, grids_path);
-    if (data.size() == 0) {
-      FATAL("Failed to load calib data!");
-    }
-    add_camera_data(data);
+    // // Preprocess / load calibration data
+    // const std::string grids_path = data_path + "/grids0";
+    // auto data = calib_data_preprocess(calib_target, cam_paths, grids_path);
+    // if (data.size() == 0) {
+    //   FATAL("Failed to load calib data!");
+    // }
+    // add_camera_data(data);
   }
 
   // AprilGrid

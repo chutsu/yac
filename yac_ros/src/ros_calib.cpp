@@ -194,7 +194,8 @@ bool tf_ok(const mat4_t &pose) {
 
 void update_aprilgrid_model(const ros::Time &ts,
                             const calib_target_t &target,
-                            ros::Publisher &rviz_pub) {
+                            ros::Publisher &rviz_pub,
+                            bool remove) {
   visualization_msgs::Marker marker;
 
   marker.header.frame_id = "T_WF";
@@ -203,7 +204,11 @@ void update_aprilgrid_model(const ros::Time &ts,
   marker.ns = "yac_ros";
   marker.id = 0;
   marker.type = visualization_msgs::Marker::MESH_RESOURCE;
-  marker.action = visualization_msgs::Marker::ADD;
+  if (remove) {
+    marker.action = visualization_msgs::Marker::DELETEALL;
+  } else {
+    marker.action = visualization_msgs::Marker::ADD;
+  }
 
   marker.mesh_resource = "package://yac_ros/models/aprilgrid/aprilgrid.dae";
   marker.mesh_use_embedded_materials = true;
@@ -242,20 +247,22 @@ void publish_fiducial_tf(const ros::Time &ts,
                          const calib_target_t &target,
                          const mat4_t &T_WF,
                          tf2_ros::TransformBroadcaster &tf_br,
-                         ros::Publisher rviz_pub) {
+                         ros::Publisher rviz_pub,
+                         bool remove) {
   if (tf_ok(T_WF) == false) {
     return;
   }
 
   const auto msg = build_msg(ts, "map", "T_WF", T_WF);
   tf_br.sendTransform(msg);
-  update_aprilgrid_model(ts, target, rviz_pub);
+  update_aprilgrid_model(ts, target, rviz_pub, remove);
 }
 
 void publish_tf(const ros::Time &ts,
                 const std::string &pose_name,
                 const mat4_t &pose,
-                tf2_ros::TransformBroadcaster &tf_br) {
+                tf2_ros::TransformBroadcaster &tf_br,
+                bool remove) {
   if (tf_ok(pose) == false) {
     return;
   }

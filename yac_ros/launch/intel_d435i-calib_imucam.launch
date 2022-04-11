@@ -1,5 +1,6 @@
 <launch>
-  <arg name="config_file" default="$(find yac_ros)/config/intel_d435i-calib_imucam.yaml" />
+  <arg name="config_file"/>
+  <arg name="calib_file"/>
 
   <!-- Record ROS bag -->
   <!-- <node pkg="rosbag" type="record" name="record" output="screen" args="&#45;a &#45;o /tmp/calib_vi.bag"/> -->
@@ -52,9 +53,9 @@
   <!-- NBV -->
   <node pkg="yac_ros" type="calib_nbt_node" name="yac_node" required="true" output="screen">
     <param name="config_file" value="$(arg config_file)" />
+    <param name="calib_file" value="$(arg calib_file)" />
     <param name="publish_tfs" value="true" />
     <param name="image_format" value="bgr8" />
-    <param name="calib_file" value="$(find yac_ros)/config/calib_intel_d435i.yaml" />
     <param name="cam0_topic" value="/rs/ir0/image" />
     <param name="cam1_topic" value="/rs/ir1/image" />
     <param name="imu0_topic" value="/rs/imu0/data" />

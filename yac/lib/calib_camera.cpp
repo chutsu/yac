@@ -1391,6 +1391,7 @@ int calib_camera_t::find_nbv_fast(const std::map<int, mat4s_t> &nbv_poses,
   nbv_evaluator_t nbv_eval(this);
   std::map<int, std::map<int, real_t>> nbv_scores;
   for (const auto &[nbv_cam_idx, nbv_cam_poses] : nbv_poses) {
+#pragma omp parallel for shared(nbv_cam_poses) num_threads(4)
     for (size_t i = 0; i < nbv_cam_poses.size(); i++) {
       const mat4_t T_FC0 = nbv_cam_poses.at(i);
       const real_t nbv_score = nbv_eval.eval(T_FC0);
@@ -2461,7 +2462,6 @@ real_t nbv_evaluator_t::eval(const mat4_t &T_FC0) {
   }
 
   // Form NBV Hessian
-  param_order.insert({&nbv_pose, param_order[pose_ptrs.back()] + 6});
   matx_t H_kp1 = zeros(H_k.rows(), H_k.cols());
 
   for (calib_residual_t *res_fn : res_fns) {
@@ -2475,7 +2475,13 @@ real_t nbv_evaluator_t::eval(const mat4_t &T_FC0) {
       if (param_i->fixed) {
         continue;
       }
-      const int idx_i = param_order[param_i];
+      // const int idx_i = param_order[param_i];
+      int idx_i = 0;
+      if (param_order.count(param_i)) {
+        idx_i = param_order[param_i];
+      } else {
+        idx_i = param_order[pose_ptrs.back()] + 6;
+      }
       const int size_i = param_i->local_size;
       const matx_t &J_i = res_fn->min_jacobian_blocks[i];
 
@@ -2484,7 +2490,13 @@ real_t nbv_evaluator_t::eval(const mat4_t &T_FC0) {
         if (param_j->fixed) {
           continue;
         }
-        const int idx_j = param_order[param_j];
+        // const int idx_j = param_order[param_j];
+        int idx_j = 0;
+        if (param_order.count(param_j)) {
+          idx_j = param_order[param_j];
+        } else {
+          idx_j = param_order[pose_ptrs.back()] + 6;
+        }
         const int size_j = param_j->local_size;
         const matx_t &J_j = res_fn->min_jacobian_blocks[j];
 
@@ -2494,8 +2506,8 @@ real_t nbv_evaluator_t::eval(const mat4_t &T_FC0) {
         } else {
           // Form off-diagonals of H
           // clang-format off
-            H_kp1.block(idx_i, idx_j, size_i, size_j) += J_i.transpose() * J_j;
-            H_kp1.block(idx_j, idx_i, size_j, size_i) += (J_i.transpose() * J_j).transpose();
+          H_kp1.block(idx_i, idx_j, size_i, size_j) += J_i.transpose() * J_j;
+          H_kp1.block(idx_j, idx_i, size_j, size_i) += (J_i.transpose() * J_j).transpose();
           // clang-format on
         }
       }

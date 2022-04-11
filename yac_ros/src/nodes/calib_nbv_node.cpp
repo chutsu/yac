@@ -45,6 +45,7 @@ struct calib_nbv_t {
   // Flags
   std::mutex mtx;
   bool keep_running = true;
+  bool has_imu = false;
   bool init_extrinsics_ready = false;
   bool find_nbv_event = false;
   bool nbv_reached_event = false;
@@ -56,6 +57,7 @@ struct calib_nbv_t {
   calib_camera_t *calib;
 
   // Data
+  imu_params_t imu_params;
   std::map<int, vecx_t> cam_params_init;
   std::map<int, std::pair<timestamp_t, cv::Mat>> img_buffer;
   std::map<int, std::pair<aprilgrid_t, cv::Mat>> grid_buffer;
@@ -86,6 +88,11 @@ struct calib_nbv_t {
 
     // Parse calib data path
     parse(config, "settings.data_path", data_path);
+
+    // Parse imu config if exists
+    if (yaml_has_key(config, "imu0")) {
+      parse_imu_config(config);
+    }
 
     // Setup calibrator
     LOG_INFO("Setting up camera calibrator ...");
@@ -144,6 +151,21 @@ struct calib_nbv_t {
 
       cam_dirs[cam_idx] = cam_dir;
     }
+  }
+
+  /** Parse IMU config */
+  void parse_imu_config(const config_t &config) {
+    parse(config, "imu0.rate", imu_params.rate);
+    parse(config, "imu0.a_max", imu_params.a_max);
+    parse(config, "imu0.g_max", imu_params.g_max);
+    parse(config, "imu0.sigma_g_c", imu_params.sigma_g_c);
+    parse(config, "imu0.sigma_a_c", imu_params.sigma_a_c);
+    parse(config, "imu0.sigma_gw_c", imu_params.sigma_gw_c);
+    parse(config, "imu0.sigma_aw_c", imu_params.sigma_aw_c);
+    parse(config, "imu0.sigma_bg", imu_params.sigma_bg, true);
+    parse(config, "imu0.sigma_ba", imu_params.sigma_ba, true);
+    parse(config, "imu0.g", imu_params.g);
+    has_imu = true;
   }
 
   /**
@@ -649,6 +671,7 @@ struct calib_nbv_t {
 
     // Final solve and save results
     LOG_INFO("Optimize over all NBVs");
+    const std::string results_path = data_path + "/calib-results.yaml";
     calib_camera_t nbv_calib(config_file);
     nbv_calib.add_camera_data(cam_grids, false);
     for (const auto &[cam_idx, cam_param] : calib->cam_params) {
@@ -658,7 +681,30 @@ struct calib_nbv_t {
       nbv_calib.cam_exts[cam_idx]->param = cam_ext->param;
     }
     nbv_calib.solve();
-    nbv_calib.save_results(data_path + "/calib-results.yaml");
+    nbv_calib.save_results(results_path);
+
+    // Add imu0 settings if it exists in config file
+    if (has_imu) {
+      // clang-format off
+      FILE *res_file = fopen(results_path.c_str(), "a");
+      if (res_file == NULL) {
+        perror("Error opening file!");
+      }
+      fprintf(res_file, "\n");
+      fprintf(res_file, "imu0:\n");
+      fprintf(res_file, "  rate: %f        # [Hz]\n", imu_params.rate);
+      fprintf(res_file, "  a_max: %f       # [m/s^2]\n", imu_params.a_max);
+      fprintf(res_file, "  g_max: %f       # [rad/s]\n", imu_params.g_max);
+      fprintf(res_file, "  sigma_g_c: %e   # [rad/s/sqrt(Hz)]\n", imu_params.sigma_g_c);
+      fprintf(res_file, "  sigma_a_c: %e   # [m/s^2/sqrt(Hz)]\n", imu_params.sigma_a_c);
+      fprintf(res_file, "  sigma_gw_c: %e  # [rad/s^s/sqrt(Hz)]\n", imu_params.sigma_gw_c);
+      fprintf(res_file, "  sigma_aw_c: %e  # [m/s^2/sqrt(Hz)]\n", imu_params.sigma_aw_c);
+      fprintf(res_file, "  sigma_bg: %e    # [rad/s]\n", imu_params.sigma_bg);
+      fprintf(res_file, "  sigma_ba: %e    # [m/s^2]\n", imu_params.sigma_ba);
+      fprintf(res_file, "  g: %f           # [m/s^2]\n", imu_params.g);
+      fclose(res_file);
+      // clang-format on
+    }
 
     // Stop NBV node
     keep_running = false;

@@ -9,7 +9,6 @@ int main(int argc, char *argv[]) {
 
   // Start calibrating
   yac::calib_nbv_t calib{node_name};
-  calib.loop();
 
   return 0;
 }

@@ -94,6 +94,9 @@ struct calib_nbt_t {
 
     // Setup ROS
     setup_ros(config_file);
+
+    // Loop
+    loop();
   }
 
   /* Destructor */

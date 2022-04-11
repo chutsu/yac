@@ -8,17 +8,13 @@ int main(int argc, char *argv[]) {
     ros::init(argc, argv, node_name, ros::init_options::NoSigintHandler);
   }
 
-  // Start calibrating
-  {
-    yac::calib_nbv_t nbv{node_name};
-    nbv.loop();
-  }
+  // Calibrate cameras
+  { yac::calib_nbv_t nbv{node_name}; }
+  // IMPORTANT NOTE: The brackets around calib_nbt_t() are necessary to trigger
+  // the destructor on finish.
 
-  // Start calibrating
-  {
-    yac::calib_nbt_t nbt{node_name};
-    nbt.loop();
-  }
+  // Calibrate imu-camera
+  yac::calib_nbt_t nbt{node_name};
 
   return 0;
 }

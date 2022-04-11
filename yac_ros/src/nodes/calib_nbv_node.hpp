@@ -100,7 +100,11 @@ struct calib_nbv_t {
     // Setup calibrator
     LOG_INFO("Setting up camera calibrator ...");
     calib = new calib_camera_t{config_file};
-    prep_dirs();
+    if (prep_dirs() != 0) {
+      LOG_WARN("Assuming cameras are calibrated, if not delete the dir!");
+      LOG_WARN("Stopping NBV node...");
+      return;
+    }
 
     // Setup ROS topics
     LOG_INFO("Setting up ROS subscribers ...");
@@ -119,6 +123,9 @@ struct calib_nbv_t {
       auto cb = std::bind(&calib_nbv_t::image_callback, this, _1, cam_idx);
       mcam_subs[cam_idx] = img_trans.subscribe(topic, 1, cb);
     }
+
+    // Loop
+    loop();
   }
 
   /* Destructor */
@@ -131,11 +138,13 @@ struct calib_nbv_t {
   }
 
   /** Prepare output directories */
-  void prep_dirs() {
+  int prep_dirs() {
     // Create calib data directory
     // -- Check to see if directory already exists
     if (opendir(camera_data_path.c_str())) {
-      FATAL("Output directory [%s] already exists!", camera_data_path.c_str());
+      LOG_WARN("Output directory [%s] already exists!",
+               camera_data_path.c_str());
+      return -1;
     }
     // -- Create Calibration data directory
     LOG_INFO("Creating dir [%s]", camera_data_path.c_str());
@@ -163,6 +172,8 @@ struct calib_nbv_t {
             config_file.c_str(),
             data_path.c_str());
     }
+
+    return 0;
   }
 
   /** Parse IMU config */

@@ -735,7 +735,7 @@ struct calib_nbv_t {
       ros::spinOnce();
     }
   }
-}; // namespace yac
+};
 
 } // namespace yac
 

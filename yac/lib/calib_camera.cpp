@@ -1989,6 +1989,7 @@ int calib_camera_t::save_results(const std::string &save_path) {
   print_metrics(outfile, reproj_errors, reproj_errors_all);
   print_calib_target(outfile, calib_target);
   print_estimates(outfile, cam_params, cam_exts);
+  fclose(outfile);
 
   // Write estimates to file
   FILE *cam0 = fopen("/tmp/cam0.csv", "w");

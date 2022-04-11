@@ -24,7 +24,8 @@ struct calib_nbv_t {
   int state = INIT_INTRINSICS;
 
   // Settings
-  std::string data_path = "/tmp/calib_data";
+  std::string data_path;
+  std::string camera_data_path;
   bool enable_auto_init = true;
   int min_intrinsics_views = 5;
   real_t min_intrinsics_view_diff = 10.0;
@@ -87,12 +88,8 @@ struct calib_nbv_t {
     config_t config{config_file};
 
     // Parse calib data path
-    parse(config, "settings.data_path", data_path);
-
-    // Parse imu config if exists
-    if (yaml_has_key(config, "imu0")) {
-      parse_imu_config(config);
-    }
+    parse(config, "ros.data_path", data_path);
+    camera_data_path = data_path + "/calib_camera";
 
     // Setup calibrator
     LOG_INFO("Setting up camera calibrator ...");
@@ -129,43 +126,35 @@ struct calib_nbv_t {
   void prep_dirs() {
     // Create calib data directory
     // -- Check to see if directory already exists
-    if (opendir(data_path.c_str())) {
-      FATAL("Output directory [%s] already exists!", data_path.c_str());
+    if (opendir(camera_data_path.c_str())) {
+      FATAL("Output directory [%s] already exists!", camera_data_path.c_str());
     }
-    // -- Calibration data directory
-    LOG_INFO("Creating dir [%s]", data_path.c_str());
-    if (system(("mkdir -p " + data_path).c_str()) != 0) {
-      FATAL("Failed to create dir [%s]", data_path.c_str());
+    // -- Create Calibration data directory
+    LOG_INFO("Creating dir [%s]", camera_data_path.c_str());
+    if (system(("mkdir -p " + camera_data_path).c_str()) != 0) {
+      FATAL("Failed to create dir [%s]", camera_data_path.c_str());
     }
-    // -- Camera directories
+    // -- Create Camera directories
     for (const auto &cam_idx : calib->get_camera_indices()) {
-      auto cam_dir = data_path;
+      auto cam_dir = camera_data_path;
       cam_dir += "/cam" + std::to_string(cam_idx);
-      cam_dir += "/data";
       LOG_INFO("Creating dir [%s]", cam_dir.c_str());
 
       // Create camera directory
-      if (system(("mkdir -p " + cam_dir).c_str()) != 0) {
+      if (system(("mkdir -p " + cam_dir + "/data").c_str()) != 0) {
         FATAL("Failed to create dir [%s]", cam_dir.c_str());
       }
 
       cam_dirs[cam_idx] = cam_dir;
     }
-  }
-
-  /** Parse IMU config */
-  void parse_imu_config(const config_t &config) {
-    parse(config, "imu0.rate", imu_params.rate);
-    parse(config, "imu0.a_max", imu_params.a_max);
-    parse(config, "imu0.g_max", imu_params.g_max);
-    parse(config, "imu0.sigma_g_c", imu_params.sigma_g_c);
-    parse(config, "imu0.sigma_a_c", imu_params.sigma_a_c);
-    parse(config, "imu0.sigma_gw_c", imu_params.sigma_gw_c);
-    parse(config, "imu0.sigma_aw_c", imu_params.sigma_aw_c);
-    parse(config, "imu0.sigma_bg", imu_params.sigma_bg, true);
-    parse(config, "imu0.sigma_ba", imu_params.sigma_ba, true);
-    parse(config, "imu0.g", imu_params.g);
-    has_imu = true;
+    // -- Copy config file to root of calib data directory
+    auto src = config_file;
+    auto dst = data_path + "/" + parse_fname(config_file);
+    if (file_copy(src, dst) != 0) {
+      FATAL("Failed to copy file from [%s] to [%s]!",
+            config_file.c_str(),
+            data_path.c_str());
+    }
   }
 
   /**
@@ -657,21 +646,31 @@ struct calib_nbv_t {
 
   /** finish */
   void finish() {
-    LOG_INFO("Saving calibration data to [%s]", data_path.c_str());
+    LOG_INFO("Saving calibration data to [%s]", camera_data_path.c_str());
 
-    // Save images
+    // Save images and image index
     for (const auto &[cam_idx, data] : cam_images) {
       LOG_INFO("Saving cam%d images to %s", cam_idx, cam_dirs[cam_idx].c_str());
+      // Images
       for (const auto &[ts, cam_img] : data) {
         const auto img_fname = std::to_string(ts) + ".png";
-        const auto img_path = cam_dirs[cam_idx] + "/" + img_fname;
+        const auto img_path = cam_dirs[cam_idx] + "/data/" + img_fname;
         cv::imwrite(img_path, cam_img);
       }
+
+      // Image index
+      const auto img_idx_path = cam_dirs[cam_idx] + "/data.csv";
+      FILE *img_idx = fopen(img_idx_path.c_str(), "w");
+      for (const auto &[ts, cam_img] : data) {
+        UNUSED(cam_img);
+        fprintf(img_idx, "%ld,%ld.png\n", ts, ts);
+      }
+      fclose(img_idx);
     }
 
     // Final solve and save results
     LOG_INFO("Optimize over all NBVs");
-    const std::string results_path = data_path + "/calib-results.yaml";
+    const std::string results_path = camera_data_path + "/calib-results.yaml";
     calib_camera_t nbv_calib(config_file);
     nbv_calib.add_camera_data(cam_grids, false);
     for (const auto &[cam_idx, cam_param] : calib->cam_params) {
@@ -682,29 +681,6 @@ struct calib_nbv_t {
     }
     nbv_calib.solve();
     nbv_calib.save_results(results_path);
-
-    // Add imu0 settings if it exists in config file
-    if (has_imu) {
-      // clang-format off
-      FILE *res_file = fopen(results_path.c_str(), "a");
-      if (res_file == NULL) {
-        perror("Error opening file!");
-      }
-      fprintf(res_file, "\n");
-      fprintf(res_file, "imu0:\n");
-      fprintf(res_file, "  rate: %f        # [Hz]\n", imu_params.rate);
-      fprintf(res_file, "  a_max: %f       # [m/s^2]\n", imu_params.a_max);
-      fprintf(res_file, "  g_max: %f       # [rad/s]\n", imu_params.g_max);
-      fprintf(res_file, "  sigma_g_c: %e   # [rad/s/sqrt(Hz)]\n", imu_params.sigma_g_c);
-      fprintf(res_file, "  sigma_a_c: %e   # [m/s^2/sqrt(Hz)]\n", imu_params.sigma_a_c);
-      fprintf(res_file, "  sigma_gw_c: %e  # [rad/s^s/sqrt(Hz)]\n", imu_params.sigma_gw_c);
-      fprintf(res_file, "  sigma_aw_c: %e  # [m/s^2/sqrt(Hz)]\n", imu_params.sigma_aw_c);
-      fprintf(res_file, "  sigma_bg: %e    # [rad/s]\n", imu_params.sigma_bg);
-      fprintf(res_file, "  sigma_ba: %e    # [m/s^2]\n", imu_params.sigma_ba);
-      fprintf(res_file, "  g: %f           # [m/s^2]\n", imu_params.g);
-      fclose(res_file);
-      // clang-format on
-    }
 
     // Stop NBV node
     keep_running = false;

@@ -48,6 +48,11 @@ struct calib_nbt_t {
   bool finding_nbt = false;
 
   // Settings
+  std::string config_file;
+  std::string calib_file;
+  std::string data_path;
+  std::string imu_dir;
+  std::map<int, std::string> cam_dirs;
   bool use_apriltags3 = true;
   int min_init_views = 10;
 
@@ -74,6 +79,8 @@ struct calib_nbt_t {
   // Data
   size_t frame_idx = 0;
   profiler_t prof;
+  std::map<int, FILE *> cam_files;
+  FILE *imu_file;
 
   // Threads
   std::thread nbt_thread;
@@ -83,14 +90,19 @@ struct calib_nbt_t {
 
   /* Constructor */
   calib_nbt_t(const std::string &node_name_) : node_name{node_name_} {
-    std::string config_file;
-    std::string calib_file;
     ROS_PARAM(ros_nh, node_name + "/config_file", config_file);
     ROS_PARAM(ros_nh, node_name + "/calib_file", calib_file);
 
     // Setup calibrator
     calib = std::make_unique<calib_vi_t>(calib_file);
     calib->max_iter = 30;
+
+    // Setup output directories
+    if (prep_output() != 0) {
+      LOG_WARN("Failed to setup output directories!");
+      LOG_WARN("Stopping NBT node...");
+      return;
+    }
 
     // Setup ROS
     setup_ros(config_file);
@@ -100,7 +112,70 @@ struct calib_nbt_t {
   }
 
   /* Destructor */
-  ~calib_nbt_t() {}
+  ~calib_nbt_t() {
+    for (auto &[cam_idx, cam_file] : cam_files) {
+      if (cam_file) {
+        fclose(cam_file);
+      }
+    }
+
+    if (imu_file) {
+      fclose(imu_file);
+    }
+  }
+
+  /** Prepare output directories */
+  int prep_output() {
+    // Parse data path
+    config_t config{config_file};
+    parse(config, "ros.data_path", data_path);
+    data_path = data_path + "/calib_imu";
+
+    // Create calib data directory
+    // -- Check to see if directory already exists
+    if (opendir(data_path.c_str())) {
+      LOG_WARN("Output directory [%s] already exists!", data_path.c_str());
+      return -1;
+    }
+    // -- Create Calibration data directory
+    LOG_INFO("Creating dir [%s]", data_path.c_str());
+    if (system(("mkdir -p " + data_path).c_str()) != 0) {
+      FATAL("Failed to create dir [%s]", data_path.c_str());
+    }
+    // -- Create Imu directory and csv file
+    imu_dir = data_path + "/imu0";
+    LOG_INFO("Creating dir [%s]", imu_dir.c_str());
+    if (system(("mkdir -p " + imu_dir).c_str()) != 0) {
+      FATAL("Failed to create dir [%s]", imu_dir.c_str());
+    }
+    imu_file = fopen((imu_dir + "/data.csv").c_str(), "w");
+    fprintf(imu_file, "ts,gx,gy,gz,ax,ay,az\n");
+    // -- Create Camera directories
+    for (const auto &cam_idx : calib->get_camera_indices()) {
+      const auto cam_dir = data_path + "/cam" + std::to_string(cam_idx);
+      LOG_INFO("Creating dir [%s]", cam_dir.c_str());
+
+      // Create camera directory
+      cam_dirs[cam_idx] = cam_dir;
+      if (system(("mkdir -p " + cam_dir + "/data").c_str()) != 0) {
+        FATAL("Failed to create dir [%s]", cam_dir.c_str());
+      }
+
+      // Create camera index file
+      const std::string csv_path = cam_dir + "/data.csv";
+      cam_files[cam_idx] = fopen(csv_path.c_str(), "w");
+    }
+    // -- Copy config file to root of calib data directory
+    auto src = config_file;
+    auto dst = data_path + "/" + parse_fname(config_file);
+    if (file_copy(src, dst) != 0) {
+      FATAL("Failed to copy file from [%s] to [%s]!",
+            config_file.c_str(),
+            data_path.c_str());
+    }
+
+    return 0;
+  }
 
   /** Setup ROS */
   void setup_ros(const std::string &config_file) {
@@ -323,12 +398,17 @@ struct calib_nbt_t {
    */
   void imu0_callback(const sensor_msgs::ImuConstPtr &msg) {
     std::lock_guard<std::mutex> guard(mtx);
+    const timestamp_t ts = msg->header.stamp.toNSec();
     const auto gyr = msg->angular_velocity;
     const auto acc = msg->linear_acceleration;
     const vec3_t a_m{acc.x, acc.y, acc.z};
     const vec3_t w_m{gyr.x, gyr.y, gyr.z};
-    const timestamp_t ts = msg->header.stamp.toNSec();
     calib->add_measurement(ts, a_m, w_m);
+
+    fprintf(imu_file, "%ld,", ts);
+    fprintf(imu_file, "%f,%f,%f,", gyr.x, gyr.y, gyr.z);
+    fprintf(imu_file, "%f,%f,%f\n", acc.x, acc.y, acc.z);
+    fflush(imu_file);
   }
 
   /**
@@ -338,10 +418,19 @@ struct calib_nbt_t {
    */
   void image_callback(const sensor_msgs::ImageConstPtr &msg,
                       const int cam_idx) {
+    // Setup
     std::lock_guard<std::mutex> guard(mtx);
-    // Add camera image to calibrator
     const timestamp_t ts = msg->header.stamp.toNSec();
     const cv::Mat cam_img = msg_convert(msg);
+
+    // Write image measurement to disk
+    const std::string img_fname = std::to_string(ts) + ".png";
+    const std::string img_path = cam_dirs[cam_idx] + "/data/" + img_fname;
+    cv::imwrite(img_path.c_str(), cam_img);
+    fprintf(cam_files[cam_idx], "%ld,%ld.png\n", ts, ts);
+    fflush(cam_files[cam_idx]);
+
+    // Add camera image to calibrator
     const bool ready = calib->add_measurement(ts, cam_idx, cam_img);
     if (ready == false) {
       return;

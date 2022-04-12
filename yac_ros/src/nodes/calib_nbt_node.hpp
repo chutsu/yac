@@ -150,7 +150,7 @@ struct calib_nbt_t {
     }
     imu_file = fopen((imu_dir + "/data.csv").c_str(), "w");
     fprintf(imu_file, "ts,gx,gy,gz,ax,ay,az\n");
-    // -- Create Camera directories
+    // -- Create Camera directories and image index file
     for (const auto &cam_idx : calib->get_camera_indices()) {
       const auto cam_dir = data_path + "/cam" + std::to_string(cam_idx);
       LOG_INFO("Creating dir [%s]", cam_dir.c_str());

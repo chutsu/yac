@@ -91,7 +91,11 @@ struct calib_nbt_t {
   /* Constructor */
   calib_nbt_t(const std::string &node_name_) : node_name{node_name_} {
     ROS_PARAM(ros_nh, node_name + "/config_file", config_file);
-    ROS_PARAM(ros_nh, node_name + "/calib_file", calib_file);
+
+    // Get camera calibration file
+    config_t config{config_file};
+    parse(config, "ros.data_path", data_path);
+    calib_file = data_path + "/calib_camera/calib-results.yaml";
 
     // Setup calibrator
     calib = std::make_unique<calib_vi_t>(calib_file);

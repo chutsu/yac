@@ -1842,40 +1842,12 @@ void ctraj_init(ctraj_t &ctraj) {
 
     // Add new rotation vector
     rvec.block<3, 1>(0, i) = rvec_km1 + delta;
-    print_quaternion("q", ctraj.orientations[i]);
-    print_vector("rvec", rvec.block<3, 1>(0, i));
   }
-
-  // Prep position derivatives
-  matx_t pos_derivs = zeros(3, 2);
-
-  // matx_t pos_deriv_indices = zeros(3, 2);
-  // pos_deriv_indices.block(0, 1, 3, 1) = (pos.size() - 1) * ones(3, 1);
-
-  row_vector_t pos_deriv_indices{2};
-  pos_deriv_indices << 0, pos.size() - 1;
-
-  // Prep orientation derivatives
-  matx_t rvec_derivs = zeros(3, 2);
-  row_vector_t rvec_deriv_indices{2};
-  rvec_deriv_indices << 0, rvec.size() - 1;
 
   // Create splines
   const int spline_degree = 4;
-  // ctraj.pos_spline = SPLINE3D(pos, knots, spline_degree);
-  // ctraj.rvec_spline = SPLINE3D(rvec, knots, spline_degree);
-
-  // const int spline_degree = nb_knots - 1;
-  ctraj.pos_spline = Eigen::SplineFitting<
-      Spline3D>::InterpolateWithDerivatives(pos,
-                                            pos_derivs,
-                                            pos_deriv_indices,
-                                            spline_degree);
-  ctraj.rvec_spline = Eigen::SplineFitting<
-      Spline3D>::InterpolateWithDerivatives(rvec,
-                                            rvec_derivs,
-                                            rvec_deriv_indices,
-                                            spline_degree);
+  ctraj.pos_spline = SPLINE3D(pos, knots, spline_degree);
+  ctraj.rvec_spline = SPLINE3D(rvec, knots, spline_degree);
 }
 
 mat4_t ctraj_get_pose(const ctraj_t &ctraj, const timestamp_t ts) {
@@ -1893,17 +1865,9 @@ mat4_t ctraj_get_pose(const ctraj_t &ctraj, const timestamp_t ts) {
 
   // Translation
   const vec3_t r = ctraj.pos_spline(u);
-  // printf("u: %f\n", u);
-  // print_vector("r", r);
 
   // Orientation
-  // const vec3_t rvec = ctraj.rvec_spline(u);
-  const vec3_t rvec = ctraj.rvec_spline(0);
-  // printf("u: %f\n", u);
-  // print_vector("pos0", ctraj.positions[0]);
-  // print_quaternion("orientations0", ctraj.orientations[0]);
-  // print_vector("r", ctraj.pos_spline(1e-4));
-  // print_vector("rvec", ctraj.rvec_spline(1e-4));
+  const vec3_t rvec = ctraj.rvec_spline(u);
   if (rvec.norm() < 1e-12) { // Check angle is not zero
     return tf(I(3), r);
   }
@@ -1920,7 +1884,7 @@ vec3_t ctraj_get_velocity(const ctraj_t &ctraj, const timestamp_t ts) {
   const real_t u = ts_normalize(ctraj, ts);
   const real_t scale = (1 / ctraj.ts_s_gap);
 
-  return ctraj.pos_spline.derivatives(1e-10, 1).col(1) * scale;
+  return ctraj.pos_spline.derivatives(u, 1).col(1) * scale;
 }
 
 vec3_t ctraj_get_acceleration(const ctraj_t &ctraj, const timestamp_t ts) {

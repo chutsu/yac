@@ -594,6 +594,7 @@ int test_nbt_find() {
   prof.start("NBT Find");
   const int best_index = nbt_find(trajs, calib, true);
   MU_CHECK(best_index != -1);
+  prof.stop("NBT Find");
   prof.print("NBT Find");
 
   return 0;

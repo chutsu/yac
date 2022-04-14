@@ -1391,7 +1391,6 @@ int calib_camera_t::find_nbv_fast(const std::map<int, mat4s_t> &nbv_poses,
   nbv_evaluator_t nbv_eval(this);
   std::map<int, std::map<int, real_t>> nbv_scores;
   for (const auto &[nbv_cam_idx, nbv_cam_poses] : nbv_poses) {
-#pragma omp parallel for shared(nbv_cam_poses) num_threads(4)
     for (size_t i = 0; i < nbv_cam_poses.size(); i++) {
       const mat4_t T_FC0 = nbv_cam_poses.at(i);
       const real_t nbv_score = nbv_eval.eval(T_FC0);

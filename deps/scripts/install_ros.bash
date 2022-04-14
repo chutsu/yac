@@ -3,7 +3,6 @@ BASEDIR=$(dirname "$0")
 source "$BASEDIR/config.bash"
 
 # Check if ROS is installed
-[ -f "/etc/apt/sources.list.d/ros-latest.list" ] && exit;
 [ -d "/opt/ros/${ROS_VERSION}" ] && exit;
 
 # Install ROS

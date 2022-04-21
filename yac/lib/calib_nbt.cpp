@@ -360,13 +360,6 @@ void simulate_imu(const timestamp_t &ts_start,
     const vec3_t a_WS_W = ctraj_get_acceleration(traj, ts_k);
     const vec3_t w_WS_W = ctraj_get_angular_velocity(traj, ts_k);
 
-    printf("ts: %ld\n", ts_k);
-    print_matrix("T_WS_W", T_WS_W);
-    print_vector("v_WS_W", v_WS_W);
-    print_vector("a_WS_W", a_WS_W);
-    print_vector("w_WS_W", w_WS_W);
-    break;
-
     vec3_t a_WS_S{0.0, 0.0, 0.0};
     vec3_t w_WS_S{0.0, 0.0, 0.0};
     sim_imu_measurement(sim_imu,

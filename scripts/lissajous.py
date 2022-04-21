@@ -1,5 +1,6 @@
 #!/usr/bin/python3 env
 from math import pi
+from math import atan2
 import matplotlib.pylab as plt
 from mpl_toolkits import mplot3d
 import numpy as np
@@ -7,11 +8,16 @@ from numpy import sin
 from numpy import cos
 from numpy import sqrt
 
+from proto import plot_tf
+from proto import plot_set_axes_equal
+from proto import lookat
+
 
 # Use Sympy to calcualte jacobians
 
 def sympy_diff():
   import sympy
+  from sympy import ccode
 
   f, t = sympy.symbols("f t")
   A, a, delta = sympy.symbols("A a delta")
@@ -33,24 +39,34 @@ def sympy_diff():
   az = sympy.diff(vz, t)
 
   print("# Position")
-  print(f"x = {x}")
-  print(f"y = {y}")
-  print(f"z = {z}")
+  # print(f"x = {x}")
+  # print(f"y = {y}")
+  # print(f"z = {z}")
+  print(f"x = {ccode(x)}")
+  print(f"y = {ccode(y)}")
+  print(f"z = {ccode(z)}")
   print("")
 
   print("# Velocity")
-  print(f"vx = {vx}")
-  print(f"vy = {vy}")
-  print(f"vz = {vz}")
+  # print(f"vx = {vx}")
+  # print(f"vy = {vy}")
+  # print(f"vz = {vz}")
+  print(f"vx = {ccode(vx)}")
+  print(f"vy = {ccode(vy)}")
+  print(f"vz = {ccode(vz)}")
   print("")
 
   print("# Acceleration")
-  print(f"ax = {ax}")
-  print(f"ay = {ay}")
-  print(f"az = {az}")
+  # print(f"ax = {ax}")
+  # print(f"ay = {ay}")
+  # print(f"az = {az}")
+  print(f"ax = {ccode(ax)}")
+  print(f"ay = {ccode(ay)}")
+  print(f"az = {ccode(az)}")
   print("")
 
 # sympy_diff()
+# exit(0)
 
 
 # Lissajous curve parameters
@@ -60,9 +76,9 @@ B = 0.5  # Amplitude in y-axis
 T = 3.0  # Period - Time it takes to complete trajectory [secs]
 
 # -- Figure 8
-# a = 2.0 * pi * 1.0
-# b = 2.0 * pi * 2.0
-# delta = pi / 2.0
+a = 2.0 * pi * 1.0
+b = 2.0 * pi * 2.0
+delta = pi / 2.0
 # # -- Vertical pan
 # a = 0.0
 # b = 1.0
@@ -112,9 +128,9 @@ def plot_xy(x, y):
 def plot_theta(t, theta):
   plt.rcParams['text.usetex'] = True
   plt.figure()
-  # plt.plot(t, np.sin(2.0 * pi * f * t), 'k-', label="$\sin(w t)$")
-  # plt.plot(t, np.sin(2.0 * pi * f * t)**2, 'k-', label="$\sin^{2}(w t)$")
-  plt.plot(t, np.sin(2.0 * pi * f * t * 1.0 / 4.0)**2, 'k-', label="$\sin^{2}(0.25 w t)$")
+  plt.plot(t, np.sin(2.0 * pi * f * t), 'r-', label="$\sin(w t)$")
+  plt.plot(t, np.sin(2.0 * pi * f * t)**2, 'g-', label="$\sin^{2}(w t)$")
+  plt.plot(t, np.sin(2.0 * pi * f * t * 1.0 / 4.0)**2, 'b-', label="$\sin^{2}(0.25 w t)$")
   plt.legend(loc=0)
   plt.xlabel("Time [s]")
   plt.ylabel("Theta [rad]")
@@ -145,16 +161,38 @@ def plot_xyz(t, x, y, z, vx, vy, vz, ax, ay, az):
 
 
 def plot_3d(x, y, z):
+  p_start = atan2(z[0], x[0])
+  p_end = atan2(z[50], x[50])
+
+  f = 1.0 / T
+  w = 2.0 * pi * f
+  t = np.linspace(0, T, 100)
+  theta = np.sin(w * t)
+  plt.plot(t, theta)
+
   fig = plt.figure()
   ax = plt.axes(projection='3d')
   ax.plot3D(x, y, z)
+
+  cam_pos = np.array([x[0], y[0], z[0]])
+  target_pos = np.array([0.0, 0.0, 0.0])
+  T_WC = lookat(cam_pos, target_pos)
+  plot_tf(ax, T_WC, name="T_WC", size=0.3)
+
+  cam_pos = np.array([x[50], y[50], z[50]])
+  target_pos = np.array([0.0, 0.0, 0.0])
+  T_WC = lookat(cam_pos, target_pos)
+  plot_tf(ax, T_WC, name="T_WC", size=0.3)
+
   ax.set_xlabel("x [m]")
   ax.set_ylabel("y [m]")
   ax.set_zlabel("z [m]")
+  plot_set_axes_equal(ax)
 
 
 # Main
-plot_xy(x, y)
+# plot_xy(x, y)
 # plot_theta(t, theta)
 # plot_xyz(t, x, y, z, vx, vy, vz, ax, ay, az)
+plot_3d(x, y, z)
 plt.show()

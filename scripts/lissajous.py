@@ -8,9 +8,11 @@ from numpy import sin
 from numpy import cos
 from numpy import sqrt
 
+from proto import tf
 from proto import plot_tf
 from proto import plot_set_axes_equal
 from proto import lookat
+from proto import euler321
 
 
 # Use Sympy to calcualte jacobians
@@ -103,9 +105,9 @@ t = np.linspace(0, T, 100)
 theta = 2.0 * pi * np.sin(w * t * 1.0 / 4.0)**2
 
 # -- Position
-x = A*sin(a*sin(pi*f*t/2)**2 + delta)
+x = A*sin(a*sin(pi*f*t/2)**2 + delta + pi / 2.0)
 y = B*sin(b*sin(pi*f*t/2)**2)
-z = sqrt(-A**2*sin(a*sin(pi*f*t/2)**2 + delta)**2 - B**2*sin(b*sin(pi*f*t/2)**2)**2 + R**2)
+z = sqrt(-A**2*sin(a*sin(pi*f*t/2)**2 + delta + pi / 2.0)**2 - B**2*sin(b*sin(pi*f*t/2)**2 + pi / 2.0)**2 + R**2)
 
 # -- Velocity
 vx = pi*A*a*f*sin(pi*f*t/2)*cos(pi*f*t/2)*cos(a*sin(pi*f*t/2)**2 + delta)
@@ -116,6 +118,62 @@ vz = (-pi*A**2*a*f*sin(pi*f*t/2)*sin(a*sin(pi*f*t/2)**2 + delta)*cos(pi*f*t/2)*c
 ax = pi**2*A*a*f**2*(-a*sin(pi*f*t)**2*sin(-a*cos(pi*f*t)/2 + a/2 + delta)/2 - 2*sin(pi*f*t/2)**2*cos(a*sin(pi*f*t/2)**2 + delta) + cos(a*sin(pi*f*t/2)**2 + delta))/2
 ay = -pi**2*B*b**2*f**2*sin(b*sin(pi*f*t/2)**2)*sin(pi*f*t/2)**2*cos(pi*f*t/2)**2 - pi**2*B*b*f**2*sin(pi*f*t/2)**2*cos(b*sin(pi*f*t/2)**2)/2 + pi**2*B*b*f**2*cos(b*sin(pi*f*t/2)**2)*cos(pi*f*t/2)**2/2
 az = (-pi*A**2*a*f*sin(pi*f*t/2)*sin(a*sin(pi*f*t/2)**2 + delta)*cos(pi*f*t/2)*cos(a*sin(pi*f*t/2)**2 + delta) - pi*B**2*b*f*sin(b*sin(pi*f*t/2)**2)*sin(pi*f*t/2)*cos(b*sin(pi*f*t/2)**2)*cos(pi*f*t/2))*(pi*A**2*a*f*sin(pi*f*t/2)*sin(a*sin(pi*f*t/2)**2 + delta)*cos(pi*f*t/2)*cos(a*sin(pi*f*t/2)**2 + delta) + pi*B**2*b*f*sin(b*sin(pi*f*t/2)**2)*sin(pi*f*t/2)*cos(b*sin(pi*f*t/2)**2)*cos(pi*f*t/2))/(-A**2*sin(a*sin(pi*f*t/2)**2 + delta)**2 - B**2*sin(b*sin(pi*f*t/2)**2)**2 + R**2)**(3/2) + (pi**2*A**2*a**2*f**2*sin(pi*f*t/2)**2*sin(a*sin(pi*f*t/2)**2 + delta)**2*cos(pi*f*t/2)**2 - pi**2*A**2*a**2*f**2*sin(pi*f*t/2)**2*cos(pi*f*t/2)**2*cos(a*sin(pi*f*t/2)**2 + delta)**2 + pi**2*A**2*a*f**2*sin(pi*f*t/2)**2*sin(a*sin(pi*f*t/2)**2 + delta)*cos(a*sin(pi*f*t/2)**2 + delta)/2 - pi**2*A**2*a*f**2*sin(a*sin(pi*f*t/2)**2 + delta)*cos(pi*f*t/2)**2*cos(a*sin(pi*f*t/2)**2 + delta)/2 + pi**2*B**2*b**2*f**2*sin(b*sin(pi*f*t/2)**2)**2*sin(pi*f*t/2)**2*cos(pi*f*t/2)**2 - pi**2*B**2*b**2*f**2*sin(pi*f*t/2)**2*cos(b*sin(pi*f*t/2)**2)**2*cos(pi*f*t/2)**2 + pi**2*B**2 *b*f**2*sin(b*sin(pi*f*t/2)**2)*sin(pi*f*t/2)**2*cos(b*sin(pi*f*t/2)**2)/2 - pi**2*B**2*b*f**2*sin(b*sin(pi*f*t/2)**2)*cos(b*sin(pi*f*t/2)**2)*cos(pi*f*t/2)**2/2)/sqrt(-A**2*sin(a*sin(pi*f*t/2)**2 + delta)**2 - B **2*sin(b*sin(pi*f*t/2)**2)**2 + R**2)
+
+
+class LissajousTraj:
+  def __init__(self, traj_type, **kwargs):
+    # Lissajous curve parameters
+    self.R = kwargs.get("R", 1.5)  # Distance from calibration target
+    self.A = kwargs.get("A", 1.0)  # Amplitude in x-axis
+    self.B = kwargs.get("B", 0.5)  # Amplitude in y-axis
+    self.T = kwargs.get("T", 3.0)  # Period - Time it takes to complete [secs]
+
+    # Time
+    self.f = 1.0 / self.T
+    self.w = 2.0 * pi * self.f
+    self.t = np.linspace(0, self.T, 100)
+    self.theta = 2.0 * pi * np.sin(w * self.t * 1.0 / 4.0)**2
+
+    # Trajectory type
+    # -- Figure 8
+    if traj_type == "figure8":
+      self.a = 2.0 * pi * 1.0
+      self.b = 2.0 * pi * 2.0
+      self.delta = pi / 2.0
+
+    # -- Vertical pan
+    elif traj_type == "vert-pan":
+      self.a = 2.0 * pi * 0.0
+      self.b = 2.0 * pi * 1.0
+      self.delta = 0.0
+
+    # -- Horizontal pan
+    elif traj_type == "horiz-pan":
+      self.a = 2.0 * pi * 1.0
+      self.b = 2.0 * pi * 0.0
+      self.delta = 0.0
+
+    # -- Diagonal (bottom left to top right) pan
+    elif traj_type == "diag-pan":
+      self.a = 2.0 * pi * 1.0
+      self.b = 2.0 * pi * 1.0
+      self.delta = 0.0
+
+    # -- Diagonal (top left to bottom right) pan
+    elif traj_type == "diag-pan":
+      self.a = 2.0 * pi * 1.0
+      self.b = 2.0 * pi * 1.0
+      self.delta = pi
+
+  def get_position(self, t):
+    x = A*sin(a*sin(pi*f*t/2)**2 + delta + pi / 2.0)
+    y = B*sin(b*sin(pi*f*t/2)**2)
+    z = sqrt(-A**2*sin(a*sin(pi*f*t/2)**2 + delta + pi / 2.0)**2 - B**2*sin(b*sin(pi*f*t/2)**2 + pi / 2.0)**2 + R**2)
+    return np.array([x, y, z])
+
+  def plot_position(self):
+    positions = get_position(self.t)
+
 
 # Plot
 def plot_xy(x, y):
@@ -161,33 +219,46 @@ def plot_xyz(t, x, y, z, vx, vy, vz, ax, ay, az):
 
 
 def plot_3d(x, y, z):
-  p_start = atan2(z[0], x[0])
-  p_end = atan2(z[50], x[50])
+  p_start = atan2(1.0, A)
+  p_end = -atan2(1.0, A)
+
+  # p_start = np.deg2rad(20.0)
+  # p_end = -np.deg2rad(20.0)
 
   f = 1.0 / T
   w = 2.0 * pi * f
   t = np.linspace(0, T, 100)
-  theta = np.sin(w * t)
+  theta = np.sin(w * t * 1.0 / 2.0 + pi / 4.0)**2
+
   plt.plot(t, theta)
+  # plt.plot(t, p_start * (1.0 - theta) + theta * p_end)
+
+  from matplotlib import animation
+  writer = animation.FFMpegWriter(fps=30)
 
   fig = plt.figure()
   ax = plt.axes(projection='3d')
   ax.plot3D(x, y, z)
 
-  cam_pos = np.array([x[0], y[0], z[0]])
-  target_pos = np.array([0.0, 0.0, 0.0])
-  T_WC = lookat(cam_pos, target_pos)
-  plot_tf(ax, T_WC, name="T_WC", size=0.3)
+  with writer.saving(fig, "writer_test.mp4", 100):
+    for idx, th in enumerate(theta):
 
-  cam_pos = np.array([x[50], y[50], z[50]])
-  target_pos = np.array([0.0, 0.0, 0.0])
-  T_WC = lookat(cam_pos, target_pos)
-  plot_tf(ax, T_WC, name="T_WC", size=0.3)
+      k = p_start * (1.0 - th) + th * p_end
+      C_WC = euler321(0, 0 + k, np.deg2rad(180.0))
+      r_WC = np.array([x[idx], y[idx], z[idx]])
+      T_WC = tf(C_WC, r_WC)
+      tf_data = plot_tf(ax, T_WC, name="T_WC", size=0.3)
 
-  ax.set_xlabel("x [m]")
-  ax.set_ylabel("y [m]")
-  ax.set_zlabel("z [m]")
-  plot_set_axes_equal(ax)
+      ax.set_xlabel("x [m]")
+      ax.set_ylabel("y [m]")
+      ax.set_zlabel("z [m]")
+      plot_set_axes_equal(ax)
+
+      writer.grab_frame()
+      ax.lines.remove(tf_data[0])
+      ax.lines.remove(tf_data[1])
+      ax.lines.remove(tf_data[2])
+      ax.texts.remove(tf_data[3])
 
 
 # Main

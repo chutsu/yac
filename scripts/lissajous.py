@@ -21,7 +21,7 @@ from proto import euler321
 
 # Use Sympy to calcualte jacobians
 
-def sympy_diff():
+def sympy_diff(gencode=False):
   import sympy
   from sympy import ccode
 
@@ -45,83 +45,40 @@ def sympy_diff():
   az = sympy.diff(vz, t)
 
   print("# Position")
-  # print(f"x = {x}")
-  # print(f"y = {y}")
-  # print(f"z = {z}")
-  print(f"x = {ccode(x)}")
-  print(f"y = {ccode(y)}")
-  print(f"z = {ccode(z)}")
+  if gencode:
+    print(f"x = {ccode(x)}")
+    print(f"y = {ccode(y)}")
+    print(f"z = {ccode(z)}")
+  else:
+    print(f"x = {x}")
+    print(f"y = {y}")
+    print(f"z = {z}")
   print("")
 
   print("# Velocity")
-  # print(f"vx = {vx}")
-  # print(f"vy = {vy}")
-  # print(f"vz = {vz}")
-  print(f"vx = {ccode(vx)}")
-  print(f"vy = {ccode(vy)}")
-  print(f"vz = {ccode(vz)}")
+  if gencode:
+    print(f"vx = {ccode(vx)}")
+    print(f"vy = {ccode(vy)}")
+    print(f"vz = {ccode(vz)}")
+  else:
+    print(f"vx = {vx}")
+    print(f"vy = {vy}")
+    print(f"vz = {vz}")
   print("")
 
   print("# Acceleration")
-  # print(f"ax = {ax}")
-  # print(f"ay = {ay}")
-  # print(f"az = {az}")
-  print(f"ax = {ccode(ax)}")
-  print(f"ay = {ccode(ay)}")
-  print(f"az = {ccode(az)}")
+  if gencode:
+    print(f"ax = {ccode(ax)}")
+    print(f"ay = {ccode(ay)}")
+    print(f"az = {ccode(az)}")
+  else:
+    print(f"ax = {ax}")
+    print(f"ay = {ay}")
+    print(f"az = {az}")
   print("")
 
-# sympy_diff()
+# sympy_diff(True)
 # exit(0)
-
-
-# # Lissajous curve parameters
-# R = 1.5  # Distance from calibration target
-# A = 1    # Amplitude in x-axis
-# B = 0.5  # Amplitude in y-axis
-# T = 3.0  # Period - Time it takes to complete trajectory [secs]
-
-# # -- Figure 8
-# a = 2.0 * pi * 1.0
-# b = 2.0 * pi * 2.0
-# delta = pi / 2.0
-# # -- Vertical pan
-# a = 0.0
-# b = 1.0
-# delta = 0.0
-# # -- Horizontal pan
-# a = 1.0
-# b = 0.0
-# delta = 0.0
-# # -- Diagonal (bottom left to top right) pan
-# a = 1.0
-# b = 1.0
-# delta = 0.0
-# # -- Diagonal (top left to bottom right) pan
-# a = 1.0
-# b = 1.0
-# delta = pi
-
-# # Generate trajectory
-# f = 1.0 / T
-# w = 2.0 * pi * f
-# t = np.linspace(0, T, 100)
-# theta = 2.0 * pi * np.sin(w * t * 1.0 / 4.0)**2
-
-# # -- Position
-# x = A*sin(a*sin(pi*f*t/2)**2 + delta + pi / 2.0)
-# y = B*sin(b*sin(pi*f*t/2)**2)
-# z = sqrt(-A**2*sin(a*sin(pi*f*t/2)**2 + delta + pi / 2.0)**2 - B**2*sin(b*sin(pi*f*t/2)**2 + pi / 2.0)**2 + R**2)
-
-# # -- Velocity
-# vx = pi*A*a*f*sin(pi*f*t/2)*cos(pi*f*t/2)*cos(a*sin(pi*f*t/2)**2 + delta)
-# vy = pi*B*b*f*sin(pi*f*t/2)*cos(b*sin(pi*f*t/2)**2)*cos(pi*f*t/2)
-# vz = (-pi*A**2*a*f*sin(pi*f*t/2)*sin(a*sin(pi*f*t/2)**2 + delta)*cos(pi*f*t/2)*cos(a*sin(pi*f*t/2)**2 + delta) - pi*B**2*b*f*sin(b*sin(pi*f*t/2)**2)*sin(pi*f*t/2)*cos(b*sin(pi*f*t/2)**2)*cos(pi*f*t/2))/sqrt(-A**2 *sin(a*sin(pi*f*t/2)**2 + delta)**2 - B**2*sin(b*sin(pi*f*t/2)**2)**2 + R**2)
-
-# # -- Acceleration
-# ax = pi**2*A*a*f**2*(-a*sin(pi*f*t)**2*sin(-a*cos(pi*f*t)/2 + a/2 + delta)/2 - 2*sin(pi*f*t/2)**2*cos(a*sin(pi*f*t/2)**2 + delta) + cos(a*sin(pi*f*t/2)**2 + delta))/2
-# ay = -pi**2*B*b**2*f**2*sin(b*sin(pi*f*t/2)**2)*sin(pi*f*t/2)**2*cos(pi*f*t/2)**2 - pi**2*B*b*f**2*sin(pi*f*t/2)**2*cos(b*sin(pi*f*t/2)**2)/2 + pi**2*B*b*f**2*cos(b*sin(pi*f*t/2)**2)*cos(pi*f*t/2)**2/2
-# az = (-pi*A**2*a*f*sin(pi*f*t/2)*sin(a*sin(pi*f*t/2)**2 + delta)*cos(pi*f*t/2)*cos(a*sin(pi*f*t/2)**2 + delta) - pi*B**2*b*f*sin(b*sin(pi*f*t/2)**2)*sin(pi*f*t/2)*cos(b*sin(pi*f*t/2)**2)*cos(pi*f*t/2))*(pi*A**2*a*f*sin(pi*f*t/2)*sin(a*sin(pi*f*t/2)**2 + delta)*cos(pi*f*t/2)*cos(a*sin(pi*f*t/2)**2 + delta) + pi*B**2*b*f*sin(b*sin(pi*f*t/2)**2)*sin(pi*f*t/2)*cos(b*sin(pi*f*t/2)**2)*cos(pi*f*t/2))/(-A**2*sin(a*sin(pi*f*t/2)**2 + delta)**2 - B**2*sin(b*sin(pi*f*t/2)**2)**2 + R**2)**(3/2) + (pi**2*A**2*a**2*f**2*sin(pi*f*t/2)**2*sin(a*sin(pi*f*t/2)**2 + delta)**2*cos(pi*f*t/2)**2 - pi**2*A**2*a**2*f**2*sin(pi*f*t/2)**2*cos(pi*f*t/2)**2*cos(a*sin(pi*f*t/2)**2 + delta)**2 + pi**2*A**2*a*f**2*sin(pi*f*t/2)**2*sin(a*sin(pi*f*t/2)**2 + delta)*cos(a*sin(pi*f*t/2)**2 + delta)/2 - pi**2*A**2*a*f**2*sin(a*sin(pi*f*t/2)**2 + delta)*cos(pi*f*t/2)**2*cos(a*sin(pi*f*t/2)**2 + delta)/2 + pi**2*B**2*b**2*f**2*sin(b*sin(pi*f*t/2)**2)**2*sin(pi*f*t/2)**2*cos(pi*f*t/2)**2 - pi**2*B**2*b**2*f**2*sin(pi*f*t/2)**2*cos(b*sin(pi*f*t/2)**2)**2*cos(pi*f*t/2)**2 + pi**2*B**2 *b*f**2*sin(b*sin(pi*f*t/2)**2)*sin(pi*f*t/2)**2*cos(b*sin(pi*f*t/2)**2)/2 - pi**2*B**2*b*f**2*sin(b*sin(pi*f*t/2)**2)*cos(b*sin(pi*f*t/2)**2)*cos(pi*f*t/2)**2/2)/sqrt(-A**2*sin(a*sin(pi*f*t/2)**2 + delta)**2 - B **2*sin(b*sin(pi*f*t/2)**2)**2 + R**2)
 
 
 class LissajousTraj:
@@ -206,11 +163,14 @@ class LissajousTraj:
     z = sqrt(self.R**2 - x**2 - y**2)
     return np.array([x, y, z])
 
-  def get_pose(self, th):
-    k = self.yaw_start * (1.0 - th) + th * self.yaw_end
-    C_WC = euler321(0, k, np.deg2rad(180.0))
-    r_WC = get_position(t)
+  def get_pose(self, t):
+    th = np.sin(self.w * t * 1.0 / 2.0 + pi / 4.0)**2
+    yaw = self.yaw_start * (1.0 - th) + th * self.yaw_end
+    pitch = self.pitch_start * (1.0 - th) + th * self.pitch_end
+    C_WC = euler321(0.0, yaw, np.deg2rad(180.0) + pitch)
+    r_WC = self.get_position(t)
     T_WC = tf(C_WC, r_WC)
+    return T_WC
 
   def plot_xy(self):
     positions = self.get_position(self.t)
@@ -282,15 +242,11 @@ class LissajousTraj:
       writer.setup(fig, save_path, 100)
 
     # Draw camera poses
-    for idx, th in enumerate(self.att_theta):
+    for idx, t in enumerate(self.t):
       if save_anim is False and idx % (len(self.att_theta) * 0.05) == 0:
         continue
 
-      yaw = self.yaw_start * (1.0 - th) + th * self.yaw_end
-      pitch = self.pitch_start * (1.0 - th) + th * self.pitch_end
-      C_WC = euler321(0.0, yaw, np.deg2rad(180.0) + pitch)
-      r_WC = np.array([x[idx], y[idx], z[idx]])
-      T_WC = tf(C_WC, r_WC)
+      T_WC = self.get_pose(t)
       tf_data = plot_tf(ax, T_WC, name="T_WC", size=0.3)
 
       if save_anim:
@@ -305,18 +261,14 @@ class LissajousTraj:
 traj = LissajousTraj("figure8")
 traj.plot_3d(save_path="traj-figure8.mp4", save_anim=True)
 
-traj = LissajousTraj("vert-pan")
-traj.plot_3d(save_path="traj-vert.mp4", save_anim=True)
+# traj = LissajousTraj("vert-pan")
+# traj.plot_3d(save_path="traj-vert.mp4", save_anim=True)
 
-traj = LissajousTraj("horiz-pan")
-traj.plot_3d(save_path="traj-horiz.mp4", save_anim=True)
+# traj = LissajousTraj("horiz-pan")
+# traj.plot_3d(save_path="traj-horiz.mp4", save_anim=True)
 
-traj = LissajousTraj("diag0")
-traj.plot_3d(save_path="traj-diag0.mp4", save_anim=True)
-
-traj = LissajousTraj("diag1")
-traj.plot_3d(save_path="traj-diag1.mp4", save_anim=True)
+# traj = LissajousTraj("diag0")
+# traj.plot_3d(save_path="traj-diag0.mp4", save_anim=True)
 
 # traj = LissajousTraj("diag1")
-# traj.plot_xy()
-# plt.show()
+# traj.plot_3d(save_path="traj-diag1.mp4", save_anim=True)

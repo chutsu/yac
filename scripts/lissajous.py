@@ -29,12 +29,18 @@ def sympy_diff(gencode=False):
   A, a, delta = sympy.symbols("A a delta")
   B, b = sympy.symbols("B b")
   R = sympy.symbols("R")
-  w = 2.0 * sympy.pi * f
+  w = sympy.symbols("w")   # w = 2.0 * pi * f
+  phi = sympy.symbols("phi")
 
-  k = sympy.sin(w * t * 1.0 / 4.0)**2
-  x = A * sympy.sin(a * k + delta)
-  y = B * sympy.sin(b * k)
+  theta = sympy.sin(w * t * 1.0 / 4.0)**2
+  x = A * sympy.sin(a * theta + delta + phi)
+  y = B * sympy.sin(b * theta)
   z = sympy.sqrt(R**2 - x**2 - y**2)
+
+  # k = sympy.sin(w * t * 1.0 / 4.0)**2
+  # x = A * sympy.sin(a * k + delta)
+  # y = B * sympy.sin(b * k)
+  # z = sympy.sqrt(R**2 - x**2 - y**2)
 
   vx = sympy.simplify(sympy.diff(x, t))
   vy = sympy.diff(y, t)
@@ -158,7 +164,8 @@ class LissajousTraj:
   def get_position(self, t):
     w = 2.0 * pi * self.f
     theta = sin(w * t * 1.0 / 4.0)**2
-    x = self.A * sin(self.a * theta + self.delta + self.phase_offset)
+    phi = self.phase_offset
+    x = self.A * sin(self.a * theta + self.delta + phi)
     y = self.B * sin(self.b * theta)
     z = sqrt(self.R**2 - x**2 - y**2)
     return np.array([x, y, z])
@@ -172,6 +179,25 @@ class LissajousTraj:
     T_WC = tf(C_WC, r_WC)
     return T_WC
 
+  def get_velocity(self, t):
+    A = self.A
+    B = self.B
+    a = self.a
+    b = self.b
+    delta = self.delta
+    phi = self.phase_offset
+
+    w = 2.0 * pi * self.f
+    theta = sin(w * t * 1.0 / 4.0)**2
+    theta_sq = np.sin(0.25*t*w)
+
+    print(np.cos(theta_sq, 2))
+    vx = 0.5*A*a*w*theta_sq * np.cos(0.25*t*w) * np.cos(a*np.cos(theta_sq, 2) + delta + phi)
+    # vy = 0.5*B*b*w*theta_sq*np.cos(b*np.cos(theta_sq, 2))*np.cos(0.25*t*w)
+    # vz = (-0.5*np.cos(A, 2)*a*w*theta_sq*np.sin(a*np.cos(theta_sq, 2) + delta + phi)*np.cos(0.25*t*w)*np.cos(a*np.cos(theta_sq, 2) + delta + phi) - 0.5*np.cos(B, 2)*b*w*np.sin(b*np.cos(theta_sq, 2))*theta_sq*np.cos(b*np.cos(theta_sq, 2))*np.cos(0.25*t*w))/np.sqrt(-np.cos(A, 2)*np.cos(np.sin(a*np.cos(theta_sq, 2) + delta + phi), 2) - np.cos(B, 2)*np.cos(np.sin(b*np.cos(theta_sq, 2)), 2) + np.cos(R, 2))
+
+    # return np.array([vx, vy, vz])
+
   def plot_xy(self):
     positions = self.get_position(self.t)
 
@@ -181,8 +207,9 @@ class LissajousTraj:
     plt.xlabel("x [m]")
     plt.ylabel("y [m]")
 
-  def plot_xyz():
+  def plot_xyz(self):
     positions = self.get_position(self.t)
+    velocities = self.get_velocity(self.t[0])
 
     plt.figure()
     plt.subplot(311)
@@ -194,8 +221,9 @@ class LissajousTraj:
     plt.ylabel("Displacement [m]")
 
     # plt.subplot(312)
-    # plt.plot(self.t, vx, 'r-', label="vx")
-    # plt.plot(self.t, vy, 'g-', label="vy")
+    # plt.plot(self.t, velocities[0, :], 'r-', label="vx")
+    # plt.plot(self.t, velocities[1, :], 'g-', label="vy")
+    # plt.plot(self.t, velocities[2, :], 'b-', label="vz")
     # plt.title("Velocity")
     # plt.xlabel("Time [s]")
     # plt.ylabel("Velocity [m/s]")
@@ -259,7 +287,8 @@ class LissajousTraj:
 
 # Main
 traj = LissajousTraj("figure8")
-traj.plot_3d(save_path="traj-figure8.mp4", save_anim=True)
+# traj.plot_3d(save_path="traj-figure8.mp4", save_anim=True)
+traj.plot_xyz()
 
 # traj = LissajousTraj("vert-pan")
 # traj.plot_3d(save_path="traj-vert.mp4", save_anim=True)

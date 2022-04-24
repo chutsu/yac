@@ -184,19 +184,32 @@ class LissajousTraj:
     B = self.B
     a = self.a
     b = self.b
+    R = self.R
     delta = self.delta
     phi = self.phase_offset
-
     w = 2.0 * pi * self.f
-    theta = sin(w * t * 1.0 / 4.0)**2
-    theta_sq = np.sin(0.25*t*w)
 
-    print(np.cos(theta_sq, 2))
-    vx = 0.5*A*a*w*theta_sq * np.cos(0.25*t*w) * np.cos(a*np.cos(theta_sq, 2) + delta + phi)
-    # vy = 0.5*B*b*w*theta_sq*np.cos(b*np.cos(theta_sq, 2))*np.cos(0.25*t*w)
-    # vz = (-0.5*np.cos(A, 2)*a*w*theta_sq*np.sin(a*np.cos(theta_sq, 2) + delta + phi)*np.cos(0.25*t*w)*np.cos(a*np.cos(theta_sq, 2) + delta + phi) - 0.5*np.cos(B, 2)*b*w*np.sin(b*np.cos(theta_sq, 2))*theta_sq*np.cos(b*np.cos(theta_sq, 2))*np.cos(0.25*t*w))/np.sqrt(-np.cos(A, 2)*np.cos(np.sin(a*np.cos(theta_sq, 2) + delta + phi), 2) - np.cos(B, 2)*np.cos(np.sin(b*np.cos(theta_sq, 2)), 2) + np.cos(R, 2))
+    vx = 0.5*A*a*w*np.sin(0.25*t*w)*np.cos(0.25*t*w)*np.cos(a*pow(np.sin(0.25*t*w), 2) + delta + phi)
+    vy = 0.5*B*b*w*np.sin(0.25*t*w)*np.cos(b*pow(np.sin(0.25*t*w), 2))*np.cos(0.25*t*w)
+    vz = (-0.5*pow(A, 2)*a*w*np.sin(0.25*t*w)*np.sin(a*pow(np.sin(0.25*t*w), 2) + delta + phi)*np.cos(0.25*t*w)*np.cos(a*pow(np.sin(0.25*t*w), 2) + delta + phi) - 0.5*pow(B, 2)*b*w*np.sin(b*pow(np.sin(0.25*t*w), 2))*np.sin(0.25*t*w)*np.cos(b*pow(np.sin(0.25*t*w), 2))*np.cos(0.25*t*w))/sqrt(-pow(A, 2)*pow(np.sin(a*pow(np.sin(0.25*t*w), 2) + delta + phi), 2) - pow(B, 2)*pow(np.sin(b*pow(np.sin(0.25*t*w), 2)), 2) + pow(R, 2))
 
-    # return np.array([vx, vy, vz])
+    return np.array([vx, vy, vz])
+
+  def get_acceleration(self, t):
+    A = self.A
+    B = self.B
+    a = self.a
+    b = self.b
+    R = self.R
+    delta = self.delta
+    phi = self.phase_offset
+    w = 2.0 * pi * self.f
+
+    ax = A*a*pow(w, 2)*(-0.03125*a*(1 - np.cos(1.0*t*w))*np.sin(-1.0/2.0*a*np.cos(0.5*t*w) + (1.0/2.0)*a + delta + phi) - 0.125*pow(np.sin(0.25*t*w), 2)*np.cos(a*pow(np.sin(0.25*t*w), 2) + delta + phi) + 0.125*pow(np.cos(0.25*t*w), 2)*np.cos(a*pow(np.sin(0.25*t*w), 2) + delta + phi))
+    ay = -0.25*B*pow(b, 2)*pow(w, 2)*np.sin(b*pow(np.sin(0.25*t*w), 2))*pow(np.sin(0.25*t*w), 2)*pow(np.cos(0.25*t*w), 2) - 0.125*B*b*pow(w, 2)*pow(np.sin(0.25*t*w), 2)*np.cos(b*pow(np.sin(0.25*t*w), 2)) + 0.125*B*b*pow(w, 2)*np.cos(b*pow(np.sin(0.25*t*w), 2))*pow(np.cos(0.25*t*w), 2)
+    az = (-0.5*pow(A, 2)*a*w*np.sin(0.25*t*w)*np.sin(a*pow(np.sin(0.25*t*w), 2) + delta + phi)*np.cos(0.25*t*w)*np.cos(a*pow(np.sin(0.25*t*w), 2) + delta + phi) - 0.5*pow(B, 2)*b*w*np.sin(b*pow(np.sin(0.25*t*w), 2))*np.sin(0.25*t*w)*np.cos(b*pow(np.sin(0.25*t*w), 2))*np.cos(0.25*t*w))*(0.5*pow(A, 2)*a*w*np.sin(0.25*t*w)*np.sin(a*pow(np.sin(0.25*t*w), 2) + delta + phi)*np.cos(0.25*t*w)*np.cos(a*pow(np.sin(0.25*t*w), 2) + delta + phi) + 0.5*pow(B, 2)*b*w*np.sin(b*pow(np.sin(0.25*t*w), 2))*np.sin(0.25*t*w)*np.cos(b*pow(np.sin(0.25*t*w), 2))*np.cos(0.25*t*w))/pow(-pow(A, 2)*pow(np.sin(a*pow(np.sin(0.25*t*w), 2) + delta + phi), 2) - pow(B, 2)*pow(np.sin(b*pow(np.sin(0.25*t*w), 2)), 2) + pow(R, 2), 3.0/2.0) + (0.25*pow(A, 2)*pow(a, 2)*pow(w, 2)*pow(np.sin(0.25*t*w), 2)*pow(np.sin(a*pow(np.sin(0.25*t*w), 2) + delta + phi), 2)*pow(np.cos(0.25*t*w), 2) - 0.25*pow(A, 2)*pow(a, 2)*pow(w, 2)*pow(np.sin(0.25*t*w), 2)*pow(np.cos(0.25*t*w), 2)*pow(np.cos(a*pow(np.sin(0.25*t*w), 2) + delta + phi), 2) + 0.125*pow(A, 2)*a*pow(w, 2)*pow(np.sin(0.25*t*w), 2)*np.sin(a*pow(np.sin(0.25*t*w), 2) + delta + phi)*np.cos(a*pow(np.sin(0.25*t*w), 2) + delta + phi) - 0.125*pow(A, 2)*a*pow(w, 2)*np.sin(a*pow(np.sin(0.25*t*w), 2) + delta + phi)*pow(np.cos(0.25*t*w), 2)*np.cos(a*pow(np.sin(0.25*t*w), 2) + delta + phi) + 0.25*pow(B, 2)*pow(b, 2)*pow(w, 2)*pow(np.sin(b*pow(np.sin(0.25*t*w), 2)), 2)*pow(np.sin(0.25*t*w), 2)*pow(np.cos(0.25*t*w), 2) - 0.25*pow(B, 2)*pow(b, 2)*pow(w, 2)*pow(np.sin(0.25*t*w), 2)*pow(np.cos(b*pow(np.sin(0.25*t*w), 2)), 2)*pow(np.cos(0.25*t*w), 2) + 0.125*pow(B, 2)*b*pow(w, 2)*np.sin(b*pow(np.sin(0.25*t*w), 2))*pow(np.sin(0.25*t*w), 2)*np.cos(b*pow(np.sin(0.25*t*w), 2)) - 0.125*pow(B, 2)*b*pow(w, 2)*np.sin(b*pow(np.sin(0.25*t*w), 2))*np.cos(b*pow(np.sin(0.25*t*w), 2))*pow(np.cos(0.25*t*w), 2))/sqrt(-pow(A, 2)*pow(np.sin(a*pow(np.sin(0.25*t*w), 2) + delta + phi), 2) - pow(B, 2)*pow(np.sin(b*pow(np.sin(0.25*t*w), 2)), 2) + pow(R, 2))
+
+    return np.array([ax, ay, az])
 
   def plot_xy(self):
     positions = self.get_position(self.t)
@@ -209,7 +222,8 @@ class LissajousTraj:
 
   def plot_xyz(self):
     positions = self.get_position(self.t)
-    velocities = self.get_velocity(self.t[0])
+    velocities = self.get_velocity(self.t)
+    accelerations = self.get_acceleration(self.t)
 
     plt.figure()
     plt.subplot(311)
@@ -220,20 +234,22 @@ class LissajousTraj:
     plt.xlabel("Time [s]")
     plt.ylabel("Displacement [m]")
 
-    # plt.subplot(312)
-    # plt.plot(self.t, velocities[0, :], 'r-', label="vx")
-    # plt.plot(self.t, velocities[1, :], 'g-', label="vy")
-    # plt.plot(self.t, velocities[2, :], 'b-', label="vz")
-    # plt.title("Velocity")
-    # plt.xlabel("Time [s]")
-    # plt.ylabel("Velocity [m/s]")
+    plt.subplot(312)
+    plt.plot(self.t, velocities[0, :], 'r-', label="vx")
+    plt.plot(self.t, velocities[1, :], 'g-', label="vy")
+    plt.plot(self.t, velocities[2, :], 'b-', label="vz")
+    plt.title("Velocity")
+    plt.xlabel("Time [s]")
+    plt.ylabel("Velocity [m/s]")
 
-    # plt.subplot(313)
-    # plt.plot(t, ax, 'r-', label="ax_sympy")
-    # plt.plot(t, ay, 'g-', label="ay_sympy")
-    # plt.title("Acceleration")
-    # plt.xlabel("Time [s]")
-    # plt.ylabel("Acceleration [m/s^2]")
+    plt.subplot(313)
+    plt.plot(self.t, accelerations[0, :], 'r-', label="ax")
+    plt.plot(self.t, accelerations[1, :], 'g-', label="ay")
+    plt.plot(self.t, accelerations[2, :], 'b-', label="ay")
+
+    plt.title("Acceleration")
+    plt.xlabel("Time [s]")
+    plt.ylabel("Acceleration [m/s^2]")
 
   def plot_theta(t, theta):
     plt.rcParams['text.usetex'] = True
@@ -289,6 +305,7 @@ class LissajousTraj:
 traj = LissajousTraj("figure8")
 # traj.plot_3d(save_path="traj-figure8.mp4", save_anim=True)
 traj.plot_xyz()
+plt.show()
 
 # traj = LissajousTraj("vert-pan")
 # traj.plot_3d(save_path="traj-vert.mp4", save_anim=True)

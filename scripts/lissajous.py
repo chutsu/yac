@@ -17,6 +17,7 @@ from proto import plot_tf
 from proto import plot_set_axes_equal
 from proto import lookat
 from proto import euler321
+from proto import rot2euler
 
 
 # Use Sympy to calcualte jacobians
@@ -37,11 +38,6 @@ def sympy_diff(gencode=False):
   y = B * sympy.sin(b * theta)
   z = sympy.sqrt(R**2 - x**2 - y**2)
 
-  # k = sympy.sin(w * t * 1.0 / 4.0)**2
-  # x = A * sympy.sin(a * k + delta)
-  # y = B * sympy.sin(b * k)
-  # z = sympy.sqrt(R**2 - x**2 - y**2)
-
   vx = sympy.simplify(sympy.diff(x, t))
   vy = sympy.diff(y, t)
   vz = sympy.diff(z, t)
@@ -49,6 +45,21 @@ def sympy_diff(gencode=False):
   ax = sympy.simplify(sympy.diff(vx, t))
   ay = sympy.diff(vy, t)
   az = sympy.diff(vz, t)
+
+  yaw_start, yaw_end = sympy.symbols("yaw_start yaw_end")
+  pitch_start, pitch_end = sympy.symbols("pitch_start pitch_end")
+
+  att_theta = sympy.sin(w * t * 1.0 / 2.0 + pi / 4.0)**2
+  yaw = yaw_start * (1.0 - att_theta) + att_theta * yaw_end
+  pitch = pitch_start * (1.0 - att_theta) + att_theta * pitch_end
+
+  att_x = 0.0
+  att_y = yaw
+  att_z = np.deg2rad(180.0) + pitch
+
+  wx = sympy.diff(att_x, t)
+  wy = sympy.diff(att_y, t)
+  wz = sympy.diff(att_z, t)
 
   print("# Position")
   if gencode:
@@ -83,7 +94,18 @@ def sympy_diff(gencode=False):
     print(f"az = {az}")
   print("")
 
-# sympy_diff(True)
+  print("# Angular Velocity")
+  if gencode:
+    print(f"wx = {ccode(wx)}")
+    print(f"wy = {ccode(wy)}")
+    print(f"wz = {ccode(wz)}")
+  else:
+    print(f"wx = {wx}")
+    print(f"wy = {wy}")
+    print(f"wz = {wz}")
+  print("")
+
+# sympy_diff()
 # exit(0)
 
 
@@ -170,11 +192,15 @@ class LissajousTraj:
     z = sqrt(self.R**2 - x**2 - y**2)
     return np.array([x, y, z])
 
-  def get_pose(self, t):
+  def get_attitude(self, t):
     th = np.sin(self.w * t * 1.0 / 2.0 + pi / 4.0)**2
     yaw = self.yaw_start * (1.0 - th) + th * self.yaw_end
     pitch = self.pitch_start * (1.0 - th) + th * self.pitch_end
     C_WC = euler321(0.0, yaw, np.deg2rad(180.0) + pitch)
+    return C_WC
+
+  def get_pose(self, t):
+    C_WC = self.get_attitude(t)
     r_WC = self.get_position(t)
     T_WC = tf(C_WC, r_WC)
     return T_WC
@@ -211,6 +237,14 @@ class LissajousTraj:
 
     return np.array([ax, ay, az])
 
+  def get_angular_velocity(self, t):
+    w = 2.0 * pi * self.f
+
+    wx = 0.0 * np.ones(len(t))
+    wy = 1.0*w*self.yaw_end*np.sin(0.5*t*w + 0.785398163397448)*np.cos(0.5*t*w + 0.785398163397448) - 1.0*w*self.yaw_start*np.sin(0.5*t*w + 0.785398163397448)*np.cos(0.5*t*w + 0.785398163397448)
+    wz = 1.0*w*(self.pitch_end - self.pitch_start)*np.sin(0.5*t*w + 0.78539816339744828)*np.cos(0.5*t*w + 0.78539816339744828)
+    return np.array([wx, wy, wz])
+
   def plot_xy(self):
     positions = self.get_position(self.t)
 
@@ -246,7 +280,6 @@ class LissajousTraj:
     plt.plot(self.t, accelerations[0, :], 'r-', label="ax")
     plt.plot(self.t, accelerations[1, :], 'g-', label="ay")
     plt.plot(self.t, accelerations[2, :], 'b-', label="ay")
-
     plt.title("Acceleration")
     plt.xlabel("Time [s]")
     plt.ylabel("Acceleration [m/s^2]")
@@ -304,7 +337,29 @@ class LissajousTraj:
 # Main
 traj = LissajousTraj("figure8")
 # traj.plot_3d(save_path="traj-figure8.mp4", save_anim=True)
-traj.plot_xyz()
+# traj.plot_xyz()
+# plt.show()
+
+# roll = []
+# pitch = []
+# yaw = []
+# for t in traj.t:
+#   C_WC = traj.get_attitude(t)
+#   r, p, y= rot2euler(C_WC)
+#   roll.append(r)
+#   pitch.append(p)
+#   yaw.append(y)
+
+# plt.subplot(211)
+# plt.plot(traj.t, roll, 'r-', label='roll')
+# plt.plot(traj.t, pitch, 'g-', label='pitch')
+# plt.plot(traj.t, yaw, 'b-', label='yaw')
+
+ang_vels = traj.get_angular_velocity(traj.t)
+plt.subplot(212)
+plt.plot(traj.t, ang_vels[0, :], 'r-', label="wx")
+plt.plot(traj.t, ang_vels[1, :], 'g-', label="wy")
+plt.plot(traj.t, ang_vels[2, :], 'b-', label="wy")
 plt.show()
 
 # traj = LissajousTraj("vert-pan")

@@ -4,20 +4,14 @@ namespace yac {
 
 /** TRAJECTORY GENERATION ****************************************************/
 
-lissajous_traj_t::lissajous_traj_t(const timestamp_t ts_start_,
+lissajous_traj_t::lissajous_traj_t(const std::string &traj_type_,
+                                   const timestamp_t ts_start_,
                                    const real_t R_,
                                    const real_t A_,
                                    const real_t B_,
                                    const real_t T_)
-    : R{R_}, A{A_}, B{B_}, T{T_}, ts_start{ts_start_}, ts_end{ts_start_ +
-                                                              sec2ts(T)} {
-  R = 1.5;
-  A = 1.0;
-  B = 0.5;
-  T = 3.0;
-  f = 1.0 / T;
-  w = 2.0 * M_PI * f;
-
+    : traj_type{traj_type_}, R{R_}, A{A_}, B{B_}, T{T_}, ts_start{ts_start_},
+      f{1.0 / T}, w{2.0 * M_PI * f} {
   // Trajectory type
   // -- Figure 8
   if (traj_type == "figure8") {
@@ -403,6 +397,10 @@ void nbt_figure8_trajs(const timestamp_t &ts_start,
                        const mat4_t &T_WF,
                        const mat4_t &T_FO,
                        ctrajs_t &trajs) {
+  UNUSED(cam0_geom);
+  UNUSED(cam0_params);
+  UNUSED(imu_exts);
+
   // Calculate target width and height
   const double tag_rows = target.tag_rows;
   const double tag_cols = target.tag_cols;
@@ -475,13 +473,17 @@ void nbt_figure8_trajs(const timestamp_t &ts_start,
 void nbt_lissajous_trajs(const timestamp_t &ts_start,
                          const timestamp_t &ts_end,
                          const calib_target_t &target,
-                         const camera_geometry_t *cam0_geoms,
+                         const camera_geometry_t *cam0_geom,
                          const camera_params_t *cam0_params,
                          const extrinsics_t *imu_exts,
                          const mat4_t &T_WF,
                          const mat4_t &T_FO,
                          lissajous_trajs_t &trajs) {
-  // Calculate target width and height
+  UNUSED(cam0_geom);
+  UNUSED(cam0_params);
+  UNUSED(imu_exts);
+
+  // Calculate calib width and height
   const double tag_rows = target.tag_rows;
   const double tag_cols = target.tag_cols;
   const double tag_spacing = target.tag_spacing;
@@ -491,8 +493,18 @@ void nbt_lissajous_trajs(const timestamp_t &ts_start,
   const double calib_width = tag_cols * tag_size + spacing_x;
   const double calib_height = tag_rows * tag_size + spacing_y;
 
-  // Target center (Fc) w.r.t. Target origin (F)
-  const vec3_t r_FFc{calib_width / 2.0, calib_height / 2.0, 0.0};
+  // Lissajous parameters
+  const real_t R = 3.0 * std::max(calib_width, calib_height);
+  const real_t A = calib_width;
+  const real_t B = calib_height;
+  const real_t T = 2.0;
+
+  // Add trajectories
+  trajs.emplace_back("figure8", ts_start, R, A, B, T);
+  trajs.emplace_back("vert-pan", ts_start, R, A, B, T);
+  trajs.emplace_back("horiz-pan", ts_start, R, A, B, T);
+  trajs.emplace_back("diag0", ts_start, R, A, B, T);
+  trajs.emplace_back("diag1", ts_start, R, A, B, T);
 }
 
 /** SIMULATION ***************************************************************/

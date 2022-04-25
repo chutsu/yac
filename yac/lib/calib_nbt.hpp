@@ -29,18 +29,18 @@ struct lissajous_traj_t {
   real_t w; // Angular velocity
   real_t phase_offset;
   timestamp_t ts_start;
-  timestamp_t ts_end;
 
   real_t pitch_bound;
   real_t yaw_bound;
 
   lissajous_traj_t() = delete;
-  lissajous_traj_t(const timestamp_t ts_start_,
+  lissajous_traj_t(const std::string &traj_type_,
+                   const timestamp_t ts_start_,
                    const real_t R_,
                    const real_t A_,
                    const real_t B_,
                    const real_t T_);
-  ~lissajous_traj_t();
+  ~lissajous_traj_t() = default;
 
   vec3_t get_position(const timestamp_t ts_k) const;
   mat3_t get_attitude(const timestamp_t ts_k) const;

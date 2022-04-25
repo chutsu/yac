@@ -120,8 +120,6 @@ class LissajousTraj:
     self.A = kwargs.get("A", 1.0)  # Amplitude in x-axis
     self.B = kwargs.get("B", 0.5)  # Amplitude in y-axis
     self.T = kwargs.get("T", 3.0)  # Period - Time it takes to complete [secs]
-
-    # Time
     self.f = 1.0 / self.T
     self.w = 2.0 * pi * self.f
     self.t = np.linspace(0, self.T, 100)

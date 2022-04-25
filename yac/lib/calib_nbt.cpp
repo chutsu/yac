@@ -256,6 +256,184 @@ void nbt_figure8_trajs(const timestamp_t &ts_start,
   trajs.emplace_back(ts_start, ts_end, positions, attitudes);
 }
 
+lisajous_traj_t::lisajous_traj_t() {
+  R = 1.5;
+  A = 1.0;
+  B = 0.5;
+  T = 3.0;
+  f = 1.0 / T;
+  w = 2.0 * M_PI * f;
+
+  // Trajectory type
+  // -- Figure 8
+  if (traj_type == "figure8") {
+    a = 2.0 * M_PI * 1.0;
+    b = 2.0 * M_PI * 2.0;
+    delta = M_PI / 2.0;
+    phase_offset = M_PI / 2.0;
+    yaw_bound = -atan2(A, R);
+    pitch_bound = -atan2(B, R);
+
+  } else if (traj_type == "vert-pan") {
+    a = 2.0 * M_PI * 0.0;
+    b = 2.0 * M_PI * 1.0;
+    delta = 0.0;
+    phase_offset = M_PI / 2.0;
+    yaw_bound = 0.0;
+    pitch_bound = -atan2(B, R);
+  } else if (traj_type == "horiz-pan") {
+    a = 2.0 * M_PI * 1.0;
+    b = 2.0 * M_PI * 0.0;
+    delta = 0.0;
+    phase_offset = 0.0;
+    yaw_bound = atan2(A, R);
+    pitch_bound = 0.0;
+  } else if (traj_type == "diag0") {
+    a = 2.0 * M_PI * 1.0;
+    b = 2.0 * M_PI * 1.0;
+    delta = 0.0;
+    phase_offset = 0.0;
+    yaw_bound = atan2(A, R);
+    pitch_bound = -atan2(B, R);
+  } else if (traj_type == "diag1") {
+    a = 2.0 * M_PI * 1.0;
+    b = 2.0 * M_PI * 1.0;
+    delta = M_PI;
+    phase_offset = 0.0;
+    yaw_bound = -atan2(A, R);
+    pitch_bound = -atan2(B, R);
+  } else {
+    throw std::runtime_error("Implementation Error!");
+  }
+}
+
+vec3_t lisajous_traj_t::get_position(const real_t t) const {
+  const real_t theta = pow(sin(w * t * 1.0 / 4.0), 2);
+  const real_t phi = phase_offset;
+  const real_t x = A * sin(a * theta + delta + phi);
+  const real_t y = B * sin(b * theta);
+  const real_t z = sqrt(R * R - x * x - y * y);
+  return vec3_t{x, y, z};
+}
+
+mat3_t lisajous_traj_t::get_attitude(const real_t t) const {
+  const real_t theta = pow(sin(w * t * 1.0 / 4.0), 2);
+  const real_t att_theta = sin(w * T * theta);
+  const real_t yaw = yaw_bound * att_theta;
+  const real_t pitch = pitch_bound * att_theta;
+  // const mat3_t C_WC = euler321(0.0, yaw, deg2rad(180.0) + pitch);
+  const mat3_t C_WC = euler321(vec3_t{deg2rad(180.0) + pitch, yaw, 0.0});
+
+  return C_WC;
+}
+
+mat4_t lisajous_traj_t::get_pose(const real_t t) const {
+  const mat3_t C_WC = get_attitude(t);
+  const vec3_t r_WC = get_position(t);
+  const mat4_t T_WC = tf(C_WC, r_WC);
+  return T_WC;
+}
+
+vec3_t lisajous_traj_t::get_velocity(const real_t t) const {
+  const real_t phi = phase_offset;
+  const real_t vx = 0.5 * A * a * w * sin(0.25 * t * w) * cos(0.25 * t * w) *
+                    cos(a * pow(sin(0.25 * t * w), 2) + delta + phi);
+  const real_t vy = 0.5 * B * b * w * sin(0.25 * t * w) *
+                    cos(b * pow(sin(0.25 * t * w), 2)) * cos(0.25 * t * w);
+  const real_t vz =
+      (-0.5 * pow(A, 2) * a * w * sin(0.25 * t * w) *
+           sin(a * pow(sin(0.25 * t * w), 2) + delta + phi) *
+           cos(0.25 * t * w) *
+           cos(a * pow(sin(0.25 * t * w), 2) + delta + phi) -
+       0.5 * pow(B, 2) * b * w * sin(b * pow(sin(0.25 * t * w), 2)) *
+           sin(0.25 * t * w) * cos(b * pow(sin(0.25 * t * w), 2)) *
+           cos(0.25 * t * w)) /
+      sqrt(-pow(A, 2) *
+               pow(sin(a * pow(sin(0.25 * t * w), 2) + delta + phi), 2) -
+           pow(B, 2) * pow(sin(b * pow(sin(0.25 * t * w), 2)), 2) + pow(R, 2));
+
+  return vec3_t{vx, vy, vz};
+}
+
+vec3_t lisajous_traj_t::get_acceleration(const real_t t) const {
+  const real_t phi = phase_offset;
+  const real_t ax = A * a * pow(w, 2) *
+                    (-0.03125 * a * (1 - cos(1.0 * t * w)) *
+                         sin(-1.0 / 2.0 * a * cos(0.5 * t * w) +
+                             (1.0 / 2.0) * a + delta + phi) -
+                     0.125 * pow(sin(0.25 * t * w), 2) *
+                         cos(a * pow(sin(0.25 * t * w), 2) + delta + phi) +
+                     0.125 * pow(cos(0.25 * t * w), 2) *
+                         cos(a * pow(sin(0.25 * t * w), 2) + delta + phi));
+  const real_t ay =
+      -0.25 * B * pow(b, 2) * pow(w, 2) * sin(b * pow(sin(0.25 * t * w), 2)) *
+          pow(sin(0.25 * t * w), 2) * pow(cos(0.25 * t * w), 2) -
+      0.125 * B * b * pow(w, 2) * pow(sin(0.25 * t * w), 2) *
+          cos(b * pow(sin(0.25 * t * w), 2)) +
+      0.125 * B * b * pow(w, 2) * cos(b * pow(sin(0.25 * t * w), 2)) *
+          pow(cos(0.25 * t * w), 2);
+  const real_t az =
+      (-0.5 * pow(A, 2) * a * w * sin(0.25 * t * w) *
+           sin(a * pow(sin(0.25 * t * w), 2) + delta + phi) *
+           cos(0.25 * t * w) *
+           cos(a * pow(sin(0.25 * t * w), 2) + delta + phi) -
+       0.5 * pow(B, 2) * b * w * sin(b * pow(sin(0.25 * t * w), 2)) *
+           sin(0.25 * t * w) * cos(b * pow(sin(0.25 * t * w), 2)) *
+           cos(0.25 * t * w)) *
+          (0.5 * pow(A, 2) * a * w * sin(0.25 * t * w) *
+               sin(a * pow(sin(0.25 * t * w), 2) + delta + phi) *
+               cos(0.25 * t * w) *
+               cos(a * pow(sin(0.25 * t * w), 2) + delta + phi) +
+           0.5 * pow(B, 2) * b * w * sin(b * pow(sin(0.25 * t * w), 2)) *
+               sin(0.25 * t * w) * cos(b * pow(sin(0.25 * t * w), 2)) *
+               cos(0.25 * t * w)) /
+          pow(-pow(A, 2) *
+                      pow(sin(a * pow(sin(0.25 * t * w), 2) + delta + phi), 2) -
+                  pow(B, 2) * pow(sin(b * pow(sin(0.25 * t * w), 2)), 2) +
+                  pow(R, 2),
+              3.0 / 2.0) +
+      (0.25 * pow(A, 2) * pow(a, 2) * pow(w, 2) * pow(sin(0.25 * t * w), 2) *
+           pow(sin(a * pow(sin(0.25 * t * w), 2) + delta + phi), 2) *
+           pow(cos(0.25 * t * w), 2) -
+       0.25 * pow(A, 2) * pow(a, 2) * pow(w, 2) * pow(sin(0.25 * t * w), 2) *
+           pow(cos(0.25 * t * w), 2) *
+           pow(cos(a * pow(sin(0.25 * t * w), 2) + delta + phi), 2) +
+       0.125 * pow(A, 2) * a * pow(w, 2) * pow(sin(0.25 * t * w), 2) *
+           sin(a * pow(sin(0.25 * t * w), 2) + delta + phi) *
+           cos(a * pow(sin(0.25 * t * w), 2) + delta + phi) -
+       0.125 * pow(A, 2) * a * pow(w, 2) *
+           sin(a * pow(sin(0.25 * t * w), 2) + delta + phi) *
+           pow(cos(0.25 * t * w), 2) *
+           cos(a * pow(sin(0.25 * t * w), 2) + delta + phi) +
+       0.25 * pow(B, 2) * pow(b, 2) * pow(w, 2) *
+           pow(sin(b * pow(sin(0.25 * t * w), 2)), 2) *
+           pow(sin(0.25 * t * w), 2) * pow(cos(0.25 * t * w), 2) -
+       0.25 * pow(B, 2) * pow(b, 2) * pow(w, 2) * pow(sin(0.25 * t * w), 2) *
+           pow(cos(b * pow(sin(0.25 * t * w), 2)), 2) *
+           pow(cos(0.25 * t * w), 2) +
+       0.125 * pow(B, 2) * b * pow(w, 2) * sin(b * pow(sin(0.25 * t * w), 2)) *
+           pow(sin(0.25 * t * w), 2) * cos(b * pow(sin(0.25 * t * w), 2)) -
+       0.125 * pow(B, 2) * b * pow(w, 2) * sin(b * pow(sin(0.25 * t * w), 2)) *
+           cos(b * pow(sin(0.25 * t * w), 2)) * pow(cos(0.25 * t * w), 2)) /
+          sqrt(-pow(A, 2) *
+                   pow(sin(a * pow(sin(0.25 * t * w), 2) + delta + phi), 2) -
+               pow(B, 2) * pow(sin(b * pow(sin(0.25 * t * w), 2)), 2) +
+               pow(R, 2));
+
+  return vec3_t{ax, ay, az};
+}
+
+vec3_t lisajous_traj_t::get_angular_velocity(const real_t t) const {
+  const real_t wx = 0.0;
+  const real_t wy = 0.5 * w * w * yaw_bound * sin(0.25 * t * w) *
+                    cos(0.25 * t * w) * cos(w * pow(sin(0.25 * t * w), 2) / f) /
+                    f;
+  const real_t wz = 0.5 * pitch_bound * w * w * sin(0.25 * t * w) *
+                    cos(0.25 * t * w) * cos(w * pow(sin(0.25 * t * w), 2) / f) /
+                    f;
+  return vec3_t{wx, wy, wz};
+}
+
 /** SIMULATION ***************************************************************/
 
 aprilgrid_t simulate_aprilgrid(const timestamp_t ts,

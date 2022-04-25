@@ -80,6 +80,37 @@ void nbt_figure8_trajs(const timestamp_t &ts_start,
                        const mat4_t &T_FO,
                        ctrajs_t &trajs);
 
+/**
+ * Lisajous Trajectory
+ */
+struct lisajous_traj_t {
+  std::string traj_type = "figure8";
+
+  real_t R; // Distance from calibration target
+  real_t A; // Amplitude in x-axis
+  real_t B; // Amplitude in y-axis
+  real_t a;
+  real_t b;
+  real_t delta;
+  real_t T; // Period - Time it takes to complete [secs]
+  real_t f; // Frequency
+  real_t w; // Angular velocity
+  real_t phase_offset;
+
+  real_t pitch_bound;
+  real_t yaw_bound;
+
+  lisajous_traj_t();
+  ~lisajous_traj_t();
+
+  vec3_t get_position(const real_t t) const;
+  mat3_t get_attitude(const real_t t) const;
+  mat4_t get_pose(const real_t t) const;
+  vec3_t get_velocity(const real_t t) const;
+  vec3_t get_acceleration(const real_t t) const;
+  vec3_t get_angular_velocity(const real_t t) const;
+};
+
 /** SIMULATION ****************************************************************/
 
 /**

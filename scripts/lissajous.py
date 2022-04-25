@@ -46,12 +46,16 @@ def sympy_diff(gencode=False):
   ay = sympy.diff(vy, t)
   az = sympy.diff(vz, t)
 
-  yaw_start, yaw_end = sympy.symbols("yaw_start yaw_end")
-  pitch_start, pitch_end = sympy.symbols("pitch_start pitch_end")
+  yaw_start = sympy.symbols("yaw_start")
+  pitch_start = sympy.symbols("pitch_start")
 
-  att_theta = sympy.sin(w * t * 1.0 / 2.0 + pi / 4.0)**2
-  yaw = yaw_start * (1.0 - att_theta) + att_theta * yaw_end
-  pitch = pitch_start * (1.0 - att_theta) + att_theta * pitch_end
+  # att_theta = sympy.sin(w * t * 1.0 / 2.0 + pi / 4.0)**2
+  # yaw = yaw_start * (1.0 - att_theta) + att_theta * yaw_end
+  # pitch = pitch_start * (1.0 - att_theta) + att_theta * pitch_end
+
+  att_theta = sympy.sin(w * 1/f * theta)
+  yaw = yaw_start * att_theta
+  pitch = pitch_start * att_theta
 
   att_x = 0.0
   att_y = yaw
@@ -122,7 +126,6 @@ class LissajousTraj:
     self.w = 2.0 * pi * self.f
     self.t = np.linspace(0, self.T, 100)
     self.theta = np.sin(self.w * self.t * 1.0 / 4.0)**2
-    self.att_theta = np.sin(self.w * self.t * 1.0 / 2.0 + pi / 4.0)**2
 
     # Trajectory type
     # -- Figure 8
@@ -131,10 +134,8 @@ class LissajousTraj:
       self.b = 2.0 * pi * 2.0
       self.delta = pi / 2.0
       self.phase_offset = pi / 2.0
-      self.yaw_start = atan2(self.A, self.R)
-      self.yaw_end = -atan2(self.A, self.R)
-      self.pitch_start = atan2(self.B, self.R)
-      self.pitch_end = -atan2(self.B, self.R)
+      self.yaw_start = -atan2(self.A, self.R)
+      self.pitch_start = -atan2(self.B, self.R)
 
     # -- Vertical pan
     elif traj_type == "vert-pan":
@@ -143,9 +144,7 @@ class LissajousTraj:
       self.delta = 0.0
       self.phase_offset = pi / 2.0
       self.yaw_start = 0.0
-      self.yaw_end = 0.0
-      self.pitch_start = atan2(self.B, self.R)
-      self.pitch_end = -atan2(self.B, self.R)
+      self.pitch_start = -atan2(self.B, self.R)
 
     # -- Horizontal pan
     elif traj_type == "horiz-pan":
@@ -153,10 +152,8 @@ class LissajousTraj:
       self.b = 2.0 * pi * 0.0
       self.delta = 0.0
       self.phase_offset = 0.0
-      self.yaw_start = -atan2(self.A, self.R)
-      self.yaw_end = atan2(self.A, self.R)
-      self.pitch_start = atan2(self.B, self.R)
-      self.pitch_end = -atan2(self.B, self.R)
+      self.yaw_start = atan2(self.A, self.R)
+      self.pitch_start = 0.0
 
     # -- Diagonal (bottom left to top right) pan
     elif traj_type == "diag0":
@@ -164,10 +161,8 @@ class LissajousTraj:
       self.b = 2.0 * pi * 1.0
       self.delta = 0.0
       self.phase_offset = 0.0
-      self.yaw_start = -atan2(self.A, self.R)
-      self.yaw_end = atan2(self.A, self.R)
-      self.pitch_start = atan2(self.B, self.R)
-      self.pitch_end = -atan2(self.B, self.R)
+      self.yaw_start = atan2(self.A, self.R)
+      self.pitch_start = -atan2(self.B, self.R)
 
     # -- Diagonal (top left to bottom right) pan
     elif traj_type == "diag1":
@@ -175,10 +170,8 @@ class LissajousTraj:
       self.b = 2.0 * pi * 1.0
       self.delta = pi
       self.phase_offset = 0.0
-      self.yaw_start = atan2(self.A, self.R)
-      self.yaw_end = -atan2(self.A, self.R)
-      self.pitch_start = atan2(self.B, self.R)
-      self.pitch_end = -atan2(self.B, self.R)
+      self.yaw_start = -atan2(self.A, self.R)
+      self.pitch_start = -atan2(self.B, self.R)
 
     else:
       raise RuntimeError(f"Invalid traj_type[{traj_type}]")
@@ -193,10 +186,14 @@ class LissajousTraj:
     return np.array([x, y, z])
 
   def get_attitude(self, t):
-    th = np.sin(self.w * t * 1.0 / 2.0 + pi / 4.0)**2
-    yaw = self.yaw_start * (1.0 - th) + th * self.yaw_end
-    pitch = self.pitch_start * (1.0 - th) + th * self.pitch_end
+    w = 2.0 * pi * self.f
+    theta = sin(w * t * 1.0 / 4.0)**2
+
+    att_theta = np.sin(self.w * self.T * theta)
+    yaw = self.yaw_start * att_theta
+    pitch = self.pitch_start * att_theta
     C_WC = euler321(0.0, yaw, np.deg2rad(180.0) + pitch)
+
     return C_WC
 
   def get_pose(self, t):
@@ -239,10 +236,12 @@ class LissajousTraj:
 
   def get_angular_velocity(self, t):
     w = 2.0 * pi * self.f
+    f = self.f
 
-    wx = 0.0 * np.ones(len(t))
-    wy = 1.0*w*self.yaw_end*np.sin(0.5*t*w + 0.785398163397448)*np.cos(0.5*t*w + 0.785398163397448) - 1.0*w*self.yaw_start*np.sin(0.5*t*w + 0.785398163397448)*np.cos(0.5*t*w + 0.785398163397448)
-    wz = 1.0*w*(self.pitch_end - self.pitch_start)*np.sin(0.5*t*w + 0.78539816339744828)*np.cos(0.5*t*w + 0.78539816339744828)
+    wx = 0.0 * np.ones(len(t)) if type(t) is np.ndarray else 0.0
+    wy = 0.5*w**2*self.yaw_start*np.sin(0.25*t*w)*np.cos(0.25*t*w)*np.cos(w*np.sin(0.25*t*w)**2/f)/f
+    wz = 0.5*self.pitch_start*w**2*np.sin(0.25*t*w)*np.cos(0.25*t*w)*np.cos(w*np.sin(0.25*t*w)**2/f)/f
+
     return np.array([wx, wy, wz])
 
   def plot_xy(self):
@@ -310,6 +309,7 @@ class LissajousTraj:
     ax.set_xlabel("x [m]")
     ax.set_ylabel("y [m]")
     ax.set_zlabel("z [m]")
+    # ax.view_init(elev=0.0, azim=0.0)
     plot_set_axes_equal(ax)
 
     # Setup ffmegwriter
@@ -320,7 +320,7 @@ class LissajousTraj:
 
     # Draw camera poses
     for idx, t in enumerate(self.t):
-      if save_anim is False and idx % (len(self.att_theta) * 0.05) == 0:
+      if save_anim is False and idx % (len(self.att_theta) * 0.02) == 0:
         continue
 
       T_WC = self.get_pose(t)
@@ -337,30 +337,6 @@ class LissajousTraj:
 # Main
 traj = LissajousTraj("figure8")
 # traj.plot_3d(save_path="traj-figure8.mp4", save_anim=True)
-# traj.plot_xyz()
-# plt.show()
-
-# roll = []
-# pitch = []
-# yaw = []
-# for t in traj.t:
-#   C_WC = traj.get_attitude(t)
-#   r, p, y= rot2euler(C_WC)
-#   roll.append(r)
-#   pitch.append(p)
-#   yaw.append(y)
-
-# plt.subplot(211)
-# plt.plot(traj.t, roll, 'r-', label='roll')
-# plt.plot(traj.t, pitch, 'g-', label='pitch')
-# plt.plot(traj.t, yaw, 'b-', label='yaw')
-
-ang_vels = traj.get_angular_velocity(traj.t)
-plt.subplot(212)
-plt.plot(traj.t, ang_vels[0, :], 'r-', label="wx")
-plt.plot(traj.t, ang_vels[1, :], 'g-', label="wy")
-plt.plot(traj.t, ang_vels[2, :], 'b-', label="wy")
-plt.show()
 
 # traj = LissajousTraj("vert-pan")
 # traj.plot_3d(save_path="traj-vert.mp4", save_anim=True)
@@ -373,3 +349,18 @@ plt.show()
 
 # traj = LissajousTraj("diag1")
 # traj.plot_3d(save_path="traj-diag1.mp4", save_anim=True)
+
+# traj.plot_xyz()
+# plt.show()
+
+# plt.subplot(211)
+# plt.plot(traj.t, roll, 'r-', label='roll')
+# plt.plot(traj.t, pitch, 'g-', label='pitch')
+# plt.plot(traj.t, yaw, 'b-', label='yaw')
+
+# ang_vels = traj.get_angular_velocity(traj.t)
+# plt.subplot(212)
+# plt.plot(traj.t, ang_vels[0, :], 'r-', label="wx")
+# plt.plot(traj.t, ang_vels[1, :], 'g-', label="wy")
+# plt.plot(traj.t, ang_vels[2, :], 'b-', label="wy")
+# plt.show()

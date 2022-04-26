@@ -13,6 +13,7 @@ from numpy import cos
 from numpy import sqrt
 
 from proto import tf
+from proto import tf_trans
 from proto import plot_tf
 from proto import plot_set_axes_equal
 from proto import lookat
@@ -21,7 +22,6 @@ from proto import rot2euler
 
 
 # Use Sympy to calcualte jacobians
-
 def sympy_diff(gencode=False):
   import sympy
   from sympy import ccode
@@ -125,7 +125,6 @@ class LissajousTraj:
     self.f = 1.0 / self.T
     self.w = 2.0 * pi * self.f
     self.t = np.linspace(0, self.T, 100)
-    self.theta = np.sin(self.w * self.t * 1.0 / 4.0)**2
 
     # Trajectory type
     # -- Figure 8
@@ -176,31 +175,24 @@ class LissajousTraj:
     else:
       raise RuntimeError(f"Invalid traj_type[{traj_type}]")
 
-  def get_position(self, t):
+  def get_pose(self, t):
     w = 2.0 * pi * self.f
     theta = sin(w * t * 1.0 / 4.0)**2
+
+    # Rotation
+    att_theta = np.sin(self.w * self.T * theta)
+    yaw = self.yaw_start * att_theta
+    pitch = self.pitch_start * att_theta
+    C_OC = euler321(0.0, yaw, np.deg2rad(180.0) + pitch)
+
+    # Position
     phi = self.phase_offset
     x = self.A * sin(self.a * theta + self.delta + phi)
     y = self.B * sin(self.b * theta)
     z = sqrt(self.R**2 - x**2 - y**2)
-    return np.array([x, y, z])
+    r_OC = np.array([x, y, z])
 
-  def get_attitude(self, t):
-    w = 2.0 * pi * self.f
-    theta = sin(w * t * 1.0 / 4.0)**2
-
-    att_theta = np.sin(self.w * self.T * theta)
-    yaw = self.yaw_start * att_theta
-    pitch = self.pitch_start * att_theta
-    C_WC = euler321(0.0, yaw, np.deg2rad(180.0) + pitch)
-
-    return C_WC
-
-  def get_pose(self, t):
-    C_WC = self.get_attitude(t)
-    r_WC = self.get_position(t)
-    T_WC = tf(C_WC, r_WC)
-    return T_WC
+    return tf(C_OC, r_OC)
 
   def get_velocity(self, t):
     A = self.A
@@ -297,15 +289,18 @@ class LissajousTraj:
     # Setup
     save_anim = kwargs.get("save_anim", False)
     save_path = kwargs.get("save_path", "traj.mp4")
-    positions = self.get_position(self.t)
-    x = positions[0, :]
-    y = positions[1, :]
-    z = positions[2, :]
+
+    # Get positions
+    positions = []
+    for t in self.t:
+      T_OC = self.get_pose(t)
+      positions.append(tf_trans(T_OC))
+    positions = np.array(positions)
 
     # Create figure
     fig = plt.figure()
     ax = plt.axes(projection='3d')
-    ax.plot3D(*positions)
+    ax.plot3D(positions[:, 0], positions[:, 1], positions[:, 2])
     ax.set_xlabel("x [m]")
     ax.set_ylabel("y [m]")
     ax.set_zlabel("z [m]")
@@ -320,7 +315,7 @@ class LissajousTraj:
 
     # Draw camera poses
     for idx, t in enumerate(self.t):
-      if save_anim is False and idx % (len(self.att_theta) * 0.02) == 0:
+      if save_anim is False and idx % (len(self.t) * 0.02) == 0:
         continue
 
       T_WC = self.get_pose(t)
@@ -336,6 +331,8 @@ class LissajousTraj:
 
 # Main
 traj = LissajousTraj("figure8")
+traj.plot_3d()
+plt.show()
 # traj.plot_3d(save_path="traj-figure8.mp4", save_anim=True)
 
 # traj = LissajousTraj("vert-pan")

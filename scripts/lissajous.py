@@ -261,6 +261,16 @@ class LissajousTraj:
 
     return w_WC
 
+  def get_body_acceleration(self, T_WC, t):
+    C_WC = tf_rot(T_WC)
+    a_WC = self.get_acceleration(t)
+    return C_WC.T @ a_WC
+
+  def get_body_angular_velocity(self, T_WC, t):
+    C_WC = tf_rot(T_WC)
+    w_WC = self.get_angular_velocity(t)
+    return C_WC.T @ w_WC
+
   def plot_xy(self):
     positions = self.get_position(self.t)
 

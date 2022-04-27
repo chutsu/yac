@@ -6,12 +6,14 @@ namespace yac {
 
 lissajous_traj_t::lissajous_traj_t(const std::string &traj_type_,
                                    const timestamp_t ts_start_,
+                                   const mat4_t &T_WF_,
+                                   const mat4_t &T_FO_,
                                    const real_t R_,
                                    const real_t A_,
                                    const real_t B_,
                                    const real_t T_)
-    : traj_type{traj_type_}, R{R_}, A{A_}, B{B_}, T{T_}, ts_start{ts_start_},
-      f{1.0 / T}, w{2.0 * M_PI * f} {
+    : traj_type{traj_type_}, ts_start{ts_start_}, T_WF{T_WF_}, T_FO{T_FO_},
+      R{R_}, A{A_}, B{B_}, T{T_}, f{1.0 / T}, w{2.0 * M_PI * f} {
   // Trajectory type
   // -- Figure 8
   if (traj_type == "figure8") {
@@ -29,6 +31,7 @@ lissajous_traj_t::lissajous_traj_t(const std::string &traj_type_,
     phase_offset = M_PI / 2.0;
     yaw_bound = 0.0;
     pitch_bound = -atan2(B, R);
+
   } else if (traj_type == "horiz-pan") {
     a = 2.0 * M_PI * 1.0;
     b = 2.0 * M_PI * 0.0;
@@ -36,6 +39,7 @@ lissajous_traj_t::lissajous_traj_t(const std::string &traj_type_,
     phase_offset = 0.0;
     yaw_bound = atan2(A, R);
     pitch_bound = 0.0;
+
   } else if (traj_type == "diag0") {
     a = 2.0 * M_PI * 1.0;
     b = 2.0 * M_PI * 1.0;
@@ -43,6 +47,7 @@ lissajous_traj_t::lissajous_traj_t(const std::string &traj_type_,
     phase_offset = 0.0;
     yaw_bound = atan2(A, R);
     pitch_bound = -atan2(B, R);
+
   } else if (traj_type == "diag1") {
     a = 2.0 * M_PI * 1.0;
     b = 2.0 * M_PI * 1.0;
@@ -50,6 +55,7 @@ lissajous_traj_t::lissajous_traj_t(const std::string &traj_type_,
     phase_offset = 0.0;
     yaw_bound = -atan2(A, R);
     pitch_bound = -atan2(B, R);
+
   } else {
     throw std::runtime_error("Implementation Error!");
   }
@@ -497,14 +503,14 @@ void nbt_lissajous_trajs(const timestamp_t &ts_start,
   const real_t R = 3.0 * std::max(calib_width, calib_height);
   const real_t A = calib_width;
   const real_t B = calib_height;
-  const real_t T = 2.0;
+  const real_t T = ts2sec(ts_end - ts_start);
 
   // Add trajectories
-  trajs.emplace_back("figure8", ts_start, R, A, B, T);
-  trajs.emplace_back("vert-pan", ts_start, R, A, B, T);
-  trajs.emplace_back("horiz-pan", ts_start, R, A, B, T);
-  trajs.emplace_back("diag0", ts_start, R, A, B, T);
-  trajs.emplace_back("diag1", ts_start, R, A, B, T);
+  trajs.emplace_back("figure8", ts_start, T_WF, T_FO, R, A, B, T);
+  trajs.emplace_back("vert-pan", ts_start, T_WF, T_FO, R, A, B, T);
+  trajs.emplace_back("horiz-pan", ts_start, T_WF, T_FO, R, A, B, T);
+  trajs.emplace_back("diag0", ts_start, T_WF, T_FO, R, A, B, T);
+  trajs.emplace_back("diag1", ts_start, T_WF, T_FO, R, A, B, T);
 }
 
 /** SIMULATION ***************************************************************/

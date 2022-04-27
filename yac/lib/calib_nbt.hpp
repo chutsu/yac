@@ -16,6 +16,9 @@ namespace yac {
  */
 struct lissajous_traj_t {
   const std::string traj_type = "figure8";
+  const timestamp_t ts_start;
+  const mat4_t T_WF;
+  const mat4_t T_FO;
 
   real_t R;     // Distance from calibration target
   real_t A;     // Amplitude in x-axis
@@ -28,7 +31,6 @@ struct lissajous_traj_t {
   real_t f; // Frequency
   real_t w; // Angular velocity
   real_t phase_offset;
-  timestamp_t ts_start;
 
   real_t pitch_bound;
   real_t yaw_bound;
@@ -36,6 +38,8 @@ struct lissajous_traj_t {
   lissajous_traj_t() = delete;
   lissajous_traj_t(const std::string &traj_type_,
                    const timestamp_t ts_start_,
+                   const mat4_t &T_WF_,
+                   const mat4_t &T_FO_,
                    const real_t R_,
                    const real_t A_,
                    const real_t B_,

@@ -21,6 +21,10 @@ from proto import lookat
 from proto import Exp
 from proto import euler321
 from proto import rot2euler
+from proto import rot2quat
+from proto import quat2rot
+from proto import quat_mul
+from proto import quat_normalize
 from proto import AprilGrid
 
 
@@ -35,6 +39,7 @@ def sympy_diff(gencode=False):
   R = sympy.symbols("R")
   w = sympy.symbols("w")   # w = 2.0 * pi * f
 
+  T = 1.0 / f
   theta = sympy.sin(w * t * 1.0 / 4.0)**2
   x = A * sympy.sin(a * theta + delta)
   y = B * sympy.sin(b * theta)
@@ -48,20 +53,13 @@ def sympy_diff(gencode=False):
   ay = sympy.diff(vy, t)
   az = sympy.diff(vz, t)
 
-  yaw_start = sympy.symbols("yaw_start")
-  pitch_start = sympy.symbols("pitch_start")
+  yaw_bound = sympy.symbols("yaw_bound")
+  pitch_bound = sympy.symbols("pitch_bound")
+  psi = sympy.symbols("psi")
 
-  # att_theta = sympy.sin(w * t * 1.0 / 2.0 + pi / 4.0)**2
-  # yaw = yaw_start * (1.0 - att_theta) + att_theta * yaw_end
-  # pitch = pitch_start * (1.0 - att_theta) + att_theta * pitch_end
-
-  att_theta = sympy.sin(w * 1/f * theta)
-  yaw = yaw_start * att_theta
-  pitch = pitch_start * att_theta
-
-  att_x = 0.0
-  att_y = yaw
-  att_z = np.deg2rad(180.0) + pitch
+  att_x = pi + pitch_bound * sympy.sin(psi * w * T * theta)
+  att_y = yaw_bound * sympy.sin(w * T * theta)
+  att_z = 0.0
 
   wx = sympy.diff(att_x, t)
   wy = sympy.diff(att_y, t)
@@ -128,7 +126,7 @@ class LissajousTraj:
     self.T = kwargs.get("T", 3.0)  # Period - Time it takes to complete [secs]
     self.f = 1.0 / self.T
     self.w = 2.0 * pi * self.f
-    self.t = np.linspace(0, self.T, 100)
+    self.t = np.linspace(0, self.T, 250)
 
     # Trajectory type
     # -- Figure 8
@@ -137,8 +135,8 @@ class LissajousTraj:
       self.b = 2.0 * pi * 2.0
       self.delta = pi
       self.psi = 2.0
-      self.yaw_start = -atan2(self.A, self.R)
-      self.pitch_start = -atan2(self.B, self.R)
+      self.yaw_bound = -atan2(self.A, self.R)
+      self.pitch_bound = -atan2(self.B, self.R)
 
     # -- Vertical pan
     elif traj_type == "vert-pan":
@@ -146,8 +144,8 @@ class LissajousTraj:
       self.b = 2.0 * pi * 1.0
       self.delta = 0.0
       self.psi = 1.0
-      self.yaw_start = 0.0
-      self.pitch_start = -atan2(self.B, self.R)
+      self.yaw_bound = 0.0
+      self.pitch_bound = -atan2(self.B, self.R)
 
     # -- Horizontal pan
     elif traj_type == "horiz-pan":
@@ -155,8 +153,8 @@ class LissajousTraj:
       self.b = 2.0 * pi * 0.0
       self.delta = 0.0
       self.psi = 1.0
-      self.yaw_start = atan2(self.A, self.R)
-      self.pitch_start = 0.0
+      self.yaw_bound = atan2(self.A, self.R)
+      self.pitch_bound = 0.0
 
     # -- Diagonal (bottom left to top right) pan
     elif traj_type == "diag0":
@@ -164,8 +162,8 @@ class LissajousTraj:
       self.b = 2.0 * pi * 1.0
       self.delta = 0.0
       self.psi = 1.0
-      self.yaw_start = atan2(self.A, self.R)
-      self.pitch_start = -atan2(self.B, self.R)
+      self.yaw_bound = atan2(self.A, self.R)
+      self.pitch_bound = -atan2(self.B, self.R)
 
     # -- Diagonal (top left to bottom right) pan
     elif traj_type == "diag1":
@@ -173,8 +171,8 @@ class LissajousTraj:
       self.b = 2.0 * pi * 1.0
       self.delta = pi
       self.psi = 1.0
-      self.yaw_start = -atan2(self.A, self.R)
-      self.pitch_start = -atan2(self.B, self.R)
+      self.yaw_bound = -atan2(self.A, self.R)
+      self.pitch_bound = -atan2(self.B, self.R)
 
     else:
       raise RuntimeError(f"Invalid traj_type[{traj_type}]")
@@ -187,8 +185,8 @@ class LissajousTraj:
     # Rotation
     att_theta_yaw = np.sin(self.w * self.T * theta)
     att_theta_pitch = np.sin(self.psi * self.w * self.T * theta)
-    yaw = self.yaw_start * att_theta_yaw
-    pitch = self.pitch_start * att_theta_pitch
+    yaw = self.yaw_bound * att_theta_yaw
+    pitch = self.pitch_bound * att_theta_pitch
     C_OC = euler321(0.0, yaw, np.deg2rad(180.0) + pitch)
 
     # Position
@@ -248,12 +246,20 @@ class LissajousTraj:
   def get_angular_velocity(self, t):
     w = 2.0 * pi * self.f
     f = self.f
+    psi = self.psi
 
-    wx = 0.0 * np.ones(len(t)) if type(t) is np.ndarray else 0.0
-    wy = 0.5*w**2*self.yaw_start*np.sin(0.25*t*w)*np.cos(0.25*t*w)*np.cos(w*np.sin(0.25*t*w)**2/f)/f
-    wz = 0.5*self.pitch_start*w**2*np.sin(0.25*t*w)*np.cos(0.25*t*w)*np.cos(w*np.sin(0.25*t*w)**2/f)/f
+    wx = 0.5*self.pitch_bound*psi*w**2*np.sin(0.25*t*w)*np.cos(0.25*t*w)*np.cos(1.0*psi*w*np.sin(0.25*t*w)**2/f)/f
+    wy = 0.5*w**2*self.yaw_bound*np.sin(0.25*t*w)*np.cos(0.25*t*w)*np.cos(1.0*w*np.sin(0.25*t*w)**2/f)/f
+    wz = 0
 
-    return np.array([wx, wy, wz])
+    w_OC = np.array([wx, wy, wz])
+
+    # Transform velocity from calib origin frame (O) to world frame (W)
+    T_WO = self.T_WF @ self.T_FO
+    C_WO = tf_rot(T_WO)
+    w_WC = C_WO @ w_OC
+
+    return w_WC
 
   def plot_xy(self):
     positions = self.get_position(self.t)
@@ -442,26 +448,108 @@ def test_acceleration():
   plt.show()
 
 
-def test_angular_velocity():
+def test_integration():
   # Test angular_velocity
   traj = LissajousTraj("figure8", T_WF)
 
   # -- Integrate angular velocity
-  T_WC = traj.get_pose(traj.t[0])
-  C_WC = tf_rot(T_WC)
+  r_WC = tf_trans(traj.get_pose(traj.t[0]))
+  v_WC = traj.get_velocity(traj.t[0])
+  C_WC = tf_rot(traj.get_pose(traj.t[0]))
+  a_WC = traj.get_acceleration(traj.t[0])
+  w_WC = traj.get_angular_velocity(traj.t[0])
+  a_C_WC = C_WC.T @ a_WC
+  w_C_WC = C_WC.T @ w_WC
   dt = np.diff(traj.t)[0]
 
-  euler_est = [rot2euler(C_WC)]
-  euler_gnd = [rot2euler(C_WC)]
+  pos_est = [r_WC]
+  pos_gnd = [r_WC]
+
+  euler_est = [np.flip(rot2euler(C_WC), 0)]
+  euler_gnd = [np.flip(rot2euler(C_WC), 0)]
+  angle_diff = [0.0]
   for t in traj.t[1:]:
+    # Transform acceleration from world to body frame
+    a_WC = traj.get_acceleration(t)
+    a_C_WC = C_WC.T @ a_WC
+
+    # Transform angular velocity from world to body frame
     w_WC = traj.get_angular_velocity(t)
-    C_WC = C_WC @ Exp(w_WC * dt)
-    euler_est.append(rot2euler(C_WC))
-    euler_gnd.append(rot2euler(tf_rot(traj.get_pose(t))))
+    w_C_WC = C_WC.T @ w_WC
+
+    # Integrate
+    r_WC = r_WC + (v_WC * dt) + (0.5 * C_WC @ a_C_WC * dt**2)
+    v_WC = v_WC + (C_WC @ a_C_WC * dt)
+    C_WC = C_WC @ Exp(w_C_WC * dt)
+
+    r_WC_gnd = tf_trans(traj.get_pose(t))
+    C_WC_gnd = tf_rot(traj.get_pose(t))
+
+    dC = C_WC_gnd.T @ C_WC
+    ddeg = np.rad2deg(np.arccos((np.trace(dC) - 1.0) / 2.0))
+    angle_diff.append(ddeg)
+
+    pos_est.append(r_WC)
+    pos_gnd.append(r_WC_gnd)
+    euler_est.append(np.flip(rot2euler(C_WC), 0))
+    euler_gnd.append(np.flip(rot2euler(C_WC_gnd), 0))
+
+  pos_est = np.array(pos_est)
+  pos_gnd = np.array(pos_gnd)
   euler_est = np.array(euler_est)
   euler_gnd = np.array(euler_gnd)
 
-  # -- Plot integrated velocity
+  # -- Plot 3D
+  save_anim = False
+  save_path = "test_angular_velocity.mp4"
+  show_plot = not save_anim
+
+  poses = []
+  positions = []
+  for idx, (pos, euler) in enumerate(zip(pos_est, euler_est)):
+    C_WC = euler321(*np.flip(euler, 0))
+    r_WC = pos
+    T_WC = tf(C_WC, r_WC)
+    poses.append(T_WC)
+    positions.append(r_WC)
+  poses = np.array(poses)
+  positions = np.array(positions)
+
+  fig = plt.figure()
+  ax = plt.axes(projection='3d')
+  ax.plot3D(positions[:, 0], positions[:, 1], positions[:, 2])
+  ax.set_xlabel("x [m]")
+  ax.set_ylabel("y [m]")
+  ax.set_zlabel("z [m]")
+  ax.view_init(elev=0.0, azim=0.0)
+  # ax.view_init(elev=30.0, azim=-30.0)
+  plot_set_axes_equal(ax)
+
+  # Setup ffmegwriter
+  writer = None
+  if save_anim:
+    writer = animation.FFMpegWriter(fps=30)
+    writer.setup(fig, save_path, 100)
+
+  # Draw camera poses
+  skip_every = int(len(poses) * 0.1)
+  for idx, T_WC in enumerate(poses):
+    if save_anim is False and idx % skip_every != 0:
+      continue
+
+    tf_data = plot_tf(ax, T_WC, name="T_WC", size=0.05)
+    if save_anim:
+      writer.grab_frame()
+      ax.lines.remove(tf_data[0])
+      ax.lines.remove(tf_data[1])
+      ax.lines.remove(tf_data[2])
+      ax.texts.remove(tf_data[3])
+
+  if show_plot:
+    plt.show()
+
+  # -- Plot Attitude
+  fig = plt.figure()
   plt.subplot(311)
   plt.plot(traj.t, np.rad2deg(euler_est[:, 0]), 'r-')
   plt.plot(traj.t, np.rad2deg(euler_gnd[:, 0]), 'r--')
@@ -482,8 +570,13 @@ def test_angular_velocity():
 
   plt.subplots_adjust(top=0.9, right=0.95, hspace=0.7)
   plt.suptitle("Test Integrate Inertial Angular Velocity")
-  plt.show()
 
+  fig = plt.figure()
+  plt.plot(traj.t, angle_diff)
+  plt.xlabel("Time [s]")
+  plt.ylabel("Angle Difference [deg]")
+
+  plt.show()
 
 # Fiducial target pose in world frame
 r_WF = np.array([0.0, 0.0, 0.0])
@@ -506,6 +599,6 @@ T_WF = tf(C_WF, r_WF)
 # traj.plot_3d(save_path="traj-diag1.mp4", save_anim=True)
 
 # Tests
-test_velocity()
-test_acceleration()
-# test_angular_velocity()
+# test_velocity()
+# test_acceleration()
+test_integration()

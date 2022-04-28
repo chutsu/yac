@@ -1144,9 +1144,9 @@ mat3_t euler123(const vec3_t &euler) {
 
 mat3_t euler321(const vec3_t &euler) {
   // i.e. ZYX rotation sequence (world to body)
-  const real_t phi = euler(0);
-  const real_t theta = euler(1);
-  const real_t psi = euler(2);
+  const real_t phi = euler.x();
+  const real_t theta = euler.y();
+  const real_t psi = euler.z();
 
   const real_t R11 = cos(psi) * cos(theta);
   const real_t R21 = sin(psi) * cos(theta);

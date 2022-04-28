@@ -108,7 +108,7 @@ def sympy_diff(gencode=False):
   print("")
 
 
-# sympy_diff()
+# sympy_diff(True)
 # exit(0)
 
 
@@ -458,25 +458,50 @@ class LissajousTraj:
 
 def test_velocity():
   """ Test velocity """
-  traj = LissajousTraj("figure8", T_WF)
+  traj = LissajousTraj("vert-pan", T_WF)
 
   # -- Integrate velocity
   T_WS = traj.get_pose(traj.t[0])
   r_WS = tf_trans(T_WS)
+  v_WS = traj.get_velocity(0)
   dt = np.diff(traj.t)[0]
 
   pos_est = [r_WS]
   pos_gnd = [r_WS]
+  vel_gnd = [v_WS]
   for t in traj.t[1:]:
     T_WS = traj.get_pose(t)
     v_WS = traj.get_velocity(t)
     r_WS = r_WS + v_WS * dt
     pos_est.append(r_WS)
     pos_gnd.append(tf_trans(T_WS))
+    vel_gnd.append(v_WS)
   pos_est = np.array(pos_est)
   pos_gnd = np.array(pos_gnd)
+  vel_gnd = np.array(vel_gnd)
+
+  # -- Plot input velocity
+  plt.figure()
+  plt.subplot(311)
+  plt.plot(traj.t, vel_gnd[:, 0], 'r-')
+  plt.xlabel("Time [s]")
+  plt.ylabel("Velocity [m/s]")
+
+  plt.subplot(312)
+  plt.plot(traj.t, vel_gnd[:, 1], 'g-')
+  plt.xlabel("Time [s]")
+  plt.ylabel("Velocity [m/s]")
+
+  plt.subplot(313)
+  plt.plot(traj.t, vel_gnd[:, 2], 'b-')
+  plt.xlabel("Time [s]")
+  plt.ylabel("Velocity [m/s]")
+
+  plt.subplots_adjust(top=0.9, right=0.95, hspace=0.7)
+  plt.suptitle("Velocity")
 
   # -- Plot integrated velocity
+  plt.figure()
   plt.subplot(311)
   plt.plot(traj.t, pos_est[:, 0], 'r-')
   plt.plot(traj.t, pos_gnd[:, 0], 'r--')
@@ -547,7 +572,7 @@ def test_acceleration():
 
 def test_integration():
   """ Test angular_velocity """
-  traj = LissajousTraj("figure8", T_WF)
+  traj = LissajousTraj("vert-pan", T_WF)
 
   # Integrate angular velocity
   r_WS = tf_trans(traj.get_pose(traj.t[0]))
@@ -565,6 +590,10 @@ def test_integration():
   euler_est = [np.flip(rot2euler(C_WS), 0)]
   euler_gnd = [np.flip(rot2euler(C_WS), 0)]
   angle_diff = [0.0]
+
+  acc = [traj.get_acceleration(0)]
+  ang_vel = [traj.get_angular_velocity(0)]
+
   for t in traj.t[1:]:
     r_WS_gnd = tf_trans(traj.get_pose(t))
     C_WS_gnd = tf_rot(traj.get_pose(t))
@@ -572,10 +601,12 @@ def test_integration():
     # Transform acceleration from world to body frame
     a_WS = traj.get_acceleration(t)
     a_C_WS = C_WS.T @ a_WS
+    acc.append(a_WS)
 
     # Transform angular velocity from world to body frame
     w_WS = traj.get_angular_velocity(t)
     w_C_WS = C_WS.T @ w_WS
+    ang_vel.append(w_WS)
 
     # Integrate
     r_WS = r_WS + (v_WS * dt) + (0.5 * C_WS @ a_C_WS * dt**2)
@@ -595,6 +626,18 @@ def test_integration():
   pos_gnd = np.array(pos_gnd)
   euler_est = np.array(euler_est)
   euler_gnd = np.array(euler_gnd)
+  acc = np.array(acc)
+  ang_vel = np.array(ang_vel)
+
+  # plt.figure()
+  # plt.subplot(311)
+  # plt.plot(traj.t, ang_vel[:, 0], 'r-')
+  # plt.subplot(312)
+  # plt.plot(traj.t, ang_vel[:, 1], 'g-')
+  # plt.subplot(313)
+  # plt.plot(traj.t, ang_vel[:, 2], 'b-')
+  # plt.show()
+  # exit()
 
   # -- Plot 3D
   save_anim = False
@@ -683,22 +726,22 @@ r_WF = np.array([0.0, 0.0, 0.0])
 C_WF = euler321(np.deg2rad(-90.0), 0.0, np.deg2rad(90.0))
 T_WF = tf(C_WF, r_WF)
 
-traj = LissajousTraj("figure8", T_WF)
-traj.plot_3d(save_path="traj-figure8.mp4", save_anim=True)
+# traj = LissajousTraj("figure8", T_WF)
+# traj.plot_3d(save_path="traj-figure8.mp4", save_anim=True)
 
-traj = LissajousTraj("vert-pan", T_WF)
-traj.plot_3d(save_path="traj-vert.mp4", save_anim=True)
+# traj = LissajousTraj("vert-pan", T_WF)
+# traj.plot_3d(save_path="traj-vert.mp4", save_anim=True)
 
-traj = LissajousTraj("horiz-pan", T_WF)
-traj.plot_3d(save_path="traj-horiz.mp4", save_anim=True)
+# traj = LissajousTraj("horiz-pan", T_WF)
+# traj.plot_3d(save_path="traj-horiz.mp4", save_anim=True)
 
-traj = LissajousTraj("diag0", T_WF)
-traj.plot_3d(save_path="traj-diag0.mp4", save_anim=True)
+# traj = LissajousTraj("diag0", T_WF)
+# traj.plot_3d(save_path="traj-diag0.mp4", save_anim=True)
 
-traj = LissajousTraj("diag1", T_WF)
-traj.plot_3d(save_path="traj-diag1.mp4", save_anim=True)
+# traj = LissajousTraj("diag1", T_WF)
+# traj.plot_3d(save_path="traj-diag1.mp4", save_anim=True)
 
 # Tests
-test_velocity()
-test_acceleration()
+# test_velocity()
+# test_acceleration()
 test_integration()

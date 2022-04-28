@@ -22,8 +22,11 @@ ax = plt.axes(projection='3d')
 
 plot_tf(ax, T_WF, name="T_WF", size=0.1)
 for traj_path in glob.glob("/tmp/nbt/traj/*.csv"):
+  idx = 0
   for ts, pose in load_poses(traj_path):
-    plot_tf(ax, pose, size=0.1)
+    if idx % 20 == 0:
+      plot_tf(ax, pose, size=0.1)
+    idx += 1
 
 ax.set_xlabel("x [m]")
 ax.set_ylabel("y [m]")

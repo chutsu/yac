@@ -189,19 +189,19 @@ class LissajousTraj:
     # Rotation
     pitch = self.pitch_bound * np.sin(self.psi * self.w * self.T * theta)
     yaw = self.yaw_bound * np.sin(self.w * self.T * theta)
-    C_OC = euler321(0.0, yaw, np.deg2rad(180.0) + pitch)
+    C_OS = euler321(0.0, yaw, np.deg2rad(180.0) + pitch)
 
     # Position
     x = self.A * np.sin(self.a * theta + self.delta)
     y = self.B * np.sin(self.b * theta)
     z = np.sqrt(self.R**2 - x**2 - y**2)
-    r_OC = np.array([x, y, z])
+    r_OS = np.array([x, y, z])
 
     # Form pose
-    T_OC = tf(C_OC, r_OC)
-    T_WC = self.T_WF @ self.T_FO @ T_OC
+    T_OS = tf(C_OS, r_OS)
+    T_WS = self.T_WF @ self.T_FO @ T_OS
 
-    return T_WC
+    return T_WS
 
   def get_velocity(self, t):
     """ Return velocity """
@@ -227,14 +227,14 @@ class LissajousTraj:
               pow(np.sin(a * pow(np.sin(0.25 * t * w), 2) + delta), 2) -
               pow(B, 2) * pow(np.sin(b * pow(np.sin(0.25 * t * w), 2)), 2) +
               pow(R, 2))
-    v_OC = np.array([vx, vy, vz])
+    v_OS = np.array([vx, vy, vz])
 
     # Transform velocity from calib origin frame (O) to world frame (W)
     T_WO = self.T_WF @ self.T_FO
     C_WO = tf_rot(T_WO)
-    v_WC = C_WO @ v_OC
+    v_WS = C_WO @ v_OS
 
-    return v_WC
+    return v_WS
 
   def get_acceleration(self, t):
     """ Return acceleration """
@@ -307,14 +307,14 @@ class LissajousTraj:
                   pow(np.sin(a * pow(np.sin(0.25 * t * w), 2) + delta), 2) -
                   pow(B, 2) * pow(np.sin(b * pow(np.sin(0.25 * t * w), 2)), 2) +
                   pow(R, 2))
-    a_OC = np.array([ax, ay, az])
+    a_OS = np.array([ax, ay, az])
 
     # Transform velocity from calib origin frame (O) to world frame (W)
     T_WO = self.T_WF @ self.T_FO
     C_WO = tf_rot(T_WO)
-    a_WC = C_WO @ a_OC
+    a_WS = C_WO @ a_OS
 
-    return a_WC
+    return a_WS
 
   def get_angular_velocity(self, t):
     """ Return angular velocity """
@@ -327,21 +327,21 @@ class LissajousTraj:
     wy = 0.5 * self.yaw_bound * w**2 * np.sin(0.25 * t * w) * np.cos(
         0.25 * t * w) * np.cos(1.0 * w * np.sin(0.25 * t * w)**2 / f) / f
     wz = 0.0
-    w_OC = np.array([wx, wy, wz])
+    w_OS = np.array([wx, wy, wz])
 
     # Transform velocity from calib origin frame (O) to world frame (W)
     T_WO = self.T_WF @ self.T_FO
     C_WO = tf_rot(T_WO)
-    w_WC = C_WO @ w_OC
+    w_WS = C_WO @ w_OS
 
-    return w_WC
+    return w_WS
 
   def plot_xy(self):
     """ Plot XY """
     positions = []
     for t in self.t:
-      T_WC = self.get_pose(t)
-      positions.append(tf_trans(T_WC))
+      T_WS = self.get_pose(t)
+      positions.append(tf_trans(T_WS))
     positions = np.array(positions)
 
     plt.figure()
@@ -414,8 +414,8 @@ class LissajousTraj:
     # Get positions
     positions = []
     for t in self.t:
-      T_OC = self.get_pose(t)
-      positions.append(tf_trans(T_OC))
+      T_OS = self.get_pose(t)
+      positions.append(tf_trans(T_OS))
     positions = np.array(positions)
 
     # Create figure
@@ -442,8 +442,8 @@ class LissajousTraj:
       if save_anim is False and idx % skip_every != 0:
         continue
 
-      T_WC = self.get_pose(t)
-      tf_data = plot_tf(ax, T_WC, name="T_WC", size=0.05)
+      T_WS = self.get_pose(t)
+      tf_data = plot_tf(ax, T_WS, name="T_WS", size=0.05)
 
       if save_anim:
         writer.grab_frame()
@@ -461,18 +461,18 @@ def test_velocity():
   traj = LissajousTraj("figure8", T_WF)
 
   # -- Integrate velocity
-  T_WC = traj.get_pose(traj.t[0])
-  r_WC = tf_trans(T_WC)
+  T_WS = traj.get_pose(traj.t[0])
+  r_WS = tf_trans(T_WS)
   dt = np.diff(traj.t)[0]
 
-  pos_est = [r_WC]
-  pos_gnd = [r_WC]
+  pos_est = [r_WS]
+  pos_gnd = [r_WS]
   for t in traj.t[1:]:
-    T_WC = traj.get_pose(t)
-    v_WC = traj.get_velocity(t)
-    r_WC = r_WC + v_WC * dt
-    pos_est.append(r_WC)
-    pos_gnd.append(tf_trans(T_WC))
+    T_WS = traj.get_pose(t)
+    v_WS = traj.get_velocity(t)
+    r_WS = r_WS + v_WS * dt
+    pos_est.append(r_WS)
+    pos_gnd.append(tf_trans(T_WS))
   pos_est = np.array(pos_est)
   pos_gnd = np.array(pos_gnd)
 
@@ -505,18 +505,18 @@ def test_acceleration():
   traj = LissajousTraj("figure8", T_WF)
 
   # -- Integrate acceleration
-  r_WC = tf_trans(traj.get_pose(traj.t[0]))
-  v_WC = traj.get_velocity(traj.t[0])
-  a_WC = traj.get_acceleration(traj.t[0])
+  r_WS = tf_trans(traj.get_pose(traj.t[0]))
+  v_WS = traj.get_velocity(traj.t[0])
+  a_WS = traj.get_acceleration(traj.t[0])
   dt = np.diff(traj.t)[0]
 
-  pos_est = [r_WC]
-  pos_gnd = [r_WC]
+  pos_est = [r_WS]
+  pos_gnd = [r_WS]
   for t in traj.t[1:]:
-    a_WC = traj.get_acceleration(t)
-    r_WC = r_WC + (v_WC * dt) + (0.5 * a_WC * dt**2)
-    v_WC = v_WC + (a_WC * dt)
-    pos_est.append(r_WC)
+    a_WS = traj.get_acceleration(t)
+    r_WS = r_WS + (v_WS * dt) + (0.5 * a_WS * dt**2)
+    v_WS = v_WS + (a_WS * dt)
+    pos_est.append(r_WS)
     pos_gnd.append(tf_trans(traj.get_pose(t)))
   pos_est = np.array(pos_est)
   pos_gnd = np.array(pos_gnd)
@@ -550,46 +550,46 @@ def test_integration():
   traj = LissajousTraj("figure8", T_WF)
 
   # Integrate angular velocity
-  r_WC = tf_trans(traj.get_pose(traj.t[0]))
-  v_WC = traj.get_velocity(traj.t[0])
-  C_WC = tf_rot(traj.get_pose(traj.t[0]))
-  a_WC = traj.get_acceleration(traj.t[0])
-  w_WC = traj.get_angular_velocity(traj.t[0])
-  a_C_WC = C_WC.T @ a_WC
-  w_C_WC = C_WC.T @ w_WC
+  r_WS = tf_trans(traj.get_pose(traj.t[0]))
+  v_WS = traj.get_velocity(traj.t[0])
+  C_WS = tf_rot(traj.get_pose(traj.t[0]))
+  a_WS = traj.get_acceleration(traj.t[0])
+  w_WS = traj.get_angular_velocity(traj.t[0])
+  a_C_WS = C_WS.T @ a_WS
+  w_C_WS = C_WS.T @ w_WS
   dt = np.diff(traj.t)[0]
 
-  pos_est = [r_WC]
-  pos_gnd = [r_WC]
+  pos_est = [r_WS]
+  pos_gnd = [r_WS]
 
-  euler_est = [np.flip(rot2euler(C_WC), 0)]
-  euler_gnd = [np.flip(rot2euler(C_WC), 0)]
+  euler_est = [np.flip(rot2euler(C_WS), 0)]
+  euler_gnd = [np.flip(rot2euler(C_WS), 0)]
   angle_diff = [0.0]
   for t in traj.t[1:]:
-    r_WC_gnd = tf_trans(traj.get_pose(t))
-    C_WC_gnd = tf_rot(traj.get_pose(t))
+    r_WS_gnd = tf_trans(traj.get_pose(t))
+    C_WS_gnd = tf_rot(traj.get_pose(t))
 
     # Transform acceleration from world to body frame
-    a_WC = traj.get_acceleration(t)
-    a_C_WC = C_WC.T @ a_WC
+    a_WS = traj.get_acceleration(t)
+    a_C_WS = C_WS.T @ a_WS
 
     # Transform angular velocity from world to body frame
-    w_WC = traj.get_angular_velocity(t)
-    w_C_WC = C_WC.T @ w_WC
+    w_WS = traj.get_angular_velocity(t)
+    w_C_WS = C_WS.T @ w_WS
 
     # Integrate
-    r_WC = r_WC + (v_WC * dt) + (0.5 * C_WC @ a_C_WC * dt**2)
-    v_WC = v_WC + (C_WC @ a_C_WC * dt)
-    C_WC = C_WC @ Exp(w_C_WC * dt)
+    r_WS = r_WS + (v_WS * dt) + (0.5 * C_WS @ a_C_WS * dt**2)
+    v_WS = v_WS + (C_WS @ a_C_WS * dt)
+    C_WS = C_WS @ Exp(w_C_WS * dt)
 
-    dC = C_WC_gnd.T @ C_WC
+    dC = C_WS_gnd.T @ C_WS
     ddeg = np.rad2deg(np.arccos((np.trace(dC) - 1.0) / 2.0))
     angle_diff.append(ddeg)
 
-    pos_est.append(r_WC)
-    pos_gnd.append(r_WC_gnd)
-    euler_est.append(np.flip(rot2euler(C_WC), 0))
-    euler_gnd.append(np.flip(rot2euler(C_WC_gnd), 0))
+    pos_est.append(r_WS)
+    pos_gnd.append(r_WS_gnd)
+    euler_est.append(np.flip(rot2euler(C_WS), 0))
+    euler_gnd.append(np.flip(rot2euler(C_WS_gnd), 0))
 
   pos_est = np.array(pos_est)
   pos_gnd = np.array(pos_gnd)
@@ -604,11 +604,11 @@ def test_integration():
   poses = []
   positions = []
   for idx, (pos, euler) in enumerate(zip(pos_est, euler_est)):
-    C_WC = euler321(*np.flip(euler, 0))
-    r_WC = pos
-    T_WC = tf(C_WC, r_WC)
-    poses.append(T_WC)
-    positions.append(r_WC)
+    C_WS = euler321(*np.flip(euler, 0))
+    r_WS = pos
+    T_WS = tf(C_WS, r_WS)
+    poses.append(T_WS)
+    positions.append(r_WS)
   poses = np.array(poses)
   positions = np.array(positions)
 
@@ -630,11 +630,11 @@ def test_integration():
 
   # Draw camera poses
   skip_every = int(len(poses) * 0.1)
-  for idx, T_WC in enumerate(poses):
+  for idx, T_WS in enumerate(poses):
     if save_anim is False and idx % skip_every != 0:
       continue
 
-    tf_data = plot_tf(ax, T_WC, name="T_WC", size=0.05)
+    tf_data = plot_tf(ax, T_WS, name="T_WS", size=0.05)
     if save_anim:
       writer.grab_frame()
       ax.lines.remove(tf_data[0])
@@ -683,20 +683,20 @@ r_WF = np.array([0.0, 0.0, 0.0])
 C_WF = euler321(np.deg2rad(-90.0), 0.0, np.deg2rad(90.0))
 T_WF = tf(C_WF, r_WF)
 
-# traj = LissajousTraj("figure8", T_WF)
-# traj.plot_3d(save_path="traj-figure8.mp4", save_anim=True)
+traj = LissajousTraj("figure8", T_WF)
+traj.plot_3d(save_path="traj-figure8.mp4", save_anim=True)
 
-# traj = LissajousTraj("vert-pan", T_WF)
-# traj.plot_3d(save_path="traj-vert.mp4", save_anim=True)
+traj = LissajousTraj("vert-pan", T_WF)
+traj.plot_3d(save_path="traj-vert.mp4", save_anim=True)
 
-# traj = LissajousTraj("horiz-pan", T_WF)
-# traj.plot_3d(save_path="traj-horiz.mp4", save_anim=True)
+traj = LissajousTraj("horiz-pan", T_WF)
+traj.plot_3d(save_path="traj-horiz.mp4", save_anim=True)
 
-# traj = LissajousTraj("diag0", T_WF)
-# traj.plot_3d(save_path="traj-diag0.mp4", save_anim=True)
+traj = LissajousTraj("diag0", T_WF)
+traj.plot_3d(save_path="traj-diag0.mp4", save_anim=True)
 
-# traj = LissajousTraj("diag1", T_WF)
-# traj.plot_3d(save_path="traj-diag1.mp4", save_anim=True)
+traj = LissajousTraj("diag1", T_WF)
+traj.plot_3d(save_path="traj-diag1.mp4", save_anim=True)
 
 # Tests
 test_velocity()

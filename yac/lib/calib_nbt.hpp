@@ -30,7 +30,7 @@ struct lissajous_traj_t {
   real_t T; // Period - Time it takes to complete [secs]
   real_t f; // Frequency
   real_t w; // Angular velocity
-  real_t phase_offset;
+  real_t psi;
 
   real_t pitch_bound;
   real_t yaw_bound;
@@ -46,12 +46,11 @@ struct lissajous_traj_t {
                    const real_t T_);
   ~lissajous_traj_t() = default;
 
-  vec3_t get_position(const timestamp_t ts_k) const;
-  mat3_t get_attitude(const timestamp_t ts_k) const;
   mat4_t get_pose(const timestamp_t ts_k) const;
   vec3_t get_velocity(const timestamp_t ts_k) const;
   vec3_t get_acceleration(const timestamp_t ts_k) const;
   vec3_t get_angular_velocity(const timestamp_t ts_k) const;
+  int save(const std::string &save_path) const;
 };
 using lissajous_trajs_t = std::vector<lissajous_traj_t>;
 

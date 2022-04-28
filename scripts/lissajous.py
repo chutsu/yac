@@ -19,6 +19,7 @@ from proto import tf_rot
 from proto import plot_tf
 from proto import plot_set_axes_equal
 from proto import Exp
+from proto import skew
 from proto import euler321
 from proto import rot2euler
 from proto import rot2quat
@@ -34,7 +35,7 @@ def sympy_diff(gencode=False):
   A, a, delta = sympy.symbols("A a delta")
   B, b = sympy.symbols("B b")
   R = sympy.symbols("R")
-  w = sympy.symbols("w")   # w = 2.0 * pi * f
+  w = sympy.symbols("w")  # w = 2.0 * pi * f
 
   T = 1.0 / f
   theta = sympy.sin(w * t * 1.0 / 4.0)**2
@@ -54,13 +55,13 @@ def sympy_diff(gencode=False):
   pitch_bound = sympy.symbols("pitch_bound")
   psi = sympy.symbols("psi")
 
-  att_x = pi + pitch_bound * sympy.sin(psi * w * T * theta)
+  att_x = pitch_bound * sympy.sin(psi * w * T * theta)
   att_y = yaw_bound * sympy.sin(w * T * theta)
   att_z = 0.0
 
-  wx = sympy.diff(att_x, t)
-  wy = sympy.diff(att_y, t)
-  wz = sympy.diff(att_z, t)
+  wx = sympy.simplify(sympy.diff(att_x, t))
+  wy = sympy.simplify(sympy.diff(att_y, t))
+  wz = sympy.simplify(sympy.diff(att_z, t))
 
   print("# Position")
   if gencode:
@@ -106,21 +107,23 @@ def sympy_diff(gencode=False):
     print(f"wz = {wz}")
   print("")
 
+
 # sympy_diff()
 # exit(0)
 
 
 class LissajousTraj:
   """ Lissajous Trajectory """
-
-  def __init__(self, traj_type, T_WF, **kwargs):
+  def __init__(self, traj_type, fiducial_pose, **kwargs):
     """ Constructor """
-    self.T_WF = T_WF
+    self.T_WF = fiducial_pose
     self.calib_target = AprilGrid()
     self.calib_dims = self.calib_target.get_dimensions()
     self.T_FO = tf(np.eye(3), self.calib_target.get_center())
 
-    self.R = kwargs.get("R", np.max(self.calib_dims) * 1.0)  # Distance from calibration target
+    self.R = kwargs.get("R",
+                        np.max(self.calib_dims) *
+                        1.0)  # Distance from calib target
     self.A = kwargs.get("A", self.calib_dims[0] * 0.5)  # Amplitude in x-axis
     self.B = kwargs.get("B", self.calib_dims[1] * 0.5)  # Amplitude in y-axis
     self.T = kwargs.get("T", 3.0)  # Period - Time it takes to complete [secs]
@@ -184,10 +187,8 @@ class LissajousTraj:
     theta = np.sin(w * t * 1.0 / 4.0)**2
 
     # Rotation
-    att_theta_yaw = np.sin(self.w * self.T * theta)
-    att_theta_pitch = np.sin(self.psi * self.w * self.T * theta)
-    yaw = self.yaw_bound * att_theta_yaw
-    pitch = self.pitch_bound * att_theta_pitch
+    pitch = self.pitch_bound * np.sin(self.psi * self.w * self.T * theta)
+    yaw = self.yaw_bound * np.sin(self.w * self.T * theta)
     C_OC = euler321(0.0, yaw, np.deg2rad(180.0) + pitch)
 
     # Position
@@ -212,9 +213,20 @@ class LissajousTraj:
     delta = self.delta
     w = 2.0 * pi * self.f
 
-    vx = 0.5*A*a*w*np.sin(0.25*t*w)*np.cos(0.25*t*w)*np.cos(a*pow(np.sin(0.25*t*w), 2) + delta)
-    vy = 0.5*B*b*w*np.sin(0.25*t*w)*np.cos(b*pow(np.sin(0.25*t*w), 2))*np.cos(0.25*t*w)
-    vz = (-0.5*pow(A, 2)*a*w*np.sin(0.25*t*w)*np.sin(a*pow(np.sin(0.25*t*w), 2) + delta)*np.cos(0.25*t*w)*np.cos(a*pow(np.sin(0.25*t*w), 2) + delta) - 0.5*pow(B, 2)*b*w*np.sin(b*pow(np.sin(0.25*t*w), 2))*np.sin(0.25*t*w)*np.cos(b*pow(np.sin(0.25*t*w), 2))*np.cos(0.25*t*w))/np.sqrt(-pow(A, 2)*pow(np.sin(a*pow(np.sin(0.25*t*w), 2) + delta), 2) - pow(B, 2)*pow(np.sin(b*pow(np.sin(0.25*t*w), 2)), 2) + pow(R, 2))
+    vx = 0.5 * A * a * w * np.sin(0.25 * t * w) * np.cos(
+        0.25 * t * w) * np.cos(a * pow(np.sin(0.25 * t * w), 2) + delta)
+    vy = 0.5 * B * b * w * np.sin(0.25 * t * w) * np.cos(
+        b * pow(np.sin(0.25 * t * w), 2)) * np.cos(0.25 * t * w)
+    vz = (-0.5 * pow(A, 2) * a * w * np.sin(0.25 * t * w) *
+          np.sin(a * pow(np.sin(0.25 * t * w), 2) + delta) * np.cos(
+              0.25 * t * w) * np.cos(a * pow(np.sin(0.25 * t * w), 2) + delta) -
+          0.5 * pow(B, 2) * b * w * np.sin(b * pow(np.sin(0.25 * t * w), 2)) *
+          np.sin(0.25 * t * w) * np.cos(b * pow(np.sin(0.25 * t * w), 2)) *
+          np.cos(0.25 * t * w)) / np.sqrt(
+              -pow(A, 2) *
+              pow(np.sin(a * pow(np.sin(0.25 * t * w), 2) + delta), 2) -
+              pow(B, 2) * pow(np.sin(b * pow(np.sin(0.25 * t * w), 2)), 2) +
+              pow(R, 2))
     v_OC = np.array([vx, vy, vz])
 
     # Transform velocity from calib origin frame (O) to world frame (W)
@@ -234,9 +246,67 @@ class LissajousTraj:
     delta = self.delta
     w = 2.0 * pi * self.f
 
-    ax = A*a*pow(w, 2)*(-0.03125*a*(1 - np.cos(1.0*t*w))*np.sin(-1.0/2.0*a*np.cos(0.5*t*w) + (1.0/2.0)*a + delta) - 0.125*pow(np.sin(0.25*t*w), 2)*np.cos(a*pow(np.sin(0.25*t*w), 2) + delta) + 0.125*pow(np.cos(0.25*t*w), 2)*np.cos(a*pow(np.sin(0.25*t*w), 2) + delta))
-    ay = -0.25*B*pow(b, 2)*pow(w, 2)*np.sin(b*pow(np.sin(0.25*t*w), 2))*pow(np.sin(0.25*t*w), 2)*pow(np.cos(0.25*t*w), 2) - 0.125*B*b*pow(w, 2)*pow(np.sin(0.25*t*w), 2)*np.cos(b*pow(np.sin(0.25*t*w), 2)) + 0.125*B*b*pow(w, 2)*np.cos(b*pow(np.sin(0.25*t*w), 2))*pow(np.cos(0.25*t*w), 2)
-    az = (-0.5*pow(A, 2)*a*w*np.sin(0.25*t*w)*np.sin(a*pow(np.sin(0.25*t*w), 2) + delta)*np.cos(0.25*t*w)*np.cos(a*pow(np.sin(0.25*t*w), 2) + delta) - 0.5*pow(B, 2)*b*w*np.sin(b*pow(np.sin(0.25*t*w), 2))*np.sin(0.25*t*w)*np.cos(b*pow(np.sin(0.25*t*w), 2))*np.cos(0.25*t*w))*(0.5*pow(A, 2)*a*w*np.sin(0.25*t*w)*np.sin(a*pow(np.sin(0.25*t*w), 2) + delta)*np.cos(0.25*t*w)*np.cos(a*pow(np.sin(0.25*t*w), 2) + delta) + 0.5*pow(B, 2)*b*w*np.sin(b*pow(np.sin(0.25*t*w), 2))*np.sin(0.25*t*w)*np.cos(b*pow(np.sin(0.25*t*w), 2))*np.cos(0.25*t*w))/pow(-pow(A, 2)*pow(np.sin(a*pow(np.sin(0.25*t*w), 2) + delta), 2) - pow(B, 2)*pow(np.sin(b*pow(np.sin(0.25*t*w), 2)), 2) + pow(R, 2), 3.0/2.0) + (0.25*pow(A, 2)*pow(a, 2)*pow(w, 2)*pow(np.sin(0.25*t*w), 2)*pow(np.sin(a*pow(np.sin(0.25*t*w), 2) + delta), 2)*pow(np.cos(0.25*t*w), 2) - 0.25*pow(A, 2)*pow(a, 2)*pow(w, 2)*pow(np.sin(0.25*t*w), 2)*pow(np.cos(0.25*t*w), 2)*pow(np.cos(a*pow(np.sin(0.25*t*w), 2) + delta), 2) + 0.125*pow(A, 2)*a*pow(w, 2)*pow(np.sin(0.25*t*w), 2)*np.sin(a*pow(np.sin(0.25*t*w), 2) + delta)*np.cos(a*pow(np.sin(0.25*t*w), 2) + delta) - 0.125*pow(A, 2)*a*pow(w, 2)*np.sin(a*pow(np.sin(0.25*t*w), 2) + delta)*pow(np.cos(0.25*t*w), 2)*np.cos(a*pow(np.sin(0.25*t*w), 2) + delta) + 0.25*pow(B, 2)*pow(b, 2)*pow(w, 2)*pow(np.sin(b*pow(np.sin(0.25*t*w), 2)), 2)*pow(np.sin(0.25*t*w), 2)*pow(np.cos(0.25*t*w), 2) - 0.25*pow(B, 2)*pow(b, 2)*pow(w, 2)*pow(np.sin(0.25*t*w), 2)*pow(np.cos(b*pow(np.sin(0.25*t*w), 2)), 2)*pow(np.cos(0.25*t*w), 2) + 0.125*pow(B, 2)*b*pow(w, 2)*np.sin(b*pow(np.sin(0.25*t*w), 2))*pow(np.sin(0.25*t*w), 2)*np.cos(b*pow(np.sin(0.25*t*w), 2)) - 0.125*pow(B, 2)*b*pow(w, 2)*np.sin(b*pow(np.sin(0.25*t*w), 2))*np.cos(b*pow(np.sin(0.25*t*w), 2))*pow(np.cos(0.25*t*w), 2))/np.sqrt(-pow(A, 2)*pow(np.sin(a*pow(np.sin(0.25*t*w), 2) + delta), 2) - pow(B, 2)*pow(np.sin(b*pow(np.sin(0.25*t*w), 2)), 2) + pow(R, 2))
+    ax = A * a * pow(w, 2) * (-0.03125 * a * (1 - np.cos(1.0 * t * w)) *
+                              np.sin(-1.0 / 2.0 * a * np.cos(0.5 * t * w) +
+                                     (1.0 / 2.0) * a + delta) -
+                              0.125 * pow(np.sin(0.25 * t * w), 2) *
+                              np.cos(a * pow(np.sin(0.25 * t * w), 2) + delta) +
+                              0.125 * pow(np.cos(0.25 * t * w), 2) *
+                              np.cos(a * pow(np.sin(0.25 * t * w), 2) + delta))
+    ay = -0.25 * B * pow(b, 2) * pow(w, 2) * np.sin(
+        b * pow(np.sin(0.25 * t * w), 2)) * pow(np.sin(0.25 * t * w), 2) * pow(
+            np.cos(0.25 * t * w), 2) - 0.125 * B * b * pow(w, 2) * pow(
+                np.sin(0.25 * t * w), 2) * np.cos(
+                    b * pow(np.sin(0.25 * t * w), 2)) + 0.125 * B * b * pow(
+                        w, 2) * np.cos(b * pow(np.sin(0.25 * t * w), 2)) * pow(
+                            np.cos(0.25 * t * w), 2)
+    az = (
+        -0.5 * pow(A, 2) * a * w * np.sin(0.25 * t * w) *
+        np.sin(a * pow(np.sin(0.25 * t * w), 2) + delta) * np.cos(
+            0.25 * t * w) * np.cos(a * pow(np.sin(0.25 * t * w), 2) + delta) -
+        0.5 * pow(B, 2) * b * w * np.sin(b * pow(np.sin(0.25 * t * w), 2)) *
+        np.sin(0.25 * t * w) * np.cos(b * pow(np.sin(0.25 * t * w), 2)) *
+        np.cos(0.25 * t * w)
+    ) * (0.5 * pow(A, 2) * a * w * np.sin(0.25 * t * w) *
+         np.sin(a * pow(np.sin(0.25 * t * w), 2) + delta) *
+         np.cos(0.25 * t * w) * np.cos(a * pow(np.sin(0.25 * t * w), 2) + delta)
+         + 0.5 * pow(B, 2) * b * w * np.sin(b * pow(np.sin(0.25 * t * w), 2)) *
+         np.sin(0.25 * t * w) * np.cos(b * pow(np.sin(0.25 * t * w), 2)) *
+         np.cos(0.25 * t * w)) / pow(
+             -pow(A, 2) *
+             pow(np.sin(a * pow(np.sin(0.25 * t * w), 2) + delta), 2) -
+             pow(B, 2) * pow(np.sin(b * pow(np.sin(0.25 * t * w), 2)), 2) +
+             pow(R, 2), 3.0 / 2.0
+         ) + (0.25 * pow(A, 2) * pow(a, 2) * pow(w, 2) *
+              pow(np.sin(0.25 * t * w), 2) *
+              pow(np.sin(a * pow(np.sin(0.25 * t * w), 2) + delta), 2) *
+              pow(np.cos(0.25 * t * w), 2) - 0.25 * pow(A, 2) * pow(a, 2) *
+              pow(w, 2) * pow(np.sin(0.25 * t * w), 2) *
+              pow(np.cos(0.25 * t * w), 2) *
+              pow(np.cos(a * pow(np.sin(0.25 * t * w), 2) + delta), 2) +
+              0.125 * pow(A, 2) * a * pow(w, 2) * pow(np.sin(0.25 * t * w), 2) *
+              np.sin(a * pow(np.sin(0.25 * t * w), 2) + delta) *
+              np.cos(a * pow(np.sin(0.25 * t * w), 2) + delta) -
+              0.125 * pow(A, 2) * a * pow(w, 2) *
+              np.sin(a * pow(np.sin(0.25 * t * w), 2) + delta) *
+              pow(np.cos(0.25 * t * w), 2) *
+              np.cos(a * pow(np.sin(0.25 * t * w), 2) + delta) +
+              0.25 * pow(B, 2) * pow(b, 2) * pow(w, 2) *
+              pow(np.sin(b * pow(np.sin(0.25 * t * w), 2)), 2) *
+              pow(np.sin(0.25 * t * w), 2) * pow(np.cos(0.25 * t * w), 2) - 0.25
+              * pow(B, 2) * pow(b, 2) * pow(w, 2) * pow(np.sin(0.25 * t * w), 2)
+              * pow(np.cos(b * pow(np.sin(0.25 * t * w), 2)), 2) *
+              pow(np.cos(0.25 * t * w), 2) + 0.125 * pow(B, 2) * b * pow(w, 2) *
+              np.sin(b * pow(np.sin(0.25 * t * w), 2)) *
+              pow(np.sin(0.25 * t * w), 2) *
+              np.cos(b * pow(np.sin(0.25 * t * w), 2)) - 0.125 * pow(B, 2) * b *
+              pow(w, 2) * np.sin(b * pow(np.sin(0.25 * t * w), 2)) *
+              np.cos(b * pow(np.sin(0.25 * t * w), 2)) *
+              pow(np.cos(0.25 * t * w), 2)) / np.sqrt(
+                  -pow(A, 2) *
+                  pow(np.sin(a * pow(np.sin(0.25 * t * w), 2) + delta), 2) -
+                  pow(B, 2) * pow(np.sin(b * pow(np.sin(0.25 * t * w), 2)), 2) +
+                  pow(R, 2))
     a_OC = np.array([ax, ay, az])
 
     # Transform velocity from calib origin frame (O) to world frame (W)
@@ -252,10 +322,11 @@ class LissajousTraj:
     f = self.f
     psi = self.psi
 
-    wx = 0.5*self.pitch_bound*psi*w**2*np.sin(0.25*t*w)*np.cos(0.25*t*w)*np.cos(1.0*psi*w*np.sin(0.25*t*w)**2/f)/f
-    wy = 0.5*w**2*self.yaw_bound*np.sin(0.25*t*w)*np.cos(0.25*t*w)*np.cos(1.0*w*np.sin(0.25*t*w)**2/f)/f
-    wz = 0
-
+    wx = 0.5 * self.pitch_bound * psi * w**2 * np.sin(0.25 * t * w) * np.cos(
+        0.25 * t * w) * np.cos(1.0 * psi * w * np.sin(0.25 * t * w)**2 / f) / f
+    wy = 0.5 * self.yaw_bound * w**2 * np.sin(0.25 * t * w) * np.cos(
+        0.25 * t * w) * np.cos(1.0 * w * np.sin(0.25 * t * w)**2 / f) / f
+    wz = 0.0
     w_OC = np.array([wx, wy, wz])
 
     # Transform velocity from calib origin frame (O) to world frame (W)
@@ -283,8 +354,15 @@ class LissajousTraj:
     """ Plot XYZ """
     # positions = self.get_position(self.t)
     positions = []
-    velocities = self.get_velocity(self.t)
-    accelerations = self.get_acceleration(self.t)
+    velocities = []
+    accelerations = []
+    for t in self.t:
+      positions.append(tf_trans(self.get_pose(t)))
+      velocities.append(self.get_velocity(t))
+      accelerations.append(self.get_acceleration(t))
+    positions = np.array(positions)
+    velocities = np.array(velocities)
+    accelerations = np.array(accelerations)
 
     plt.figure()
     plt.subplot(311)
@@ -318,7 +396,10 @@ class LissajousTraj:
     plt.figure()
     plt.plot(t, np.sin(2.0 * pi * f * t), "r-", label=r"$\sin(w t)$")
     plt.plot(t, np.sin(2.0 * pi * f * t)**2, "g-", label=r"$\sin^{2}(w t)$")
-    plt.plot(t, np.sin(2.0 * pi * f * t * 1.0 / 4.0)**2, "b-", label=r"$\sin^{2}(0.25 w t)$")
+    plt.plot(t,
+             np.sin(2.0 * pi * f * t * 1.0 / 4.0)**2,
+             "b-",
+             label=r"$\sin^{2}(0.25 w t)$")
     plt.legend(loc=0)
     plt.xlabel("Time [s]")
     plt.ylabel("Theta [rad]")
@@ -373,6 +454,7 @@ class LissajousTraj:
 
     if show_plot:
       plt.show()
+
 
 def test_velocity():
   """ Test velocity """
@@ -467,7 +549,7 @@ def test_integration():
   """ Test angular_velocity """
   traj = LissajousTraj("figure8", T_WF)
 
-  # -- Integrate angular velocity
+  # Integrate angular velocity
   r_WC = tf_trans(traj.get_pose(traj.t[0]))
   v_WC = traj.get_velocity(traj.t[0])
   C_WC = tf_rot(traj.get_pose(traj.t[0]))
@@ -484,6 +566,9 @@ def test_integration():
   euler_gnd = [np.flip(rot2euler(C_WC), 0)]
   angle_diff = [0.0]
   for t in traj.t[1:]:
+    r_WC_gnd = tf_trans(traj.get_pose(t))
+    C_WC_gnd = tf_rot(traj.get_pose(t))
+
     # Transform acceleration from world to body frame
     a_WC = traj.get_acceleration(t)
     a_C_WC = C_WC.T @ a_WC
@@ -496,9 +581,6 @@ def test_integration():
     r_WC = r_WC + (v_WC * dt) + (0.5 * C_WC @ a_C_WC * dt**2)
     v_WC = v_WC + (C_WC @ a_C_WC * dt)
     C_WC = C_WC @ Exp(w_C_WC * dt)
-
-    r_WC_gnd = tf_trans(traj.get_pose(t))
-    C_WC_gnd = tf_rot(traj.get_pose(t))
 
     dC = C_WC_gnd.T @ C_WC
     ddeg = np.rad2deg(np.arccos((np.trace(dC) - 1.0) / 2.0))
@@ -515,8 +597,8 @@ def test_integration():
   euler_gnd = np.array(euler_gnd)
 
   # -- Plot 3D
-  save_anim = True
-  save_path = "test_angular_velocity.mp4"
+  save_anim = False
+  save_path = "test_integration.mp4"
   show_plot = not save_anim
 
   poses = []
@@ -586,6 +668,7 @@ def test_integration():
   plt.subplots_adjust(top=0.9, right=0.95, hspace=0.7)
   plt.suptitle("Test Integrate Inertial Angular Velocity")
 
+  # -- Plot angle difference
   fig = plt.figure()
   plt.plot(traj.t, angle_diff)
   plt.xlabel("Time [s]")
@@ -593,6 +676,7 @@ def test_integration():
 
   if show_plot:
     plt.show()
+
 
 # Fiducial target pose in world frame
 r_WF = np.array([0.0, 0.0, 0.0])
@@ -615,6 +699,6 @@ T_WF = tf(C_WF, r_WF)
 # traj.plot_3d(save_path="traj-diag1.mp4", save_anim=True)
 
 # Tests
-# test_velocity()
-# test_acceleration()
+test_velocity()
+test_acceleration()
 test_integration()

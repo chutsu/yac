@@ -195,13 +195,13 @@ vec3_t lissajous_traj_t::get_angular_velocity(const timestamp_t ts_k) const {
   }
 
   // Angular velocity
-  const real_t wx = 0.0;
-  const real_t wy = 0.5 * w * w * yaw_bound * sin(0.25 * t * w) *
-                    cos(0.25 * t * w) * cos(w * pow(sin(0.25 * t * w), 2) / f) /
-                    f;
-  const real_t wz = 0.5 * pitch_bound * w * w * sin(0.25 * t * w) *
-                    cos(0.25 * t * w) * cos(w * pow(sin(0.25 * t * w), 2) / f) /
-                    f;
+  const real_t wx = 0.5 * pitch_bound * psi * w * w * sin(0.25 * t * w) *
+                    cos(0.25 * t * w) *
+                    cos(1.0 * psi * w * pow(sin(0.25 * t * w), 2) / f) / f;
+  const real_t wy = 0.5 * yaw_bound * w * w * sin(0.25 * t * w) *
+                    cos(0.25 * t * w) *
+                    cos(1.0 * w * pow(sin(0.25 * t * w), 2) / f) / f;
+  const real_t wz = 0.0;
   const vec3_t w_OS{wx, wy, wz};
 
   // Transform velocity from calib origin frame (O) to world frame (W)
@@ -558,10 +558,10 @@ void nbt_lissajous_trajs(const timestamp_t &ts_start,
 
   // Add trajectories
   trajs.emplace_back("figure8", ts_start, T_WF, T_FO, R, A, B, T);
-  // trajs.emplace_back("vert-pan", ts_start, T_WF, T_FO, R, A, B, T);
-  // trajs.emplace_back("horiz-pan", ts_start, T_WF, T_FO, R, A, B, T);
-  // trajs.emplace_back("diag0", ts_start, T_WF, T_FO, R, A, B, T);
-  // trajs.emplace_back("diag1", ts_start, T_WF, T_FO, R, A, B, T);
+  trajs.emplace_back("vert-pan", ts_start, T_WF, T_FO, R, A, B, T);
+  trajs.emplace_back("horiz-pan", ts_start, T_WF, T_FO, R, A, B, T);
+  trajs.emplace_back("diag0", ts_start, T_WF, T_FO, R, A, B, T);
+  trajs.emplace_back("diag1", ts_start, T_WF, T_FO, R, A, B, T);
 }
 
 /** SIMULATION ***************************************************************/

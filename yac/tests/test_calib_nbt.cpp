@@ -400,17 +400,6 @@ int test_nbt_lissajous_trajs() {
     vec3_t r_WS = tf_trans(T_WS);
     mat3_t C_WS = tf_rot(T_WS);
     vec3_t v_WS = traj.get_velocity(0);
-    print_matrix("T_WS", T_WS);
-    print_vector("v_WS", v_WS);
-
-    std::ofstream file_pos{"/tmp/pos.csv"};
-    std::ofstream file_vel{"/tmp/vel.csv"};
-    std::ofstream file_acc{"/tmp/acc.csv"};
-    std::ofstream file_gyr{"/tmp/gyr.csv"};
-    file_pos << "#ts,x,y,z" << std::endl;
-    file_vel << "#ts,vx,vy,vz" << std::endl;
-    file_acc << "#ts,ax,ay,az" << std::endl;
-    file_gyr << "#ts,wx,wy,wz" << std::endl;
 
     timestamp_t ts_k = 0;
     while (ts_k <= ts_end) {
@@ -448,26 +437,6 @@ int test_nbt_lissajous_trajs() {
       quat_t q = quat_t{C_WS};
       q.normalize();
       C_WS = q.toRotationMatrix();
-
-      file_pos << ts_k << ",";
-      file_pos << r_WS.x() << ",";
-      file_pos << r_WS.y() << ",";
-      file_pos << r_WS.z() << std::endl;
-
-      file_vel << ts_k << ",";
-      file_vel << v_WS.x() << ",";
-      file_vel << v_WS.y() << ",";
-      file_vel << v_WS.z() << std::endl;
-
-      file_acc << ts_k << ",";
-      file_acc << a_WS_W.x() << ",";
-      file_acc << a_WS_W.y() << ",";
-      file_acc << a_WS_W.z() << std::endl;
-
-      file_gyr << ts_k << ",";
-      file_gyr << w_WS_W.x() << ",";
-      file_gyr << w_WS_W.y() << ",";
-      file_gyr << w_WS_W.z() << std::endl;
 
       // Update
       ts_k += dt;

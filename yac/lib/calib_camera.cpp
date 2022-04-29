@@ -1041,7 +1041,7 @@ bool calib_camera_t::add_nbv_view(const std::map<int, aprilgrid_t> &cam_grids) {
   _cache_estimates();
 
   // Solve with new view
-  solver->solve(10);
+  solver->solve(5);
 
   // Calculate information gain
   const timestamp_t ts = calib_view_timestamps.back();
@@ -1469,24 +1469,21 @@ int calib_camera_t::_remove_outliers(const bool filter_all) {
       fflush(stdout);
     }
 
+    // Cache estimates
+    _cache_estimates();
+
     // Filter view
     auto &view = calib_views[ts];
     const auto grids_cache = view->grids;
     int removed = view->filter_view(cam_thresholds);
-    if (removed == 0) {
-      continue;
-    }
+    solver->solve(5);
 
     // Get info with filtered view
-    solver->solve(5);
     real_t info_before;
     if (_calc_info(&info_before) != 0) {
       printf("Failed to evaluate info!");
       continue;
     }
-
-    // Cache estimates
-    _cache_estimates();
 
     // Remove view
     const auto grids = view->grids; // Make a copy of the grids
@@ -1509,11 +1506,13 @@ int calib_camera_t::_remove_outliers(const bool filter_all) {
       add_view(grids);
       removed_outliers += removed;
       nb_outliers += removed;
-      _restore_estimates();
     } else {
       // Reject view
       nb_views_removed++;
     }
+
+    // Restore estimates
+    _restore_estimates();
   }
 
   // Print stats

@@ -102,10 +102,10 @@ struct calib_camera_t {
   bool enable_outlier_filter = true;
   bool enable_marginalization = false;
   bool enable_loss_fn = true;
-  std::string loss_fn_type = "BLAKE-ZISSERMAN";
-  double loss_fn_param = 2;
-  // std::string loss_fn_type = "CAUCHY";
-  // double loss_fn_param = 0.5;
+  // std::string loss_fn_type = "BLAKE-ZISSERMAN";
+  // double loss_fn_param = 2;
+  std::string loss_fn_type = "CAUCHY";
+  double loss_fn_param = 1.5;
   int min_nbv_views = 40;
   real_t outlier_threshold = 4.0;
   real_t info_gain_threshold = 0.2;

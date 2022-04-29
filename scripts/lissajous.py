@@ -458,7 +458,7 @@ class LissajousTraj:
 
 def test_velocity():
   """ Test velocity """
-  traj = LissajousTraj("vert-pan", T_WF)
+  traj = LissajousTraj("figure8", T_WF)
 
   # -- Integrate velocity
   T_WS = traj.get_pose(traj.t[0])
@@ -571,8 +571,8 @@ def test_acceleration():
 
 
 def test_integration():
-  """ Test angular_velocity """
-  traj = LissajousTraj("vert-pan", T_WF)
+  """ Test integration """
+  traj = LissajousTraj("figure8", T_WF)
 
   # Integrate angular velocity
   r_WS = tf_trans(traj.get_pose(traj.t[0]))
@@ -580,8 +580,8 @@ def test_integration():
   C_WS = tf_rot(traj.get_pose(traj.t[0]))
   a_WS = traj.get_acceleration(traj.t[0])
   w_WS = traj.get_angular_velocity(traj.t[0])
-  a_C_WS = C_WS.T @ a_WS
-  w_C_WS = C_WS.T @ w_WS
+  a_S_WS = C_WS.T @ a_WS
+  w_S_WS = C_WS.T @ w_WS
   dt = np.diff(traj.t)[0]
 
   pos_est = [r_WS]
@@ -600,23 +600,29 @@ def test_integration():
 
     # Transform acceleration from world to body frame
     a_WS = traj.get_acceleration(t)
-    a_C_WS = C_WS.T @ a_WS
+    a_S_WS = C_WS.T @ a_WS
     acc.append(a_WS)
 
     # Transform angular velocity from world to body frame
     w_WS = traj.get_angular_velocity(t)
-    w_C_WS = C_WS.T @ w_WS
+    w_S_WS = C_WS.T @ w_WS
     ang_vel.append(w_WS)
 
     # Integrate
-    r_WS = r_WS + (v_WS * dt) + (0.5 * C_WS @ a_C_WS * dt**2)
-    v_WS = v_WS + (C_WS @ a_C_WS * dt)
-    C_WS = C_WS @ Exp(w_C_WS * dt)
+    r_WS = r_WS + (v_WS * dt) + (0.5 * C_WS @ a_S_WS * dt**2)
+    v_WS = v_WS + (C_WS @ a_S_WS * dt)
+    C_WS = C_WS @ Exp(w_S_WS * dt)
 
+    q_WS = rot2quat(C_WS)
+    q_WS = quat_normalize(q_WS)
+    C_WS = quat2rot(q_WS)
+
+    # Calculate angle difference using axis-angle equation
     dC = C_WS_gnd.T @ C_WS
     ddeg = np.rad2deg(np.arccos((np.trace(dC) - 1.0) / 2.0))
     angle_diff.append(ddeg)
 
+    # Track integrated vs ground truth postion and rotation
     pos_est.append(r_WS)
     pos_gnd.append(r_WS_gnd)
     euler_est.append(np.flip(rot2euler(C_WS), 0))
@@ -661,7 +667,7 @@ def test_integration():
   ax.set_xlabel("x [m]")
   ax.set_ylabel("y [m]")
   ax.set_zlabel("z [m]")
-  ax.view_init(elev=0.0, azim=0.0)
+  # ax.view_init(elev=0.0, azim=0.0)
   # ax.view_init(elev=30.0, azim=-30.0)
   plot_set_axes_equal(ax)
 
@@ -726,9 +732,9 @@ r_WF = np.array([0.0, 0.0, 0.0])
 C_WF = euler321(np.deg2rad(-90.0), 0.0, np.deg2rad(90.0))
 T_WF = tf(C_WF, r_WF)
 
-traj = LissajousTraj("figure8", T_WF)
-traj.plot_xyz()
-plt.show()
+# traj = LissajousTraj("figure8", T_WF)
+# traj.plot_xyz()
+# plt.show()
 # traj.plot_3d(save_path="traj-figure8.mp4", save_anim=True)
 
 # traj = LissajousTraj("vert-pan", T_WF)
@@ -746,4 +752,4 @@ plt.show()
 # Tests
 # test_velocity()
 # test_acceleration()
-# test_integration()
+test_integration()

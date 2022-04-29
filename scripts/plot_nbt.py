@@ -11,8 +11,10 @@ from mpl_toolkits import mplot3d
 
 import proto
 from proto import load_poses
+from proto import quat2euler
 from proto import plot_tf
 from proto import plot_set_axes_equal
+
 
 def plot_poses():
   # Load fiducial pose
@@ -48,6 +50,7 @@ def plot_state():
   acc = data[['ax', 'ay', 'az']].to_numpy()
   gyr = data[['wx', 'wy', 'wz']].to_numpy()
 
+  # Plot position, velocity and acceleartion
   plt.figure()
   plt.subplot(311)
   plt.plot(time, pos[:, 0], 'r-', label="x")
@@ -76,26 +79,38 @@ def plot_state():
   plt.ylabel("Acceleration [ms^-2]")
   plt.legend(loc=0)
 
-  # plt.subplot(212)
-  # rpy = []
-  # for q in quat
-  # plt.plot(time, pos[:, 0], 'r-', label="ax")
-  # plt.plot(time, pos[:, 1], 'g-', label="ay")
-  # plt.plot(time, pos[:, 2], 'b-', label="az")
-  # plt.title("Position")
-  # plt.xlabel("Time [s]")
-  # plt.ylabel("Position [m]")
-  # plt.legend(loc=0)
+  # Plot orientation and angular velocity
+  rpy = []
+  for idx in range(quat.shape[0]):
+    qx = quat[idx, 0]
+    qy = quat[idx, 1]
+    qz = quat[idx, 2]
+    qw = quat[idx, 3]
+    q = np.array([qw, qx, qy, qz])
+    ypr = quat2euler(q)
+    rpy.append(np.flip(ypr, 0))
+  rpy = np.array(rpy)
 
-  # plt.subplot(215)
-  # plt.plot(time, gyr[:, 0], 'r-', label="wx")
-  # plt.plot(time, gyr[:, 1], 'g-', label="wy")
-  # plt.plot(time, gyr[:, 2], 'b-', label="wz")
-  # plt.title("Angular Velocity")
-  # plt.xlabel("Time [s]")
-  # plt.ylabel("Angular Velocity [rad s^-1]")
-  # plt.legend(loc=0)
-  # plt.subplots_adjust(hspace=0.95, left=0.1, right=0.95, top=0.95)
+  plt.figure()
+  plt.subplot(211)
+  plt.plot(time, rpy[:, 0], 'r-', label="roll")
+  plt.plot(time, rpy[:, 1], 'g-', label="pitch")
+  plt.plot(time, rpy[:, 2], 'b-', label="yaw")
+  plt.title("Attitude")
+  plt.xlabel("Time [s]")
+  plt.ylabel("Attitude [deg]")
+  plt.legend(loc=0)
+
+  plt.subplot(212)
+  plt.plot(time, gyr[:, 0], 'r-', label="wx")
+  plt.plot(time, gyr[:, 1], 'g-', label="wy")
+  plt.plot(time, gyr[:, 2], 'b-', label="wz")
+  plt.title("Angular Velocity")
+  plt.xlabel("Time [s]")
+  plt.ylabel("Angular Velocity [rad s^-1]")
+  plt.legend(loc=0)
+  plt.subplots_adjust(hspace=0.95, left=0.1, right=0.95, top=0.95)
+
 
 # plot_poses()
 plot_state()

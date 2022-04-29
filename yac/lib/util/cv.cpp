@@ -1102,94 +1102,95 @@ vec2_t pinhole_equi4_undistort(const vecx_t &params, const vec2_t &z) {
   return z_undist;
 }
 
-static vec2_t opencv_undistort_point(const vecx_t &cam_params,
-                                     const vec2_t &kp) {
-  std::vector<cv::Point2f> pts_in;
-  pts_in.emplace_back(kp.x(), kp.y());
+// static vec2_t opencv_undistort_point(const vecx_t &cam_params,
+//                                      const vec2_t &kp) {
+//   std::vector<cv::Point2f> pts_in;
+//   pts_in.emplace_back(kp.x(), kp.y());
+//
+//   std::vector<cv::Point2f> pts_out;
+//
+//   cv::Mat K = cv::Mat::eye(3, 3, CV_64F);
+//   K.at<double>(0, 0) = cam_params(0);
+//   K.at<double>(1, 1) = cam_params(1);
+//   K.at<double>(0, 2) = cam_params(2);
+//   K.at<double>(1, 2) = cam_params(3);
+//
+//   std::vector<double> D;
+//   D.push_back(cam_params(4));
+//   D.push_back(cam_params(5));
+//   D.push_back(cam_params(6));
+//   D.push_back(cam_params(7));
+//
+//   cv::undistortPoints(pts_in, pts_out, K, D, cv::noArray(), K);
+//   const vec2_t kp_opencv{pts_out[0].x, pts_out[0].y};
+//
+//   return kp_opencv;
+// }
 
-  std::vector<cv::Point2f> pts_out;
-
-  cv::Mat K = cv::Mat::eye(3, 3, CV_64F);
-  K.at<double>(0, 0) = cam_params(0);
-  K.at<double>(1, 1) = cam_params(1);
-  K.at<double>(0, 2) = cam_params(2);
-  K.at<double>(1, 2) = cam_params(3);
-
-  std::vector<double> D;
-  D.push_back(cam_params(4));
-  D.push_back(cam_params(5));
-  D.push_back(cam_params(6));
-  D.push_back(cam_params(7));
-
-  cv::undistortPoints(pts_in, pts_out, K, D, cv::noArray(), K);
-  const vec2_t kp_opencv{pts_out[0].x, pts_out[0].y};
-
-  return kp_opencv;
-}
-
-void kalibr_distort(const real_t k1,
-                    const real_t k2,
-                    const real_t p1,
-                    const real_t p2,
-                    vec2_t &y,
-                    mat2_t &J) {
-  double mx2_u = y[0] * y[0];
-  double my2_u = y[1] * y[1];
-  double mxy_u = y[0] * y[1];
-  double rho2_u = mx2_u + my2_u;
-  double rad_dist_u = k1 * rho2_u + k2 * rho2_u * rho2_u;
-
-  J.setZero();
-  J(0, 0) = 1 + rad_dist_u + k1 * 2.0 * mx2_u + k2 * rho2_u * 4 * mx2_u +
-            2.0 * p1 * y[1] + 6 * p2 * y[0];
-  J(1, 0) = k1 * 2.0 * y[0] * y[1] + k2 * 4 * rho2_u * y[0] * y[1] +
-            p1 * 2.0 * y[0] + 2.0 * p2 * y[1];
-  J(0, 1) = J(1, 0);
-  J(1, 1) = 1 + rad_dist_u + k1 * 2.0 * my2_u + k2 * rho2_u * 4 * my2_u +
-            6 * p1 * y[1] + 2.0 * p2 * y[0];
-
-  y[0] += y[0] * rad_dist_u + 2.0 * p1 * mxy_u + p2 * (rho2_u + 2.0 * mx2_u);
-  y[1] += y[1] * rad_dist_u + 2.0 * p2 * mxy_u + p1 * (rho2_u + 2.0 * my2_u);
-}
-
-bool kalibr_back_project(const vecx_t &params, const vec2_t &kp, vec3_t &ray) {
-  const real_t fx = params(0);
-  const real_t fy = params(1);
-  const real_t cx = params(2);
-  const real_t cy = params(3);
-
-  const real_t k1 = params(4);
-  const real_t k2 = params(5);
-  const real_t p1 = params(6);
-  const real_t p2 = params(7);
-
-  // back-project
-  const real_t px = (kp.x() - cx) / fx;
-  const real_t py = (kp.y() - cy) / fy;
-  vec2_t p{px, py};
-
-  // undistort
-  vec2_t pbar = p;
-  mat2_t F;
-  vec2_t p_tmp;
-  for (int i = 0; i < 5; i++) {
-    p_tmp = pbar;
-    kalibr_distort(k1, k2, p1, p2, p_tmp, F);
-    vec2_t e(p - p_tmp);
-    vec2_t du = (F.transpose() * F).inverse() * F.transpose() * e;
-    pbar += du;
-    if (e.dot(e) < 1e-15) {
-      break;
-    }
-  }
-  p = pbar;
-
-  ray.x() = p.x();
-  ray.y() = p.y();
-  ray.z() = 1.0;
-
-  return true;
-}
+// void kalibr_distort(const real_t k1,
+//                     const real_t k2,
+//                     const real_t p1,
+//                     const real_t p2,
+//                     vec2_t &y,
+//                     mat2_t &J) {
+//   double mx2_u = y[0] * y[0];
+//   double my2_u = y[1] * y[1];
+//   double mxy_u = y[0] * y[1];
+//   double rho2_u = mx2_u + my2_u;
+//   double rad_dist_u = k1 * rho2_u + k2 * rho2_u * rho2_u;
+//
+//   J.setZero();
+//   J(0, 0) = 1 + rad_dist_u + k1 * 2.0 * mx2_u + k2 * rho2_u * 4 * mx2_u +
+//             2.0 * p1 * y[1] + 6 * p2 * y[0];
+//   J(1, 0) = k1 * 2.0 * y[0] * y[1] + k2 * 4 * rho2_u * y[0] * y[1] +
+//             p1 * 2.0 * y[0] + 2.0 * p2 * y[1];
+//   J(0, 1) = J(1, 0);
+//   J(1, 1) = 1 + rad_dist_u + k1 * 2.0 * my2_u + k2 * rho2_u * 4 * my2_u +
+//             6 * p1 * y[1] + 2.0 * p2 * y[0];
+//
+//   y[0] += y[0] * rad_dist_u + 2.0 * p1 * mxy_u + p2 * (rho2_u + 2.0 * mx2_u);
+//   y[1] += y[1] * rad_dist_u + 2.0 * p2 * mxy_u + p1 * (rho2_u + 2.0 * my2_u);
+// }
+//
+// bool kalibr_back_project(const vecx_t &params, const vec2_t &kp, vec3_t &ray)
+// {
+//   const real_t fx = params(0);
+//   const real_t fy = params(1);
+//   const real_t cx = params(2);
+//   const real_t cy = params(3);
+//
+//   const real_t k1 = params(4);
+//   const real_t k2 = params(5);
+//   const real_t p1 = params(6);
+//   const real_t p2 = params(7);
+//
+//   // back-project
+//   const real_t px = (kp.x() - cx) / fx;
+//   const real_t py = (kp.y() - cy) / fy;
+//   vec2_t p{px, py};
+//
+//   // undistort
+//   vec2_t pbar = p;
+//   mat2_t F;
+//   vec2_t p_tmp;
+//   for (int i = 0; i < 5; i++) {
+//     p_tmp = pbar;
+//     kalibr_distort(k1, k2, p1, p2, p_tmp, F);
+//     vec2_t e(p - p_tmp);
+//     vec2_t du = (F.transpose() * F).inverse() * F.transpose() * e;
+//     pbar += du;
+//     if (e.dot(e) < 1e-15) {
+//       break;
+//     }
+//   }
+//   p = pbar;
+//
+//   ray.x() = p.x();
+//   ray.y() = p.y();
+//   ray.z() = 1.0;
+//
+//   return true;
+// }
 
 int solvepnp(const camera_geometry_t *cam,
              const int cam_res[2],

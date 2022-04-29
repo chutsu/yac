@@ -16,6 +16,7 @@ from sympy import ccode
 from proto import tf
 from proto import tf_trans
 from proto import tf_rot
+from proto import tf_quat
 from proto import plot_tf
 from proto import plot_set_axes_equal
 from proto import Exp
@@ -24,6 +25,7 @@ from proto import euler321
 from proto import rot2euler
 from proto import rot2quat
 from proto import quat2rot
+from proto import quat2euler
 from proto import quat_mul
 from proto import quat_normalize
 from proto import AprilGrid
@@ -354,16 +356,23 @@ class LissajousTraj:
     """ Plot XYZ """
     # positions = self.get_position(self.t)
     positions = []
+    rotations = []
     velocities = []
     accelerations = []
+    angular_velocities = []
     for t in self.t:
       positions.append(tf_trans(self.get_pose(t)))
+      rotations.append(tf_quat(self.get_pose(t)))
       velocities.append(self.get_velocity(t))
       accelerations.append(self.get_acceleration(t))
+      angular_velocities.append(self.get_angular_velocity(t))
     positions = np.array(positions)
+    rotations = np.array(rotations)
     velocities = np.array(velocities)
     accelerations = np.array(accelerations)
+    angular_velocities = np.array(angular_velocities)
 
+    # Plot position, velocity and acceleartion
     plt.figure()
     plt.subplot(311)
     plt.plot(self.t, positions[:, 0], "-r")
@@ -388,6 +397,38 @@ class LissajousTraj:
     plt.title("Acceleration")
     plt.xlabel("Time [s]")
     plt.ylabel("Acceleration [m/s^2]")
+
+    # Plot orientation and angular velocity
+    rpy = []
+    for idx in range(rotations.shape[0]):
+      qx = rotations[idx, 0]
+      qy = rotations[idx, 1]
+      qz = rotations[idx, 2]
+      qw = rotations[idx, 3]
+      q = np.array([qw, qx, qy, qz])
+      ypr = quat2euler(q)
+      rpy.append(np.flip(ypr, 0))
+    rpy = np.array(rpy)
+
+    plt.figure()
+    plt.subplot(211)
+    plt.plot(self.t, rpy[:, 0], 'r-', label="roll")
+    plt.plot(self.t, rpy[:, 1], 'g-', label="pitch")
+    plt.plot(self.t, rpy[:, 2], 'b-', label="yaw")
+    plt.title("Attitude")
+    plt.xlabel("Time [s]")
+    plt.ylabel("Attitude [deg]")
+    plt.legend(loc=0)
+
+    plt.subplot(212)
+    plt.plot(self.t, angular_velocities[:, 0], 'r-', label="wx")
+    plt.plot(self.t, angular_velocities[:, 1], 'g-', label="wy")
+    plt.plot(self.t, angular_velocities[:, 2], 'b-', label="wz")
+    plt.title("Angular Velocity")
+    plt.xlabel("Time [s]")
+    plt.ylabel("Angular Velocity [rad s^-1]")
+    plt.legend(loc=0)
+    plt.subplots_adjust(hspace=0.95, left=0.1, right=0.95, top=0.95)
 
   def plot_theta(self, t):
     """ Plot Theta """

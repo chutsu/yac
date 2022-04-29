@@ -52,6 +52,8 @@ struct lissajous_traj_t {
   vec3_t get_angular_velocity(const timestamp_t ts_k) const;
   int save(const std::string &save_path) const;
 };
+
+// Vector container for lissajous trajectories
 using lissajous_trajs_t = std::vector<lissajous_traj_t>;
 
 /**

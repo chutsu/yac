@@ -1,8 +1,8 @@
 #!/bin/bash
 set -e
 
-python3 scripts/lissajous.py
-exit
+# python3 scripts/lissajous.py
+# exit
 
 # --prefix 'gdb -ex=run -ex=\"set confirm off\" -ex=bt -ex=quit -args'
 # --prefix 'gdb -ex run'
@@ -43,7 +43,7 @@ exit
 # RUN_CMD="./test_calib_camera --target test_calib_camera_add_pose"
 # RUN_CMD="./test_calib_camera --target test_calib_camera_add_and_remove_view"
 # RUN_CMD="./test_calib_camera --target test_calib_camera_add_nbv_view"
-RUN_CMD="./test_calib_camera --target test_calib_camera_find_nbv"
+# RUN_CMD="./test_calib_camera --target test_calib_camera_find_nbv"
 # RUN_CMD="./test_calib_camera --target test_calib_camera_filter_all_views"
 # RUN_CMD="./test_calib_camera --target test_calib_camera_remove_all_views"
 # RUN_CMD="./test_calib_camera --target test_calib_camera_remove_outliers"
@@ -84,9 +84,11 @@ RUN_CMD="./test_calib_camera --target test_calib_camera_find_nbv"
 
 # YAC - NBT
 # RUN_CMD="./test_calib_nbt"
+RUN_CMD="./test_calib_nbt --target test_lissajous_trajs"
 # RUN_CMD="./test_calib_nbt --target test_nbt_orbit_trajs"
 # RUN_CMD="./test_calib_nbt --target test_nbt_pan_trajs"
 # RUN_CMD="./test_calib_nbt --target test_nbt_figure8_trajs"
+# RUN_CMD="./test_calib_nbt --target test_nbt_lissajous_trajs"
 # RUN_CMD="./test_calib_nbt --target test_simulate_cameras"
 # RUN_CMD="./test_calib_nbt --target test_simulate_imu"
 # RUN_CMD="./test_calib_nbt --target test_nbt_eval"
@@ -100,13 +102,13 @@ RUN_CMD="./test_calib_camera --target test_calib_camera_find_nbv"
 # RUN_CMD="./test_marg_residual"
 # RUN_CMD="./test_marg_residual --target test_marg_block"
 
-tmux send-keys -t dev -R C-l C-m
-tmux send-keys -t dev -R "\
-cd ~/projects/yac \
-&& sudo make lib \
-&& cd build && ${RUN_CMD}
-" C-m
-exit
+# tmux send-keys -t dev -R C-l C-m
+# tmux send-keys -t dev -R "\
+# cd ~/projects/yac \
+# && sudo make lib \
+# && cd build && ${RUN_CMD}
+# " C-m
+# exit
 
 # YAC - ROS NODES
 # RUN_CMD="roslaunch yac_ros record_camera.launch"
@@ -119,24 +121,24 @@ exit
 # RUN_CMD="roslaunch yac_ros calib_imucam.launch \
 #   config_file:=/home/chutsu/projects/yac/yac_ros/config/euroc-calib_imucam.yaml"
 
-RUN_CMD="roslaunch yac_ros intel_d435i-calib_camera.launch \
-  config_file:=/home/chutsu/projects/yac/yac_ros/config/intel_d435i-calib_camera.yaml"
+# RUN_CMD="roslaunch yac_ros intel_d435i-calib_camera.launch \
+#   config_file:=/home/chutsu/projects/yac/yac_ros/config/intel_d435i-calib_camera.yaml"
 
 # RUN_CMD="roslaunch yac_ros intel_d435i-calib_imucam.launch \
 #   config_file:=/home/chutsu/projects/yac/yac_ros/config/intel_d435i-calib_imucam.yaml"
 
 # RUN_CMD="roslaunch yac_ros intel_d435i-calib_imucam.launch"
 
-tmux send-keys -t dev -R C-l C-m
-tmux send-keys -t dev -R "\
-cd ~/projects/yac \
-&& sudo make lib \
-&& make release \
-&& cd ~/yac_ws \
-&& source devel/setup.bash \
-&& ${RUN_CMD}
-" C-m
-exit
+# tmux send-keys -t dev -R C-l C-m
+# tmux send-keys -t dev -R "\
+# cd ~/projects/yac \
+# && sudo make lib \
+# && make release \
+# && cd ~/yac_ws \
+# && source devel/setup.bash \
+# && ${RUN_CMD}
+# " C-m
+# exit
 
 # python3 scripts/aprilgrid_generate.py --nx 6 --ny 6 --tsize 0.088
 # python3 scripts/marg_sandbox.py
@@ -144,10 +146,12 @@ exit
 # python3 scripts/plot_frames.py
 # python3 scripts/plot_imu.py
 # python3 scripts/plot_info.py
-# python3 scripts/plot_nbt.py
+python3 scripts/plot_nbt.py
 # python3 scripts/plot_poses.py /tmp/calib-estimates.yaml
 # python3 scripts/plot_stats.py
-# python3 scripts/plot_xyz.py /tmp/calib-estimates.csv "#ts" rx ry rz
+# python3 scripts/plot_xyz.py /tmp/vel.csv "#ts" vx vy vz
+# python3 scripts/plot_xyz.py /tmp/acc.csv "#ts" ax ay az
+# python3 scripts/plot_xyz.py /tmp/gyr.csv "#ts" wx wy wz
 # python3 scripts/sandbox.py
 
 # make

@@ -23,7 +23,6 @@ lissajous_traj_t::lissajous_traj_t(const std::string &traj_type_,
     psi = 2.0;
     yaw_bound = -atan2(A, R);
     pitch_bound = -atan2(B, R);
-
   } else if (traj_type == "vert-pan") {
     a = 2.0 * M_PI * 0.0;
     b = 2.0 * M_PI * 1.0;
@@ -31,7 +30,6 @@ lissajous_traj_t::lissajous_traj_t(const std::string &traj_type_,
     psi = 1.0;
     yaw_bound = 0.0;
     pitch_bound = -atan2(B, R);
-
   } else if (traj_type == "horiz-pan") {
     a = 2.0 * M_PI * 1.0;
     b = 2.0 * M_PI * 0.0;
@@ -39,7 +37,6 @@ lissajous_traj_t::lissajous_traj_t(const std::string &traj_type_,
     psi = 1.0;
     yaw_bound = atan2(A, R);
     pitch_bound = 0.0;
-
   } else if (traj_type == "diag0") {
     a = 2.0 * M_PI * 1.0;
     b = 2.0 * M_PI * 1.0;
@@ -47,7 +44,6 @@ lissajous_traj_t::lissajous_traj_t(const std::string &traj_type_,
     psi = 1.0;
     yaw_bound = atan2(A, R);
     pitch_bound = -atan2(B, R);
-
   } else if (traj_type == "diag1") {
     a = 2.0 * M_PI * 1.0;
     b = 2.0 * M_PI * 1.0;
@@ -55,7 +51,6 @@ lissajous_traj_t::lissajous_traj_t(const std::string &traj_type_,
     psi = 1.0;
     yaw_bound = -atan2(A, R);
     pitch_bound = -atan2(B, R);
-
   } else {
     throw std::runtime_error("Implementation Error!");
   }

@@ -223,15 +223,14 @@ int test_nbt_trajs(const ctrajs_t &trajs,
 }
 
 int test_lissajous_trajs() {
-  // Setup test
-  std::map<int, camera_params_t> cam_params;
-  extrinsics_t imu_exts;
-  calib_target_t target;
-  mat4_t T_FO;
-  mat4_t T_WF;
-  setup_test(cam_params, imu_exts, target, T_FO, T_WF);
+  // Fiducial pose
+  const vec3_t r_WF{0.0, 0.0, 0.0};
+  const vec3_t rpy_WF{deg2rad(90.0), 0.0, deg2rad(-90.0)};
+  const mat3_t C_WF = euler321(rpy_WF);
+  const mat4_t T_WF = tf(C_WF, r_WF);
 
   // Calculate calib width and height
+  const calib_target_t target;
   const double tag_rows = target.tag_rows;
   const double tag_cols = target.tag_cols;
   const double tag_spacing = target.tag_spacing;
@@ -240,6 +239,8 @@ int test_lissajous_trajs() {
   const double spacing_y = (tag_rows - 1) * tag_spacing * tag_size;
   const double calib_width = tag_cols * tag_size + spacing_x;
   const double calib_height = tag_rows * tag_size + spacing_y;
+  const vec3_t calib_center{calib_width / 2.0, calib_height / 2.0, 0.0};
+  const mat4_t T_FO = tf(I(3), calib_center);
 
   // Lissajous parameters
   const timestamp_t ts_start = 0;

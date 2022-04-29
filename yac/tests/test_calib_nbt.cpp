@@ -222,6 +222,40 @@ int test_nbt_trajs(const ctrajs_t &trajs,
   return 0;
 }
 
+int test_lissajous_trajs() {
+  // Setup test
+  std::map<int, camera_params_t> cam_params;
+  extrinsics_t imu_exts;
+  calib_target_t target;
+  mat4_t T_FO;
+  mat4_t T_WF;
+  setup_test(cam_params, imu_exts, target, T_FO, T_WF);
+
+  // Calculate calib width and height
+  const double tag_rows = target.tag_rows;
+  const double tag_cols = target.tag_cols;
+  const double tag_spacing = target.tag_spacing;
+  const double tag_size = target.tag_size;
+  const double spacing_x = (tag_cols - 1) * tag_spacing * tag_size;
+  const double spacing_y = (tag_rows - 1) * tag_spacing * tag_size;
+  const double calib_width = tag_cols * tag_size + spacing_x;
+  const double calib_height = tag_rows * tag_size + spacing_y;
+
+  // Lissajous parameters
+  const timestamp_t ts_start = 0;
+  const timestamp_t ts_end = sec2ts(3.0);
+  const real_t R = std::max(calib_width, calib_height) * 1.0;
+  const real_t A = calib_width * 0.5;
+  const real_t B = calib_height * 0.5;
+  const real_t T = ts2sec(ts_end - ts_start);
+
+  // Lissajous
+  lissajous_traj_t traj{"figure8", ts_start, T_WF, T_FO, R, A, B, T};
+  traj.save("/tmp/traj.csv");
+
+  return 0;
+}
+
 int test_nbt_orbit_trajs() {
   // Setup test
   std::map<int, camera_params_t> cam_params;
@@ -747,6 +781,7 @@ int test_nbt_find() {
 }
 
 void test_suite() {
+  MU_ADD_TEST(test_lissajous_trajs);
   MU_ADD_TEST(test_nbt_orbit_trajs);
   MU_ADD_TEST(test_nbt_pan_trajs);
   MU_ADD_TEST(test_nbt_figure8_trajs);

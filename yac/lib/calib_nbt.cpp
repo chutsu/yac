@@ -225,29 +225,50 @@ int lissajous_traj_t::save(const std::string &save_path) const {
     return -1;
   }
 
+  // File Header
+  file << "#ts,";                  // Timestamp
+  file << "rx,ry,rz,";             // Position
+  file << "qx,qy,qz,qw,";          // Rotation
+  file << "vx,vy,vz,";             // Velocity
+  file << "ax,ay,az,";             // Acceleartion
+  file << "wx,wy,wz" << std::endl; // Angular velocity
+
   // Output trajectory timestamps, positions and orientations as csv
   const timestamp_t ts_end = ts_start + sec2ts(T);
   const size_t num_positions = 1000;
   const auto timestamps = linspace(ts_start, ts_end, num_positions);
 
-  file << "#ts,rx,ry,rz,qx,qy,qz,qw,vx,vy,vz" << std::endl;
   for (const auto ts : timestamps) {
     const mat4_t T_WS = get_pose(ts);
     const vec3_t r_WS = tf_trans(T_WS);
     const quat_t q_WS = tf_quat(T_WS);
     const vec3_t v_WS = get_velocity(ts);
+    const vec3_t a_WS = get_acceleration(ts);
+    const vec3_t w_WS = get_angular_velocity(ts);
 
+    // Timestamp
     file << ts << ",";
+    // Position
     file << r_WS.x() << ",";
     file << r_WS.y() << ",";
     file << r_WS.z() << ",";
+    // Rotation
     file << q_WS.x() << ",";
     file << q_WS.y() << ",";
     file << q_WS.z() << ",";
     file << q_WS.w() << ",";
+    // Velocity
     file << v_WS.x() << ",";
     file << v_WS.y() << ",";
-    file << v_WS.z() << std::endl;
+    file << v_WS.z() << ",";
+    // Acceleartion
+    file << a_WS.x() << ",";
+    file << a_WS.y() << ",";
+    file << a_WS.z() << ",";
+    // Angular velocity
+    file << w_WS.x() << ",";
+    file << w_WS.y() << ",";
+    file << w_WS.z() << std::endl;
   }
 
   // Close file

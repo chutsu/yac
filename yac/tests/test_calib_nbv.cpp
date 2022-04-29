@@ -32,7 +32,7 @@ static void setup_calib_target(const camera_params_t &cam,
   // Create calibration origin
   pinhole_radtan4_t cam_geom;
   target = calib_target_t{"aprilgrid", 6, 6, 0.088, 0.3};
-  T_FO = calib_target_origin(target, &cam_geom, &cam);
+  calib_target_origin(T_FO, target, &cam_geom, &cam);
 
   // Calibration target pose
   if (T_WF) {
@@ -62,7 +62,8 @@ int test_calib_target_origin() {
                              proj_params,
                              dist_params};
 
-  const mat4_t T_FO = calib_target_origin(target, &cam_geom, &cam_params);
+  mat4_t T_FO;
+  MU_CHECK(calib_target_origin(T_FO, target, &cam_geom, &cam_params) == 0);
   print_matrix("T_FO", T_FO);
 
   return 0;
@@ -88,7 +89,8 @@ int test_calib_init_poses() {
                              proj_params,
                              dist_params};
 
-  const mat4s_t poses = calib_init_poses(target, &cam_geom, &cam_params);
+  mat4s_t poses;
+  MU_CHECK(calib_init_poses(poses, target, &cam_geom, &cam_params) == 0);
   const std::string save_path = "/tmp/calib_poses.csv";
   timestamps_t timestamps;
   for (size_t k = 0; k < poses.size(); k++) {
@@ -119,7 +121,8 @@ int test_calib_nbv_poses() {
                              proj_params,
                              dist_params};
 
-  const mat4s_t poses = calib_nbv_poses(target, &cam_geom, &cam_params);
+  mat4s_t poses;
+  MU_CHECK(calib_nbv_poses(poses, target, &cam_geom, &cam_params) == 0);
   const std::string save_path = "/tmp/calib_poses.csv";
   timestamps_t timestamps;
   for (size_t k = 0; k < poses.size(); k++) {
@@ -156,7 +159,8 @@ int test_nbv_draw() {
 
   // Setup nbv poses
   const calib_target_t target{"aprilgrid", 6, 6, 0.088, 0.3};
-  const mat4s_t poses = calib_init_poses(target, &cam_geom, &cam_params);
+  mat4s_t poses;
+  MU_CHECK(calib_init_poses(poses, target, &cam_geom, &cam_params) == 0);
   const std::string save_path = "/tmp/calib_poses.csv";
   timestamps_t timestamps;
   for (size_t k = 0; k < poses.size(); k++) {

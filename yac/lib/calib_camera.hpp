@@ -86,6 +86,14 @@ struct calib_view_t {
 
 // CALIBRATOR //////////////////////////////////////////////////////////////////
 
+void print_calib_target(FILE *out, calib_target_t &calib_target);
+void print_camera_params(FILE *out,
+                         const int cam_idx,
+                         const camera_params_t *cam);
+void print_estimates(FILE *out,
+                     CamIdx2Parameters &cam_params,
+                     CamIdx2Extrinsics &cam_exts);
+
 /** Camera Calibrator **/
 struct calib_camera_t {
   // Flags
@@ -95,7 +103,7 @@ struct calib_camera_t {
   // -- General
   bool verbose = true;
   std::string solver_type = "CERES-SOLVER";
-  int max_num_threads = 8;
+  int max_num_threads = 2;
   bool enable_nbv = true;
   bool enable_shuffle_views = true;
   bool enable_nbv_filter = true;
@@ -168,6 +176,7 @@ struct calib_camera_t {
   calib_camera_t() = delete;
   calib_camera_t(const calib_target_t &calib_target_);
   calib_camera_t(const std::string &config_path);
+  calib_camera_t(const calib_camera_t *calib);
   ~calib_camera_t();
 
   int nb_cameras() const;
@@ -183,8 +192,14 @@ struct calib_camera_t {
   std::map<int, std::vector<real_t>> get_reproj_errors();
   std::map<int, vec2s_t> get_residuals();
 
-  void add_camera_data(const int cam_idx, const aprilgrids_t &grids);
-  void add_camera_data(const std::map<int, aprilgrids_t> &grids);
+  void add_camera_data(const int cam_idx,
+                       const aprilgrids_t &grids,
+                       const bool init_intrinsics = true);
+  void add_camera_data(
+      const std::map<int, std::map<timestamp_t, aprilgrid_t>> &grids,
+      const bool init_intrinsics = true);
+  void add_camera_data(const std::map<int, aprilgrids_t> &grids,
+                       const bool init_intrinsics = true);
   void add_camera_data(const std::map<int, aprilgrids_t> &train_data,
                        const std::map<int, aprilgrids_t> &valid_data);
   void add_camera(const int cam_idx,
@@ -222,6 +237,12 @@ struct calib_camera_t {
                real_t &nbv_info,
                real_t &info,
                real_t &info_gain);
+  int find_nbv_fast(const std::map<int, mat4s_t> &nbv_poses,
+                    int &cam_idx,
+                    int &nbv_idx,
+                    real_t &nbv_info,
+                    real_t &info,
+                    real_t &info_gain);
 
   void _initialize_intrinsics();
   void _initialize_extrinsics();
@@ -232,10 +253,10 @@ struct calib_camera_t {
   int _remove_outliers(const bool filter_all);
   void _track_estimates(const timestamp_t ts, const bool view_accepted);
   void _print_stats(const size_t ts_idx, const size_t nb_timestamps);
-  void _solve_batch();
+  void _solve_batch(const bool verbose = false, const int max_iter = 50);
   void _solve_inc();
   void _solve_nbv();
-  void solve(bool skip_init = false);
+  void solve(const bool skip_init = false);
 
   void print_settings(FILE *out);
   void print_metrics(FILE *out,
@@ -248,6 +269,46 @@ struct calib_camera_t {
   int save_stats(const std::string &save_path);
 
   real_t inspect(const std::map<int, aprilgrids_t> &cam_data);
+};
+
+// NBV EVALUATOR //////////////////////////////////////////////////////////////
+
+/**
+ * NBV Evaluator
+ */
+struct nbv_evaluator_t {
+  // Data
+  calib_target_t calib_target;
+  std::vector<int> cam_indices;
+  std::map<int, camera_params_t *> cam_params;
+  std::map<int, extrinsics_t *> cam_exts;
+  std::map<int, camera_geometry_t *> cam_geoms;
+  fiducial_corners_t *corners = nullptr;
+
+  // Hessian
+  size_t remain_size = 0;
+  size_t marg_size = 0;
+  ParameterOrder param_order;
+  std::map<param_t *, bool> params_seen;
+  std::vector<param_t *> pose_ptrs;
+  std::vector<param_t *> cam_ptrs;
+  std::vector<param_t *> extrinsics_ptrs;
+  matx_t H_k;
+
+  // Camera geometries
+  pinhole_radtan4_t pinhole_radtan4;
+  pinhole_equi4_t pinhole_equi4;
+
+  nbv_evaluator_t() = delete;
+  nbv_evaluator_t(calib_camera_t *calib);
+  ~nbv_evaluator_t();
+
+  void form_param_order(const std::unordered_set<calib_residual_t *> &res_fns);
+  void form_hessian(const size_t H_size,
+                    const std::unordered_set<calib_residual_t *> &res_fns,
+                    matx_t &H);
+  real_t estimate_log_det_covar(const matx_t &H);
+  real_t eval(const mat4_t &T_FC0);
 };
 
 } //  namespace yac

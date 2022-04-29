@@ -429,7 +429,9 @@ vec2_t pinhole_equi4_undistort(const vecx_t &params, const vec2_t &z);
 /****************************** CAMERA GEOMETRY *******************************/
 
 struct camera_geometry_t {
-  camera_geometry_t() = default;
+  std::string type;
+
+  camera_geometry_t(const std::string &type_) : type{type_} {}
   virtual ~camera_geometry_t() = default;
 
   virtual int project(const int res[2],
@@ -451,6 +453,8 @@ struct camera_geometry_t {
 };
 
 struct pinhole_radtan4_t : camera_geometry_t {
+  pinhole_radtan4_t() : camera_geometry_t{"PINHOLE-RADTAN4"} {}
+
   int project(const int res[2],
               const vecx_t &params,
               const vec3_t &p_C,
@@ -480,6 +484,8 @@ struct pinhole_radtan4_t : camera_geometry_t {
 };
 
 struct pinhole_equi4_t : camera_geometry_t {
+  pinhole_equi4_t() : camera_geometry_t{"PINHOLE-EQUI4"} {}
+
   int project(const int res[2],
               const vecx_t &params,
               const vec3_t &p_C,

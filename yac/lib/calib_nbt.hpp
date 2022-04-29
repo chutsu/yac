@@ -5,10 +5,54 @@
 #include "calib_data.hpp"
 #include "calib_params.hpp"
 #include "calib_nbv.hpp"
+#include "calib_vi.hpp"
 
 namespace yac {
 
 /** TRAJECTORY GENERATION ****************************************************/
+
+/**
+ * Lissajous Trajectory
+ */
+struct lissajous_traj_t {
+  const std::string traj_type = "figure8";
+  const timestamp_t ts_start;
+  const mat4_t T_WF;
+  const mat4_t T_FO;
+
+  real_t R;     // Distance from calibration target
+  real_t A;     // Amplitude in x-axis
+  real_t B;     // Amplitude in y-axis
+  real_t a;     // Angular velocity in x-axis
+  real_t b;     // Angular velocity in y-axis
+  real_t delta; // Phase offset
+
+  real_t T; // Period - Time it takes to complete [secs]
+  real_t f; // Frequency
+  real_t w; // Angular velocity
+  real_t psi;
+
+  real_t pitch_bound;
+  real_t yaw_bound;
+
+  lissajous_traj_t() = delete;
+  lissajous_traj_t(const std::string &traj_type_,
+                   const timestamp_t ts_start_,
+                   const mat4_t &T_WF_,
+                   const mat4_t &T_FO_,
+                   const real_t R_,
+                   const real_t A_,
+                   const real_t B_,
+                   const real_t T_);
+  ~lissajous_traj_t() = default;
+
+  mat4_t get_pose(const timestamp_t ts_k) const;
+  vec3_t get_velocity(const timestamp_t ts_k) const;
+  vec3_t get_acceleration(const timestamp_t ts_k) const;
+  vec3_t get_angular_velocity(const timestamp_t ts_k) const;
+  int save(const std::string &save_path) const;
+};
+using lissajous_trajs_t = std::vector<lissajous_traj_t>;
 
 /**
  * NBT Orbit Trajectories
@@ -79,6 +123,29 @@ void nbt_figure8_trajs(const timestamp_t &ts_start,
                        const mat4_t &T_FO,
                        ctrajs_t &trajs);
 
+/**
+ * NBT Lassojous Trajectories
+ *
+ * @param[in] ts_start Start timestamp
+ * @param[in] ts_end End timestamp
+ * @param[in] target Calibration target configuration
+ * @param[in] cam0_geoms Camera0 geometry
+ * @param[in] cam0_params Camera0 parameters
+ * @param[in] imu_exts Imu-Camera extrinsics T_C0S
+ * @param[in] T_WF Fiducial world pose
+ * @param[in] T_FO Fiducial-Calibration origin relative pose
+ * @param[out] trajs Simulated trajectories
+ */
+void nbt_lissajous_trajs(const timestamp_t &ts_start,
+                         const timestamp_t &ts_end,
+                         const calib_target_t &target,
+                         const camera_geometry_t *cam0_geoms,
+                         const camera_params_t *cam0_params,
+                         const extrinsics_t *imu_exts,
+                         const mat4_t &T_WF,
+                         const mat4_t &T_FO,
+                         lissajous_trajs_t &trajs);
+
 /** SIMULATION ****************************************************************/
 
 /**
@@ -126,6 +193,17 @@ void simulate_cameras(const timestamp_t &ts_start,
                       const mat4_t &T_WF,
                       camera_data_t &cam_grids,
                       std::map<timestamp_t, mat4_t> &T_WC0_sim);
+void simulate_cameras(const timestamp_t &ts_start,
+                      const timestamp_t &ts_end,
+                      const ctraj_t &traj,
+                      const calib_target_t &target,
+                      const CamIdx2Geometry &cam_geoms,
+                      const CamIdx2Parameters &cam_params,
+                      const CamIdx2Extrinsics &cam_exts,
+                      const double cam_rate,
+                      const mat4_t &T_WF,
+                      camera_data_t &cam_grids,
+                      std::map<timestamp_t, mat4_t> &T_WC0_sim);
 
 /**
  * Simulate IMU
@@ -143,6 +221,15 @@ void simulate_cameras(const timestamp_t &ts_start,
 void simulate_imu(const timestamp_t &ts_start,
                   const timestamp_t &ts_end,
                   const ctraj_t &traj,
+                  const imu_params_t &imu_params,
+                  timestamps_t &imu_time,
+                  vec3s_t &imu_accel,
+                  vec3s_t &imu_gyro,
+                  mat4s_t &imu_poses,
+                  vec3s_t &imu_vels);
+void simulate_imu(const timestamp_t &ts_start,
+                  const timestamp_t &ts_end,
+                  const lissajous_traj_t &traj,
                   const imu_params_t &imu_params,
                   timestamps_t &imu_time,
                   vec3s_t &imu_accel,

@@ -138,33 +138,49 @@ void draw_status_text(const std::string &text, cv::Mat &image) {
 }
 
 void draw_detected(const aprilgrid_t &grid, cv::Mat &image) {
-  // Visualize detected
-  std::string text = "AprilGrid: ";
-  cv::Scalar text_color;
-  if (grid.detected) {
-    text += "detected!";
-    text_color = cv::Scalar(0, 255, 0);
-  } else {
-    text += "not detected!";
-    text_color = cv::Scalar(0, 0, 255);
+  // Pre-check
+  if (grid.detected == false) {
+    return;
   }
-  const cv::Point text_pos{10, 30};
-  const int text_font = cv::FONT_HERSHEY_PLAIN;
-  const float text_scale = 1.0;
-  const int text_thickness = 1;
-  cv::putText(image,
-              text,
-              text_pos,
-              text_font,
-              text_scale,
-              text_color,
-              text_thickness,
-              cv::LINE_AA);
 
-  // Visualize detected corners
-  const auto corner_color = cv::Scalar(0, 255, 0);
-  for (const vec2_t &kp : grid.keypoints()) {
-    cv::circle(image, cv::Point(kp(0), kp(1)), 1.0, corner_color, 2, 8);
+  // Draw settings
+  const auto red = cv::Scalar(0, 0, 255);
+  const auto green = cv::Scalar(0, 255, 0);
+  const auto blue = cv::Scalar(255, 0, 0);
+  const auto yellow = cv::Scalar(0, 255, 255);
+  const auto kp_color = cv::Scalar(0, 255, 0);
+  const auto nb_tags = grid.tag_rows * grid.tag_cols;
+  const int radius = 3;
+  const int thickness = 5;
+  const int line_type = 8;
+
+  // Draw corners
+  std::vector<int> tag_ids;
+  std::vector<int> corner_idxs;
+  vec2s_t keypoints;
+  vec3s_t object_points;
+  grid.get_measurements(tag_ids, corner_idxs, keypoints, object_points);
+
+  for (size_t i = 0; i < tag_ids.size(); i++) {
+    const vec2_t kp = keypoints[i];
+    const cv::Point p(kp.x(), kp.y());
+
+    if (tag_ids[i] == 0 && corner_idxs[i] == 0) {
+      // Bottom left corner
+      cv::circle(image, p, radius, red, thickness, line_type);
+    } else if (tag_ids[i] == (grid.tag_cols - 1) && corner_idxs[i] == 1) {
+      // Bottom right corner
+      cv::circle(image, p, radius, green, thickness, line_type);
+    } else if (tag_ids[i] == (nb_tags - 1) && corner_idxs[i] == 2) {
+      // Top right corner
+      cv::circle(image, p, radius, blue, thickness, line_type);
+    } else if (tag_ids[i] == (nb_tags - grid.tag_cols) && corner_idxs[i] == 3) {
+      // Top left corner
+      cv::circle(image, p, radius, yellow, thickness, line_type);
+    } else {
+      // Other
+      cv::circle(image, p, 1.0, kp_color, 2, 8);
+    }
   }
 }
 
@@ -178,7 +194,8 @@ bool tf_ok(const mat4_t &pose) {
 
 void update_aprilgrid_model(const ros::Time &ts,
                             const calib_target_t &target,
-                            ros::Publisher &rviz_pub) {
+                            ros::Publisher &rviz_pub,
+                            bool remove) {
   visualization_msgs::Marker marker;
 
   marker.header.frame_id = "T_WF";
@@ -187,7 +204,11 @@ void update_aprilgrid_model(const ros::Time &ts,
   marker.ns = "yac_ros";
   marker.id = 0;
   marker.type = visualization_msgs::Marker::MESH_RESOURCE;
-  marker.action = visualization_msgs::Marker::ADD;
+  if (remove) {
+    marker.action = visualization_msgs::Marker::DELETEALL;
+  } else {
+    marker.action = visualization_msgs::Marker::ADD;
+  }
 
   marker.mesh_resource = "package://yac_ros/models/aprilgrid/aprilgrid.dae";
   marker.mesh_use_embedded_materials = true;
@@ -226,20 +247,22 @@ void publish_fiducial_tf(const ros::Time &ts,
                          const calib_target_t &target,
                          const mat4_t &T_WF,
                          tf2_ros::TransformBroadcaster &tf_br,
-                         ros::Publisher rviz_pub) {
+                         ros::Publisher rviz_pub,
+                         bool remove) {
   if (tf_ok(T_WF) == false) {
     return;
   }
 
   const auto msg = build_msg(ts, "map", "T_WF", T_WF);
   tf_br.sendTransform(msg);
-  update_aprilgrid_model(ts, target, rviz_pub);
+  update_aprilgrid_model(ts, target, rviz_pub, remove);
 }
 
 void publish_tf(const ros::Time &ts,
                 const std::string &pose_name,
                 const mat4_t &pose,
-                tf2_ros::TransformBroadcaster &tf_br) {
+                tf2_ros::TransformBroadcaster &tf_br,
+                bool remove) {
   if (tf_ok(pose) == false) {
     return;
   }

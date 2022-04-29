@@ -148,15 +148,15 @@ int test_yac_solver() {
     std::vector<param_t *> params;
     params.push_back(&cam_params);
 
-    prof.start("solver.estimate_log_covariance_determinant()");
+    prof.start("solver.estimate_log_det_covar()");
     real_t covar_det = 0.0;
-    solver.estimate_log_covariance_determinant(params, covar_det);
-    prof.stop("solver.estimate_log_covariance_determinant()");
+    solver.estimate_log_det_covar(params, covar_det);
+    prof.stop("solver.estimate_log_det_covar()");
 
     printf("num_residuals: %ld\n", solver.num_residuals());
     printf("num_parameters: %ld\n", solver.num_params());
     printf("log(det(covar)): %.10f\n", covar_det);
-    prof.print("solver.estimate_log_covariance_determinant()");
+    prof.print("solver.estimate_log_det_covar()");
   }
 
   // // Solve

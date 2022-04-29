@@ -12,21 +12,21 @@ define compile_yac
 	@cd ${BUILD_DIR} \
 		&& cmake ../yac \
 		-DCMAKE_BUILD_TYPE=$(1) \
-			-DCMAKE_INSTALL_PREFIX=${PREFIX} \
+		-DCMAKE_INSTALL_PREFIX=${PREFIX} \
 		&& time sudo make install -s -j${NUM_CPU}
 endef
 
 define compile_yac_ros
   @cd ${CATKIN_WS} \
-		&& . /opt/ros/${ROS_VERSION}/setup.sh \
-		&& catkin build yac_ros -DCMAKE_BUILD_TYPE=Release -j${NUM_CPU}
+	&& . /opt/ros/${ROS_VERSION}/setup.sh \
+	&& catkin build yac_ros -DCMAKE_BUILD_TYPE=Release -j${NUM_CPU}
 endef
 
 help:
 	@echo -e "\033[1;34m[make targets]:\033[0m"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
 		| awk 'BEGIN {FS = ":.*?## "}; \
-			{printf "\033[1;36m%-20s\033[0m%s\n", $$1, $$2}'
+		{printf "\033[1;36m%-20s\033[0m%s\n", $$1, $$2}'
 
 ${BUILD_DIR}:
 	@sudo mkdir -p ${BUILD_DIR}

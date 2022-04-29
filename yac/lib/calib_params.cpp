@@ -391,7 +391,7 @@ int focal_init(const aprilgrid_t &grid, const int axis, double &focal) {
 
   // From all the focal length guesses return the median
   if (focal_guesses.size() == 0) {
-    LOG_ERROR("No focal guesses!");
+    // LOG_ERROR("No focal guesses!");
     return -1;
   }
   focal = median(focal_guesses);

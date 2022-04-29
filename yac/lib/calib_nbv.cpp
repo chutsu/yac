@@ -78,10 +78,11 @@ bool nbv_reached(const aprilgrid_t &nbv_target,
 }
 
 /** Calculate target origin (O) w.r.t. fiducial (F) T_FO **/
-mat4_t calib_target_origin(const calib_target_t &target,
-                           const camera_geometry_t *cam_geom,
-                           const camera_params_t *cam_params,
-                           const double target_scale) {
+int calib_target_origin(mat4_t &T_FO,
+                        const calib_target_t &target,
+                        const camera_geometry_t *cam_geom,
+                        const camera_params_t *cam_params,
+                        const double target_scale) {
   // Calculate target center
   const double tag_rows = target.tag_rows;
   const double tag_cols = target.tag_cols;
@@ -107,7 +108,7 @@ start:
   // Form transform of calibration origin (O) wrt fiducial target (F) T_FO
   const mat3_t C_FO = I(3);
   const vec3_t r_FO{center(0), center(1), z_FO};
-  const mat4_t T_FO = tf(C_FO, r_FO);
+  T_FO = tf(C_FO, r_FO);
 
   // Rotate the camera around to see if camera can actually observe the target
   const vec3_t rpy = deg2rad(vec3_t{-180.0, 0.0, 0.0});
@@ -118,19 +119,24 @@ start:
     retry--;
 
     if (retry == 0) {
-      FATAL("Failed to find calibration origin! Check camera params?");
+      // FATAL("Failed to find calibration origin! Check camera params?");
+      return -1;
     }
     goto start;
   }
 
-  return T_FO;
+  return 0;
 }
 
-mat4s_t calib_init_poses(const calib_target_t &target,
-                         const camera_geometry_t *cam_geom,
-                         const camera_params_t *cam_params) {
+int calib_init_poses(mat4s_t &poses,
+                     const calib_target_t &target,
+                     const camera_geometry_t *cam_geom,
+                     const camera_params_t *cam_params) {
   // Target
-  const mat4_t T_FO = calib_target_origin(target, cam_geom, cam_params, 0.5);
+  mat4_t T_FO;
+  if (calib_target_origin(T_FO, target, cam_geom, cam_params, 0.5) != 0) {
+    return -1;
+  }
   const vec3_t r_FO = tf_trans(T_FO);
   const double target_width = r_FO(0) * 2;
   const double target_height = r_FO(1) * 2;
@@ -145,7 +151,6 @@ mat4s_t calib_init_poses(const calib_target_t &target,
   const auto x_range = linspace(range_w[0], range_w[1], 2);
   const auto y_range = linspace(range_h[0], range_h[1], 2);
   const double z = r_FO(2);
-  mat4s_t poses;
 
   // Push first pose to be infront of target center
   const vec3_t r_FC{target_center(0), target_center(1), z};
@@ -162,22 +167,27 @@ mat4s_t calib_init_poses(const calib_target_t &target,
 
   // For each position create a camera pose that "looks at" the fiducial
   // center in the fiducial frame, T_FC.
+  poses.clear();
   for (const auto &r_FC : cam_pos) {
     const mat4_t T_FC = lookat(r_FC, target_center);
     poses.push_back(T_FC);
   }
 
-  return poses;
+  return 0;
 }
 
-mat4s_t calib_nbv_poses(const calib_target_t &target,
-                        const camera_geometry_t *cam_geom,
-                        const camera_params_t *cam_params,
-                        const int range_x_size,
-                        const int range_y_size,
-                        const int range_z_size) {
+int calib_nbv_poses(mat4s_t &nbv_poses,
+                    const calib_target_t &target,
+                    const camera_geometry_t *cam_geom,
+                    const camera_params_t *cam_params,
+                    const int range_x_size,
+                    const int range_y_size,
+                    const int range_z_size) {
   // Target
-  const mat4_t T_FO = calib_target_origin(target, cam_geom, cam_params, 0.8);
+  mat4_t T_FO;
+  if (calib_target_origin(T_FO, target, cam_geom, cam_params, 0.8) != 0) {
+    return -1;
+  }
   const vec3_t r_FO = tf_trans(T_FO);
   const double target_width = r_FO(0) * 2;
   const double target_height = r_FO(1) * 2;
@@ -210,10 +220,10 @@ mat4s_t calib_nbv_poses(const calib_target_t &target,
 
   // For each position create a camera pose that "looks at" the fiducial
   // center in the fiducial frame, T_FCi.
-  mat4s_t poses;
+  nbv_poses.clear();
   for (const auto &cam_pos : cam_positions) {
     const mat4_t T_FCi = lookat(cam_pos, target_center);
-    poses.push_back(T_FCi);
+    nbv_poses.push_back(T_FCi);
 
     // Randomly perturb the pose a little
     // const auto roll = deg2rad(randf(-5.0, 5.0));
@@ -225,18 +235,18 @@ mat4s_t calib_nbv_poses(const calib_target_t &target,
     // poses.push_back(T_FCi * dT);
   }
 
-  return poses;
+  return 0;
 }
 
-std::map<int, mat4s_t> calib_nbv_poses(const calib_target_t &target,
-                                       const CamIdx2Geometry &cam_geoms,
-                                       const CamIdx2Parameters &cam_params,
-                                       const CamIdx2Extrinsics &cam_exts,
-                                       const int range_x_size,
-                                       const int range_y_size,
-                                       const int range_z_size) {
-  std::map<int, mat4s_t> nbv_poses;
-
+int calib_nbv_poses(std::map<int, mat4s_t> &nbv_poses,
+                    const calib_target_t &target,
+                    const CamIdx2Geometry &cam_geoms,
+                    const CamIdx2Parameters &cam_params,
+                    const CamIdx2Extrinsics &cam_exts,
+                    const int range_x_size,
+                    const int range_y_size,
+                    const int range_z_size) {
+  nbv_poses.clear();
   for (const auto [cam_idx, _] : cam_geoms) {
     UNUSED(_);
     const auto geom = cam_geoms.at(cam_idx);
@@ -245,19 +255,25 @@ std::map<int, mat4s_t> calib_nbv_poses(const calib_target_t &target,
     const mat4_t T_C0Ci = ext->tf();
     const mat4_t T_CiC0 = T_C0Ci.inverse();
 
-    const mat4s_t poses = calib_nbv_poses(target,
-                                          geom,
-                                          cam,
-                                          range_x_size,
-                                          range_y_size,
-                                          range_z_size);
+    mat4s_t poses;
+    auto retval = calib_nbv_poses(poses,
+                                  target,
+                                  geom,
+                                  cam,
+                                  range_x_size,
+                                  range_y_size,
+                                  range_z_size);
+    if (retval != 0) {
+      return -1;
+    }
+
     for (const mat4_t T_FCi : poses) {
       nbv_poses[cam_idx].push_back(T_FCi * T_CiC0);
     }
   }
 
   // Note NBV poses are all relative to cam0
-  return nbv_poses;
+  return 0;
 }
 
 aprilgrid_t nbv_target_grid(const calib_target_t &target,

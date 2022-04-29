@@ -1263,11 +1263,19 @@ struct profiler_t {
   void start(const std::string &key) { timers[key] = tic(); }
 
   float stop(const std::string &key) {
+    if (timers.count(key) == 0) {
+      FATAL("Key [%s] does not exist in profiler!", key.c_str());
+    }
+
     record[key].push_back(toc(&timers[key]));
     return record[key].back();
   }
 
   void print(const std::string &key, const bool show_last = true) {
+    if (record.count(key) == 0) {
+      FATAL("Key [%s] does not exist in profiler!", key.c_str());
+    }
+
     if (show_last) {
       printf("[%s]: %.4fs\n", key.c_str(), record[key].back());
     } else {

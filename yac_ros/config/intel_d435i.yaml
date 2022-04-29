@@ -1,16 +1,29 @@
 ros:
+  data_path: "/tmp/calib_data"
   cam0_topic: "/rs/ir0/image"
   cam1_topic: "/rs/ir1/image"
   imu0_topic: "/rs/imu0/data"
+
+settings:
+  info_gain_threshold: 0.5
 
 calib_target:
   target_type: 'aprilgrid'  # Target type
   tag_rows: 6               # Number of rows
   tag_cols: 6               # Number of cols
-  tag_size: 0.0375           # Size of apriltag, edge to edge [m]
-  # tag_size: 0.053           # Size of apriltag, edge to edge [m]
+  tag_size: 0.0375          # Size of apriltag, edge to edge [m]
   tag_spacing: 0.3          # Ratio of space between tags to tagSize
                             # Example: tagSize=2m, spacing=0.5m --> tagSpacing=0.25[-]
+
+cam0:
+  resolution: [640, 480]
+  proj_model: "pinhole"
+  dist_model: "radtan4"
+
+cam1:
+  resolution: [640, 480]
+  proj_model: "pinhole"
+  dist_model: "radtan4"
 
 imu0:
   rate: 250
@@ -25,27 +38,3 @@ imu0:
   tau: 3600.0 # reversion time constant, currently not in use [s]
   g: 9.81007 # Earth's acceleration due to gravity [m/s^2]
   a0: [ 0.0, 0.0, 0.0 ] # Accelerometer bias [m/s^2]
-
-cam0:
-  resolution: [640, 480]
-  proj_model: "pinhole"
-  dist_model: "radtan4"
-  proj_params: [384.35386606462447, 384.9560729180638, 319.28590839603237, 239.87334366520707]
-  dist_params: [0.003911246673083202, -0.0034005376214794316, 0.0004081791451489365, 0.0007181727055388892]
-
-cam1:
-  resolution: [640, 480]
-  proj_model: "pinhole"
-  dist_model: "radtan4"
-  proj_params: [384.32186243851334, 384.9214612504451, 319.08615697476637, 239.98593476287843]
-  dist_params: [0.004378427247850674, -0.0041355241799928425, 0.0005900340360341945, 0.0002999052406894697]
-
-T_cam0_cam1:
-  rows: 4
-  cols: 4
-  data: [
-    0.99999966, -0.00026813,  0.00078349, 0.05031867,
-    0.00026816,  0.99999996, -0.0000396,  -0.00003271,
-    -0.00078348,  0.00003981,  0.99999969, -0.00007283,
-    0.0,         0.0,         0.0,         1.0
-  ]

@@ -53,7 +53,7 @@ static void setup_calib_target(const camera_params_t &cam,
   // Create calibration origin
   pinhole_radtan4_t cam_geom;
   target = calib_target_t{"aprilgrid", 6, 6, 0.088, 0.3};
-  T_FO = calib_target_origin(target, &cam_geom, &cam);
+  calib_target_origin(T_FO, target, &cam_geom, &cam);
 
   // Calibration target pose
   if (T_WF) {
@@ -164,8 +164,8 @@ int test_nbt_trajs(const ctrajs_t &trajs,
     vec3_t r_WS = tf_trans(T_WS);
     mat3_t C_WS = tf_rot(T_WS);
     vec3_t v_WS = ctraj_get_velocity(traj, 0);
-    print_matrix("T_WS", T_WS);
-    print_vector("v_WS", v_WS);
+    // print_matrix("T_WS", T_WS);
+    // print_vector("v_WS", v_WS);
 
     timestamp_t ts_k = 0;
     while (ts_k <= ts_end) {
@@ -218,6 +218,41 @@ int test_nbt_trajs(const ctrajs_t &trajs,
     printf("trans diff: %f\t", (r_est - r_gnd).norm());
     printf("rot   diff: %f\n", (rpy_est - rpy_gnd).norm());
   }
+
+  return 0;
+}
+
+int test_lissajous_trajs() {
+  // Fiducial pose
+  const vec3_t r_WF{0.0, 0.0, 0.0};
+  const vec3_t rpy_WF{deg2rad(90.0), 0.0, deg2rad(-90.0)};
+  const mat3_t C_WF = euler321(rpy_WF);
+  const mat4_t T_WF = tf(C_WF, r_WF);
+
+  // Calculate calib width and height
+  const calib_target_t target;
+  const double tag_rows = target.tag_rows;
+  const double tag_cols = target.tag_cols;
+  const double tag_spacing = target.tag_spacing;
+  const double tag_size = target.tag_size;
+  const double spacing_x = (tag_cols - 1) * tag_spacing * tag_size;
+  const double spacing_y = (tag_rows - 1) * tag_spacing * tag_size;
+  const double calib_width = tag_cols * tag_size + spacing_x;
+  const double calib_height = tag_rows * tag_size + spacing_y;
+  const vec3_t calib_center{calib_width / 2.0, calib_height / 2.0, 0.0};
+  const mat4_t T_FO = tf(I(3), calib_center);
+
+  // Lissajous parameters
+  const timestamp_t ts_start = 0;
+  const timestamp_t ts_end = sec2ts(3.0);
+  const real_t R = std::max(calib_width, calib_height) * 1.0;
+  const real_t A = calib_width * 0.5;
+  const real_t B = calib_height * 0.5;
+  const real_t T = ts2sec(ts_end - ts_start);
+
+  // Lissajous
+  lissajous_traj_t traj{"figure8", ts_start, T_WF, T_FO, R, A, B, T};
+  traj.save("/tmp/traj.csv");
 
   return 0;
 }
@@ -302,6 +337,152 @@ int test_nbt_figure8_trajs() {
                     T_FO,
                     trajs);
   test_nbt_trajs(trajs, ts_start, ts_end, T_WF);
+
+  return 0;
+}
+
+int test_nbt_lissajous_trajs() {
+  // Setup test
+  std::map<int, camera_params_t> cam_params;
+  extrinsics_t imu_exts;
+  calib_target_t target;
+  mat4_t T_FO;
+  mat4_t T_WF;
+  setup_test(cam_params, imu_exts, target, T_FO, T_WF);
+
+  // Generate trajectories
+  lissajous_trajs_t trajs;
+  const timestamp_t ts_start = 0;
+  const timestamp_t ts_end = 3e9;
+  pinhole_radtan4_t cam_geom;
+  nbt_lissajous_trajs(ts_start,
+                      ts_end,
+                      target,
+                      &cam_geom,
+                      &cam_params[0],
+                      &imu_exts,
+                      T_WF,
+                      T_FO,
+                      trajs);
+
+  // Save trajectories
+  remove_dir("/tmp/nbt/traj");
+  dir_create("/tmp/nbt/traj");
+  for (size_t index = 0; index < trajs.size(); index++) {
+    const auto &traj = trajs[index];
+    char buffer[1024];
+    snprintf(buffer, sizeof(buffer), "/tmp/nbt/traj/traj_%ld.csv", index);
+    printf("saving trajectory to [%s]\n", buffer);
+    traj.save(std::string{buffer});
+  }
+
+  // Save fiducial pose
+  mat2csv("/tmp/nbt/fiducial_pose.csv", T_WF);
+
+  // -- Simulate imu measurements
+  std::default_random_engine rndeng;
+
+  sim_imu_t imu;
+  imu.rate = 400;
+  imu.tau_a = 3600;
+  imu.tau_g = 3600;
+  imu.sigma_g_c = 0.0;
+  imu.sigma_a_c = 0.0;
+  imu.sigma_gw_c = 0;
+  imu.sigma_aw_c = 0;
+  imu.g = 9.81007;
+
+  int index = 0;
+  const timestamp_t dt = (1 / imu.rate) * 1e9;
+  for (auto traj : trajs) {
+    // Initialize position, velocity and attidue
+    mat4_t T_WS = traj.get_pose(0);
+    vec3_t r_WS = tf_trans(T_WS);
+    mat3_t C_WS = tf_rot(T_WS);
+    vec3_t v_WS = traj.get_velocity(0);
+    print_matrix("T_WS", T_WS);
+    print_vector("v_WS", v_WS);
+
+    std::ofstream file_pos{"/tmp/pos.csv"};
+    std::ofstream file_vel{"/tmp/vel.csv"};
+    std::ofstream file_acc{"/tmp/acc.csv"};
+    std::ofstream file_gyr{"/tmp/gyr.csv"};
+    file_pos << "#ts,x,y,z" << std::endl;
+    file_vel << "#ts,vx,vy,vz" << std::endl;
+    file_acc << "#ts,ax,ay,az" << std::endl;
+    file_gyr << "#ts,wx,wy,wz" << std::endl;
+
+    timestamp_t ts_k = 0;
+    while (ts_k <= ts_end) {
+      const auto T_WS_W = traj.get_pose(ts_k);
+      const auto w_WS_W = traj.get_angular_velocity(ts_k);
+      const auto a_WS_W = traj.get_acceleration(ts_k);
+      vec3_t a_WS_S;
+      vec3_t w_WS_S;
+      sim_imu_measurement(imu,
+                          rndeng,
+                          ts_k,
+                          T_WS_W,
+                          w_WS_W,
+                          a_WS_W,
+                          a_WS_S,
+                          w_WS_S);
+
+      // Propagate simulated IMU measurements
+      const real_t dt_s = ts2sec(dt);
+      const real_t dt_s_sq = dt_s * dt_s;
+      const vec3_t g_W{0.0, 0.0, -imu.g};
+      // -- Position at time k
+      const vec3_t b_a = ones(3, 1) * imu.b_a;
+      const vec3_t n_a = ones(3, 1) * imu.sigma_a_c;
+      r_WS += v_WS * dt_s;
+      r_WS += 0.5 * g_W * dt_s_sq;
+      r_WS += 0.5 * C_WS * (a_WS_S - b_a - n_a) * dt_s_sq;
+      // -- velocity at time k
+      v_WS += C_WS * (a_WS_S - b_a - n_a) * dt_s + g_W * dt_s;
+      // -- Attitude at time k
+      const vec3_t b_g = ones(3, 1) * imu.b_g;
+      const vec3_t n_g = ones(3, 1) * imu.sigma_g_c;
+      C_WS = C_WS * lie::Exp((w_WS_S - b_g - n_g) * ts2sec(dt));
+      // -- Normalize rotation
+      quat_t q = quat_t{C_WS};
+      q.normalize();
+      C_WS = q.toRotationMatrix();
+
+      file_pos << ts_k << ",";
+      file_pos << r_WS.x() << ",";
+      file_pos << r_WS.y() << ",";
+      file_pos << r_WS.z() << std::endl;
+
+      file_vel << ts_k << ",";
+      file_vel << v_WS.x() << ",";
+      file_vel << v_WS.y() << ",";
+      file_vel << v_WS.z() << std::endl;
+
+      file_acc << ts_k << ",";
+      file_acc << a_WS_W.x() << ",";
+      file_acc << a_WS_W.y() << ",";
+      file_acc << a_WS_W.z() << std::endl;
+
+      file_gyr << ts_k << ",";
+      file_gyr << w_WS_W.x() << ",";
+      file_gyr << w_WS_W.y() << ",";
+      file_gyr << w_WS_W.z() << std::endl;
+
+      // Update
+      ts_k += dt;
+    }
+    index++;
+
+    T_WS = tf(C_WS, r_WS);
+    const vec3_t r_est = tf_trans(T_WS);
+    const vec3_t r_gnd = tf_trans(traj.get_pose(ts_end));
+    const vec3_t rpy_est = quat2euler(tf_quat(T_WS));
+    const vec3_t rpy_gnd = quat2euler(tf_quat(traj.get_pose(ts_end)));
+    printf("index: %d  ", index);
+    printf("trans diff: %f\t", (r_est - r_gnd).norm());
+    printf("rot   diff: %f\n", (rpy_est - rpy_gnd).norm());
+  }
 
   return 0;
 }
@@ -495,9 +676,12 @@ int test_nbt_eval() {
   ctrajs_t trajs;
   const timestamp_t ts_start = calib.calib_views.back()->ts + 1;
   const timestamp_t ts_end = ts_start + sec2ts(2.0);
-  const mat4_t T_FO = calib_target_origin(calib.calib_target,
-                                          calib.cam_geoms[cam_idx],
-                                          calib.cam_params[cam_idx]);
+  mat4_t T_FO;
+  calib_target_origin(T_FO,
+                      calib.calib_target,
+                      calib.cam_geoms[cam_idx],
+                      calib.cam_params[cam_idx]);
+
   nbt_orbit_trajs(ts_start,
                   ts_end,
                   calib.calib_target,
@@ -569,9 +753,12 @@ int test_nbt_find() {
   ctrajs_t trajs;
   const timestamp_t ts_start = calib.calib_views.back()->ts + 1;
   const timestamp_t ts_end = ts_start + sec2ts(2.0);
-  const mat4_t T_FO = calib_target_origin(calib.calib_target,
-                                          calib.cam_geoms[cam_idx],
-                                          calib.cam_params[cam_idx]);
+  mat4_t T_FO;
+  calib_target_origin(T_FO,
+                      calib.calib_target,
+                      calib.cam_geoms[cam_idx],
+                      calib.cam_params[cam_idx]);
+
   nbt_orbit_trajs(ts_start,
                   ts_end,
                   calib.calib_target,
@@ -588,15 +775,18 @@ int test_nbt_find() {
   prof.start("NBT Find");
   const int best_index = nbt_find(trajs, calib, true);
   MU_CHECK(best_index != -1);
+  prof.stop("NBT Find");
   prof.print("NBT Find");
 
   return 0;
 }
 
 void test_suite() {
+  MU_ADD_TEST(test_lissajous_trajs);
   MU_ADD_TEST(test_nbt_orbit_trajs);
   MU_ADD_TEST(test_nbt_pan_trajs);
   MU_ADD_TEST(test_nbt_figure8_trajs);
+  MU_ADD_TEST(test_nbt_lissajous_trajs);
   MU_ADD_TEST(test_simulate_cameras);
   MU_ADD_TEST(test_simulate_imu);
   MU_ADD_TEST(test_nbt_eval);

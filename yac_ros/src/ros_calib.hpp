@@ -27,17 +27,20 @@ void draw_nbv(const mat4_t &T_FC0, cv::Mat &image);
 bool tf_ok(const mat4_t &pose);
 void update_aprilgrid_model(const ros::Time &ts,
                             const calib_target_t &target,
-                            ros::Publisher &rviz_pub);
+                            ros::Publisher &rviz_pub,
+                            bool remove = false);
 
 void publish_fiducial_tf(const ros::Time &ts,
                          const calib_target_t &target,
                          const mat4_t &T_WF,
                          tf2_ros::TransformBroadcaster &tf_br,
-                         ros::Publisher rviz_pub);
+                         ros::Publisher rviz_pub,
+                         bool remove = false);
 void publish_tf(const ros::Time &ts,
                 const std::string &pose_name,
                 const mat4_t &pose,
-                tf2_ros::TransformBroadcaster &tf_br);
+                tf2_ros::TransformBroadcaster &tf_br,
+                bool remove = false);
 
 /* ROS Calibration Configuration */
 struct ros_config_t {

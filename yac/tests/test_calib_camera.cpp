@@ -286,10 +286,12 @@ int test_calib_camera_find_nbv() {
   calib.solve();
 
   // Next best view poses
-  auto nbv_poses = calib_nbv_poses(calib_target,
-                                   calib.cam_geoms,
-                                   calib.cam_params,
-                                   calib.cam_exts);
+  std::map<int, mat4s_t> nbv_poses;
+  calib_nbv_poses(nbv_poses,
+                  calib_target,
+                  calib.cam_geoms,
+                  calib.cam_params,
+                  calib.cam_exts);
 
   profiler_t prof;
   int cam_idx = 0;
@@ -298,7 +300,7 @@ int test_calib_camera_find_nbv() {
   real_t info = 0.0;
   real_t info_gain = 0.0;
   prof.start("find_nbv");
-  calib.find_nbv(nbv_poses, cam_idx, nbv_idx, nbv_info, info, info_gain);
+  calib.find_nbv_fast(nbv_poses, cam_idx, nbv_idx, nbv_info, info, info_gain);
   prof.stop("find_nbv");
   prof.print("find_nbv");
 

@@ -81,8 +81,8 @@ struct solver_t {
   void clear();
   virtual int estimate_covariance(const std::vector<param_t *> &params,
                                   matx_t &calib_covar);
-  virtual int estimate_log_covariance_determinant(
-      const std::vector<param_t *> &params, real_t &covar_det);
+  virtual int estimate_log_det_covar(const std::vector<param_t *> &params,
+                                     real_t &covar_det);
   virtual void solve(const int max_iter = 30,
                      const bool verbose = false,
                      const int verbose_level = 0) = 0;
@@ -135,13 +135,21 @@ struct ceres_solver_t : solver_t {
 #ifdef ENABLE_CERES_COVARIANCE_ESTIMATOR
   int estimate_covariance(const std::vector<param_t *> &params,
                           matx_t &covar) override;
-  int estimate_log_covariance_determinant(const std::vector<param_t *> &params,
-                                          real_t &covar_det) override;
+  int estimate_log_det_covar(const std::vector<param_t *> &params,
+                             real_t &covar_det) override;
 #endif // ENABLE_CERES_COVARIANCE_ESTIMATOR
 
   void solve(const int max_iter = 30,
              const bool verbose = false,
              const int verbose_level = 0) override;
+};
+
+// COVARIANCE ESTIMATOR //////////////////////////////////////////////////////
+
+struct covariance_estimator_t : public solver_t {
+  covariance_estimator_t() = delete;
+  covariance_estimator_t(const solver_t *solver);
+  ~covariance_estimator_t();
 };
 
 } // namespace yac

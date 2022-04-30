@@ -626,6 +626,53 @@ def test_acceleration():
   plt.show()
 
 
+def test_angular_velocity():
+  """ Test angular_velocity """
+  traj = LissajousTraj("vert-pan", T_WF)
+
+  # -- Integrate angular_velocity
+  C_WS = tf_rot(traj.get_pose(traj.t[0]))
+  w_WS = traj.get_angular_velocity(traj.t[0])
+  dt = np.diff(traj.t)[0]
+
+  euler_est = [np.flip(rot2euler(C_WS), 0)]
+  euler_gnd = [np.flip(rot2euler(C_WS), 0)]
+
+  for t in traj.t[1:]:
+    C_WS_gnd = tf_rot(traj.get_pose(t))
+    w_WS_W = traj.get_angular_velocity(t)
+    w_WS_S = C_WS.T @ w_WS_W
+    C_WS = C_WS @ Exp(w_WS_S * dt)
+    euler_est.append(np.flip(rot2euler(C_WS), 0))
+    euler_gnd.append(np.flip(rot2euler(C_WS_gnd), 0))
+  euler_est = np.array(euler_est)
+  euler_gnd = np.array(euler_gnd)
+
+  # -- Plot Attitude
+  fig = plt.figure()
+  plt.subplot(311)
+  plt.plot(traj.t, np.rad2deg(euler_est[:, 0]), 'r-')
+  plt.plot(traj.t, np.rad2deg(euler_gnd[:, 0]), 'r--')
+  plt.xlabel("Time [s]")
+  plt.ylabel("Euler Angle [deg]")
+
+  plt.subplot(312)
+  plt.plot(traj.t, np.rad2deg(euler_est[:, 1]), 'g-')
+  plt.plot(traj.t, np.rad2deg(euler_gnd[:, 1]), 'g--')
+  plt.xlabel("Time [s]")
+  plt.ylabel("Euler Angle [deg]")
+
+  plt.subplot(313)
+  plt.plot(traj.t, np.rad2deg(euler_est[:, 2]), 'b-')
+  plt.plot(traj.t, np.rad2deg(euler_gnd[:, 2]), 'b--')
+  plt.xlabel("Time [s]")
+  plt.ylabel("Euler Angle [deg]")
+
+  plt.subplots_adjust(top=0.9, right=0.95, hspace=0.7)
+  plt.suptitle("Test Integrate Angular Velocity")
+  plt.show()
+
+
 def test_integration():
   """ Test integration """
   traj = LissajousTraj("figure8", T_WF)
@@ -808,4 +855,5 @@ T_WF = tf(C_WF, r_WF)
 # Tests
 # test_velocity()
 # test_acceleration()
-test_integration()
+# test_angular_velocity()
+# test_integration()

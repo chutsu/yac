@@ -356,18 +356,18 @@ class LissajousTraj:
     """ Plot XYZ """
     # positions = self.get_position(self.t)
     positions = []
-    rotations = []
+    quats = []
     velocities = []
     accelerations = []
     angular_velocities = []
     for t in self.t:
       positions.append(tf_trans(self.get_pose(t)))
-      rotations.append(tf_quat(self.get_pose(t)))
+      quats.append(tf_quat(self.get_pose(t)))
       velocities.append(self.get_velocity(t))
       accelerations.append(self.get_acceleration(t))
       angular_velocities.append(self.get_angular_velocity(t))
     positions = np.array(positions)
-    rotations = np.array(rotations)
+    quats = np.array(quats)
     velocities = np.array(velocities)
     accelerations = np.array(accelerations)
     angular_velocities = np.array(angular_velocities)
@@ -400,18 +400,24 @@ class LissajousTraj:
 
     # Plot orientation and angular velocity
     rpy = []
-    for idx in range(rotations.shape[0]):
-      qx = rotations[idx, 0]
-      qy = rotations[idx, 1]
-      qz = rotations[idx, 2]
-      qw = rotations[idx, 3]
-      q = np.array([qw, qx, qy, qz])
-      ypr = quat2euler(q)
+    for idx in range(len(self.t)):
+      q_WS = quats[idx, :]
+      ypr = quat2euler(q_WS)
       rpy.append(np.flip(ypr, 0))
     rpy = np.array(rpy)
 
+    body_rates = []
+    for idx in range(len(self.t)):
+      q_WS = quats[idx, :]
+      C_WS = quat2rot(q_WS)
+      w_WS_W = angular_velocities[idx, :]
+
+      w_WS_S = C_WS.T @ w_WS_W
+      body_rates.append(w_WS_S)
+    body_rates = np.array(body_rates)
+
     plt.figure()
-    plt.subplot(211)
+    plt.subplot(311)
     plt.plot(self.t, rpy[:, 0], 'r-', label="roll")
     plt.plot(self.t, rpy[:, 1], 'g-', label="pitch")
     plt.plot(self.t, rpy[:, 2], 'b-', label="yaw")
@@ -420,13 +426,22 @@ class LissajousTraj:
     plt.ylabel("Attitude [deg]")
     plt.legend(loc=0)
 
-    plt.subplot(212)
+    plt.subplot(312)
     plt.plot(self.t, angular_velocities[:, 0], 'r-', label="wx")
     plt.plot(self.t, angular_velocities[:, 1], 'g-', label="wy")
     plt.plot(self.t, angular_velocities[:, 2], 'b-', label="wz")
     plt.title("Angular Velocity")
     plt.xlabel("Time [s]")
-    plt.ylabel("Angular Velocity [rad s^-1]")
+    plt.ylabel("Angular Velocity in Inertial Frame [rad s^-1]")
+    plt.legend(loc=0)
+
+    plt.subplot(313)
+    plt.plot(self.t, body_rates[:, 0], 'r-', label="wx")
+    plt.plot(self.t, body_rates[:, 1], 'g-', label="wy")
+    plt.plot(self.t, body_rates[:, 2], 'b-', label="wz")
+    plt.title("Angular Velocity")
+    plt.xlabel("Time [s]")
+    plt.ylabel("Angular Velocity in Body Frame [rad s^-1]")
     plt.legend(loc=0)
     plt.subplots_adjust(hspace=0.95, left=0.1, right=0.95, top=0.95)
 

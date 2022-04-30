@@ -632,11 +632,12 @@ def test_angular_velocity():
 
   # -- Integrate angular_velocity
   C_WS = tf_rot(traj.get_pose(traj.t[0]))
-  w_WS = traj.get_angular_velocity(traj.t[0])
   dt = np.diff(traj.t)[0]
 
   euler_est = [np.flip(rot2euler(C_WS), 0)]
   euler_gnd = [np.flip(rot2euler(C_WS), 0)]
+  angvel_world = [traj.get_angular_velocity(0)]
+  angvel_body = [C_WS.T @ traj.get_angular_velocity(0)]
 
   for t in traj.t[1:]:
     C_WS_gnd = tf_rot(traj.get_pose(t))
@@ -645,8 +646,13 @@ def test_angular_velocity():
     C_WS = C_WS @ Exp(w_WS_S * dt)
     euler_est.append(np.flip(rot2euler(C_WS), 0))
     euler_gnd.append(np.flip(rot2euler(C_WS_gnd), 0))
+    angvel_world.append(w_WS_W)
+    angvel_body.append(w_WS_S)
+
   euler_est = np.array(euler_est)
   euler_gnd = np.array(euler_gnd)
+  angvel_world = np.array(angvel_world)
+  angvel_body = np.array(angvel_body)
 
   # -- Plot Attitude
   fig = plt.figure()

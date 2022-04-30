@@ -670,6 +670,26 @@ def test_angular_velocity():
 
   plt.subplots_adjust(top=0.9, right=0.95, hspace=0.7)
   plt.suptitle("Test Integrate Angular Velocity")
+
+  # -- Plot Angular Velocities
+  fig = plt.figure()
+  plt.subplot(211)
+  plt.plot(traj.t, angvel_world[:, 0], 'r-')
+  plt.plot(traj.t, angvel_world[:, 1], 'g-')
+  plt.plot(traj.t, angvel_world[:, 2], 'b-')
+  plt.xlabel("Time [s]")
+  plt.title("Angular Velocities in World Frame")
+
+  plt.subplot(212)
+  plt.plot(traj.t, angvel_body[:, 0], 'r-')
+  plt.plot(traj.t, angvel_body[:, 1], 'g-')
+  plt.plot(traj.t, angvel_body[:, 2], 'b-')
+  plt.xlabel("Time [s]")
+  plt.title("Angular Velocities in Body Frame")
+
+  plt.subplots_adjust(top=0.9, right=0.95, hspace=0.7)
+  plt.suptitle("Angular Velocities")
+
   plt.show()
 
 

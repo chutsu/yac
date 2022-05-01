@@ -466,6 +466,8 @@ class LissajousTraj:
     save_anim = kwargs.get("save_anim", False)
     save_path = kwargs.get("save_path", "traj.mp4")
     show_plot = kwargs.get("show_plot", not save_anim)
+    elev = kwargs.get("elev", 30.0)
+    azim = kwargs.get("azim", -60.0)
 
     # Get positions
     positions = []
@@ -482,8 +484,7 @@ class LissajousTraj:
     ax.set_xlabel("x [m]")
     ax.set_ylabel("y [m]")
     ax.set_zlabel("z [m]")
-    # ax.view_init(elev=0.0, azim=0.0)
-    ax.view_init(elev=30.0, azim=-30.0)
+    ax.view_init(elev=elev, azim=azim)
     plot_set_axes_equal(ax)
 
     # Setup ffmegwriter
@@ -518,20 +519,26 @@ def generate_animations():
   C_WF = euler321(np.deg2rad(-90.0), 0.0, np.deg2rad(90.0))
   T_WF = tf(C_WF, r_WF)
 
-  # traj = LissajousTraj("figure8", T_WF)
-  # traj.plot_3d(save_path="traj-figure8.mp4", save_anim=True)
+  traj = LissajousTraj("figure8", T_WF)
+  traj.plot_3d(save_path="traj-figure8.mp4", save_anim=True)
 
-  # traj = LissajousTraj("vert-pan", T_WF)
-  # traj.plot_3d(save_path="traj-vert.mp4", save_anim=True)
+  traj = LissajousTraj("vert-pan", T_WF)
+  traj.plot_3d(save_path="traj-vert.mp4", save_anim=True)
 
-  # traj = LissajousTraj("horiz-pan", T_WF)
-  # traj.plot_3d(save_path="traj-horiz.mp4", save_anim=True)
+  traj = LissajousTraj("horiz-pan", T_WF)
+  traj.plot_3d(save_path="traj-horiz.mp4", save_anim=True)
 
   traj = LissajousTraj("diag0", T_WF)
-  traj.plot_3d(save_path="traj-diag0.mp4", save_anim=True)
+  traj.plot_3d(save_path="traj-diag0.mp4",
+               save_anim=True,
+               elev=45.0,
+               azim=-180.0)
 
-  # traj = LissajousTraj("diag1", T_WF)
-  # traj.plot_3d(save_path="traj-diag1.mp4", save_anim=True)
+  traj = LissajousTraj("diag1", T_WF)
+  traj.plot_3d(save_path="traj-diag1.mp4",
+               save_anim=True,
+               elev=45.0,
+               azim=-180.0)
 
 
 def test_velocity():

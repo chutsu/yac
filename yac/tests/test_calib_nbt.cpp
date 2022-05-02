@@ -403,8 +403,8 @@ int test_nbt_lissajous_trajs() {
 
     timestamp_t ts_k = 0;
     while (ts_k <= ts_end) {
+      // Get sensor pose, acceleration and angular velocity
       const auto T_WS_W = traj.get_pose(ts_k);
-      const auto w_WS_W = traj.get_angular_velocity(ts_k);
       const auto a_WS_W = traj.get_acceleration(ts_k);
       vec3_t a_WS_S;
       vec3_t w_WS_S;
@@ -417,7 +417,14 @@ int test_nbt_lissajous_trajs() {
                           a_WS_S,
                           w_WS_S);
 
-      // Propagate simulated IMU measurements
+      // Transform acceleration and angular velocity to body frame
+      const vec3_t g{0.0, 0.0, imu.g};
+      const vec3_t a_WS_S = C_WS.transpose() * (a_WS_W + g);
+      const vec3_t w_WS_S = C_WS.transpose() * w_WS_W;
+      // const vec3_t a_WS_S = tf_rot(T_WS_W).transpose() * (a_WS_W + g);
+      // const vec3_t w_WS_S = tf_rot(T_WS_W).transpose() * w_WS_W;
+
+      // Propagate simulated ideal IMU measurements
       const real_t dt_s = ts2sec(dt);
       const real_t dt_s_sq = dt_s * dt_s;
       const vec3_t g_W{0.0, 0.0, -imu.g};

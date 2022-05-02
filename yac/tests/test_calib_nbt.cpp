@@ -445,6 +445,11 @@ int test_nbt_lissajous_trajs() {
       q.normalize();
       C_WS = q.toRotationMatrix();
 
+      // // Calculate angle difference using axis-angle equation
+      // const mat3_t dC = tf_rot(T_WS_W).transpose() * C_WS;
+      // const vec3_t ypr = quat2euler(quat_t{dC});
+      // print_vector("ypr", rad2deg(ypr));
+
       // Update
       ts_k += dt;
     }

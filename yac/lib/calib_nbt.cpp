@@ -1044,4 +1044,59 @@ int nbt_find(const ctrajs_t &trajs,
   return best_idx;
 }
 
+int nbt_find(const lissajous_trajs_t &trajs,
+             const calib_vi_t &calib,
+             const bool verbose = false) {
+  // Calculate info_k
+  matx_t calib_covar;
+  if (calib.recover_calib_covar(calib_covar) != 0) {
+    return -1;
+  }
+  const real_t info_k = std::log(calib_covar.determinant()) / std::log(2.0);
+
+  // Evaluate trajectories
+  std::map<int, real_t> info_kp1;
+#pragma omp parallel for shared(info_kp1)
+  for (size_t traj_idx = 0; traj_idx < trajs.size(); traj_idx++) {
+    const auto &traj = trajs[traj_idx];
+    matx_t calib_covar;
+    if (nbt_eval(traj, calib, calib_covar) != 0) {
+      if (verbose) {
+        LOG_WARN("Failed to evaulate NBT traj [%ld]", traj_idx);
+      }
+      info_kp1[traj_idx] = 0.0;
+      continue;
+    }
+    info_kp1[traj_idx] = std::log(calib_covar.determinant()) / std::log(2.0);
+  }
+
+  // Find max information gain
+  int best_idx = -1;
+  real_t best_gain = 0.0;
+  for (size_t traj_idx = 0; traj_idx < trajs.size(); traj_idx++) {
+    const auto info_gain = 0.5 * (info_k - info_kp1[traj_idx]);
+    if (info_gain > best_gain) {
+      best_idx = traj_idx;
+      best_gain = info_gain;
+    }
+
+    if (verbose) {
+      printf("traj_idx: %ld ", traj_idx);
+      printf("info_k: %f ", info_k);
+      printf("info_kp1: %f ", info_kp1[traj_idx]);
+      printf("info_gain: %f ", info_gain);
+      printf("\n");
+    }
+  }
+
+  // Print results
+  if (verbose) {
+    printf("\nFind NBT:\n");
+    printf("best_traj: %d\n", best_idx);
+    printf("best_gain: %f\n", best_gain);
+  }
+
+  return best_idx;
+}
+
 } // namespace yac

@@ -84,15 +84,18 @@ set -e
 
 # YAC - NBT
 # RUN_CMD="./test_calib_nbt"
-RUN_CMD="./test_calib_nbt --target test_lissajous_trajs"
 # RUN_CMD="./test_calib_nbt --target test_nbt_orbit_trajs"
 # RUN_CMD="./test_calib_nbt --target test_nbt_pan_trajs"
 # RUN_CMD="./test_calib_nbt --target test_nbt_figure8_trajs"
-# RUN_CMD="./test_calib_nbt --target test_nbt_lissajous_trajs"
 # RUN_CMD="./test_calib_nbt --target test_simulate_cameras"
 # RUN_CMD="./test_calib_nbt --target test_simulate_imu"
 # RUN_CMD="./test_calib_nbt --target test_nbt_eval"
 # RUN_CMD="./test_calib_nbt --target test_nbt_find"
+# RUN_CMD="./test_calib_nbt --target test_lissajous_trajs"
+# RUN_CMD="./test_calib_nbt --target test_nbt_lissajous_trajs"
+RUN_CMD="./test_calib_nbt --target test_simulate_cameras_lissajous"
+# RUN_CMD="./test_calib_nbt --target test_simulate_imu_lissajous"
+# RUN_CMD="./test_calib_nbt --target test_nbt_eval_lissajous"
 
 # YAC - SOLVER
 # RUN_CMD="./test_solver"
@@ -145,8 +148,9 @@ RUN_CMD="./test_calib_nbt --target test_lissajous_trajs"
 # python3 scripts/blake_zisserman.py
 # python3 scripts/plot_frames.py
 # python3 scripts/plot_imu.py
+python3 scripts/plot_camera.py
 # python3 scripts/plot_info.py
-python3 scripts/plot_nbt.py
+# python3 scripts/plot_nbt.py
 # python3 scripts/plot_poses.py /tmp/calib-estimates.yaml
 # python3 scripts/plot_stats.py
 # python3 scripts/plot_xyz.py /tmp/vel.csv "#ts" vx vy vz

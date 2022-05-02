@@ -356,18 +356,18 @@ class LissajousTraj:
     """ Plot XYZ """
     # positions = self.get_position(self.t)
     positions = []
-    rotations = []
+    quats = []
     velocities = []
     accelerations = []
     angular_velocities = []
     for t in self.t:
       positions.append(tf_trans(self.get_pose(t)))
-      rotations.append(tf_quat(self.get_pose(t)))
+      quats.append(tf_quat(self.get_pose(t)))
       velocities.append(self.get_velocity(t))
       accelerations.append(self.get_acceleration(t))
       angular_velocities.append(self.get_angular_velocity(t))
     positions = np.array(positions)
-    rotations = np.array(rotations)
+    quats = np.array(quats)
     velocities = np.array(velocities)
     accelerations = np.array(accelerations)
     angular_velocities = np.array(angular_velocities)
@@ -400,18 +400,24 @@ class LissajousTraj:
 
     # Plot orientation and angular velocity
     rpy = []
-    for idx in range(rotations.shape[0]):
-      qx = rotations[idx, 0]
-      qy = rotations[idx, 1]
-      qz = rotations[idx, 2]
-      qw = rotations[idx, 3]
-      q = np.array([qw, qx, qy, qz])
-      ypr = quat2euler(q)
+    for idx in range(len(self.t)):
+      q_WS = quats[idx, :]
+      ypr = quat2euler(q_WS)
       rpy.append(np.flip(ypr, 0))
     rpy = np.array(rpy)
 
+    body_rates = []
+    for idx in range(len(self.t)):
+      q_WS = quats[idx, :]
+      C_WS = quat2rot(q_WS)
+      w_WS_W = angular_velocities[idx, :]
+
+      w_WS_S = C_WS.T @ w_WS_W
+      body_rates.append(w_WS_S)
+    body_rates = np.array(body_rates)
+
     plt.figure()
-    plt.subplot(211)
+    plt.subplot(311)
     plt.plot(self.t, rpy[:, 0], 'r-', label="roll")
     plt.plot(self.t, rpy[:, 1], 'g-', label="pitch")
     plt.plot(self.t, rpy[:, 2], 'b-', label="yaw")
@@ -420,11 +426,20 @@ class LissajousTraj:
     plt.ylabel("Attitude [deg]")
     plt.legend(loc=0)
 
-    plt.subplot(212)
+    plt.subplot(312)
     plt.plot(self.t, angular_velocities[:, 0], 'r-', label="wx")
     plt.plot(self.t, angular_velocities[:, 1], 'g-', label="wy")
     plt.plot(self.t, angular_velocities[:, 2], 'b-', label="wz")
-    plt.title("Angular Velocity")
+    plt.title("Angular Velocity in Inertial Frame")
+    plt.xlabel("Time [s]")
+    plt.ylabel("Angular Velocity [rad s^-1]")
+    plt.legend(loc=0)
+
+    plt.subplot(313)
+    plt.plot(self.t, body_rates[:, 0], 'r-', label="wx")
+    plt.plot(self.t, body_rates[:, 1], 'g-', label="wy")
+    plt.plot(self.t, body_rates[:, 2], 'b-', label="wz")
+    plt.title("Angular Velocity in Body Frame ")
     plt.xlabel("Time [s]")
     plt.ylabel("Angular Velocity [rad s^-1]")
     plt.legend(loc=0)
@@ -451,6 +466,8 @@ class LissajousTraj:
     save_anim = kwargs.get("save_anim", False)
     save_path = kwargs.get("save_path", "traj.mp4")
     show_plot = kwargs.get("show_plot", not save_anim)
+    elev = kwargs.get("elev", 30.0)
+    azim = kwargs.get("azim", -60.0)
 
     # Get positions
     positions = []
@@ -467,8 +484,7 @@ class LissajousTraj:
     ax.set_xlabel("x [m]")
     ax.set_ylabel("y [m]")
     ax.set_zlabel("z [m]")
-    # ax.view_init(elev=0.0, azim=0.0)
-    # ax.view_init(elev=30.0, azim=-30.0)
+    ax.view_init(elev=elev, azim=azim)
     plot_set_axes_equal(ax)
 
     # Setup ffmegwriter
@@ -497,8 +513,39 @@ class LissajousTraj:
       plt.show()
 
 
+def generate_animations():
+  """ Generate animations """
+  r_WF = np.array([0.0, 0.0, 0.0])
+  C_WF = euler321(np.deg2rad(-90.0), 0.0, np.deg2rad(90.0))
+  T_WF = tf(C_WF, r_WF)
+
+  traj = LissajousTraj("figure8", T_WF)
+  traj.plot_3d(save_path="traj-figure8.mp4", save_anim=True)
+
+  traj = LissajousTraj("vert-pan", T_WF)
+  traj.plot_3d(save_path="traj-vert.mp4", save_anim=True)
+
+  traj = LissajousTraj("horiz-pan", T_WF)
+  traj.plot_3d(save_path="traj-horiz.mp4", save_anim=True)
+
+  traj = LissajousTraj("diag0", T_WF)
+  traj.plot_3d(save_path="traj-diag0.mp4",
+               save_anim=True,
+               elev=45.0,
+               azim=-180.0)
+
+  traj = LissajousTraj("diag1", T_WF)
+  traj.plot_3d(save_path="traj-diag1.mp4",
+               save_anim=True,
+               elev=45.0,
+               azim=-180.0)
+
+
 def test_velocity():
   """ Test velocity """
+  r_WF = np.array([0.0, 0.0, 0.0])
+  C_WF = euler321(np.deg2rad(-90.0), 0.0, np.deg2rad(90.0))
+  T_WF = tf(C_WF, r_WF)
   traj = LissajousTraj("figure8", T_WF)
 
   # -- Integrate velocity
@@ -568,6 +615,9 @@ def test_velocity():
 
 def test_acceleration():
   """ Test acceleration """
+  r_WF = np.array([0.0, 0.0, 0.0])
+  C_WF = euler321(np.deg2rad(-90.0), 0.0, np.deg2rad(90.0))
+  T_WF = tf(C_WF, r_WF)
   traj = LissajousTraj("figure8", T_WF)
 
   # -- Integrate acceleration
@@ -611,8 +661,88 @@ def test_acceleration():
   plt.show()
 
 
+def test_angular_velocity():
+  """ Test angular_velocity """
+  r_WF = np.array([0.0, 0.0, 0.0])
+  C_WF = euler321(np.deg2rad(-90.0), 0.0, np.deg2rad(90.0))
+  T_WF = tf(C_WF, r_WF)
+  traj = LissajousTraj("figure8", T_WF)
+
+  # -- Integrate angular_velocity
+  C_WS = tf_rot(traj.get_pose(traj.t[0]))
+  dt = np.diff(traj.t)[0]
+
+  euler_est = [np.flip(rot2euler(C_WS), 0)]
+  euler_gnd = [np.flip(rot2euler(C_WS), 0)]
+  angvel_world = [traj.get_angular_velocity(0)]
+  angvel_body = [C_WS.T @ traj.get_angular_velocity(0)]
+
+  for t in traj.t[1:]:
+    C_WS_gnd = tf_rot(traj.get_pose(t))
+    w_WS_W = traj.get_angular_velocity(t)
+    w_WS_S = C_WS.T @ w_WS_W
+    C_WS = C_WS @ Exp(w_WS_S * dt)
+    euler_est.append(np.flip(rot2euler(C_WS), 0))
+    euler_gnd.append(np.flip(rot2euler(C_WS_gnd), 0))
+    angvel_world.append(w_WS_W)
+    angvel_body.append(w_WS_S)
+
+  euler_est = np.array(euler_est)
+  euler_gnd = np.array(euler_gnd)
+  angvel_world = np.array(angvel_world)
+  angvel_body = np.array(angvel_body)
+
+  # -- Plot Attitude
+  fig = plt.figure()
+  plt.subplot(311)
+  plt.plot(traj.t, np.rad2deg(euler_est[:, 0]), 'r-')
+  plt.plot(traj.t, np.rad2deg(euler_gnd[:, 0]), 'r--')
+  plt.xlabel("Time [s]")
+  plt.ylabel("Euler Angle [deg]")
+
+  plt.subplot(312)
+  plt.plot(traj.t, np.rad2deg(euler_est[:, 1]), 'g-')
+  plt.plot(traj.t, np.rad2deg(euler_gnd[:, 1]), 'g--')
+  plt.xlabel("Time [s]")
+  plt.ylabel("Euler Angle [deg]")
+
+  plt.subplot(313)
+  plt.plot(traj.t, np.rad2deg(euler_est[:, 2]), 'b-')
+  plt.plot(traj.t, np.rad2deg(euler_gnd[:, 2]), 'b--')
+  plt.xlabel("Time [s]")
+  plt.ylabel("Euler Angle [deg]")
+
+  plt.subplots_adjust(top=0.9, right=0.95, hspace=0.7)
+  plt.suptitle("Test Integrate Angular Velocity")
+
+  # -- Plot Angular Velocities
+  fig = plt.figure()
+  plt.subplot(211)
+  plt.plot(traj.t, angvel_world[:, 0], 'r-')
+  plt.plot(traj.t, angvel_world[:, 1], 'g-')
+  plt.plot(traj.t, angvel_world[:, 2], 'b-')
+  plt.xlabel("Time [s]")
+  plt.title("Angular Velocities in World Frame")
+
+  plt.subplot(212)
+  plt.plot(traj.t, angvel_body[:, 0], 'r-')
+  plt.plot(traj.t, angvel_body[:, 1], 'g-')
+  plt.plot(traj.t, angvel_body[:, 2], 'b-')
+  plt.xlabel("Time [s]")
+  plt.title("Angular Velocities in Body Frame")
+
+  plt.subplots_adjust(top=0.9, right=0.95, hspace=0.7)
+  plt.suptitle("Angular Velocities")
+
+  plt.show()
+
+
 def test_integration():
   """ Test integration """
+  calib_target = AprilGrid()
+  r_WF = np.array([0.0, 0.0, 0.0])
+  C_WF = euler321(np.deg2rad(-90.0), 0.0, np.deg2rad(90.0))
+  T_WF = tf(C_WF, r_WF)
   traj = LissajousTraj("figure8", T_WF)
 
   # Integrate angular velocity
@@ -653,10 +783,17 @@ def test_integration():
     r_WS = r_WS + (v_WS * dt) + (0.5 * C_WS @ a_S_WS * dt**2)
     v_WS = v_WS + (C_WS @ a_S_WS * dt)
     C_WS = C_WS @ Exp(w_S_WS * dt)
+    # q_WS = rot2quat(C_WS)
+    # dqx = w_S_WS[0] * dt / 2.0
+    # dqy = w_S_WS[1] * dt / 2.0
+    # dqz = w_S_WS[2] * dt / 2.0
+    # dq = np.array([1.0, dqx, dqy, dqz])
+    # q_WS = quat_mul(q_WS, dq)
+    # C_WS = quat2rot(q_WS)
 
-    q_WS = rot2quat(C_WS)
-    q_WS = quat_normalize(q_WS)
-    C_WS = quat2rot(q_WS)
+    # q_WS = rot2quat(C_WS)
+    # q_WS = quat_normalize(q_WS)
+    # C_WS = quat2rot(q_WS)
 
     # Calculate angle difference using axis-angle equation
     dC = C_WS_gnd.T @ C_WS
@@ -705,6 +842,7 @@ def test_integration():
   fig = plt.figure()
   ax = plt.axes(projection='3d')
   ax.plot3D(positions[:, 0], positions[:, 1], positions[:, 2])
+  calib_target.plot(ax, T_WF)
   ax.set_xlabel("x [m]")
   ax.set_ylabel("y [m]")
   ax.set_zlabel("z [m]")
@@ -719,18 +857,18 @@ def test_integration():
     writer.setup(fig, save_path, 100)
 
   # Draw camera poses
-  skip_every = int(len(poses) * 0.1)
+  skip_every = int(len(poses) * 0.05)
   for idx, T_WS in enumerate(poses):
     if save_anim is False and idx % skip_every != 0:
       continue
 
-    tf_data = plot_tf(ax, T_WS, name="T_WS", size=0.05)
+    (xaxis, yaxis, zaxis, text) = plot_tf(ax, T_WS, name="T_WS", size=0.05)
     if save_anim:
       writer.grab_frame()
-      ax.lines.remove(tf_data[0])
-      ax.lines.remove(tf_data[1])
-      ax.lines.remove(tf_data[2])
-      ax.texts.remove(tf_data[3])
+      ax.lines.remove(xaxis)
+      ax.lines.remove(yaxis)
+      ax.lines.remove(zaxis)
+      ax.texts.remove(text)
 
   if show_plot:
     plt.show()
@@ -768,29 +906,9 @@ def test_integration():
     plt.show()
 
 
-# Fiducial target pose in world frame
-r_WF = np.array([0.0, 0.0, 0.0])
-C_WF = euler321(np.deg2rad(-90.0), 0.0, np.deg2rad(90.0))
-T_WF = tf(C_WF, r_WF)
-
-# traj = LissajousTraj("figure8", T_WF)
-# traj.plot_xyz()
-# plt.show()
-# traj.plot_3d(save_path="traj-figure8.mp4", save_anim=True)
-
-# traj = LissajousTraj("vert-pan", T_WF)
-# traj.plot_3d(save_path="traj-vert.mp4", save_anim=True)
-
-# traj = LissajousTraj("horiz-pan", T_WF)
-# traj.plot_3d(save_path="traj-horiz.mp4", save_anim=True)
-
-# traj = LissajousTraj("diag0", T_WF)
-# traj.plot_3d(save_path="traj-diag0.mp4", save_anim=True)
-
-# traj = LissajousTraj("diag1", T_WF)
-# traj.plot_3d(save_path="traj-diag1.mp4", save_anim=True)
-
 # Tests
+generate_animations()
 # test_velocity()
 # test_acceleration()
-test_integration()
+# test_angular_velocity()
+# test_integration()

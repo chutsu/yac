@@ -266,6 +266,9 @@ void nbt_create_timeline(const camera_data_t &cam_grids,
  * @returns 0 for success or -1 for failure
  */
 int nbt_eval(const ctraj_t &traj, const calib_vi_t &calib, matx_t &calib_covar);
+int nbt_eval(const lissajous_traj_t &traj,
+             const calib_vi_t &calib,
+             matx_t &calib_covar);
 
 /**
  * Find NBT
@@ -277,6 +280,9 @@ int nbt_eval(const ctraj_t &traj, const calib_vi_t &calib, matx_t &calib_covar);
  * @returns 0 for success or -1 for failure
  */
 int nbt_find(const ctrajs_t &trajs,
+             const calib_vi_t &calib,
+             const bool verbose = false);
+int nbt_find(const lissajous_trajs_t &trajs,
              const calib_vi_t &calib,
              const bool verbose = false);
 

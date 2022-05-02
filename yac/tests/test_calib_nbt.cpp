@@ -881,6 +881,10 @@ int test_simulate_imu_lissajous() {
   // -- Simulate imu measurements
   imu_params_t imu_params;
   imu_params.rate = 200.0;
+  imu_params.sigma_g_c = 0.002;
+  imu_params.sigma_a_c = 0.0001;
+  imu_params.sigma_gw_c = 0.003;
+  imu_params.sigma_aw_c = 0.00001;
 
   timestamps_t imu_time;
   vec3s_t imu_accel;
@@ -906,6 +910,7 @@ int test_simulate_imu_lissajous() {
   fprintf(data_csv, "qx,qy,qz,qw,");
   fprintf(data_csv, "vx,vy,vz\n");
 
+  imu_data_t imu_buf;
   for (size_t k = 0; k < imu_time.size(); k++) {
     const auto ts = imu_time[k];
     const auto acc = imu_accel[k];
@@ -914,6 +919,7 @@ int test_simulate_imu_lissajous() {
     const auto vel = imu_vels[k];
     const vec3_t pos = tf_trans(pose);
     const quat_t rot = tf_quat(pose);
+    imu_buf.add(ts, acc, gyr);
 
     fprintf(data_csv, "%ld,", ts);
     fprintf(data_csv, "%f,%f,%f,", acc.x(), acc.y(), acc.z());
@@ -923,6 +929,24 @@ int test_simulate_imu_lissajous() {
     fprintf(data_csv, "%f,%f,%f\n", vel.x(), vel.y(), vel.z());
   }
   fclose(data_csv);
+
+  const timestamp_t ts_i = imu_time.front();
+  const timestamp_t ts_j = imu_time.back();
+  const vec3_t v_i = imu_vels.front();
+  const vec3_t v_j = imu_vels.back();
+  const vec3_t ba_i{0.0, 0.0, 0.0};
+  const vec3_t bg_i{0.0, 0.0, 0.0};
+  const vec3_t ba_j{0.0, 0.0, 0.0};
+  const vec3_t bg_j{0.0, 0.0, 0.0};
+  pose_t pose_i{ts_i, imu_poses.front()};
+  pose_t pose_j{ts_j, imu_poses.back()};
+  sb_params_t sb_i{ts_i, v_i, ba_i, bg_i};
+  sb_params_t sb_j{ts_j, v_j, ba_j, bg_j};
+  imu_residual_t residual(imu_params, imu_buf, &pose_i, &sb_i, &pose_j, &sb_j);
+  residual.eval();
+
+  printf("imu_buf size: %ld\n", imu_buf.size());
+  print_vector("r", residual.residuals);
 
   return 0;
 }

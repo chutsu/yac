@@ -663,6 +663,9 @@ def test_acceleration():
 
 def test_angular_velocity():
   """ Test angular_velocity """
+  r_WF = np.array([0.0, 0.0, 0.0])
+  C_WF = euler321(np.deg2rad(-90.0), 0.0, np.deg2rad(90.0))
+  T_WF = tf(C_WF, r_WF)
   traj = LissajousTraj("figure8", T_WF)
 
   # -- Integrate angular_velocity

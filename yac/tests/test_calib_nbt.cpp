@@ -754,8 +754,31 @@ int test_nbt_lissajous_trajs() {
 }
 
 int test_simulate_cameras_lissajous() {
-  // Setup
-  calib_vi_t calib{CALIB_CONFIG};
+  // Setup calibrator
+  const calib_target_t target;
+  calib_vi_t calib{target};
+  // -- Add IMU
+  imu_params_t imu_params;
+  imu_params.rate = 200;
+  const mat4_t T_BS = I(4);
+  calib.add_imu(imu_params, T_BS);
+  // -- Add camera
+  const int cam_idx = 0;
+  const int cam_res[2] = {640, 480};
+  const std::string proj_model = "pinhole";
+  const std::string dist_model = "radtan4";
+  const real_t fx = pinhole_focal(cam_res[0], 90.0);
+  const real_t fy = pinhole_focal(cam_res[0], 90.0);
+  const real_t cx = cam_res[0] / 2.0;
+  const real_t cy = cam_res[1] / 2.0;
+  const vec4_t proj_params{fx, fy, cx, cy};
+  const vec4_t dist_params{0.0, 0.0, 0.0, 0.0};
+  calib.add_camera(cam_idx,
+                   cam_res,
+                   proj_model,
+                   dist_model,
+                   proj_params,
+                   dist_params);
 
   // Fiducial pose
   const vec3_t r_WF{0.0, 0.0, 0.0};
@@ -764,7 +787,6 @@ int test_simulate_cameras_lissajous() {
   const mat4_t T_WF = tf(C_WF, r_WF);
 
   // Calibration origin
-  const calib_target_t target;
   const double tag_rows = target.tag_rows;
   const double tag_cols = target.tag_cols;
   const double tag_spacing = target.tag_spacing;
@@ -795,7 +817,7 @@ int test_simulate_cameras_lissajous() {
   const auto &traj = trajs[0];
   const real_t cam_rate = 20.0;
   camera_data_t cam_grids;
-  std::map<timestamp_t, mat4_t> T_WC0_sim;
+  std::map<timestamp_t, mat4_t> T_WC0;
   simulate_cameras(ts_start,
                    ts_end,
                    traj,
@@ -806,7 +828,16 @@ int test_simulate_cameras_lissajous() {
                    cam_rate,
                    T_WF,
                    cam_grids,
-                   T_WC0_sim);
+                   T_WC0);
+
+  // Save data
+  remove_dir("/tmp/sim_cam");
+  dir_create("/tmp/sim_cam");
+  for (const auto &[ts, cam_data] : cam_grids) {
+    for (const auto &[cam_idx, grid] : cam_data) {
+      grid.save("/tmp/sim_cam/" + std::to_string(ts) + ".csv");
+    }
+  }
 
   return 0;
 }

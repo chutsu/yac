@@ -406,16 +406,7 @@ int test_nbt_lissajous_trajs() {
       // Get sensor pose, acceleration and angular velocity
       const auto T_WS_W = traj.get_pose(ts_k);
       const auto a_WS_W = traj.get_acceleration(ts_k);
-      vec3_t a_WS_S;
-      vec3_t w_WS_S;
-      sim_imu_measurement(imu,
-                          rndeng,
-                          ts_k,
-                          T_WS_W,
-                          w_WS_W,
-                          a_WS_W,
-                          a_WS_S,
-                          w_WS_S);
+      const auto w_WS_W = traj.get_angular_velocity(ts_k);
 
       // Transform acceleration and angular velocity to body frame
       const vec3_t g{0.0, 0.0, imu.g};
@@ -612,6 +603,91 @@ int test_simulate_imu() {
   return 0;
 }
 
+int test_simulate_imu_lissajous() {
+  // Setup test
+  std::map<int, camera_params_t> cam_params;
+  extrinsics_t imu_exts;
+  calib_target_t target;
+  mat4_t T_FO;
+  mat4_t T_WF;
+  setup_test(cam_params, imu_exts, target, T_FO, T_WF);
+
+  // Generate trajectories
+  lissajous_trajs_t trajs;
+  const timestamp_t ts_start = 0;
+  const timestamp_t ts_end = 3e9;
+  pinhole_radtan4_t cam_geom;
+  nbt_lissajous_trajs(ts_start,
+                      ts_end,
+                      target,
+                      &cam_geom,
+                      &cam_params[0],
+                      &imu_exts,
+                      T_WF,
+                      T_FO,
+                      trajs);
+
+  // Save trajectory
+  remove_dir("/tmp/nbt/traj");
+  dir_create("/tmp/nbt/traj");
+  const auto &traj = trajs[0];
+  char buffer[1024];
+  snprintf(buffer, sizeof(buffer), "/tmp/nbt/traj/traj_%ld.csv", 0);
+  printf("saving trajectory to [%s]\n", buffer);
+  traj.save(std::string{buffer});
+
+  // Save fiducial pose
+  mat2csv("/tmp/nbt/fiducial_pose.csv", T_WF);
+
+  // -- Simulate imu measurements
+  imu_params_t imu_params;
+  imu_params.rate = 200.0;
+
+  timestamps_t imu_time;
+  vec3s_t imu_accel;
+  vec3s_t imu_gyro;
+  mat4s_t imu_poses;
+  vec3s_t imu_vels;
+  simulate_imu(ts_start,
+               ts_end,
+               trajs[0],
+               imu_params,
+               imu_time,
+               imu_accel,
+               imu_gyro,
+               imu_poses,
+               imu_vels);
+
+  // Save imu measurements
+  FILE *data_csv = fopen("/tmp/imu_data.csv", "w");
+  fprintf(data_csv, "ts,");
+  fprintf(data_csv, "ax,ay,az,");
+  fprintf(data_csv, "wx,wy,wz,");
+  fprintf(data_csv, "rx,ry,rz,");
+  fprintf(data_csv, "qx,qy,qz,qw,");
+  fprintf(data_csv, "vx,vy,vz\n");
+
+  for (size_t k = 0; k < imu_time.size(); k++) {
+    const auto ts = imu_time[k];
+    const auto acc = imu_accel[k];
+    const auto gyr = imu_gyro[k];
+    const auto pose = imu_poses[k];
+    const auto vel = imu_vels[k];
+    const vec3_t pos = tf_trans(pose);
+    const quat_t rot = tf_quat(pose);
+
+    fprintf(data_csv, "%ld,", ts);
+    fprintf(data_csv, "%f,%f,%f,", acc.x(), acc.y(), acc.z());
+    fprintf(data_csv, "%f,%f,%f,", gyr.x(), gyr.y(), gyr.z());
+    fprintf(data_csv, "%f,%f,%f,", pos.x(), pos.y(), pos.z());
+    fprintf(data_csv, "%f,%f,%f,%f,", rot.x(), rot.y(), rot.z(), rot.w());
+    fprintf(data_csv, "%f,%f,%f\n", vel.x(), vel.y(), vel.z());
+  }
+  fclose(data_csv);
+
+  return 0;
+}
+
 int test_nbt_eval() {
   // Setup
   timeline_t timeline = setup_test_data();
@@ -770,6 +846,7 @@ void test_suite() {
   MU_ADD_TEST(test_nbt_lissajous_trajs);
   MU_ADD_TEST(test_simulate_cameras);
   MU_ADD_TEST(test_simulate_imu);
+  MU_ADD_TEST(test_simulate_imu_lissajous);
   MU_ADD_TEST(test_nbt_eval);
   MU_ADD_TEST(test_nbt_find);
 }

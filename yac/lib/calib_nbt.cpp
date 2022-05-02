@@ -67,7 +67,8 @@ mat4_t lissajous_traj_t::get_pose(const timestamp_t ts_k) const {
   const real_t theta = pow(sin(0.25 * w * t), 2);
 
   // Rotation
-  const real_t pitch = pitch_bound * sin(psi * w * T * theta);
+  // const real_t pitch = pitch_bound * sin(psi * w * T * theta);
+  const real_t pitch = 0.0;
   const real_t yaw = yaw_bound * sin(w * T * theta);
   const vec3_t rpy{M_PI + pitch, yaw, 0.0};
   const mat3_t C_OS = euler321(rpy);
@@ -195,9 +196,10 @@ vec3_t lissajous_traj_t::get_angular_velocity(const timestamp_t ts_k) const {
   }
 
   // Angular velocity
-  const real_t wx = 0.5 * pitch_bound * psi * w * w * sin(0.25 * t * w) *
-                    cos(0.25 * t * w) *
-                    cos(1.0 * psi * w * pow(sin(0.25 * t * w), 2) / f) / f;
+  // const real_t wx = 0.5 * pitch_bound * psi * w * w * sin(0.25 * t * w) *
+  //                   cos(0.25 * t * w) *
+  //                   cos(1.0 * psi * w * pow(sin(0.25 * t * w), 2) / f) / f;
+  const real_t wx = 0.0;
   const real_t wy = 0.5 * yaw_bound * w * w * sin(0.25 * t * w) *
                     cos(0.25 * t * w) *
                     cos(1.0 * w * pow(sin(0.25 * t * w), 2) / f) / f;
@@ -737,41 +739,54 @@ void simulate_imu(const timestamp_t &ts_start,
                   mat4s_t &imu_poses,
                   vec3s_t &imu_vels) {
   const timestamp_t imu_dt = sec2ts(1.0 / imu_params.rate);
+  const timestamp_t dt = (1 / imu_params.rate) * 1e9;
+
+  mat4_t T_WS = traj.get_pose(0);
+  vec3_t r_WS = tf_trans(T_WS);
+  mat3_t C_WS = tf_rot(T_WS);
+  vec3_t v_WS = traj.get_velocity(0);
+
   timestamp_t ts_k = ts_start;
-  std::default_random_engine rndeng;
-
-  sim_imu_t sim_imu;
-  sim_imu.rate = imu_params.rate;
-  sim_imu.sigma_g_c = imu_params.sigma_g_c;
-  sim_imu.sigma_a_c = imu_params.sigma_a_c;
-  sim_imu.sigma_gw_c = imu_params.sigma_gw_c;
-  sim_imu.sigma_aw_c = imu_params.sigma_aw_c;
-  sim_imu.g = imu_params.g;
-
   while (ts_k <= ts_end) {
+    // Get sensor pose, acceleration and angular velocity
     const mat4_t T_WS_W = traj.get_pose(ts_k);
     const vec3_t v_WS_W = traj.get_velocity(ts_k);
     const vec3_t a_WS_W = traj.get_acceleration(ts_k);
     const vec3_t w_WS_W = traj.get_angular_velocity(ts_k);
 
-    vec3_t a_WS_S{0.0, 0.0, 0.0};
-    vec3_t w_WS_S{0.0, 0.0, 0.0};
-    sim_imu_measurement(sim_imu,
-                        rndeng,
-                        ts_k,
-                        T_WS_W,
-                        w_WS_W,
-                        a_WS_W,
-                        a_WS_S,
-                        w_WS_S);
+    // Transform acceleration and angular velocity to body frame
+    const vec3_t g{0.0, 0.0, imu.g};
+    const vec3_t a_WS_S = C_WS.transpose() * (a_WS_W + g);
+    const vec3_t w_WS_S = C_WS.transpose() * w_WS_W;
 
+    // Propagate simulated ideal IMU measurements
+    const real_t dt_s = ts2sec(dt);
+    const real_t dt_s_sq = dt_s * dt_s;
+    const vec3_t g_W{0.0, 0.0, -imu.g};
+    // -- Position at time k
+    const vec3_t b_a = ones(3, 1) * imu.b_a;
+    const vec3_t n_a = ones(3, 1) * imu.sigma_a_c;
+    r_WS += v_WS * dt_s;
+    r_WS += 0.5 * g_W * dt_s_sq;
+    r_WS += 0.5 * C_WS * (a_WS_S - b_a - n_a) * dt_s_sq;
+    // -- velocity at time k
+    v_WS += C_WS * (a_WS_S - b_a - n_a) * dt_s + g_W * dt_s;
+    // -- Attitude at time k
+    const vec3_t b_g = ones(3, 1) * imu.b_g;
+    const vec3_t n_g = ones(3, 1) * imu.sigma_g_c;
+    C_WS = C_WS * lie::Exp((w_WS_S - b_g - n_g) * ts2sec(dt));
+    // -- Normalize rotation
+    quat_t q = quat_t{C_WS};
+    q.normalize();
+    C_WS = q.toRotationMatrix();
+
+    // Update
     imu_time.push_back(ts_k);
     imu_accel.push_back(a_WS_S);
     imu_gyro.push_back(w_WS_S);
     imu_poses.push_back(T_WS_W);
     imu_vels.push_back(v_WS_W);
-
-    ts_k += imu_dt;
+    ts_k += dt;
   }
 }
 

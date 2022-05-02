@@ -197,7 +197,7 @@ void simulate_cameras(const timestamp_t &ts_start,
                       std::map<timestamp_t, mat4_t> &T_WC0_sim);
 void simulate_cameras(const timestamp_t &ts_start,
                       const timestamp_t &ts_end,
-                      const ctraj_t &traj,
+                      const lissajous_traj_t &traj,
                       const calib_target_t &target,
                       const CamIdx2Geometry &cam_geoms,
                       const CamIdx2Parameters &cam_params,

@@ -777,7 +777,6 @@ int test_simulate_cameras_lissajous() {
   const mat4_t T_FO = tf(I(3), calib_center);
 
   // Generate trajectories
-  calib_target_t target;
   lissajous_trajs_t trajs;
   const timestamp_t ts_start = 0;
   const timestamp_t ts_end = 3e9;
@@ -785,19 +784,16 @@ int test_simulate_cameras_lissajous() {
   nbt_lissajous_trajs(ts_start,
                       ts_end,
                       target,
-                      &calib.cam_geoms[0],
-                      &calib.cam_params[0],
-                      &calib.imu_exts[0],
+                      calib.cam_geoms[0],
+                      calib.cam_params[0],
+                      calib.imu_exts,
                       T_WF,
                       T_FO,
                       trajs);
 
   // Simulate cameras
-  const timestamp_t ts_start = sec2ts(0.0);
-  const timestamp_t ts_end = sec2ts(5.0);
-  const auto traj = trajs[0];
+  const auto &traj = trajs[0];
   const real_t cam_rate = 20.0;
-  const mat4_t T_WF = I(4);
   camera_data_t cam_grids;
   std::map<timestamp_t, mat4_t> T_WC0_sim;
   simulate_cameras(ts_start,

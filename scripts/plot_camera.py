@@ -1,18 +1,17 @@
+""" Plot camera view """
 #!/usr/bin/env python3
-import os
 from os import listdir
 from os.path import join
 import numpy as np
 import matplotlib.pylab as plt
 from matplotlib import animation
 
-from proto import plot_tf
-from proto import plot_set_axes_equal
 from proto import AprilGrid
 
 
 def parse_timestamp(fname):
-  ts, fext = fname.split(".")
+  """ Parse timestamp """
+  ts, _ = fname.split(".")
   return int(ts)
 
 

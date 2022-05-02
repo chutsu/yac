@@ -736,10 +736,10 @@ def test_angular_velocity():
 
 def test_integration():
   """ Test integration """
+  calib_target = AprilGrid()
   r_WF = np.array([0.0, 0.0, 0.0])
   C_WF = euler321(np.deg2rad(-90.0), 0.0, np.deg2rad(90.0))
   T_WF = tf(C_WF, r_WF)
-  calib_target = AprilGrid()
   traj = LissajousTraj("figure8", T_WF)
 
   # Integrate angular velocity
@@ -779,14 +779,14 @@ def test_integration():
     # Integrate
     r_WS = r_WS + (v_WS * dt) + (0.5 * C_WS @ a_S_WS * dt**2)
     v_WS = v_WS + (C_WS @ a_S_WS * dt)
-    # C_WS = C_WS @ Exp(w_S_WS * dt)
-    q_WS = rot2quat(C_WS)
-    dqx = w_S_WS[0] * dt / 2.0
-    dqy = w_S_WS[1] * dt / 2.0
-    dqz = w_S_WS[2] * dt / 2.0
-    dq = np.array([1.0, dqx, dqy, dqz])
-    q_WS = quat_mul(q_WS, dq)
-    C_WS = quat2rot(q_WS)
+    C_WS = C_WS @ Exp(w_S_WS * dt)
+    # q_WS = rot2quat(C_WS)
+    # dqx = w_S_WS[0] * dt / 2.0
+    # dqy = w_S_WS[1] * dt / 2.0
+    # dqz = w_S_WS[2] * dt / 2.0
+    # dq = np.array([1.0, dqx, dqy, dqz])
+    # q_WS = quat_mul(q_WS, dq)
+    # C_WS = quat2rot(q_WS)
 
     # q_WS = rot2quat(C_WS)
     # q_WS = quat_normalize(q_WS)

@@ -1055,6 +1055,10 @@ void calib_vi_t::show_results() {
   // Show results
   printf("Optimization results:\n");
   printf("---------------------\n");
+  printf("nb_views: %ld\n", calib_views.size());
+  printf("nb_residuals: %d\n", problem->NumResidualBlocks());
+  printf("nb_parameters: %d\n", problem->NumParameterBlocks());
+  printf("\n");
 
   // Stats - Reprojection Errors
   const auto reproj_errors = get_reproj_errors();

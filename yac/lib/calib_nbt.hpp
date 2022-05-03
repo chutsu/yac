@@ -16,9 +16,9 @@ namespace yac {
  */
 struct lissajous_traj_t {
   const std::string traj_type = "figure8";
-  const timestamp_t ts_start;
-  const mat4_t T_WF;
-  const mat4_t T_FO;
+  timestamp_t ts_start;
+  mat4_t T_WF;
+  mat4_t T_FO;
 
   real_t R;     // Distance from calibration target
   real_t A;     // Amplitude in x-axis

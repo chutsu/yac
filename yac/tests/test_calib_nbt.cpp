@@ -952,49 +952,45 @@ int test_simulate_imu_lissajous() {
 }
 
 int test_nbt_eval_lissajous() {
-  // Setup
-  timeline_t timeline = setup_test_data();
-  calib_vi_t calib{CALIB_CONFIG};
-  calib.enable_marginalization = false;
-
-  LOG_INFO("Adding data to problem ...");
-  int nb_views = 0;
-  for (const auto &ts : timeline.timestamps) {
-    const auto kv = timeline.data.equal_range(ts);
-
-    // Handle multiple events in the same timestamp
-    for (auto it = kv.first; it != kv.second; it++) {
-      const auto event = it->second;
-
-      // Aprilgrid event
-      if (auto grid_event = dynamic_cast<aprilgrid_event_t *>(event)) {
-        auto cam_idx = grid_event->cam_idx;
-        auto &grid = grid_event->grid;
-        calib.add_measurement(cam_idx, grid);
-
-        if (cam_idx == 0) {
-          nb_views++;
-        }
-      }
-
-      // Imu event
-      if (auto imu_event = dynamic_cast<imu_event_t *>(event)) {
-        const auto ts = imu_event->ts;
-        const auto &acc = imu_event->acc;
-        const auto &gyr = imu_event->gyr;
-        calib.add_measurement(ts, acc, gyr);
-      }
-    }
-  }
-
-  LOG_INFO("Solve calibration problem");
-  calib.solve();
+  // Setup calibrator
+  const calib_target_t target;
+  calib_vi_t calib{target};
+  // -- Add IMU
+  imu_params_t imu_params;
+  imu_params.rate = 200.0;
+  imu_params.sigma_g_c = 0.002;
+  imu_params.sigma_a_c = 0.0001;
+  imu_params.sigma_gw_c = 0.003;
+  imu_params.sigma_aw_c = 0.00001;
+  const mat4_t T_BS = I(4);
+  calib.add_imu(imu_params, T_BS);
+  // -- Add camera
+  const int cam_idx = 0;
+  const int cam_res[2] = {640, 480};
+  const std::string proj_model = "pinhole";
+  const std::string dist_model = "radtan4";
+  const real_t fx = pinhole_focal(cam_res[0], 90.0);
+  const real_t fy = pinhole_focal(cam_res[0], 90.0);
+  const real_t cx = cam_res[0] / 2.0;
+  const real_t cy = cam_res[1] / 2.0;
+  const vec4_t proj_params{fx, fy, cx, cy};
+  const vec4_t dist_params{0.0, 0.0, 0.0, 0.0};
+  calib.add_camera(cam_idx,
+                   cam_res,
+                   proj_model,
+                   dist_model,
+                   proj_params,
+                   dist_params);
+  // -- Fiducial pose
+  const vec3_t r_WF{1.0, 0.0, 0.0};
+  const vec3_t rpy_WF{deg2rad(90.0), 0.0, deg2rad(-90.0)};
+  const mat3_t C_WF = euler321(rpy_WF);
+  const mat4_t T_WF = tf(C_WF, r_WF);
 
   // Generate trajectories
-  LOG_INFO("Generate NBT orbit trajectory");
-  const int cam_idx = 0;
-  const timestamp_t ts_start = calib.calib_views.back()->ts + 1;
-  const timestamp_t ts_end = ts_start + sec2ts(2.0);
+  LOG_INFO("Generate NBT trajectories");
+  const timestamp_t ts_start = 0;
+  const timestamp_t ts_end = ts_start + sec2ts(3.0);
   mat4_t T_FO;
   calib_target_origin(T_FO,
                       calib.calib_target,
@@ -1008,17 +1004,122 @@ int test_nbt_eval_lissajous() {
                       calib.cam_geoms[cam_idx],
                       calib.cam_params[cam_idx],
                       calib.imu_exts,
-                      calib.get_fiducial_pose(),
+                      T_WF,
                       T_FO,
                       trajs);
+  const auto &traj = trajs[0];
+
+  // Simulate imu measurements
+  timestamps_t imu_ts;
+  vec3s_t imu_acc;
+  vec3s_t imu_gyr;
+  mat4s_t imu_poses;
+  vec3s_t imu_vels;
+  simulate_imu(ts_start,
+               ts_end,
+               traj,
+               calib.imu_params,
+               imu_ts,
+               imu_acc,
+               imu_gyr,
+               imu_poses,
+               imu_vels);
+
+  // Simulate camera frames
+  const auto cam_rate = 20.0;
+  calib_target_t calib_target;
+  camera_data_t cam_grids;
+  std::map<timestamp_t, mat4_t> cam_poses;
+  simulate_cameras(ts_start,
+                   ts_end,
+                   traj,
+                   calib_target,
+                   calib.cam_geoms,
+                   calib.cam_params,
+                   calib.cam_exts,
+                   cam_rate,
+                   T_WF,
+                   cam_grids,
+                   cam_poses);
+
+  // Add NBT data into calibrator
+  timeline_t timeline;
+  nbt_create_timeline(cam_grids, imu_ts, imu_acc, imu_gyr, timeline);
+  for (const auto &ts : timeline.timestamps) {
+    const auto kv = timeline.data.equal_range(ts);
+
+    // Handle multiple events in the same timestamp
+    for (auto it = kv.first; it != kv.second; it++) {
+      const auto event = it->second;
+
+      // Aprilgrid event
+      if (auto grid_event = dynamic_cast<aprilgrid_event_t *>(event)) {
+        auto cam_idx = grid_event->cam_idx;
+        auto &grid = grid_event->grid;
+        calib.add_measurement(cam_idx, grid);
+      }
+
+      // Imu event
+      if (auto imu_event = dynamic_cast<imu_event_t *>(event)) {
+        const auto ts = imu_event->ts;
+        const vec3_t &acc = imu_event->acc;
+        const vec3_t &gyr = imu_event->gyr;
+        calib.add_measurement(ts, acc, gyr);
+      }
+    }
+  }
+  calib.solve();
 
   // Evaluate NBT trajectories
   LOG_INFO("Evaluate NBT lissajous trajectory");
   const int traj_idx = 0;
   matx_t calib_covar;
+  trajs[traj_idx].ts_start += sec2ts(traj.T) + 1;
   if (nbt_eval(trajs[traj_idx], calib, calib_covar) != 0) {
     return -1;
   }
+  const real_t info = -1.0 * log(calib_covar.determinant()) / log(2.0);
+  printf("info: %f\n", info);
+
+  // Save estimates
+  FILE *pose_est_csv = fopen("/tmp/poses_est.csv", "w");
+  fprintf(pose_est_csv, "#ts,rx,ry,rz,qx,qy,qz,qw\n");
+  for (const auto &calib_view : calib.calib_views) {
+    const auto ts = calib_view->ts;
+    const mat4_t &pose = calib_view->pose.tf();
+    const vec3_t r_WS = tf_trans(pose);
+    const quat_t q_WS = tf_quat(pose);
+    fprintf(pose_est_csv, "%ld,", ts);
+    fprintf(pose_est_csv, "%f,%f,%f,", r_WS.x(), r_WS.y(), r_WS.z());
+    fprintf(pose_est_csv,
+            "%f,%f,%f,%f",
+            q_WS.x(),
+            q_WS.y(),
+            q_WS.z(),
+            q_WS.w());
+    fprintf(pose_est_csv, "\n");
+  }
+  fclose(pose_est_csv);
+
+  // Save ground-truth
+  FILE *pose_gnd_csv = fopen("/tmp/poses_gnd.csv", "w");
+  fprintf(pose_gnd_csv, "#ts,rx,ry,rz,qx,qy,qz,qw\n");
+  for (size_t i = 0; i < imu_poses.size(); i++) {
+    const auto ts = imu_ts[i];
+    const auto &pose = imu_poses[i];
+    const vec3_t r_WS = tf_trans(pose);
+    const quat_t q_WS = tf_quat(pose);
+    fprintf(pose_gnd_csv, "%ld,", ts);
+    fprintf(pose_gnd_csv, "%f,%f,%f,", r_WS.x(), r_WS.y(), r_WS.z());
+    fprintf(pose_gnd_csv,
+            "%f,%f,%f,%f",
+            q_WS.x(),
+            q_WS.y(),
+            q_WS.z(),
+            q_WS.w());
+    fprintf(pose_gnd_csv, "\n");
+  }
+  fclose(pose_gnd_csv);
 
   return 0;
 }

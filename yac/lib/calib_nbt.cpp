@@ -738,10 +738,10 @@ void simulate_imu(const timestamp_t &ts_start,
                   vec3s_t &imu_gyro,
                   mat4s_t &imu_poses,
                   vec3s_t &imu_vels) {
-  mat4_t T_WS = traj.get_pose(0);
+  mat4_t T_WS = traj.get_pose(ts_start);
   vec3_t r_WS = tf_trans(T_WS);
   mat3_t C_WS = tf_rot(T_WS);
-  vec3_t v_WS = traj.get_velocity(0);
+  vec3_t v_WS = traj.get_velocity(ts_start);
 
   const timestamp_t dt = sec2ts(1.0 / imu_params.rate);
   timestamp_t ts_k = ts_start;

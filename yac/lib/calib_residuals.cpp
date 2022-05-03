@@ -730,6 +730,12 @@ imu_residual_t::imu_residual_t(const imu_params_t &imu_params,
     : calib_residual_t{"imu_residual_t"}, imu_params_{imu_params},
       imu_data_{imu_data}, t0_{pose_i->ts}, t1_{pose_j->ts}, pose_i_{pose_i},
       sb_i_{sb_i}, pose_j_{pose_j}, sb_j_{sb_j} {
+  assert(imu_params.rate > 0);
+  assert(fltcmp(imu_params.sigma_a_c, 0.0) != 0);
+  assert(fltcmp(imu_params.sigma_g_c, 0.0) != 0);
+  assert(fltcmp(imu_params.sigma_aw_c, 0.0) != 0);
+  assert(fltcmp(imu_params.sigma_gw_c, 0.0) != 0);
+
   // Data
   residuals.resize(15);
   param_blocks.push_back(pose_i);

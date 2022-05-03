@@ -186,6 +186,12 @@ void calib_vi_view_t::form_imu_residual(const imu_params_t &imu_params,
                                         imu_data_t &imu_buf,
                                         pose_t *pose_j,
                                         sb_params_t *sb_j) {
+  assert(imu_params.rate > 0);
+  assert(fltcmp(imu_params.sigma_a_c, 0.0) != 0);
+  assert(fltcmp(imu_params.sigma_g_c, 0.0) != 0);
+  assert(fltcmp(imu_params.sigma_aw_c, 0.0) != 0);
+  assert(fltcmp(imu_params.sigma_gw_c, 0.0) != 0);
+
   imu_residual =
       new imu_residual_t(imu_params, imu_buf, &pose, &sb, pose_j, sb_j);
   imu_residual_id = problem->AddResidualBlock(imu_residual,
@@ -495,6 +501,12 @@ void calib_vi_t::add_imu(const imu_params_t &imu_params_,
                          const double td,
                          const bool fix_extrinsics,
                          const bool fix_time_delay) {
+  assert(imu_params_.rate > 0);
+  assert(fltcmp(imu_params_.sigma_a_c, 0.0) != 0);
+  assert(fltcmp(imu_params_.sigma_g_c, 0.0) != 0);
+  assert(fltcmp(imu_params_.sigma_aw_c, 0.0) != 0);
+  assert(fltcmp(imu_params_.sigma_gw_c, 0.0) != 0);
+
   // Imu parameters
   imu_params = imu_params_;
 
@@ -911,9 +923,6 @@ void calib_vi_t::add_measurement(const timestamp_t imu_ts,
   if (static_cast<int>(grid_buf.size()) != nb_cams()) {
     return;
   }
-  // if (grid_buf.size() == 0) {
-  //   return;
-  // }
 
   // Copy AprilGrid buffer data
   CamIdx2Grids grids = grid_buf;
@@ -1021,8 +1030,8 @@ void calib_vi_t::solve() {
     // LOG_INFO("Optimize problem - first pass");
     ceres::Solve(options, problem, &summary);
     if (verbose) {
-      std::cout << summary.BriefReport() << std::endl << std::endl;
-      // std::cout << summary.FullReport() << std::endl << std::endl;
+      // std::cout << summary.BriefReport() << std::endl << std::endl;
+      std::cout << summary.FullReport() << std::endl << std::endl;
       show_results();
     }
   }

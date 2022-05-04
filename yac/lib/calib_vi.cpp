@@ -1118,10 +1118,6 @@ void calib_vi_t::show_results() {
 }
 
 int calib_vi_t::recover_calib_covar(matx_t &calib_covar) const {
-  printf("nb_residuals: %d\n", problem->NumResidualBlocks());
-  printf("nb_param_blocks: %d\n", problem->NumParameterBlocks());
-  printf("\n");
-
   // Recover calibration covariance
   // -- Setup covariance blocks to estimate
   auto T_BS = imu_exts->param.data();

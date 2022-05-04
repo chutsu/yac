@@ -1050,7 +1050,6 @@ int nbt_find(const lissajous_trajs_t &trajs,
 
   // Evaluate trajectories
   std::map<int, real_t> info_kp1;
-#pragma omp parallel for shared(info_kp1)
   for (size_t traj_idx = 0; traj_idx < trajs.size(); traj_idx++) {
     const auto &traj = trajs[traj_idx];
     matx_t calib_covar;

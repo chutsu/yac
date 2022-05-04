@@ -951,20 +951,12 @@ int test_simulate_imu_lissajous() {
   return 0;
 }
 
-int test_nbt_eval_lissajous() {
-  // Setup calibrator
-  const calib_target_t target;
-  calib_vi_t calib{target};
-  // -- Add IMU
-  imu_params_t imu_params;
-  imu_params.rate = 200.0;
-  imu_params.sigma_g_c = 0.002;
-  imu_params.sigma_a_c = 0.0001;
-  imu_params.sigma_gw_c = 0.003;
-  imu_params.sigma_aw_c = 0.00001;
+static void test_setup_lissajous(calib_vi_t &calib, imu_params_t &imu_params) {
+  // Add IMU
   const mat4_t T_BS = I(4);
   calib.add_imu(imu_params, T_BS);
-  // -- Add camera
+
+  // Add camera
   const int cam_idx = 0;
   const int cam_res[2] = {640, 480};
   const std::string proj_model = "pinhole";
@@ -981,7 +973,8 @@ int test_nbt_eval_lissajous() {
                    dist_model,
                    proj_params,
                    dist_params);
-  // -- Fiducial pose
+
+  // Fiducial pose
   const vec3_t r_WF{1.0, 0.0, 0.0};
   const vec3_t rpy_WF{deg2rad(90.0), 0.0, deg2rad(-90.0)};
   const mat3_t C_WF = euler321(rpy_WF);
@@ -1070,17 +1063,6 @@ int test_nbt_eval_lissajous() {
   }
   calib.solve();
 
-  // Evaluate NBT trajectories
-  LOG_INFO("Evaluate NBT lissajous trajectory");
-  const int traj_idx = 0;
-  matx_t calib_covar;
-  trajs[traj_idx].ts_start += sec2ts(traj.T) + 1;
-  if (nbt_eval(trajs[traj_idx], calib, calib_covar) != 0) {
-    return -1;
-  }
-  const real_t info = -1.0 * log(calib_covar.determinant()) / log(2.0);
-  printf("info: %f\n", info);
-
   // Save estimates
   FILE *pose_est_csv = fopen("/tmp/poses_est.csv", "w");
   fprintf(pose_est_csv, "#ts,rx,ry,rz,qx,qy,qz,qw\n");
@@ -1120,6 +1102,101 @@ int test_nbt_eval_lissajous() {
     fprintf(pose_gnd_csv, "\n");
   }
   fclose(pose_gnd_csv);
+}
+
+int test_nbt_eval_lissajous() {
+  // Imu params
+  imu_params_t imu_params;
+  imu_params.rate = 200.0;
+  imu_params.sigma_g_c = 0.002;
+  imu_params.sigma_a_c = 0.0001;
+  imu_params.sigma_gw_c = 0.003;
+  imu_params.sigma_aw_c = 0.00001;
+
+  // Calibrator
+  const calib_target_t target;
+  calib_vi_t calib{target};
+  test_setup_lissajous(calib, imu_params);
+
+  // Generate trajectories
+  LOG_INFO("Generate NBT trajectories");
+  const int cam_idx = 0;
+  const timestamp_t ts_start = sec2ts(3.01);
+  const timestamp_t ts_end = ts_start + sec2ts(3.0);
+  mat4_t T_FO;
+  calib_target_origin(T_FO,
+                      calib.calib_target,
+                      calib.cam_geoms[cam_idx],
+                      calib.cam_params[cam_idx]);
+
+  lissajous_trajs_t trajs;
+  nbt_lissajous_trajs(ts_start,
+                      ts_end,
+                      calib.calib_target,
+                      calib.cam_geoms[cam_idx],
+                      calib.cam_params[cam_idx],
+                      calib.imu_exts,
+                      calib.get_fiducial_pose(),
+                      T_FO,
+                      trajs);
+
+  // Evaluate NBT trajectories
+  LOG_INFO("Evaluate NBT lissajous trajectory");
+  const int traj_idx = 0;
+  matx_t calib_covar;
+  if (nbt_eval(trajs[traj_idx], calib, calib_covar) != 0) {
+    return -1;
+  }
+  const real_t info = -1.0 * log(calib_covar.determinant()) / log(2.0);
+  printf("info: %f\n", info);
+
+  return 0;
+}
+
+int test_nbt_find_lissajous() {
+  // Imu params
+  imu_params_t imu_params;
+  imu_params.rate = 200.0;
+  imu_params.sigma_g_c = 0.002;
+  imu_params.sigma_a_c = 0.0001;
+  imu_params.sigma_gw_c = 0.003;
+  imu_params.sigma_aw_c = 0.00001;
+
+  // Calibrator
+  const calib_target_t target;
+  calib_vi_t calib{target};
+  test_setup_lissajous(calib, imu_params);
+
+  // Generate trajectories
+  LOG_INFO("Generate NBT trajectories");
+  const int cam_idx = 0;
+  const timestamp_t ts_start = sec2ts(3.01);
+  const timestamp_t ts_end = ts_start + sec2ts(3.0);
+  mat4_t T_FO;
+  calib_target_origin(T_FO,
+                      calib.calib_target,
+                      calib.cam_geoms[cam_idx],
+                      calib.cam_params[cam_idx]);
+
+  lissajous_trajs_t trajs;
+  nbt_lissajous_trajs(ts_start,
+                      ts_end,
+                      calib.calib_target,
+                      calib.cam_geoms[cam_idx],
+                      calib.cam_params[cam_idx],
+                      calib.imu_exts,
+                      calib.get_fiducial_pose(),
+                      T_FO,
+                      trajs);
+
+  // Evaluate NBT trajectories
+  LOG_INFO("Evaluate NBT trajectories");
+  profiler_t prof;
+  prof.start("NBT Find");
+  const int best_index = nbt_find(trajs, calib, true);
+  MU_CHECK(best_index != -1);
+  prof.stop("NBT Find");
+  prof.print("NBT Find");
 
   return 0;
 }
@@ -1138,6 +1215,7 @@ void test_suite() {
   MU_ADD_TEST(test_simulate_cameras_lissajous);
   MU_ADD_TEST(test_simulate_imu_lissajous);
   MU_ADD_TEST(test_nbt_eval_lissajous);
+  MU_ADD_TEST(test_nbt_find_lissajous);
 }
 
 } // namespace yac

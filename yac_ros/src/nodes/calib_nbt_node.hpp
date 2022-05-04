@@ -33,6 +33,27 @@ void publish_nbt(const ctraj_t &traj, ros::Publisher &pub) {
   pub.publish(path_msg);
 }
 
+void publish_nbt(const lissajous_traj_t &traj, ros::Publisher &pub) {
+  auto ts = ros::Time::now();
+  auto frame_id = "map";
+
+  nav_msgs::Path path_msg;
+  path_msg.header.seq = 0;
+  path_msg.header.stamp = ts;
+  path_msg.header.frame_id = frame_id;
+
+  const timestamp_t ts_end = traj.ts_start + sec2ts(traj.T);
+  const timestamp_t dt = (ts_end - traj.ts_start) / 100.0;
+  timestamp_t ts_k = traj.ts_start;
+  while (ts_k < ts_end) {
+    const mat4_t pose = traj.get_pose(ts_k);
+    path_msg.poses.push_back(msg_build(0, ts, frame_id, pose));
+    ts_k += dt;
+  }
+
+  pub.publish(path_msg);
+}
+
 struct calib_nbt_t {
   // Calibration state
   enum CALIB_STATE {
@@ -288,7 +309,6 @@ struct calib_nbt_t {
     LOG_INFO("Generate NBTs");
     printf("nb_views: %ld\n", calib_copy.calib_views.size());
     const int cam_idx = 0;
-    ctrajs_t trajs;
     const timestamp_t ts_start = calib_copy.calib_views.back()->ts + 1;
     const timestamp_t ts_end = ts_start + sec2ts(2.0);
     mat4_t T_FO;
@@ -297,15 +317,16 @@ struct calib_nbt_t {
                         calib_copy.cam_geoms[cam_idx],
                         calib_copy.cam_params[cam_idx]);
 
-    nbt_orbit_trajs(ts_start,
-                    ts_end,
-                    calib_copy.calib_target,
-                    calib_copy.cam_geoms[cam_idx],
-                    calib_copy.cam_params[cam_idx],
-                    calib_copy.imu_exts,
-                    calib_copy.get_fiducial_pose(),
-                    T_FO,
-                    trajs);
+    lissajous_trajs_t trajs;
+    nbt_lissajous_trajs(ts_start,
+                        ts_end,
+                        calib_copy.calib_target,
+                        calib_copy.cam_geoms[cam_idx],
+                        calib_copy.cam_params[cam_idx],
+                        calib_copy.imu_exts,
+                        calib_copy.get_fiducial_pose(),
+                        T_FO,
+                        trajs);
 
     // Evaluate NBT trajectories
     LOG_INFO("Evaluate NBTs");

@@ -93,9 +93,10 @@ set -e
 # RUN_CMD="./test_calib_nbt --target test_nbt_find"
 # RUN_CMD="./test_calib_nbt --target test_lissajous_trajs"
 # RUN_CMD="./test_calib_nbt --target test_nbt_lissajous_trajs"
-RUN_CMD="./test_calib_nbt --target test_simulate_cameras_lissajous"
+# RUN_CMD="./test_calib_nbt --target test_simulate_cameras_lissajous"
 # RUN_CMD="./test_calib_nbt --target test_simulate_imu_lissajous"
 # RUN_CMD="./test_calib_nbt --target test_nbt_eval_lissajous"
+RUN_CMD="./test_calib_nbt --target test_nbt_find_lissajous"
 
 # YAC - SOLVER
 # RUN_CMD="./test_solver"
@@ -108,7 +109,7 @@ RUN_CMD="./test_calib_nbt --target test_simulate_cameras_lissajous"
 # tmux send-keys -t dev -R C-l C-m
 # tmux send-keys -t dev -R "\
 # cd ~/projects/yac \
-# && sudo make lib \
+# && sudo make lib_relwithdeb \
 # && cd build && ${RUN_CMD}
 # " C-m
 # exit
@@ -127,31 +128,33 @@ RUN_CMD="./test_calib_nbt --target test_simulate_cameras_lissajous"
 # RUN_CMD="roslaunch yac_ros intel_d435i-calib_camera.launch \
 #   config_file:=/home/chutsu/projects/yac/yac_ros/config/intel_d435i-calib_camera.yaml"
 
-# RUN_CMD="roslaunch yac_ros intel_d435i-calib_imucam.launch \
-#   config_file:=/home/chutsu/projects/yac/yac_ros/config/intel_d435i-calib_imucam.yaml"
+RUN_CMD="roslaunch yac_ros intel_d435i-calib_imucam.launch \
+  config_file:=/home/chutsu/projects/yac/yac_ros/config/intel_d435i-calib_imucam.yaml"
 
 # RUN_CMD="roslaunch yac_ros intel_d435i-calib_imucam.launch"
 
-# tmux send-keys -t dev -R C-l C-m
-# tmux send-keys -t dev -R "\
-# cd ~/projects/yac \
-# && sudo make lib \
-# && make release \
-# && cd ~/yac_ws \
-# && source devel/setup.bash \
-# && ${RUN_CMD}
-# " C-m
-# exit
+tmux send-keys -t dev -R C-l C-m
+tmux send-keys -t dev -R "\
+cd ~/projects/yac \
+&& sudo make lib \
+&& make release \
+&& cd ~/yac_ws \
+&& source devel/setup.bash \
+&& ${RUN_CMD}
+" C-m
+exit
 
 # python3 scripts/aprilgrid_generate.py --nx 6 --ny 6 --tsize 0.088
 # python3 scripts/marg_sandbox.py
 # python3 scripts/blake_zisserman.py
 # python3 scripts/plot_frames.py
 # python3 scripts/plot_imu.py
-python3 scripts/plot_camera.py
+# python3 scripts/plot_camera.py
 # python3 scripts/plot_info.py
 # python3 scripts/plot_nbt.py
 # python3 scripts/plot_poses.py /tmp/calib-estimates.yaml
+# python3 scripts/plot_poses.py /tmp/poses_est.csv
+# python3 scripts/plot_poses.py /tmp/poses_gnd.csv
 # python3 scripts/plot_stats.py
 # python3 scripts/plot_xyz.py /tmp/vel.csv "#ts" vx vy vz
 # python3 scripts/plot_xyz.py /tmp/acc.csv "#ts" ax ay az

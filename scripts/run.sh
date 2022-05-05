@@ -2,6 +2,7 @@
 set -e
 
 python3 scripts/lissajous.py
+# python3 scripts/lissajous.py > /tmp/out.txt
 exit
 
 # --prefix 'gdb -ex=run -ex=\"set confirm off\" -ex=bt -ex=quit -args'

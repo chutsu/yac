@@ -46,6 +46,9 @@ struct lissajous_traj_t {
                    const real_t T_);
   ~lissajous_traj_t() = default;
 
+  quat_t get_q_OS(const timestamp_t ts_k) const;
+  quat_t get_q_OS_dot(const timestamp_t ts_k) const;
+
   mat4_t get_pose(const timestamp_t ts_k) const;
   vec3_t get_velocity(const timestamp_t ts_k) const;
   vec3_t get_acceleration(const timestamp_t ts_k) const;

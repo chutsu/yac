@@ -78,15 +78,19 @@ def sympy_diff(gencode=False):
   stheta = sympy.sin(theta)
   cphi = sympy.cos(phi)
   sphi = sympy.sin(phi)
+
   C11 = cpsi * ctheta
   C21 = spsi * ctheta
   C31 = -stheta
+
   C12 = cpsi * stheta * sphi - spsi * cphi
   C22 = spsi * stheta * sphi + cpsi * cphi
   C32 = ctheta * sphi
+
   C13 = cpsi * stheta * cphi + spsi * sphi
   C23 = spsi * stheta * cphi - cpsi * sphi
   C33 = ctheta * cphi
+
   C_WS = np.array([[C11, C12, C13], [C21, C22, C23], [C31, C32, C33]])
   C_WS_dot = sympy.diff(C_WS, t)
 
@@ -125,8 +129,7 @@ def sympy_diff(gencode=False):
 
   # print("# Rotation")
   # print(f"{sympy.python(C_WS_dot)}")
-  print(f"{C_WS_dot}")
-
+  # print(f"{C_WS_dot}")
   # print("")
 
   # print("# Angular Velocity")
@@ -141,53 +144,61 @@ def sympy_diff(gencode=False):
   # print("")
 
 
-def sympy_C_OS_dot():
+def sympy_diff_quat():
   t = sympy.symbols("t")
   T = sympy.symbols("T")
   yaw_bound = sympy.symbols("yaw_bound")
   pitch_bound = sympy.symbols("pitch_bound")
-  psi_k = sympy.symbols("psi_k")
+  offset = sympy.symbols("offset")
 
   f = 1 / T
   w = 2.0 * sympy.pi * f
-  theta = sympy.sin(0.25 * w * t)**2
-  att_x = pi + pitch_bound * sympy.sin(2 * sympy.pi * psi_k * theta)
-  att_y = yaw_bound * sympy.sin(2 * sympy.pi * theta)
+  k = sympy.sin(0.25 * w * t)**2
+
+  att_x = pi + pitch_bound * sympy.sin(2 * sympy.pi * offset * k)
+  att_y = yaw_bound * sympy.sin(2 * sympy.pi * k)
   att_z = 0.0
 
-  psi = att_z
-  theta = att_y
   phi = att_x
+  theta = att_y
+  psi = att_z
 
-  cpsi = sympy.cos(psi)
-  spsi = sympy.sin(psi)
-  ctheta = sympy.cos(theta)
-  stheta = sympy.sin(theta)
-  cphi = sympy.cos(phi)
-  sphi = sympy.sin(phi)
+  c_phi = sympy.cos(phi / 2.0)
+  c_theta = sympy.cos(theta / 2.0)
+  c_psi = sympy.cos(psi / 2.0)
+  s_phi = sympy.sin(phi / 2.0)
+  s_theta = sympy.sin(theta / 2.0)
+  s_psi = sympy.sin(psi / 2.0)
 
-  C11 = cpsi * ctheta
-  C21 = spsi * ctheta
-  C31 = -stheta
+  qw = c_psi * c_theta * c_phi + s_psi * s_theta * s_phi
+  qx = c_psi * c_theta * s_phi - s_psi * s_theta * c_phi
+  qy = c_psi * s_theta * c_phi + s_psi * c_theta * s_phi
+  qz = s_psi * c_theta * c_phi - c_psi * s_theta * s_phi
 
-  C12 = cpsi * stheta * sphi - spsi * cphi
-  C22 = spsi * stheta * sphi + cpsi * cphi
-  C32 = ctheta * sphi
+  mag = sympy.sqrt(qw**2 + qx**2 + qy**2 + qz**2)
+  q = np.array([qw / mag, qx / mag, qy / mag, qz / mag])
 
-  C13 = cpsi * stheta * cphi + spsi * sphi
-  C23 = spsi * stheta * cphi - cpsi * sphi
-  C33 = ctheta * cphi
-
-  C_OS = np.array([[C11, C12, C13], [C21, C22, C23], [C31, C32, C33]])
-  C_OS_dot = sympy.diff(C_OS, t)
-
-  f = sympy.lambdify([pitch_bound, yaw_bound, t, T], C_OS_dot, "numpy")
-  print(f(1.0, 1.0, 0.1, 3.0))
+  print(sympy.diff(q, t))
 
 
-# sympy_diff(True)
-sympy_C_OS_dot()
-exit(0)
+# sympy_diff_quat()
+
+# pitch_bound = 1.0
+# yaw_bound = 1.0
+# t = 0.1
+# T = 3.0
+# offset = 1.0
+
+# q_OS = quat(pitch_bound, yaw_bound, t, T, offset)
+# q_OS_dot = quat_dot(pitch_bound, yaw_bound, t, T, offset)
+# w_L = (2.0 * quat_mul(quat_conj(q_OS), q_OS_dot))[1:4]
+# w_G = (2.0 * quat_mul(q_OS_dot, quat_conj(q_OS)))[1:4]
+
+# # print(w_L)
+# print(q_OS_dot)
+# print(0.5 * quat_mul(q_OS, np.array([0.0, w_L[0], w_L[1], w_L[2]])))
+# print(0.5 * quat_mul(np.array([0.0, w_G[0], w_G[1], w_G[2]]), q_OS))
+# exit(0)
 
 
 class LissajousTraj:
@@ -281,248 +292,242 @@ class LissajousTraj:
 
     return T_WS
 
-  def q_OS(self, t):
-    f = self.f
-    w = 2.0 * pi * f
-    theta = np.sin(w * t * 1.0 / 4.0)**2
-    psi = self.psi
+  def get_q_OS(self, t):
+    """ Return q_OS """
     pitch_bound = self.pitch_bound
     yaw_bound = self.yaw_bound
+    offset = self.psi
+    f = 1 / self.T
+    w = 2.0 * np.pi * f
+    k = np.sin(0.25 * w * t)**2
 
-    pitch = self.pitch_bound * np.sin(2.0 * pi * self.psi * theta)
-    yaw = self.yaw_bound * np.sin(2.0 * pi * theta)
-    C_OS = euler321(0.0, yaw, pi + pitch)
-    return rot2quat(C_OS)
+    att_x = pi + pitch_bound * np.sin(2 * np.pi * offset * k)
+    att_y = yaw_bound * np.sin(2 * np.pi * k)
+    att_z = 0.0
 
-  def q_OS_dot(self, t):
-    f = self.f
-    w = 2.0 * pi * f
-    psi = self.psi
+    phi = att_x
+    theta = att_y
+    psi = att_z
+
+    c_phi = np.cos(phi / 2.0)
+    c_theta = np.cos(theta / 2.0)
+    c_psi = np.cos(psi / 2.0)
+    s_phi = np.sin(phi / 2.0)
+    s_theta = np.sin(theta / 2.0)
+    s_psi = np.sin(psi / 2.0)
+
+    qw = c_psi * c_theta * c_phi + s_psi * s_theta * s_phi
+    qx = c_psi * c_theta * s_phi - s_psi * s_theta * c_phi
+    qy = c_psi * s_theta * c_phi + s_psi * c_theta * s_phi
+    qz = s_psi * c_theta * c_phi - c_psi * s_theta * s_phi
+
+    mag = np.sqrt(qw**2 + qx**2 + qy**2 + qz**2)
+    q = np.array([qw / mag, qx / mag, qy / mag, qz / mag])
+    return q
+
+  def get_q_OS_dot(self, t):
+    """ Derivative of q_OS """
     pitch_bound = self.pitch_bound
     yaw_bound = self.yaw_bound
-
+    offset = self.psi
+    T = self.T
     return np.array([
-        -0.25 * pitch_bound * psi * w**2 *
-        sin(0.5 * pitch_bound * sin(1.0 * psi * w * sin(0.25 * t * w)**2 / f)) *
-        sin(0.25 * t * w) * cos(0.25 * t * w) *
-        cos(0.5 * yaw_bound * sin(1.0 * w * sin(0.25 * t * w)**2 / f)) *
-        cos(1.0 * psi * w * sin(0.25 * t * w)**2 / f) / (f * sqrt(
-            sin(0.5 * pitch_bound *
-                sin(1.0 * psi * w * sin(0.25 * t * w)**2 / f))**2 *
-            sin(0.5 * yaw_bound * sin(1.0 * w * sin(0.25 * t * w)**2 / f))**2 +
-            sin(0.5 * pitch_bound *
-                sin(1.0 * psi * w * sin(0.25 * t * w)**2 / f))**2 *
-            cos(0.5 * yaw_bound * sin(1.0 * w * sin(0.25 * t * w)**2 / f))**2 +
-            sin(0.5 * yaw_bound * sin(1.0 * w * sin(0.25 * t * w)**2 / f))**2 *
-            cos(0.5 * pitch_bound *
-                sin(1.0 * psi * w * sin(0.25 * t * w)**2 / f))**2 +
-            cos(0.5 * pitch_bound *
-                sin(1.0 * psi * w * sin(0.25 * t * w)**2 / f))**2 *
-            cos(0.5 * yaw_bound * sin(1.0 * w * sin(0.25 * t * w)**2 / f))**2))
-        - 0.25 * w**2 * yaw_bound * sin(0.25 * t * w) *
-        sin(0.5 * yaw_bound * sin(1.0 * w * sin(0.25 * t * w)**2 / f)) *
-        cos(0.5 * pitch_bound * sin(1.0 * psi * w * sin(0.25 * t * w)**2 / f)) *
-        cos(0.25 * t * w) * cos(1.0 * w * sin(0.25 * t * w)**2 / f) / (f * sqrt(
-            sin(0.5 * pitch_bound *
-                sin(1.0 * psi * w * sin(0.25 * t * w)**2 / f))**2 *
-            sin(0.5 * yaw_bound * sin(1.0 * w * sin(0.25 * t * w)**2 / f))**2 +
-            sin(0.5 * pitch_bound *
-                sin(1.0 * psi * w * sin(0.25 * t * w)**2 / f))**2 *
-            cos(0.5 * yaw_bound * sin(1.0 * w * sin(0.25 * t * w)**2 / f))**2 +
-            sin(0.5 * yaw_bound * sin(1.0 * w * sin(0.25 * t * w)**2 / f))**2 *
-            cos(0.5 * pitch_bound *
-                sin(1.0 * psi * w * sin(0.25 * t * w)**2 / f))**2 +
-            cos(0.5 * pitch_bound *
-                sin(1.0 * psi * w * sin(0.25 * t * w)**2 / f))**2 *
-            cos(0.5 * yaw_bound * sin(1.0 * w * sin(0.25 * t * w)**2 / f))**2)),
-        0.25 * pitch_bound * psi * w**2 * sin(0.25 * t * w) *
-        cos(0.5 * pitch_bound * sin(1.0 * psi * w * sin(0.25 * t * w)**2 / f)) *
-        cos(0.25 * t * w) *
-        cos(0.5 * yaw_bound * sin(1.0 * w * sin(0.25 * t * w)**2 / f)) *
-        cos(1.0 * psi * w * sin(0.25 * t * w)**2 / f) / (f * sqrt(
-            sin(0.5 * pitch_bound *
-                sin(1.0 * psi * w * sin(0.25 * t * w)**2 / f))**2 *
-            sin(0.5 * yaw_bound * sin(1.0 * w * sin(0.25 * t * w)**2 / f))**2 +
-            sin(0.5 * pitch_bound *
-                sin(1.0 * psi * w * sin(0.25 * t * w)**2 / f))**2 *
-            cos(0.5 * yaw_bound * sin(1.0 * w * sin(0.25 * t * w)**2 / f))**2 +
-            sin(0.5 * yaw_bound * sin(1.0 * w * sin(0.25 * t * w)**2 / f))**2 *
-            cos(0.5 * pitch_bound *
-                sin(1.0 * psi * w * sin(0.25 * t * w)**2 / f))**2 +
-            cos(0.5 * pitch_bound *
-                sin(1.0 * psi * w * sin(0.25 * t * w)**2 / f))**2 *
-            cos(0.5 * yaw_bound * sin(1.0 * w * sin(0.25 * t * w)**2 / f))**2))
-        - 0.25 * w**2 * yaw_bound *
-        sin(0.5 * pitch_bound * sin(1.0 * psi * w * sin(0.25 * t * w)**2 / f)) *
-        sin(0.25 * t * w) *
-        sin(0.5 * yaw_bound * sin(1.0 * w * sin(0.25 * t * w)**2 / f)) *
-        cos(0.25 * t * w) * cos(1.0 * w * sin(0.25 * t * w)**2 / f) / (f * sqrt(
-            sin(0.5 * pitch_bound *
-                sin(1.0 * psi * w * sin(0.25 * t * w)**2 / f))**2 *
-            sin(0.5 * yaw_bound * sin(1.0 * w * sin(0.25 * t * w)**2 / f))**2 +
-            sin(0.5 * pitch_bound *
-                sin(1.0 * psi * w * sin(0.25 * t * w)**2 / f))**2 *
-            cos(0.5 * yaw_bound * sin(1.0 * w * sin(0.25 * t * w)**2 / f))**2 +
-            sin(0.5 * yaw_bound * sin(1.0 * w * sin(0.25 * t * w)**2 / f))**2 *
-            cos(0.5 * pitch_bound *
-                sin(1.0 * psi * w * sin(0.25 * t * w)**2 / f))**2 +
-            cos(0.5 * pitch_bound *
-                sin(1.0 * psi * w * sin(0.25 * t * w)**2 / f))**2 *
-            cos(0.5 * yaw_bound * sin(1.0 * w * sin(0.25 * t * w)**2 / f))**2)),
-        -0.25 * pitch_bound * psi * w**2 *
-        sin(0.5 * pitch_bound * sin(1.0 * psi * w * sin(0.25 * t * w)**2 / f)) *
-        sin(0.25 * t * w) *
-        sin(0.5 * yaw_bound * sin(1.0 * w * sin(0.25 * t * w)**2 / f)) *
-        cos(0.25 * t * w) * cos(1.0 * psi * w * sin(0.25 * t * w)**2 / f) /
-        (f * sqrt(
-            sin(0.5 * pitch_bound *
-                sin(1.0 * psi * w * sin(0.25 * t * w)**2 / f))**2 *
-            sin(0.5 * yaw_bound * sin(1.0 * w * sin(0.25 * t * w)**2 / f))**2 +
-            sin(0.5 * pitch_bound *
-                sin(1.0 * psi * w * sin(0.25 * t * w)**2 / f))**2 *
-            cos(0.5 * yaw_bound * sin(1.0 * w * sin(0.25 * t * w)**2 / f))**2 +
-            sin(0.5 * yaw_bound * sin(1.0 * w * sin(0.25 * t * w)**2 / f))**2 *
-            cos(0.5 * pitch_bound *
-                sin(1.0 * psi * w * sin(0.25 * t * w)**2 / f))**2 +
-            cos(0.5 * pitch_bound *
-                sin(1.0 * psi * w * sin(0.25 * t * w)**2 / f))**2 *
-            cos(0.5 * yaw_bound * sin(1.0 * w * sin(0.25 * t * w)**2 / f))**2))
-        + 0.25 * w**2 * yaw_bound * sin(0.25 * t * w) *
-        cos(0.5 * pitch_bound * sin(1.0 * psi * w * sin(0.25 * t * w)**2 / f)) *
-        cos(0.25 * t * w) *
-        cos(0.5 * yaw_bound * sin(1.0 * w * sin(0.25 * t * w)**2 / f)) *
-        cos(1.0 * w * sin(0.25 * t * w)**2 / f) / (f * sqrt(
-            sin(0.5 * pitch_bound *
-                sin(1.0 * psi * w * sin(0.25 * t * w)**2 / f))**2 *
-            sin(0.5 * yaw_bound * sin(1.0 * w * sin(0.25 * t * w)**2 / f))**2 +
-            sin(0.5 * pitch_bound *
-                sin(1.0 * psi * w * sin(0.25 * t * w)**2 / f))**2 *
-            cos(0.5 * yaw_bound * sin(1.0 * w * sin(0.25 * t * w)**2 / f))**2 +
-            sin(0.5 * yaw_bound * sin(1.0 * w * sin(0.25 * t * w)**2 / f))**2 *
-            cos(0.5 * pitch_bound *
-                sin(1.0 * psi * w * sin(0.25 * t * w)**2 / f))**2 +
-            cos(0.5 * pitch_bound *
-                sin(1.0 * psi * w * sin(0.25 * t * w)**2 / f))**2 *
-            cos(0.5 * yaw_bound * sin(1.0 * w * sin(0.25 * t * w)**2 / f))**2)),
-        -0.25 * pitch_bound * psi * w**2 * sin(0.25 * t * w) *
-        sin(0.5 * yaw_bound * sin(1.0 * w * sin(0.25 * t * w)**2 / f)) *
-        cos(0.5 * pitch_bound * sin(1.0 * psi * w * sin(0.25 * t * w)**2 / f)) *
-        cos(0.25 * t * w) * cos(1.0 * psi * w * sin(0.25 * t * w)**2 / f) /
-        (f * sqrt(
-            sin(0.5 * pitch_bound *
-                sin(1.0 * psi * w * sin(0.25 * t * w)**2 / f))**2 *
-            sin(0.5 * yaw_bound * sin(1.0 * w * sin(0.25 * t * w)**2 / f))**2 +
-            sin(0.5 * pitch_bound *
-                sin(1.0 * psi * w * sin(0.25 * t * w)**2 / f))**2 *
-            cos(0.5 * yaw_bound * sin(1.0 * w * sin(0.25 * t * w)**2 / f))**2 +
-            sin(0.5 * yaw_bound * sin(1.0 * w * sin(0.25 * t * w)**2 / f))**2 *
-            cos(0.5 * pitch_bound *
-                sin(1.0 * psi * w * sin(0.25 * t * w)**2 / f))**2 +
-            cos(0.5 * pitch_bound *
-                sin(1.0 * psi * w * sin(0.25 * t * w)**2 / f))**2 *
-            cos(0.5 * yaw_bound * sin(1.0 * w * sin(0.25 * t * w)**2 / f))**2))
-        - 0.25 * w**2 * yaw_bound *
-        sin(0.5 * pitch_bound * sin(1.0 * psi * w * sin(0.25 * t * w)**2 / f)) *
-        sin(0.25 * t * w) * cos(0.25 * t * w) *
-        cos(0.5 * yaw_bound * sin(1.0 * w * sin(0.25 * t * w)**2 / f)) *
-        cos(1.0 * w * sin(0.25 * t * w)**2 / f) / (f * sqrt(
-            sin(0.5 * pitch_bound *
-                sin(1.0 * psi * w * sin(0.25 * t * w)**2 / f))**2 *
-            sin(0.5 * yaw_bound * sin(1.0 * w * sin(0.25 * t * w)**2 / f))**2 +
-            sin(0.5 * pitch_bound *
-                sin(1.0 * psi * w * sin(0.25 * t * w)**2 / f))**2 *
-            cos(0.5 * yaw_bound * sin(1.0 * w * sin(0.25 * t * w)**2 / f))**2 +
-            sin(0.5 * yaw_bound * sin(1.0 * w * sin(0.25 * t * w)**2 / f))**2 *
-            cos(0.5 * pitch_bound *
-                sin(1.0 * psi * w * sin(0.25 * t * w)**2 / f))**2 +
-            cos(0.5 * pitch_bound *
-                sin(1.0 * psi * w * sin(0.25 * t * w)**2 / f))**2 *
-            cos(0.5 * yaw_bound * sin(1.0 * w * sin(0.25 * t * w)**2 / f))**2))
+        -1.0 * pi**2 * offset * pitch_bound * sin(pi * t / (2 * T)) *
+        sin(0.5 * pitch_bound * sin(2 * pi * offset * sin(pi * t /
+                                                          (2 * T))**2) +
+            1.5707963267949) *
+        cos(0.5 * yaw_bound * sin(2 * pi * sin(pi * t /
+                                               (2 * T))**2)) * cos(pi * t /
+                                                                   (2 * T)) *
+        cos(2 * pi * offset * sin(pi * t / (2 * T))**2) / (T * sqrt(
+            sin(0.5 * yaw_bound * sin(2 * pi * sin(pi * t / (2 * T))**2))**2 *
+            sin(0.5 * pitch_bound * sin(2 * pi * offset * sin(pi * t /
+                                                              (2 * T))**2) +
+                1.5707963267949)**2 +
+            sin(0.5 * yaw_bound * sin(2 * pi * sin(pi * t / (2 * T))**2))**2 *
+            cos(0.5 * pitch_bound * sin(2 * pi * offset * sin(pi * t /
+                                                              (2 * T))**2) +
+                1.5707963267949)**2 +
+            sin(0.5 * pitch_bound * sin(2 * pi * offset * sin(pi * t /
+                                                              (2 * T))**2) +
+                1.5707963267949)**2 *
+            cos(0.5 * yaw_bound * sin(2 * pi * sin(pi * t / (2 * T))**2))**2 +
+            cos(0.5 * yaw_bound * sin(2 * pi * sin(pi * t / (2 * T))**2))**2 *
+            cos(0.5 * pitch_bound * sin(2 * pi * offset * sin(pi * t /
+                                                              (2 * T))**2) +
+                1.5707963267949)**2)) - 1.0 * pi**2 * yaw_bound *
+        sin(0.5 * yaw_bound * sin(2 * pi * sin(pi * t / (2 * T))**2)) *
+        sin(pi * t / (2 * T)) * cos(2 * pi * sin(pi * t /
+                                                 (2 * T))**2) * cos(pi * t /
+                                                                    (2 * T)) *
+        cos(0.5 * pitch_bound * sin(2 * pi * offset * sin(pi * t /
+                                                          (2 * T))**2) +
+            1.5707963267949) /
+        (T * sqrt(
+            sin(0.5 * yaw_bound * sin(2 * pi * sin(pi * t / (2 * T))**2))**2 *
+            sin(0.5 * pitch_bound * sin(2 * pi * offset * sin(pi * t /
+                                                              (2 * T))**2) +
+                1.5707963267949)**2 +
+            sin(0.5 * yaw_bound * sin(2 * pi * sin(pi * t / (2 * T))**2))**2 *
+            cos(0.5 * pitch_bound * sin(2 * pi * offset * sin(pi * t /
+                                                              (2 * T))**2) +
+                1.5707963267949)**2 +
+            sin(0.5 * pitch_bound * sin(2 * pi * offset * sin(pi * t /
+                                                              (2 * T))**2) +
+                1.5707963267949)**2 *
+            cos(0.5 * yaw_bound * sin(2 * pi * sin(pi * t / (2 * T))**2))**2 +
+            cos(0.5 * yaw_bound * sin(2 * pi * sin(pi * t / (2 * T))**2))**2 *
+            cos(0.5 * pitch_bound * sin(2 * pi * offset * sin(pi * t /
+                                                              (2 * T))**2) +
+                1.5707963267949)**2)),
+        1.0 * pi**2 * offset * pitch_bound * sin(pi * t / (2 * T)) *
+        cos(0.5 * yaw_bound * sin(2 * pi * sin(pi * t / (2 * T))**2)) *
+        cos(pi * t / (2 * T)) * cos(2 * pi * offset * sin(pi * t /
+                                                          (2 * T))**2) *
+        cos(0.5 * pitch_bound * sin(2 * pi * offset * sin(pi * t /
+                                                          (2 * T))**2) +
+            1.5707963267949) /
+        (T * sqrt(
+            sin(0.5 * yaw_bound * sin(2 * pi * sin(pi * t / (2 * T))**2))**2 *
+            sin(0.5 * pitch_bound * sin(2 * pi * offset * sin(pi * t /
+                                                              (2 * T))**2) +
+                1.5707963267949)**2 +
+            sin(0.5 * yaw_bound * sin(2 * pi * sin(pi * t / (2 * T))**2))**2 *
+            cos(0.5 * pitch_bound * sin(2 * pi * offset * sin(pi * t /
+                                                              (2 * T))**2) +
+                1.5707963267949)**2 +
+            sin(0.5 * pitch_bound * sin(2 * pi * offset * sin(pi * t /
+                                                              (2 * T))**2) +
+                1.5707963267949)**2 *
+            cos(0.5 * yaw_bound * sin(2 * pi * sin(pi * t / (2 * T))**2))**2 +
+            cos(0.5 * yaw_bound * sin(2 * pi * sin(pi * t / (2 * T))**2))**2 *
+            cos(0.5 * pitch_bound * sin(2 * pi * offset * sin(pi * t /
+                                                              (2 * T))**2) +
+                1.5707963267949)**2)) - 1.0 * pi**2 * yaw_bound *
+        sin(0.5 * yaw_bound * sin(2 * pi * sin(pi * t /
+                                               (2 * T))**2)) * sin(pi * t /
+                                                                   (2 * T)) *
+        sin(0.5 * pitch_bound * sin(2 * pi * offset * sin(pi * t /
+                                                          (2 * T))**2) +
+            1.5707963267949) * cos(2 * pi * sin(pi * t /
+                                                (2 * T))**2) * cos(pi * t /
+                                                                   (2 * T)) /
+        (T * sqrt(
+            sin(0.5 * yaw_bound * sin(2 * pi * sin(pi * t / (2 * T))**2))**2 *
+            sin(0.5 * pitch_bound * sin(2 * pi * offset * sin(pi * t /
+                                                              (2 * T))**2) +
+                1.5707963267949)**2 +
+            sin(0.5 * yaw_bound * sin(2 * pi * sin(pi * t / (2 * T))**2))**2 *
+            cos(0.5 * pitch_bound * sin(2 * pi * offset * sin(pi * t /
+                                                              (2 * T))**2) +
+                1.5707963267949)**2 +
+            sin(0.5 * pitch_bound * sin(2 * pi * offset * sin(pi * t /
+                                                              (2 * T))**2) +
+                1.5707963267949)**2 *
+            cos(0.5 * yaw_bound * sin(2 * pi * sin(pi * t / (2 * T))**2))**2 +
+            cos(0.5 * yaw_bound * sin(2 * pi * sin(pi * t / (2 * T))**2))**2 *
+            cos(0.5 * pitch_bound * sin(2 * pi * offset * sin(pi * t /
+                                                              (2 * T))**2) +
+                1.5707963267949)**2)), -1.0 * pi**2 * offset * pitch_bound *
+        sin(0.5 * yaw_bound * sin(2 * pi * sin(pi * t /
+                                               (2 * T))**2)) * sin(pi * t /
+                                                                   (2 * T)) *
+        sin(0.5 * pitch_bound * sin(2 * pi * offset * sin(pi * t /
+                                                          (2 * T))**2) +
+            1.5707963267949) * cos(pi * t / (2 * T)) *
+        cos(2 * pi * offset * sin(pi * t / (2 * T))**2) / (T * sqrt(
+            sin(0.5 * yaw_bound * sin(2 * pi * sin(pi * t / (2 * T))**2))**2 *
+            sin(0.5 * pitch_bound * sin(2 * pi * offset * sin(pi * t /
+                                                              (2 * T))**2) +
+                1.5707963267949)**2 +
+            sin(0.5 * yaw_bound * sin(2 * pi * sin(pi * t / (2 * T))**2))**2 *
+            cos(0.5 * pitch_bound * sin(2 * pi * offset * sin(pi * t /
+                                                              (2 * T))**2) +
+                1.5707963267949)**2 +
+            sin(0.5 * pitch_bound * sin(2 * pi * offset * sin(pi * t /
+                                                              (2 * T))**2) +
+                1.5707963267949)**2 *
+            cos(0.5 * yaw_bound * sin(2 * pi * sin(pi * t / (2 * T))**2))**2 +
+            cos(0.5 * yaw_bound * sin(2 * pi * sin(pi * t / (2 * T))**2))**2 *
+            cos(0.5 * pitch_bound * sin(2 * pi * offset * sin(pi * t /
+                                                              (2 * T))**2) +
+                1.5707963267949)**2)) +
+        1.0 * pi**2 * yaw_bound * sin(pi * t /
+                                      (2 * T)) * cos(2 * pi * sin(pi * t /
+                                                                  (2 * T))**2) *
+        cos(0.5 * yaw_bound * sin(2 * pi * sin(pi * t /
+                                               (2 * T))**2)) * cos(pi * t /
+                                                                   (2 * T)) *
+        cos(0.5 * pitch_bound * sin(2 * pi * offset * sin(pi * t /
+                                                          (2 * T))**2) +
+            1.5707963267949) /
+        (T * sqrt(
+            sin(0.5 * yaw_bound * sin(2 * pi * sin(pi * t / (2 * T))**2))**2 *
+            sin(0.5 * pitch_bound * sin(2 * pi * offset * sin(pi * t /
+                                                              (2 * T))**2) +
+                1.5707963267949)**2 +
+            sin(0.5 * yaw_bound * sin(2 * pi * sin(pi * t / (2 * T))**2))**2 *
+            cos(0.5 * pitch_bound * sin(2 * pi * offset * sin(pi * t /
+                                                              (2 * T))**2) +
+                1.5707963267949)**2 +
+            sin(0.5 * pitch_bound * sin(2 * pi * offset * sin(pi * t /
+                                                              (2 * T))**2) +
+                1.5707963267949)**2 *
+            cos(0.5 * yaw_bound * sin(2 * pi * sin(pi * t / (2 * T))**2))**2 +
+            cos(0.5 * yaw_bound * sin(2 * pi * sin(pi * t / (2 * T))**2))**2 *
+            cos(0.5 * pitch_bound * sin(2 * pi * offset * sin(pi * t /
+                                                              (2 * T))**2) +
+                1.5707963267949)**2)), -1.0 * pi**2 * offset * pitch_bound *
+        sin(0.5 * yaw_bound * sin(2 * pi * sin(pi * t / (2 * T))**2)) *
+        sin(pi * t /
+            (2 * T)) * cos(pi * t /
+                           (2 * T)) * cos(2 * pi * offset * sin(pi * t /
+                                                                (2 * T))**2) *
+        cos(0.5 * pitch_bound * sin(2 * pi * offset * sin(pi * t /
+                                                          (2 * T))**2) +
+            1.5707963267949) /
+        (T * sqrt(
+            sin(0.5 * yaw_bound * sin(2 * pi * sin(pi * t / (2 * T))**2))**2 *
+            sin(0.5 * pitch_bound * sin(2 * pi * offset * sin(pi * t /
+                                                              (2 * T))**2) +
+                1.5707963267949)**2 +
+            sin(0.5 * yaw_bound * sin(2 * pi * sin(pi * t / (2 * T))**2))**2 *
+            cos(0.5 * pitch_bound * sin(2 * pi * offset * sin(pi * t /
+                                                              (2 * T))**2) +
+                1.5707963267949)**2 +
+            sin(0.5 * pitch_bound * sin(2 * pi * offset * sin(pi * t /
+                                                              (2 * T))**2) +
+                1.5707963267949)**2 *
+            cos(0.5 * yaw_bound * sin(2 * pi * sin(pi * t / (2 * T))**2))**2 +
+            cos(0.5 * yaw_bound * sin(2 * pi * sin(pi * t / (2 * T))**2))**2 *
+            cos(0.5 * pitch_bound * sin(2 * pi * offset * sin(pi * t /
+                                                              (2 * T))**2) +
+                1.5707963267949)**2)) - 1.0 * pi**2 * yaw_bound * sin(pi * t /
+                                                                      (2 * T)) *
+        sin(0.5 * pitch_bound * sin(2 * pi * offset * sin(pi * t /
+                                                          (2 * T))**2) +
+            1.5707963267949) * cos(2 * pi * sin(pi * t / (2 * T))**2) *
+        cos(0.5 * yaw_bound * sin(2 * pi * sin(pi * t /
+                                               (2 * T))**2)) * cos(pi * t /
+                                                                   (2 * T)) /
+        (T * sqrt(
+            sin(0.5 * yaw_bound * sin(2 * pi * sin(pi * t / (2 * T))**2))**2 *
+            sin(0.5 * pitch_bound * sin(2 * pi * offset * sin(pi * t /
+                                                              (2 * T))**2) +
+                1.5707963267949)**2 +
+            sin(0.5 * yaw_bound * sin(2 * pi * sin(pi * t / (2 * T))**2))**2 *
+            cos(0.5 * pitch_bound * sin(2 * pi * offset * sin(pi * t /
+                                                              (2 * T))**2) +
+                1.5707963267949)**2 +
+            sin(0.5 * pitch_bound * sin(2 * pi * offset * sin(pi * t /
+                                                              (2 * T))**2) +
+                1.5707963267949)**2 *
+            cos(0.5 * yaw_bound * sin(2 * pi * sin(pi * t / (2 * T))**2))**2 +
+            cos(0.5 * yaw_bound * sin(2 * pi * sin(pi * t / (2 * T))**2))**2 *
+            cos(0.5 * pitch_bound * sin(2 * pi * offset * sin(pi * t /
+                                                              (2 * T))**2) +
+                1.5707963267949)**2))
     ])
-
-  def C_OS_dot(self, t):
-    f = self.f
-    w = 2.0 * pi * f
-    psi_k = self.psi
-    pitch_bound = self.pitch_bound
-    yaw_bound = self.yaw_bound
-    return np.array([[
-        -3.14159265358979 * w * yaw_bound * sin(0.25 * t * w) *
-        sin(yaw_bound * sin(6.28318530717959 * sin(0.25 * t * w)**2)) *
-        cos(0.25 * t * w) * cos(6.28318530717959 * sin(0.25 * t * w)**2),
-        3.14159265358979 * pitch_bound * psi_k * w * sin(0.25 * t * w) *
-        sin(yaw_bound * sin(6.28318530717959 * sin(0.25 * t * w)**2)) *
-        cos(6.28318530717959 * psi_k * sin(0.25 * t * w)**2) *
-        cos(0.25 * t * w) *
-        cos(pitch_bound * sin(6.28318530717959 * psi_k * sin(0.25 * t * w)**2) +
-            3.14159265358979) +
-        3.14159265358979 * w * yaw_bound * sin(0.25 * t * w) *
-        sin(pitch_bound * sin(6.28318530717959 * psi_k * sin(0.25 * t * w)**2) +
-            3.14159265358979) * cos(0.25 * t * w) *
-        cos(yaw_bound * sin(6.28318530717959 * sin(0.25 * t * w)**2)) *
-        cos(6.28318530717959 * sin(0.25 * t * w)**2),
-        -3.14159265358979 * pitch_bound * psi_k * w * sin(0.25 * t * w) *
-        sin(yaw_bound * sin(6.28318530717959 * sin(0.25 * t * w)**2)) *
-        sin(pitch_bound * sin(6.28318530717959 * psi_k * sin(0.25 * t * w)**2) +
-            3.14159265358979) * cos(6.28318530717959 * psi_k *
-                                    sin(0.25 * t * w)**2) * cos(0.25 * t * w) +
-        3.14159265358979 * w * yaw_bound * sin(0.25 * t * w) * cos(0.25 * t * w)
-        * cos(yaw_bound * sin(6.28318530717959 * sin(0.25 * t * w)**2)) *
-        cos(pitch_bound * sin(6.28318530717959 * psi_k * sin(0.25 * t * w)**2) +
-            3.14159265358979) * cos(6.28318530717959 * sin(0.25 * t * w)**2)
-    ],
-                     [
-                         0, -3.14159265358979 * pitch_bound * psi_k * w *
-                         sin(0.25 * t * w) *
-                         sin(pitch_bound * sin(6.28318530717959 * psi_k *
-                                               sin(0.25 * t * w)**2) +
-                             3.14159265358979) *
-                         cos(6.28318530717959 * psi_k * sin(0.25 * t * w)**2) *
-                         cos(0.25 * t * w), -3.14159265358979 * pitch_bound *
-                         psi_k * w * sin(0.25 * t * w) *
-                         cos(6.28318530717959 * psi_k * sin(0.25 * t * w)**2) *
-                         cos(0.25 * t * w) *
-                         cos(pitch_bound * sin(6.28318530717959 * psi_k *
-                                               sin(0.25 * t * w)**2) +
-                             3.14159265358979)
-                     ],
-                     [
-                         -3.14159265358979 * w * yaw_bound * sin(0.25 * t * w) *
-                         cos(0.25 * t * w) *
-                         cos(yaw_bound *
-                             sin(6.28318530717959 * sin(0.25 * t * w)**2)) *
-                         cos(6.28318530717959 * sin(0.25 * t * w)**2),
-                         3.14159265358979 * pitch_bound * psi_k * w *
-                         sin(0.25 * t * w) *
-                         cos(6.28318530717959 * psi_k * sin(0.25 * t * w)**2) *
-                         cos(0.25 * t * w) * cos(yaw_bound * sin(
-                             6.28318530717959 * sin(0.25 * t * w)**2)) *
-                         cos(pitch_bound * sin(6.28318530717959 * psi_k *
-                                               sin(0.25 * t * w)**2) +
-                             3.14159265358979) -
-                         3.14159265358979 * w * yaw_bound * sin(0.25 * t * w) *
-                         sin(yaw_bound *
-                             sin(6.28318530717959 * sin(0.25 * t * w)**2)) *
-                         sin(pitch_bound * sin(6.28318530717959 * psi_k *
-                                               sin(0.25 * t * w)**2) +
-                             3.14159265358979) * cos(0.25 * t * w) *
-                         cos(6.28318530717959 * sin(0.25 * t * w)**2),
-                         -3.14159265358979 * pitch_bound * psi_k * w *
-                         sin(0.25 * t * w) *
-                         sin(pitch_bound * sin(6.28318530717959 * psi_k *
-                                               sin(0.25 * t * w)**2) +
-                             3.14159265358979) *
-                         cos(6.28318530717959 * psi_k * sin(0.25 * t * w)**2) *
-                         cos(0.25 * t * w) * cos(yaw_bound * sin(
-                             6.28318530717959 * sin(0.25 * t * w)**2)) -
-                         3.14159265358979 * w * yaw_bound * sin(0.25 * t * w) *
-                         sin(yaw_bound *
-                             sin(6.28318530717959 * sin(0.25 * t * w)**2)) *
-                         cos(0.25 * t * w) * cos(pitch_bound * sin(
-                             6.28318530717959 * psi_k * sin(0.25 * t * w)**2) +
-                                                 3.14159265358979) *
-                         cos(6.28318530717959 * sin(0.25 * t * w)**2)
-                     ]])
 
   def get_velocity(self, t):
     """ Return velocity """
@@ -643,12 +648,9 @@ class LissajousTraj:
     f = self.f
     psi = self.psi
 
-    wx = 0.5 * self.pitch_bound * psi * w**2 * np.sin(0.25 * t * w) * np.cos(
-        0.25 * t * w) * np.cos(1.0 * psi * w * np.sin(0.25 * t * w)**2 / f) / f
-    wy = 0.5 * self.yaw_bound * w**2 * np.sin(0.25 * t * w) * np.cos(
-        0.25 * t * w) * np.cos(1.0 * w * np.sin(0.25 * t * w)**2 / f) / f
-    wz = 0.0
-    w_OS = np.array([wx, wy, wz])
+    q_OS = self.get_q_OS(t)
+    q_OS_dot = self.get_q_OS_dot(t)
+    w_OS = (2.0 * quat_mul(q_OS_dot, quat_conj(q_OS)))[1:4]
 
     # Transform velocity from calib origin frame (O) to world frame (W)
     T_WO = self.T_WF @ self.T_FO
@@ -1063,25 +1065,6 @@ def test_integration():
   C_WF = euler321(np.deg2rad(-90.0), 0.0, np.deg2rad(90.0))
   T_WF = tf(C_WF, r_WF)
   traj = LissajousTraj("figure8", T_WF)
-  # print(C_WF )
-  # exit(0)
-
-  t = 0.1
-  C_OS_dot = traj.C_OS_dot(t)
-  print(C_OS_dot)
-
-  w = 2.0 * pi * traj.f
-  theta = np.sin(w * t * 1.0 / 4.0)**2
-  pitch = traj.pitch_bound * np.sin(2.0 * pi * traj.psi * theta)
-  yaw = traj.yaw_bound * np.sin(2.0 * pi * theta)
-  C_OS = euler321(0.0, yaw, pi + pitch)
-
-  # print(C_OS_dot @ C_OS.T)
-
-  w = skew_inv(C_OS_dot @ C_OS.T)
-  print(skew(w) @ C_OS)
-
-  exit(0)
 
   # Integrate angular velocity
   r_WS = tf_trans(traj.get_pose(traj.t[0]))

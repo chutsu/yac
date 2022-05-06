@@ -56,14 +56,14 @@ lissajous_traj_t::lissajous_traj_t(const std::string &traj_type_,
   }
 }
 
-quat_t get_q_OS(const timestamp_t ts_k) const {
+quat_t lissajous_traj_t::get_q_OS(const timestamp_t ts_k) const {
   const real_t t = ts2sec(ts_k - ts_start);
   if (t < 0.0) {
     FATAL("Implementation Error!");
   }
 
   const real_t w = 2.0 * M_PI * f;
-  const real_t k = sin(0.25 * w * t) * *2;
+  const real_t k = pow(sin(0.25 * w * t), 2.0);
 
   const real_t att_x = M_PI + pitch_bound * sin(2 * M_PI * psi * k);
   const real_t att_y = yaw_bound * sin(2 * M_PI * k);
@@ -85,20 +85,20 @@ quat_t get_q_OS(const timestamp_t ts_k) const {
   const real_t qy = c_psi * s_theta * c_phi + s_psi * c_theta * s_phi;
   const real_t qz = s_psi * c_theta * c_phi - c_psi * s_theta * s_phi;
 
-  const real_t mag = sqrt(qw * *2 + qx * *2 + qy * *2 + qz * *2);
-  const quat_t q_OS{[qw / mag, qx / mag, qy / mag, qz / mag]};
+  const real_t mag = sqrt(qw * qw + qx * qx + qy * qy + qz * qz);
+  const quat_t q_OS{qw / mag, qx / mag, qy / mag, qz / mag};
 
   return q_OS;
 }
 
-quat_t get_q_OS_dot(const timestamp_t ts_k) const {
+quat_t lissajous_traj_t::get_q_OS_dot(const timestamp_t ts_k) const {
   const real_t t = ts2sec(ts_k - ts_start);
   if (t < 0.0) {
     FATAL("Implementation Error!");
   }
 
-  const real_t pi = M_PI;
   const real_t w = 2.0 * M_PI * f;
+  const real_t psi_k = psi;
 
   // clang-format off
   const real_t q_OS_w_dot = -1.5707963267948966*pitch_bound*psi_k*w*sin(0.25*t*w)*sin(0.5*pitch_bound*sin(6.2831853071795862*psi_k*pow(sin(0.25*t*w), 2)) + 1.5707963267948966)*cos(6.2831853071795862*psi_k*pow(sin(0.25*t*w), 2))*cos(0.25*t*w)*cos(0.5*yaw_bound*sin(6.2831853071795862*pow(sin(0.25*t*w), 2)))/sqrt(pow(sin(0.5*yaw_bound*sin(6.2831853071795862*pow(sin(0.25*t*w), 2))), 2)*pow(sin(0.5*pitch_bound*sin(6.2831853071795862*psi_k*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2) + pow(sin(0.5*yaw_bound*sin(6.2831853071795862*pow(sin(0.25*t*w), 2))), 2)*pow(cos(0.5*pitch_bound*sin(6.2831853071795862*psi_k*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2) + pow(sin(0.5*pitch_bound*sin(6.2831853071795862*psi_k*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2)*pow(cos(0.5*yaw_bound*sin(6.2831853071795862*pow(sin(0.25*t*w), 2))), 2) + pow(cos(0.5*yaw_bound*sin(6.2831853071795862*pow(sin(0.25*t*w), 2))), 2)*pow(cos(0.5*pitch_bound*sin(6.2831853071795862*psi_k*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2)) - 1.5707963267948966*w*yaw_bound*sin(0.25*t*w)*sin(0.5*yaw_bound*sin(6.2831853071795862*pow(sin(0.25*t*w), 2)))*cos(0.25*t*w)*cos(0.5*pitch_bound*sin(6.2831853071795862*psi_k*pow(sin(0.25*t*w), 2)) + 1.5707963267948966)*cos(6.2831853071795862*pow(sin(0.25*t*w), 2))/sqrt(pow(sin(0.5*yaw_bound*sin(6.2831853071795862*pow(sin(0.25*t*w), 2))), 2)*pow(sin(0.5*pitch_bound*sin(6.2831853071795862*psi_k*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2) + pow(sin(0.5*yaw_bound*sin(6.2831853071795862*pow(sin(0.25*t*w), 2))), 2)*pow(cos(0.5*pitch_bound*sin(6.2831853071795862*psi_k*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2) + pow(sin(0.5*pitch_bound*sin(6.2831853071795862*psi_k*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2)*pow(cos(0.5*yaw_bound*sin(6.2831853071795862*pow(sin(0.25*t*w), 2))), 2) + pow(cos(0.5*yaw_bound*sin(6.2831853071795862*pow(sin(0.25*t*w), 2))), 2)*pow(cos(0.5*pitch_bound*sin(6.2831853071795862*psi_k*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2));
@@ -121,8 +121,7 @@ mat4_t lissajous_traj_t::get_pose(const timestamp_t ts_k) const {
   const real_t theta = pow(sin(0.25 * w * t), 2);
 
   // Rotation
-  // const real_t pitch = pitch_bound * sin(psi * w * T * theta);
-  const real_t pitch = 0.0;
+  const real_t pitch = pitch_bound * sin(psi * w * T * theta);
   const real_t yaw = yaw_bound * sin(w * T * theta);
   const vec3_t rpy{M_PI + pitch, yaw, 0.0};
   const mat3_t C_OS = euler321(rpy);
@@ -252,7 +251,7 @@ vec3_t lissajous_traj_t::get_angular_velocity(const timestamp_t ts_k) const {
   // Angular velocity
   const quat_t q_OS = get_q_OS(ts_k);
   const quat_t q_OS_dot = get_q_OS_dot(ts_k);
-  const vec3_t w_OS = (2.0 * quat_mul(q_OS_dot, quat_conj(q_OS))).vec();
+  const vec3_t w_OS = 2.0 * (q_OS_dot * q_OS.inverse()).vec();
 
   // Transform velocity from calib origin frame (O) to world frame (W)
   const mat4_t T_WO = T_WF * T_FO;

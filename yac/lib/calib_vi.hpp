@@ -142,6 +142,7 @@ struct calib_vi_t {
   int nb_views() const;
   std::vector<int> get_camera_indices() const;
   real_t get_camera_rate() const;
+  real_t get_imu_rate() const;
   veci2_t get_camera_resolution(const int cam_idx) const;
   vecx_t get_camera_params(const int cam_idx) const;
   mat4_t get_camera_extrinsics(const int cam_idx) const;

@@ -300,26 +300,20 @@ struct calib_nbt_t {
     // Copy calibrator
     std::unique_lock<std::mutex> guard(mtx);
     calib_vi_t calib_copy{*calib.get()};
-    // calib_copy.solve();
-    // matx_t covar;
-    // matx_t covar_copy;
-    // calib->recover_calib_covar(covar);
-    // calib_copy.recover_calib_covar(covar_copy);
-    // printf("shannon_entropy: %f\n", shannon_entropy(covar));
-    // printf("shannon_entropy copy: %f\n", shannon_entropy(covar_copy));
     guard.unlock();
 
     // Generate NBTs
     LOG_INFO("Generate NBTs");
-    printf("nb_views: %ld\n", calib_copy.calib_views.size());
     const int cam_idx = 0;
-    const timestamp_t ts_start = calib_copy.calib_views.back()->ts + 1;
-    const timestamp_t ts_end = ts_start + sec2ts(2.0);
+    const real_t cam_dt = 1.0 / calib->get_camera_rate();
+    const timestamp_t ts_start = calib_copy.calib_views.back()->ts + cam_dt;
+    const timestamp_t ts_end = ts_start + sec2ts(3.0);
     mat4_t T_FO;
     calib_target_origin(T_FO,
                         calib_copy.calib_target,
                         calib_copy.cam_geoms[cam_idx],
                         calib_copy.cam_params[cam_idx]);
+    T_FO(2, 3) = 0.0;
 
     lissajous_trajs_t trajs;
     nbt_lissajous_trajs(ts_start,

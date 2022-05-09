@@ -975,7 +975,7 @@ static void test_setup_lissajous(calib_vi_t &calib, imu_params_t &imu_params) {
                    dist_params);
 
   // Fiducial pose
-  const vec3_t r_WF{1.0, 0.0, 0.0};
+  const vec3_t r_WF{0.0, 0.0, 0.0};
   const vec3_t rpy_WF{deg2rad(90.0), 0.0, deg2rad(-90.0)};
   const mat3_t C_WF = euler321(rpy_WF);
   const mat4_t T_WF = tf(C_WF, r_WF);
@@ -1114,7 +1114,9 @@ int test_nbt_eval_lissajous() {
   imu_params.sigma_aw_c = 0.00001;
 
   // Calibrator
-  const calib_target_t target;
+  calib_target_t target;
+  target.tag_size = 0.0375;
+
   calib_vi_t calib{target};
   test_setup_lissajous(calib, imu_params);
 
@@ -1140,15 +1142,22 @@ int test_nbt_eval_lissajous() {
                       T_FO,
                       trajs);
 
-  // Evaluate NBT trajectories
-  LOG_INFO("Evaluate NBT lissajous trajectory");
-  const int traj_idx = 0;
-  matx_t calib_covar;
-  if (nbt_eval(trajs[traj_idx], calib, calib_covar) != 0) {
-    return -1;
-  }
-  const real_t info = -1.0 * log(calib_covar.determinant()) / log(2.0);
-  printf("info: %f\n", info);
+  // // Evaluate NBT trajectories
+  // LOG_INFO("Evaluate NBT lissajous trajectory");
+  // const int traj_idx = 0;
+  // matx_t calib_covar;
+  // if (nbt_eval(trajs[traj_idx], calib, calib_covar) != 0) {
+  //   return -1;
+  // }
+  // const real_t info = -1.0 * log(calib_covar.determinant()) / log(2.0);
+  // printf("info: %f\n", info);
+
+  // printf("ts_start: %ld\n", ts_start);
+  // printf("ts_end:   %ld\n", ts_end);
+  // print_matrix("T_FO", T_FO);
+  // print_matrix("T_WF", calib.get_fiducial_pose());
+  print_matrix("traj[0] start", trajs[0].get_pose(ts_start));
+  print_matrix("traj[0] end", trajs[0].get_pose(ts_end));
 
   return 0;
 }
@@ -1163,7 +1172,9 @@ int test_nbt_find_lissajous() {
   imu_params.sigma_aw_c = 0.00001;
 
   // Calibrator
-  const calib_target_t target;
+  calib_target_t target;
+  target.tag_size = 0.0375;
+
   calib_vi_t calib{target};
   test_setup_lissajous(calib, imu_params);
 

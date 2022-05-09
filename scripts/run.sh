@@ -93,11 +93,11 @@ set -e
 # RUN_CMD="./test_calib_nbt --target test_nbt_eval"
 # RUN_CMD="./test_calib_nbt --target test_nbt_find"
 # RUN_CMD="./test_calib_nbt --target test_lissajous_trajs"
-RUN_CMD="./test_calib_nbt --target test_nbt_lissajous_trajs"
+# RUN_CMD="./test_calib_nbt --target test_nbt_lissajous_trajs"
 # RUN_CMD="./test_calib_nbt --target test_simulate_cameras_lissajous"
 # RUN_CMD="./test_calib_nbt --target test_simulate_imu_lissajous"
 # RUN_CMD="./test_calib_nbt --target test_nbt_eval_lissajous"
-# RUN_CMD="./test_calib_nbt --target test_nbt_find_lissajous"
+RUN_CMD="./test_calib_nbt --target test_nbt_find_lissajous"
 
 # YAC - SOLVER
 # RUN_CMD="./test_solver"
@@ -110,7 +110,7 @@ RUN_CMD="./test_calib_nbt --target test_nbt_lissajous_trajs"
 tmux send-keys -t dev -R C-l C-m
 tmux send-keys -t dev -R "\
 cd ~/projects/yac \
-&& sudo make lib_relwithdeb \
+&& sudo make lib \
 && cd build && ${RUN_CMD}
 " C-m
 exit
@@ -134,16 +134,19 @@ RUN_CMD="roslaunch yac_ros intel_d435i-calib_imucam.launch \
 
 # RUN_CMD="roslaunch yac_ros intel_d435i-calib_imucam.launch"
 
-# tmux send-keys -t dev -R C-l C-m
-# tmux send-keys -t dev -R "\
-# cd ~/projects/yac \
-# && sudo make lib \
-# && make release \
-# && cd ~/yac_ws \
-# && source devel/setup.bash \
-# && ${RUN_CMD}
-# " C-m
-# exit
+
+tmux send-keys -t dev -R C-l C-m
+tmux send-keys -t dev -R "\
+cd ~/projects/yac \
+&& sudo make lib \
+&& make release \
+&& rm -rf /tmp/calib_data/calib_imu \
+&& cd ~/yac_ws \
+&& source devel/setup.bash \
+&& ${RUN_CMD}
+" C-m
+exit
+# && rm -rf /tmp/calib_data \
 
 # python3 scripts/aprilgrid_generate.py --nx 6 --ny 6 --tsize 0.088
 # python3 scripts/marg_sandbox.py

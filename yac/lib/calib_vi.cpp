@@ -603,6 +603,24 @@ real_t calib_vi_t::get_camera_rate() const {
   return 1.0 / median(time_diff);
 }
 
+real_t calib_vi_t::get_imu_rate() const {
+  // Pre-check
+  if (imu_buf.size() < 2) {
+    FATAL("imu_buf.size() < 2");
+  }
+
+  // Calculate time difference in seconds between views
+  std::vector<real_t> time_diff;
+  for (size_t k = 1; k < imu_buf.size(); k++) {
+    auto ts_km1 = imu_buf.timestamps[k - 1];
+    auto ts_k = imu_buf.timestamps[k];
+    time_diff.push_back(ts2sec(ts_k - ts_km1));
+  }
+
+  // Return camera rate in Hz
+  return 1.0 / median(time_diff);
+}
+
 veci2_t calib_vi_t::get_camera_resolution(const int cam_idx) const {
   auto cam_res = cam_params.at(cam_idx)->resolution;
   return veci2_t{cam_res[0], cam_res[1]};

@@ -743,10 +743,14 @@ void simulate_imu(const timestamp_t &ts_start,
 
   sim_imu_t sim_imu;
   sim_imu.rate = imu_params.rate;
-  sim_imu.sigma_g_c = imu_params.sigma_g_c;
-  sim_imu.sigma_a_c = imu_params.sigma_a_c;
-  sim_imu.sigma_gw_c = imu_params.sigma_gw_c;
-  sim_imu.sigma_aw_c = imu_params.sigma_aw_c;
+  // sim_imu.sigma_g_c = imu_params.sigma_g_c;
+  // sim_imu.sigma_a_c = imu_params.sigma_a_c;
+  // sim_imu.sigma_gw_c = imu_params.sigma_gw_c;
+  // sim_imu.sigma_aw_c = imu_params.sigma_aw_c;
+  sim_imu.sigma_g_c = 0.0;
+  sim_imu.sigma_a_c = 0.0;
+  sim_imu.sigma_gw_c = 0.0;
+  sim_imu.sigma_aw_c = 0.0;
   sim_imu.g = imu_params.g;
 
   while (ts_k <= ts_end) {
@@ -785,11 +789,17 @@ void simulate_imu(const timestamp_t &ts_start,
                   vec3s_t &imu_gyro,
                   mat4s_t &imu_poses,
                   vec3s_t &imu_vels) {
-  mat4_t T_WS = traj.get_pose(ts_start);
-  vec3_t r_WS = tf_trans(T_WS);
-  mat3_t C_WS = tf_rot(T_WS);
-  vec3_t v_WS = traj.get_velocity(ts_start);
+  // Setup
+  std::default_random_engine rndeng;
+  sim_imu_t sim_imu;
+  sim_imu.rate = imu_params.rate;
+  sim_imu.sigma_g_c = imu_params.sigma_g_c;
+  sim_imu.sigma_a_c = imu_params.sigma_a_c;
+  sim_imu.sigma_gw_c = imu_params.sigma_gw_c;
+  sim_imu.sigma_aw_c = imu_params.sigma_aw_c;
+  sim_imu.g = imu_params.g;
 
+  // Simulate IMU measurements
   const timestamp_t dt = sec2ts(1.0 / imu_params.rate);
   timestamp_t ts_k = ts_start;
   while (ts_k <= ts_end) {
@@ -799,27 +809,17 @@ void simulate_imu(const timestamp_t &ts_start,
     const vec3_t a_WS_W = traj.get_acceleration(ts_k);
     const vec3_t w_WS_W = traj.get_angular_velocity(ts_k);
 
-    // Transform acceleration and angular velocity to body frame
-    const vec3_t g{0.0, 0.0, imu_params.g};
-    const vec3_t a_WS_S = C_WS.transpose() * (a_WS_W + g);
-    const vec3_t w_WS_S = C_WS.transpose() * w_WS_W;
-
-    // Propagate simulated ideal IMU measurements
-    const real_t dt_s = ts2sec(dt);
-    const real_t dt_s_sq = dt_s * dt_s;
-    const vec3_t g_W{0.0, 0.0, -imu_params.g};
-    // -- Position at time k
-    r_WS += v_WS * dt_s;
-    r_WS += 0.5 * g_W * dt_s_sq;
-    r_WS += 0.5 * C_WS * a_WS_S * dt_s_sq;
-    // -- velocity at time k
-    v_WS += C_WS * a_WS_S * dt_s + g_W * dt_s;
-    // -- Attitude at time k
-    C_WS = C_WS * lie::Exp(w_WS_S * ts2sec(dt));
-    // -- Normalize rotation
-    quat_t q = quat_t{C_WS};
-    q.normalize();
-    C_WS = q.toRotationMatrix();
+    // Simulate IMU measurement
+    vec3_t a_WS_S{0.0, 0.0, 0.0};
+    vec3_t w_WS_S{0.0, 0.0, 0.0};
+    sim_imu_measurement(sim_imu,
+                        rndeng,
+                        ts_k,
+                        T_WS_W,
+                        w_WS_W,
+                        a_WS_W,
+                        a_WS_S,
+                        w_WS_S);
 
     // Update
     imu_time.push_back(ts_k);
@@ -949,7 +949,14 @@ int nbt_eval(const lissajous_traj_t &traj,
   // Setup
   const timestamp_t ts_start = traj.ts_start;
   const timestamp_t ts_end = ts_start + sec2ts(traj.T);
-  const double cam_rate = calib.get_camera_rate();
+  const real_t cam_rate = calib.get_camera_rate();
+  const real_t imu_rate = calib.get_imu_rate();
+  if ((imu_rate - calib.imu_params.rate) > 50) {
+    LOG_ERROR("(imu_rate - imu_params.rate) > 50");
+    LOG_ERROR("imu_rate: %f", imu_rate);
+    LOG_ERROR("imu_params.rate: %f", calib.imu_params.rate);
+    FATAL("Measured IMU rate is different to configured imu rate!");
+  }
 
   // Make a copy of the calibrator
   calib_vi_t calib_{calib};
@@ -1020,6 +1027,8 @@ int nbt_eval(const lissajous_traj_t &traj,
       }
     }
   }
+  // calib_.verbose = true;
+  // calib_.solve();
 
   // Estimate calibration covariance
   calib_covar.setZero();

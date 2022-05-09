@@ -245,6 +245,10 @@ struct calib_nbt_t {
           keep_running = false;
           break;
         case 'f':
+          if (state != NBT) {
+            LOG_WARN("Not in NBT mode yet ...");
+            return;
+          }
           LOG_INFO("Finding NBT...");
           find_nbt();
           break;

@@ -961,8 +961,7 @@ void yac_solver_t::solve(const int max_iter,
   }
 }
 
-// CERES-SOLVER
-// ////////////////////////////////////////////////////////////////
+// CERES-SOLVER //////////////////////////////////////////////////////////////
 
 ceres_solver_t::ceres_solver_t() {
   prob_options.local_parameterization_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;

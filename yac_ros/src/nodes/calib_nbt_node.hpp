@@ -96,6 +96,8 @@ struct calib_nbt_t {
 
   // Calibration
   std::unique_ptr<calib_vi_t> calib;
+  std::map<timestamp_t, real_t> calib_info;
+  std::map<timestamp_t, real_t> calib_info_predict;
 
   // Data
   size_t frame_idx = 0;
@@ -245,6 +247,11 @@ struct calib_nbt_t {
           keep_running = false;
           break;
         case 'f':
+          LOG_INFO("Finishing ...");
+          finish();
+          keep_running = false;
+          break;
+        case 'n':
           if (state != NBT) {
             LOG_WARN("Not in NBT mode yet ...");
             return;
@@ -306,7 +313,8 @@ struct calib_nbt_t {
     LOG_INFO("Generate NBTs");
     const int cam_idx = 0;
     const real_t cam_dt = 1.0 / calib->get_camera_rate();
-    const timestamp_t ts_start = calib_copy.calib_views.back()->ts + cam_dt;
+    const timestamp_t ts_now = calib_copy.calib_views.back()->ts;
+    const timestamp_t ts_start = ts_now + cam_dt;
     const timestamp_t ts_end = ts_start + sec2ts(3.0);
     mat4_t T_FO;
     calib_target_origin(T_FO,
@@ -329,13 +337,20 @@ struct calib_nbt_t {
     // Evaluate NBT trajectories
     LOG_INFO("Evaluate NBTs");
     prof.start("find_nbt");
-    const int best_index = nbt_find(trajs, calib_copy, true);
+    real_t info_k = 0.0;
+    real_t info_kp1 = 0.0;
+    const int best_idx = nbt_find(trajs, calib_copy, true, &info_k, &info_kp1);
     prof.stop("find_nbt");
     prof.print("find_nbt");
-    if (best_index >= 0) {
-      publish_nbt(trajs[best_index], nbt_pub);
+    if (best_idx >= 0) {
+      publish_nbt(trajs[best_idx], nbt_pub);
     }
 
+    // Track info
+    calib_info[ts_now] = info_k;
+    calib_info_predict[ts_now] = info_kp1;
+
+    // Toggle finding NBT flag
     finding_nbt = false;
   }
 
@@ -361,7 +376,7 @@ struct calib_nbt_t {
       return;
     }
 
-    // Check if we have enough grids for all cameras
+    // Check if we have enough grids
     const int views_left = min_init_views - calib->nb_views();
     if (views_left > 0) {
       return;
@@ -380,13 +395,42 @@ struct calib_nbt_t {
     // Transition to NBT mode
     LOG_INFO("Transition to NBT mode");
     state = NBT;
-    // find_nbt_event = true;
   }
 
   /** NBT Mode **/
   void mode_nbt() {
     // Visualize
     visualize();
+  }
+
+  /** Finish **/
+  void finish() {
+    // Unsubscribe imu0
+    LOG_INFO("Unsubscribing from [%s]", imu0_topic.c_str());
+    imu0_sub.shutdown();
+
+    // Unsubscribe cameras
+    for (auto &[cam_idx, cam_sub] : mcam_subs) {
+      LOG_INFO("Unsubscribing from [%s]", mcam_topics[cam_idx].c_str());
+      cam_sub.shutdown();
+    }
+
+    // Solve and save results
+    const auto results_path = data_path + "/calib-results.yaml";
+    calib->solve();
+    calib->show_results();
+    calib->save_results(results_path);
+
+    // Save info
+    const std::string info_path = data_path + "/calib_info.csv";
+    FILE *info_csv = fopen(info_path.c_str(), "w");
+    fprintf(info_csv, "#ts,info_current,info_nbt_predict\n"); // Header
+    for (const auto &[ts, info] : calib_info) {
+      fprintf(info_csv, "%ld,", ts);
+      fprintf(info_csv, "%f,", info);
+      fprintf(info_csv, "%f\n", calib_info_predict[ts]);
+    }
+    fclose(info_csv);
   }
 
   /** Publish Estimates */

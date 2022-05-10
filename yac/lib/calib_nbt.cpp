@@ -1098,7 +1098,9 @@ int nbt_find(const ctrajs_t &trajs,
 
 int nbt_find(const lissajous_trajs_t &trajs,
              const calib_vi_t &calib,
-             const bool verbose) {
+             const bool verbose,
+             real_t *calib_info_k,
+             real_t *calib_info_kp1) {
   // Calculate info_k
   matx_t calib_covar;
   if (calib.recover_calib_covar(calib_covar) != 0) {
@@ -1145,6 +1147,14 @@ int nbt_find(const lissajous_trajs_t &trajs,
     printf("\nFind NBT:\n");
     printf("best_traj: %d\n", best_idx);
     printf("best_gain: %f\n", best_gain);
+  }
+
+  // Update
+  if (calib_info_k) {
+    *calib_info_k = info_k;
+  }
+  if (calib_info_kp1) {
+    *calib_info_kp1 = info_kp1[best_idx];
   }
 
   return best_idx;

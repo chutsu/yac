@@ -287,7 +287,9 @@ int nbt_find(const ctrajs_t &trajs,
              const bool verbose = false);
 int nbt_find(const lissajous_trajs_t &trajs,
              const calib_vi_t &calib,
-             const bool verbose = false);
+             const bool verbose = false,
+             real_t *info_k = nullptr,
+             real_t *info_kp1 = nullptr);
 
 } //  namespace yac
 #endif // YAC_CALIB_NBT_HPP

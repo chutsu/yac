@@ -57,6 +57,8 @@ struct calib_nbv_t {
   std::string config_file;
   std::map<int, std::string> cam_dirs;
   calib_camera_t *calib;
+  std::map<timestamp_t, real_t> calib_info;
+  std::map<timestamp_t, real_t> calib_info_predict;
 
   // Data
   imu_params_t imu_params;
@@ -617,6 +619,12 @@ struct calib_nbv_t {
                info_gain);
         printf("find_nbv() took: %f [s]\n", prof.stop("find_nbt"));
         printf("\n");
+
+        // Track info
+        const timestamp_t ts_now = calib->calib_view_timestamps.back();
+        calib_info[ts_now] = info;
+        calib_info_predict[ts_now] = nbv_info;
+
       } else if (retval == -2) {
         LOG_INFO("NBV Threshold met!");
         LOG_INFO("Finishing!");
@@ -715,6 +723,17 @@ struct calib_nbv_t {
     }
     nbv_calib.solve();
     nbv_calib.save_results(results_path);
+
+    // Save info
+    const std::string info_path = camera_data_path + "/calib_info.csv";
+    FILE *info_csv = fopen(info_path.c_str(), "w");
+    fprintf(info_csv, "#ts,info_current,info_nbt_predict\n"); // Header
+    for (const auto &[ts, info] : calib_info) {
+      fprintf(info_csv, "%ld,", ts);
+      fprintf(info_csv, "%f,", info);
+      fprintf(info_csv, "%f\n", calib_info_predict[ts]);
+    }
+    fclose(info_csv);
 
     // Add imu0 settings if it exists in config file
     if (has_imu) {

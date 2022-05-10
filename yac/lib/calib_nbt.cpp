@@ -907,6 +907,7 @@ int nbt_eval(const ctraj_t &traj,
   calib_.verbose = false;
   calib_.initialized = false;
   calib_.enable_marginalization = false;
+  calib_.imu_buf.clear();
   calib_.grid_buf.clear();
   calib_.prev_grids.clear();
 
@@ -1001,6 +1002,7 @@ int nbt_eval(const lissajous_traj_t &traj,
   calib_.verbose = false;
   calib_.initialized = false;
   calib_.enable_marginalization = false;
+  calib_.imu_buf.clear();
   calib_.grid_buf.clear();
   calib_.prev_grids.clear();
 

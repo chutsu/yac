@@ -15,6 +15,43 @@
 
 namespace yac {
 
+static void schurs_complement(const matx_t &H,
+                              const size_t m, // Marginalize
+                              const size_t r, // Remain
+                              matx_t &H_marg) {
+  // Pseudo inverse of Hmm via Eigen-decomposition:
+  //
+  //   A_pinv = V * Lambda_pinv * V_transpose
+  //
+  // Where Lambda_pinv is formed by **replacing every non-zero diagonal
+  // entry by its reciprocal, leaving the zeros in place, and transposing
+  // the resulting matrix.
+  // clang-format off
+  matx_t Hmm = H.block(r, r, m, m);
+  Hmm = 0.5 * (Hmm + Hmm.transpose()); // Enforce Symmetry
+  const double eps = 1.0e-8;
+  const Eigen::SelfAdjointEigenSolver<matx_t> eig(Hmm);
+  const matx_t V = eig.eigenvectors();
+  const auto eigvals_inv = (eig.eigenvalues().array() > eps).select(eig.eigenvalues().array().inverse(), 0);
+  const matx_t Lambda_inv = vecx_t(eigvals_inv).asDiagonal();
+  const matx_t Hmm_inv = V * Lambda_inv * V.transpose();
+  // const double inv_check = ((Hmm * Hmm_inv) - I(m, m)).sum();
+  // if (fabs(inv_check) > 1e-4) {
+  //   LOG_WARN("Inverse identity check: %f", inv_check);
+  //   LOG_WARN("This is bad ... Usually means marg_residual_t is bad!");
+  // }
+  // clang-format on
+
+  // Calculate Schur's complement
+  // H = [Hrr, Hrm,
+  //      Hmr, Hmm]
+  const matx_t Hrr = H.block(0, 0, r, r);
+  const matx_t Hrm = H.block(0, r, r, m);
+  const matx_t Hmr = H.block(r, 0, m, r);
+
+  H_marg = Hrr - Hrm * Hmm_inv * Hmr;
+}
+
 void publish_nbt(const ctraj_t &traj, ros::Publisher &pub) {
   auto ts = ros::Time::now();
   auto frame_id = "map";
@@ -297,6 +334,7 @@ struct calib_nbt_t {
 
   /** Find NBT thread */
   void find_nbt_thread() {
+    std::unique_lock<std::mutex> guard(mtx);
     finding_nbt = true;
 
     // Pre-check
@@ -304,42 +342,35 @@ struct calib_nbt_t {
       return;
     }
 
-    // Copy calibrator
-    std::unique_lock<std::mutex> guard(mtx);
-    calib_vi_t calib_copy{*calib.get()};
-    guard.unlock();
+    // Calculate initial information
+    matx_t H;
+    if (calib->recover_calib_info(H) != 0) {
+      LOG_WARN("Failed to recover calibration info!");
+      LOG_WARN("Skipping!");
+      return;
+    }
 
     // Generate NBTs
     LOG_INFO("Generate NBTs");
     const int cam_idx = 0;
     const real_t cam_dt = 1.0 / calib->get_camera_rate();
-    const timestamp_t ts_now = calib_copy.calib_views.back()->ts;
+    const timestamp_t ts_now = calib->calib_views.back()->ts;
     const timestamp_t ts_start = ts_now + cam_dt;
     const timestamp_t ts_end = ts_start + sec2ts(3.0);
-    mat4_t T_FO;
-    calib_target_origin(T_FO,
-                        calib_copy.calib_target,
-                        calib_copy.cam_geoms[cam_idx],
-                        calib_copy.cam_params[cam_idx]);
-    T_FO(2, 3) = 0.0;
-
+    const mat4_t T_WF = calib->get_fiducial_pose();
     lissajous_trajs_t trajs;
-    nbt_lissajous_trajs(ts_start,
-                        ts_end,
-                        calib_copy.calib_target,
-                        calib_copy.cam_geoms[cam_idx],
-                        calib_copy.cam_params[cam_idx],
-                        calib_copy.imu_exts,
-                        calib_copy.get_fiducial_pose(),
-                        T_FO,
-                        trajs);
+    nbt_lissajous_trajs(ts_start, ts_end, calib->calib_target, T_WF, trajs);
 
     // Evaluate NBT trajectories
     LOG_INFO("Evaluate NBTs");
     prof.start("find_nbt");
+
+    matx_t H_nbt;
     real_t info_k = 0.0;
     real_t info_kp1 = 0.0;
-    const int best_idx = nbt_find(trajs, calib_copy, true, &info_k, &info_kp1);
+    const nbt_data_t nbt_data{*calib.get()};
+    const int best_idx = nbt_find(trajs, nbt_data, H, true, &info_k, &info_kp1);
+
     prof.stop("find_nbt");
     prof.print("find_nbt");
     if (best_idx >= 0) {

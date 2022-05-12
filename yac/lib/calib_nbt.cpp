@@ -579,16 +579,9 @@ void nbt_figure8_trajs(const timestamp_t &ts_start,
 void nbt_lissajous_trajs(const timestamp_t &ts_start,
                          const timestamp_t &ts_end,
                          const calib_target_t &target,
-                         const camera_geometry_t *cam0_geom,
-                         const camera_params_t *cam0_params,
-                         const extrinsics_t *imu_exts,
                          const mat4_t &T_WF,
                          const mat4_t &T_FO,
                          lissajous_trajs_t &trajs) {
-  UNUSED(cam0_geom);
-  UNUSED(cam0_params);
-  UNUSED(imu_exts);
-
   // Calculate calib width and height
   const double tag_rows = target.tag_rows;
   const double tag_cols = target.tag_cols;

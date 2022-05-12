@@ -359,7 +359,8 @@ public:
                          const size_t m,
                          const size_t r,
                          matx_t &H_marg,
-                         vecx_t &b_marg);
+                         vecx_t &b_marg,
+                         const bool debug = false);
 
   /* Marginalize */
   void marginalize(std::vector<param_t *> &marg_params,

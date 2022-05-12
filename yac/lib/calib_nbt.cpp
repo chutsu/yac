@@ -580,17 +580,18 @@ void nbt_lissajous_trajs(const timestamp_t &ts_start,
                          const timestamp_t &ts_end,
                          const calib_target_t &target,
                          const mat4_t &T_WF,
-                         const mat4_t &T_FO,
                          lissajous_trajs_t &trajs) {
   // Calculate calib width and height
-  const double tag_rows = target.tag_rows;
-  const double tag_cols = target.tag_cols;
-  const double tag_spacing = target.tag_spacing;
-  const double tag_size = target.tag_size;
-  const double spacing_x = (tag_cols - 1) * tag_spacing * tag_size;
-  const double spacing_y = (tag_rows - 1) * tag_spacing * tag_size;
-  const double calib_width = tag_cols * tag_size + spacing_x;
-  const double calib_height = tag_rows * tag_size + spacing_y;
+  const real_t tag_rows = target.tag_rows;
+  const real_t tag_cols = target.tag_cols;
+  const real_t tag_spacing = target.tag_spacing;
+  const real_t tag_size = target.tag_size;
+  const real_t spacing_x = (tag_cols - 1) * tag_spacing * tag_size;
+  const real_t spacing_y = (tag_rows - 1) * tag_spacing * tag_size;
+  const real_t calib_width = tag_cols * tag_size + spacing_x;
+  const real_t calib_height = tag_rows * tag_size + spacing_y;
+  const vec3_t calib_center{calib_width / 2.0, calib_height / 2.0, 0.0};
+  const mat4_t T_FO = tf(I(3), calib_center);
 
   // Lissajous parameters
   const real_t R = std::max(calib_width, calib_height) * 1.0;
@@ -877,20 +878,19 @@ int nbt_eval(const ctraj_t &traj,
                imu_vels);
 
   // Simulate camera frames
-  calib_target_t calib_target;
   camera_data_t cam_grids;
-  std::map<timestamp_t, mat4_t> T_WC0_sim;
+  std::map<timestamp_t, mat4_t> T_WC0;
   simulate_cameras(ts_start,
                    ts_end,
                    traj,
-                   calib_target,
+                   calib_.calib_target,
                    calib_.cam_geoms,
                    calib_.cam_params,
                    calib_.cam_exts,
                    cam_rate,
                    calib_.get_fiducial_pose(),
                    cam_grids,
-                   T_WC0_sim);
+                   T_WC0);
 
   // Add NBT data into calibrator
   timeline_t timeline;
@@ -937,23 +937,59 @@ int nbt_eval(const ctraj_t &traj,
   return 0;
 }
 
+static void schurs_complement(const matx_t &H,
+                              const size_t m, // Marginalize
+                              const size_t r, // Remain
+                              matx_t &H_marg) {
+  // Pseudo inverse of Hmm via Eigen-decomposition:
+  //
+  //   A_pinv = V * Lambda_pinv * V_transpose
+  //
+  // Where Lambda_pinv is formed by **replacing every non-zero diagonal
+  // entry by its reciprocal, leaving the zeros in place, and transposing
+  // the resulting matrix.
+  // clang-format off
+  matx_t Hmm = H.block(r, r, m, m);
+  Hmm = 0.5 * (Hmm + Hmm.transpose()); // Enforce Symmetry
+  const double eps = 1.0e-8;
+  const Eigen::SelfAdjointEigenSolver<matx_t> eig(Hmm);
+  const matx_t V = eig.eigenvectors();
+  const auto eigvals_inv = (eig.eigenvalues().array() > eps).select(eig.eigenvalues().array().inverse(), 0);
+  const matx_t Lambda_inv = vecx_t(eigvals_inv).asDiagonal();
+  const matx_t Hmm_inv = V * Lambda_inv * V.transpose();
+  // const double inv_check = ((Hmm * Hmm_inv) - I(m, m)).sum();
+  // if (fabs(inv_check) > 1e-4) {
+  //   LOG_WARN("Inverse identity check: %f", inv_check);
+  //   LOG_WARN("This is bad ... Usually means marg_residual_t is bad!");
+  // }
+  // clang-format on
+
+  // Calculate Schur's complement
+  // H = [Hrr, Hrm,
+  //      Hmr, Hmm]
+  const matx_t Hrr = H.block(0, 0, r, r);
+  const matx_t Hrm = H.block(0, r, r, m);
+  const matx_t Hmr = H.block(r, 0, m, r);
+
+  H_marg = Hrr - Hrm * Hmm_inv * Hmr;
+}
+
 int nbt_eval(const lissajous_traj_t &traj,
-             const calib_vi_t &calib,
-             matx_t &calib_covar) {
+             const nbt_data_t &nbt_data,
+             const matx_t &H,
+             matx_t &H_nbt) {
   // Setup
   const timestamp_t ts_start = traj.ts_start;
   const timestamp_t ts_end = ts_start + sec2ts(traj.T);
-  const real_t cam_rate = calib.get_camera_rate();
-  const real_t imu_rate = calib.get_imu_rate();
-  if ((imu_rate - calib.imu_params.rate) > 50) {
-    LOG_ERROR("(imu_rate - imu_params.rate) > 50");
-    LOG_ERROR("imu_rate: %f", imu_rate);
-    LOG_ERROR("imu_params.rate: %f", calib.imu_params.rate);
-    FATAL("Measured IMU rate is different to configured imu rate!");
-  }
-
-  // Make a copy of the calibrator
-  calib_vi_t calib_{calib};
+  // const real_t cam_rate = calib.get_camera_rate();
+  // const real_t imu_rate = calib.get_imu_rate();
+  // if ((imu_rate - calib.imu_params.rate) > 50) {
+  //   LOG_ERROR("(imu_rate - imu_params.rate) > 50");
+  //   LOG_ERROR("imu_rate: %f", imu_rate);
+  //   LOG_ERROR("imu_params.rate: %f", calib.imu_params.rate);
+  //   FATAL("Measured IMU rate is different to configured imu
+  //   rate!");
+  // }
 
   // Simulate imu measurements
   timestamps_t imu_ts;
@@ -964,7 +1000,7 @@ int nbt_eval(const lissajous_traj_t &traj,
   simulate_imu(ts_start,
                ts_end,
                traj,
-               calib_.imu_params,
+               nbt_data.imu_params,
                imu_ts,
                imu_acc,
                imu_gyr,
@@ -972,32 +1008,55 @@ int nbt_eval(const lissajous_traj_t &traj,
                imu_vels);
 
   // Simulate camera frames
-  calib_target_t calib_target;
   camera_data_t cam_grids;
-  std::map<timestamp_t, mat4_t> T_WC0_sim;
+  std::map<timestamp_t, mat4_t> cam_poses;
   simulate_cameras(ts_start,
                    ts_end,
                    traj,
-                   calib_target,
-                   calib_.cam_geoms,
-                   calib_.cam_params,
-                   calib_.cam_exts,
-                   cam_rate,
-                   calib_.get_fiducial_pose(),
+                   nbt_data.calib_target,
+                   nbt_data.cam_geoms,
+                   nbt_data.cam_params,
+                   nbt_data.cam_exts,
+                   nbt_data.cam_rate,
+                   nbt_data.T_WF,
                    cam_grids,
-                   T_WC0_sim);
+                   cam_poses);
 
   // Add NBT data into calibrator
   timeline_t timeline;
   nbt_create_timeline(cam_grids, imu_ts, imu_acc, imu_gyr, timeline);
 
-  // Clear status so NBT can be evaluated
-  calib_.verbose = false;
-  calib_.initialized = false;
-  calib_.enable_marginalization = false;
-  calib_.imu_buf.clear();
-  calib_.grid_buf.clear();
-  calib_.prev_grids.clear();
+  // Form calibrator
+  calib_vi_t calib_nbt{nbt_data.calib_target};
+  calib_nbt.verbose = false;
+  calib_nbt.enable_marginalization = false;
+  // -- Add IMU
+  calib_nbt.add_imu(nbt_data.imu_params,
+                    nbt_data.imu_exts->tf(),
+                    nbt_data.time_delay->param(0),
+                    nbt_data.imu_exts->fixed,
+                    nbt_data.time_delay->fixed);
+  // -- Add cameras
+  for (const auto &[cam_idx, cam] : nbt_data.cam_params) {
+    const auto &cam_ext = nbt_data.cam_exts.at(cam_idx);
+    calib_nbt.add_camera(cam_idx,
+                         cam->resolution,
+                         cam->proj_model,
+                         cam->dist_model,
+                         cam->proj_params(),
+                         cam->dist_params(),
+                         cam_ext->tf(),
+                         cam->fixed,
+                         cam_ext->fixed);
+  }
+  // -- Add fiducial pose
+  calib_nbt.fiducial = new fiducial_t{nbt_data.T_WF};
+  calib_nbt.problem->AddParameterBlock(calib_nbt.fiducial->param.data(),
+                                       FIDUCIAL_PARAMS_SIZE);
+  if (calib_nbt.fiducial->param.size() == 7) {
+    calib_nbt.problem->SetParameterization(calib_nbt.fiducial->param.data(),
+                                           &calib_nbt.pose_plus);
+  }
 
   for (const auto &ts : timeline.timestamps) {
     const auto kv = timeline.data.equal_range(ts);
@@ -1010,7 +1069,7 @@ int nbt_eval(const lissajous_traj_t &traj,
       if (auto grid_event = dynamic_cast<aprilgrid_event_t *>(event)) {
         auto cam_idx = grid_event->cam_idx;
         auto &grid = grid_event->grid;
-        calib_.add_measurement(cam_idx, grid);
+        calib_nbt.add_measurement(cam_idx, grid);
       }
 
       // Imu event
@@ -1018,18 +1077,19 @@ int nbt_eval(const lissajous_traj_t &traj,
         const auto ts = imu_event->ts;
         const vec3_t &acc = imu_event->acc;
         const vec3_t &gyr = imu_event->gyr;
-        calib_.add_measurement(ts, acc, gyr);
+        calib_nbt.add_measurement(ts, acc, gyr);
       }
     }
   }
-  // calib_.verbose = true;
-  // calib_.solve();
+  // calib_nbt.verbose = true;
+  // calib_nbt.max_iter = 5;
+  // calib_nbt.solve();
 
-  // Estimate calibration covariance
-  calib_covar.setZero();
-  if (calib_.recover_calib_covar(calib_covar) != 0) {
+  // Calculate info
+  if (calib_nbt.recover_calib_info(H_nbt) != 0) {
     return -1;
   }
+  H_nbt = H + H_nbt;
 
   return 0;
 }
@@ -1090,30 +1150,35 @@ int nbt_find(const ctrajs_t &trajs,
 }
 
 int nbt_find(const lissajous_trajs_t &trajs,
-             const calib_vi_t &calib,
+             const nbt_data_t &nbt_data,
+             const matx_t &H,
              const bool verbose,
              real_t *calib_info_k,
              real_t *calib_info_kp1) {
-  // Calculate info_k
-  matx_t calib_covar;
-  if (calib.recover_calib_covar(calib_covar) != 0) {
-    return -1;
-  }
+  // Calculate initial info
+  const matx_t calib_covar = H.inverse();
   const real_t info_k = std::log(calib_covar.determinant()) / std::log(2.0);
 
   // Evaluate trajectories
   std::map<int, real_t> info_kp1;
   for (size_t traj_idx = 0; traj_idx < trajs.size(); traj_idx++) {
-    const auto &traj = trajs[traj_idx];
-    matx_t calib_covar;
-    if (nbt_eval(traj, calib, calib_covar) != 0) {
+    // Evaluate
+    LOG_INFO("Evalulate traj[%ld]", traj_idx);
+    matx_t H_nbt;
+    const int retval = nbt_eval(trajs[traj_idx], nbt_data, H, H_nbt);
+
+    // Check evaluation
+    if (retval != 0) {
       if (verbose) {
         LOG_WARN("Failed to evaulate NBT traj [%ld]", traj_idx);
       }
       info_kp1[traj_idx] = 0.0;
       continue;
     }
-    info_kp1[traj_idx] = std::log(calib_covar.determinant()) / std::log(2.0);
+
+    // Calculate information
+    const matx_t covar = H_nbt.inverse();
+    info_kp1[traj_idx] = std::log(covar.determinant()) / std::log(2.0);
   }
 
   // Find max information gain

@@ -4,6 +4,7 @@
 #include <ceres/ceres.h>
 
 #include "calib_residuals.hpp"
+#include "solver.hpp"
 
 namespace yac {
 
@@ -129,7 +130,7 @@ struct calib_vi_t {
                const bool fix_extrinsics = false,
                const bool fix_time_delay = false);
   void add_camera(const int cam_idx,
-                  const int resolution[2],
+                  const int cam_res[2],
                   const std::string &proj_model,
                   const std::string &dist_model,
                   const vecx_t &proj_params,
@@ -166,8 +167,15 @@ struct calib_vi_t {
                        const vec3_t &a_m,
                        const vec3_t &w_m);
   int recover_calib_covar(matx_t &calib_covar) const;
+  int recover_calib_info(matx_t &H) const;
   void marginalize();
   void reset();
+
+  void eval_residuals(ParameterOrder &param_order,
+                      std::vector<calib_residual_t *> &res_evaled,
+                      size_t &residuals_length,
+                      size_t &params_length) const;
+  void form_hessian(ParameterOrder &param_order, matx_t &H) const;
 
   void load_data(const std::string &data_path);
   void solve();

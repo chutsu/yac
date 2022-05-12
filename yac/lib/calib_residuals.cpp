@@ -1636,7 +1636,8 @@ void marg_residual_t::schurs_complement(const matx_t &H,
                                         const size_t m,
                                         const size_t r,
                                         matx_t &H_marg,
-                                        vecx_t &b_marg) {
+                                        vecx_t &b_marg,
+                                        const bool debug) {
   assert(m > 0 && r > 0);
 
   // Setup
@@ -1657,18 +1658,21 @@ void marg_residual_t::schurs_complement(const matx_t &H,
   const double eps = 1.0e-8;
   const Eigen::SelfAdjointEigenSolver<matx_t> eig(Hmm);
   const matx_t V = eig.eigenvectors();
-  // const auto eigvals = (eig.eigenvalues().array() > eps).select(eig.eigenvalues().array(), 0);
   const auto eigvals_inv = (eig.eigenvalues().array() > eps).select(eig.eigenvalues().array().inverse(), 0);
   const matx_t Lambda_inv = vecx_t(eigvals_inv).asDiagonal();
   const matx_t Hmm_inv = V * Lambda_inv * V.transpose();
-  const double inv_check = ((Hmm * Hmm_inv) - I(m, m)).sum();
-  if (fabs(inv_check) > 1e-4) {
-    LOG_WARN("Inverse identity check: %f", inv_check);
-    LOG_WARN("This is bad ... Usually means marg_residual_t is bad!");
+  if (debug) {
+    const double inv_check = ((Hmm * Hmm_inv) - I(m, m)).sum();
+    if (fabs(inv_check) > 1e-4) {
+      LOG_WARN("Inverse identity check: %f", inv_check);
+      LOG_WARN("This is bad ... Usually means marg_residual_t is bad!");
+    }
   }
   // clang-format on
 
   // Calculate Schur's complement
+  // H = [Hmm, Hmr,
+  //      Hrm, Hrr]
   const matx_t Hmr = H.block(0, m, m, r);
   const matx_t Hrm = H.block(m, 0, r, m);
   const matx_t Hrr = H.block(m, m, r, r);

@@ -648,16 +648,7 @@ int test_nbt_lissajous_trajs() {
   lissajous_trajs_t trajs;
   const timestamp_t ts_start = 0;
   const timestamp_t ts_end = 3e9;
-  pinhole_radtan4_t cam_geom;
-  nbt_lissajous_trajs(ts_start,
-                      ts_end,
-                      target,
-                      &cam_geom,
-                      &cam_params[0],
-                      &imu_exts,
-                      T_WF,
-                      T_FO,
-                      trajs);
+  nbt_lissajous_trajs(ts_start, ts_end, target, T_WF, trajs);
 
   // Save trajectories
   remove_dir("/tmp/nbt/traj");
@@ -786,32 +777,11 @@ int test_simulate_cameras_lissajous() {
   const mat3_t C_WF = euler321(rpy_WF);
   const mat4_t T_WF = tf(C_WF, r_WF);
 
-  // Calibration origin
-  const double tag_rows = target.tag_rows;
-  const double tag_cols = target.tag_cols;
-  const double tag_spacing = target.tag_spacing;
-  const double tag_size = target.tag_size;
-  const double spacing_x = (tag_cols - 1) * tag_spacing * tag_size;
-  const double spacing_y = (tag_rows - 1) * tag_spacing * tag_size;
-  const double calib_width = tag_cols * tag_size + spacing_x;
-  const double calib_height = tag_rows * tag_size + spacing_y;
-  const vec3_t calib_center{calib_width / 2.0, calib_height / 2.0, 0.0};
-  const mat4_t T_FO = tf(I(3), calib_center);
-
   // Generate trajectories
   lissajous_trajs_t trajs;
   const timestamp_t ts_start = 0;
   const timestamp_t ts_end = 3e9;
-  pinhole_radtan4_t cam_geom;
-  nbt_lissajous_trajs(ts_start,
-                      ts_end,
-                      target,
-                      calib.cam_geoms[0],
-                      calib.cam_params[0],
-                      calib.imu_exts,
-                      T_WF,
-                      T_FO,
-                      trajs);
+  nbt_lissajous_trajs(ts_start, ts_end, target, T_WF, trajs);
 
   // Simulate cameras
   const auto &traj = trajs[0];
@@ -855,16 +825,7 @@ int test_simulate_imu_lissajous() {
   lissajous_trajs_t trajs;
   const timestamp_t ts_start = 0;
   const timestamp_t ts_end = 3e9;
-  pinhole_radtan4_t cam_geom;
-  nbt_lissajous_trajs(ts_start,
-                      ts_end,
-                      target,
-                      &cam_geom,
-                      &cam_params[0],
-                      &imu_exts,
-                      T_WF,
-                      T_FO,
-                      trajs);
+  nbt_lissajous_trajs(ts_start, ts_end, target, T_WF, trajs);
 
   // Save trajectory
   remove_dir("/tmp/nbt/traj");
@@ -984,22 +945,8 @@ static void test_setup_lissajous(calib_vi_t &calib, imu_params_t &imu_params) {
   LOG_INFO("Generate NBT trajectories");
   const timestamp_t ts_start = 0;
   const timestamp_t ts_end = ts_start + sec2ts(3.0);
-  mat4_t T_FO;
-  calib_target_origin(T_FO,
-                      calib.calib_target,
-                      calib.cam_geoms[cam_idx],
-                      calib.cam_params[cam_idx]);
-
   lissajous_trajs_t trajs;
-  nbt_lissajous_trajs(ts_start,
-                      ts_end,
-                      calib.calib_target,
-                      calib.cam_geoms[cam_idx],
-                      calib.cam_params[cam_idx],
-                      calib.imu_exts,
-                      T_WF,
-                      T_FO,
-                      trajs);
+  nbt_lissajous_trajs(ts_start, ts_end, calib.calib_target, T_WF, trajs);
   const auto &traj = trajs[0];
 
   // Simulate imu measurements
@@ -1104,6 +1051,50 @@ static void test_setup_lissajous(calib_vi_t &calib, imu_params_t &imu_params) {
   fclose(pose_gnd_csv);
 }
 
+static void schurs_complement(const matx_t &H,
+                              const size_t m, // Marginalize
+                              const size_t r, // Remain
+                              matx_t &H_marg) {
+  assert(m > 0 && r > 0);
+
+  // Setup
+  const long local_size = m + r;
+  H_marg = zeros(local_size, local_size);
+
+  // Pseudo inverse of Hmm via Eigen-decomposition:
+  //
+  //   A_pinv = V * Lambda_pinv * V_transpose
+  //
+  // Where Lambda_pinv is formed by **replacing every non-zero diagonal
+  // entry by its reciprocal, leaving the zeros in place, and transposing
+  // the resulting matrix.
+  // clang-format off
+  matx_t Hmm = H.block(r, r, m, m);
+  Hmm = 0.5 * (Hmm + Hmm.transpose()); // Enforce Symmetry
+  const double eps = 1.0e-8;
+  const Eigen::SelfAdjointEigenSolver<matx_t> eig(Hmm);
+  const matx_t V = eig.eigenvectors();
+  // const auto eigvals = (eig.eigenvalues().array() > eps).select(eig.eigenvalues().array(), 0);
+  const auto eigvals_inv = (eig.eigenvalues().array() > eps).select(eig.eigenvalues().array().inverse(), 0);
+  const matx_t Lambda_inv = vecx_t(eigvals_inv).asDiagonal();
+  const matx_t Hmm_inv = V * Lambda_inv * V.transpose();
+  const double inv_check = ((Hmm * Hmm_inv) - I(m, m)).sum();
+  if (fabs(inv_check) > 1e-4) {
+    LOG_WARN("Inverse identity check: %f", inv_check);
+    LOG_WARN("This is bad ... Usually means marg_residual_t is bad!");
+  }
+  // clang-format on
+
+  // Calculate Schur's complement
+  // H = [Hrr, Hrm,
+  //      Hmr, Hmm]
+  const matx_t Hrr = H.block(0, 0, r, r);
+  const matx_t Hrm = H.block(0, r, r, m);
+  const matx_t Hmr = H.block(r, 0, m, r);
+
+  H_marg = Hrr - Hrm * Hmm_inv * Hmr;
+}
+
 int test_nbt_eval_lissajous() {
   // Imu params
   imu_params_t imu_params;
@@ -1120,44 +1111,36 @@ int test_nbt_eval_lissajous() {
   calib_vi_t calib{target};
   test_setup_lissajous(calib, imu_params);
 
+  // const real_t cam_rate = calib.get_camera_rate();
+  // const real_t imu_rate = calib.get_imu_rate();
+  // if ((imu_rate - calib.imu_params.rate) > 50) {
+  //   LOG_ERROR("(imu_rate - imu_params.rate) > 50");
+  //   LOG_ERROR("imu_rate: %f", imu_rate);
+  //   LOG_ERROR("imu_params.rate: %f", calib.imu_params.rate);
+  //   FATAL("Measured IMU rate is different to configured imu rate!");
+  // }
+
   // Generate trajectories
   LOG_INFO("Generate NBT trajectories");
   const int cam_idx = 0;
   const timestamp_t ts_start = sec2ts(3.01);
   const timestamp_t ts_end = ts_start + sec2ts(3.0);
-  mat4_t T_FO;
-  calib_target_origin(T_FO,
-                      calib.calib_target,
-                      calib.cam_geoms[cam_idx],
-                      calib.cam_params[cam_idx]);
-
+  const mat4_t T_WF = calib.get_fiducial_pose();
   lissajous_trajs_t trajs;
-  nbt_lissajous_trajs(ts_start,
-                      ts_end,
-                      calib.calib_target,
-                      calib.cam_geoms[cam_idx],
-                      calib.cam_params[cam_idx],
-                      calib.imu_exts,
-                      calib.get_fiducial_pose(),
-                      T_FO,
-                      trajs);
+  nbt_lissajous_trajs(ts_start, ts_end, calib.calib_target, T_WF, trajs);
 
-  // // Evaluate NBT trajectories
-  // LOG_INFO("Evaluate NBT lissajous trajectory");
-  // const int traj_idx = 0;
-  // matx_t calib_covar;
-  // if (nbt_eval(trajs[traj_idx], calib, calib_covar) != 0) {
-  //   return -1;
-  // }
-  // const real_t info = -1.0 * log(calib_covar.determinant()) / log(2.0);
-  // printf("info: %f\n", info);
+  // Calculate initial information
+  matx_t H;
+  if (calib.recover_calib_info(H) != 0) {
+    return -1;
+  }
 
-  // printf("ts_start: %ld\n", ts_start);
-  // printf("ts_end:   %ld\n", ts_end);
-  // print_matrix("T_FO", T_FO);
-  // print_matrix("T_WF", calib.get_fiducial_pose());
-  print_matrix("traj[0] start", trajs[0].get_pose(ts_start));
-  print_matrix("traj[0] end", trajs[0].get_pose(ts_end));
+  // Evaluate trajectory
+  matx_t H_nbt;
+  const nbt_data_t nbt_data{calib};
+  const int retval = nbt_eval(trajs[0], nbt_data, H, H_nbt);
+  const real_t info = -1.0 * log(H_nbt.inverse().determinant()) / log(2.0);
+  printf("info: %f\n", info);
 
   return 0;
 }
@@ -1176,6 +1159,7 @@ int test_nbt_find_lissajous() {
   target.tag_size = 0.0375;
 
   calib_vi_t calib{target};
+  // calib.enable_marginalization = true;
   test_setup_lissajous(calib, imu_params);
 
   // Generate trajectories
@@ -1183,28 +1167,29 @@ int test_nbt_find_lissajous() {
   const int cam_idx = 0;
   const timestamp_t ts_start = sec2ts(3.01);
   const timestamp_t ts_end = ts_start + sec2ts(3.0);
-  mat4_t T_FO;
-  calib_target_origin(T_FO,
-                      calib.calib_target,
-                      calib.cam_geoms[cam_idx],
-                      calib.cam_params[cam_idx]);
-
+  const mat4_t T_WF = calib.get_fiducial_pose();
   lissajous_trajs_t trajs;
-  nbt_lissajous_trajs(ts_start,
-                      ts_end,
-                      calib.calib_target,
-                      calib.cam_geoms[cam_idx],
-                      calib.cam_params[cam_idx],
-                      calib.imu_exts,
-                      calib.get_fiducial_pose(),
-                      T_FO,
-                      trajs);
+  nbt_lissajous_trajs(ts_start, ts_end, calib.calib_target, T_WF, trajs);
+
+  // Calculate initial information
+  matx_t H;
+  if (calib.recover_calib_info(H) != 0) {
+    return -1;
+  }
 
   // Evaluate NBT trajectories
   LOG_INFO("Evaluate NBT trajectories");
   profiler_t prof;
   prof.start("NBT Find");
-  const int best_index = nbt_find(trajs, calib, true);
+
+  matx_t H_nbt;
+  real_t info_k = 0.0;
+  real_t info_kp1 = 0.0;
+  const nbt_data_t nbt_data{calib};
+  const int best_index = nbt_find(trajs, nbt_data, H, true, &info_k, &info_kp1);
+  printf("info_k: %f\n", info_k);
+  printf("info_kp1: %f\n", info_kp1);
+
   MU_CHECK(best_index != -1);
   prof.stop("NBT Find");
   prof.print("NBT Find");

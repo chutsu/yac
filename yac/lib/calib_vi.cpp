@@ -263,6 +263,12 @@ calib_vi_t::calib_vi_t(const calib_vi_t &calib) {
   loss = nullptr;
 
   // State-Variables
+  // -- IMU extrinsics and time delay
+  add_imu(calib.imu_params,
+          calib.get_imu_extrinsics(),
+          calib.get_imucam_time_delay(),
+          calib.imu_exts->fixed,
+          calib.time_delay->fixed);
   // -- Cameras
   for (const auto &cam_idx : calib.get_camera_indices()) {
     add_camera(cam_idx,
@@ -275,12 +281,6 @@ calib_vi_t::calib_vi_t(const calib_vi_t &calib) {
                calib.cam_params.at(cam_idx)->fixed,
                calib.cam_exts.at(cam_idx)->fixed);
   }
-  // -- IMU extrinsics and time delay
-  add_imu(calib.imu_params,
-          calib.get_imu_extrinsics(),
-          calib.get_imucam_time_delay(),
-          calib.imu_exts->fixed,
-          calib.time_delay->fixed);
   // -- Fiducial
   fiducial = new fiducial_t{calib.get_fiducial_pose()};
   problem->AddParameterBlock(fiducial->param.data(), FIDUCIAL_PARAMS_SIZE);
@@ -529,7 +529,7 @@ void calib_vi_t::add_imu(const imu_params_t &imu_params_,
 }
 
 void calib_vi_t::add_camera(const int cam_idx,
-                            const int resolution[2],
+                            const int cam_res[2],
                             const std::string &proj_model,
                             const std::string &dist_model,
                             const vecx_t &proj_params,
@@ -539,7 +539,7 @@ void calib_vi_t::add_camera(const int cam_idx,
                             const bool fix_extrinsics) {
   // Camera parameters
   cam_params[cam_idx] = new camera_params_t{cam_idx,
-                                            resolution,
+                                            cam_res,
                                             proj_model,
                                             dist_model,
                                             proj_params,
@@ -984,6 +984,235 @@ void calib_vi_t::add_measurement(const timestamp_t imu_ts,
   imu_started = true;
 }
 
+int calib_vi_t::recover_calib_covar(matx_t &calib_covar) const {
+  // Recover calibration covariance
+  // -- Setup covariance blocks to estimate
+  auto T_BS = imu_exts->param.data();
+  std::vector<std::pair<const double *, const double *>> covar_blocks;
+  covar_blocks.push_back({T_BS, T_BS});
+  // -- Estimate covariance
+  ::ceres::Covariance::Options options;
+  ::ceres::Covariance covar_est(options);
+  if (covar_est.Compute(covar_blocks, problem) == false) {
+    LOG_ERROR("Failed to estimate covariance!");
+    LOG_ERROR("Maybe Hessian is not full rank?");
+    return -1;
+  }
+  // -- Extract covariances sub-blocks
+  Eigen::Matrix<double, 6, 6, Eigen::RowMajor> T_BS_covar;
+  covar_est.GetCovarianceBlockInTangentSpace(T_BS, T_BS, T_BS_covar.data());
+  // -- Form covariance matrix block
+  calib_covar = zeros(6, 6);
+  calib_covar.block(0, 0, 6, 6) = T_BS_covar;
+  // -- Check if calib_covar is full-rank?
+  if (rank(calib_covar) != calib_covar.rows()) {
+    LOG_ERROR("calib_covar is not full rank!");
+    return -1;
+  }
+
+  return 0;
+}
+
+int calib_vi_t::recover_calib_info(matx_t &H) const {
+  matx_t covar;
+  if (recover_calib_covar(covar) != 0) {
+    return -1;
+  }
+  H = covar.inverse();
+
+  return 0;
+}
+
+void calib_vi_t::marginalize() {
+  // Mark the pose to be marginalized
+  auto view = calib_views.front();
+  view->pose.marginalize = true;
+  view->sb.marginalize = true;
+
+  // Form new marg_residual_t
+  if (marg_residual == nullptr) {
+    // Initialize first marg_residual_t
+    marg_residual = new marg_residual_t();
+
+  } else {
+    // Add previous marg_residual_t to new
+    auto new_marg_residual = new marg_residual_t();
+    new_marg_residual->add(marg_residual);
+
+    // Delete old marg_residual_t
+    problem->RemoveResidualBlock(marg_residual_id);
+
+    // Point to new marg_residual_t
+    marg_residual = new_marg_residual;
+  }
+
+  // Marginalize view
+  marg_residual_id = view->marginalize(marg_residual);
+
+  // Remove view
+  calib_views.pop_front();
+  delete view;
+}
+
+void calib_vi_t::reset() {
+  // Reset flags
+  imu_started = false;
+  vision_started = false;
+  initialized = false;
+
+  // Reset data
+  grid_buf.clear();
+  prev_grids.clear();
+  imu_buf.clear();
+
+  // Reset problem data
+  for (auto view : calib_views) {
+    delete view;
+  }
+  calib_views.clear();
+
+  delete marg_residual;
+}
+
+void calib_vi_t::eval_residuals(ParameterOrder &param_order,
+                                std::vector<calib_residual_t *> &res_evaled,
+                                size_t &residuals_length,
+                                size_t &params_length) const {
+  // Get all residuals
+  std::unordered_set<calib_residual_t *> res_fns;
+  for (const auto &view : calib_views) {
+    if (view->imu_residual == nullptr) {
+      continue;
+    }
+
+    // -- Fiducial Residuals
+    for (const auto &[cam_idx, cam_res_fns] : view->fiducial_residuals) {
+      for (const auto &res : cam_res_fns) {
+        res_fns.insert(res);
+      }
+    }
+    // -- IMU Residuals
+    if (view->imu_residual) {
+      res_fns.insert(view->imu_residual);
+    }
+  }
+  // -- Marginalization Residual
+  if (marg_residual) {
+    res_fns.insert(marg_residual);
+  }
+
+  // Evaluate residuals
+  residuals_length = 0;
+  for (calib_residual_t *res_fn : res_fns) {
+    if (res_fn->eval() == false) {
+      FATAL("Residual evaulation failure!");
+    }
+    res_evaled.push_back(res_fn);
+    residuals_length += res_fn->num_residuals();
+  }
+
+  // Track unique parameters
+  std::map<param_t *, bool> params_seen;
+  std::vector<param_t *> pose_ptrs;
+  std::vector<param_t *> sb_ptrs;
+  std::vector<param_t *> cam_ptrs;
+  std::vector<param_t *> extrinsics_ptrs;
+  std::vector<param_t *> fiducial_ptrs;
+  params_length = 0;
+
+  for (auto res_fn : res_evaled) {
+    for (auto param_block : res_fn->param_blocks) {
+      // Check if parameter block seen already
+      if (params_seen.count(param_block)) {
+        continue;
+      }
+      params_seen[param_block] = true;
+
+      // Check if parameter is fixed
+      if (param_block->fixed) {
+        continue;
+      }
+
+      // Track parameter
+      if (param_block->type == "pose_t") {
+        pose_ptrs.push_back(param_block);
+      } else if (param_block->type == "sb_params_t") {
+        sb_ptrs.push_back(param_block);
+      } else if (param_block->type == "camera_params_t") {
+        cam_ptrs.push_back(param_block);
+      } else if (param_block->type == "extrinsics_t") {
+        extrinsics_ptrs.push_back(param_block);
+      } else if (param_block->type == "fiducial_t") {
+        fiducial_ptrs.push_back(param_block);
+      }
+      params_length += param_block->local_size;
+    }
+  }
+
+  // Determine parameter block column indicies for Hessian matrix H
+  size_t idx = 0;
+  std::vector<std::vector<param_t *> *> param_groups = {
+      &extrinsics_ptrs,
+      &pose_ptrs,
+      &sb_ptrs,
+      &cam_ptrs,
+      &fiducial_ptrs,
+  };
+  param_order.clear();
+  for (const auto &param_ptrs : param_groups) {
+    for (const auto &param_block : *param_ptrs) {
+      param_order.insert({param_block, idx});
+      idx += param_block->local_size;
+    }
+  }
+}
+
+void calib_vi_t::form_hessian(ParameterOrder &param_order, matx_t &H) const {
+  // Evaluate residuals
+  std::vector<calib_residual_t *> res_evaled;
+  size_t residuals_length = 0;
+  size_t params_length = 0;
+  eval_residuals(param_order, res_evaled, residuals_length, params_length);
+
+  // Form Hessian H and R.H.S b
+  H = zeros(params_length, params_length);
+
+  for (calib_residual_t *res_fn : res_evaled) {
+    const vecx_t r = res_fn->residuals;
+
+    for (size_t i = 0; i < res_fn->param_blocks.size(); i++) {
+      const auto &param_i = res_fn->param_blocks[i];
+      if (param_i->fixed) {
+        continue;
+      }
+      const int idx_i = param_order[param_i];
+      const int size_i = param_i->local_size;
+      const matx_t &J_i = res_fn->min_jacobian_blocks[i];
+
+      for (size_t j = i; j < res_fn->param_blocks.size(); j++) {
+        const auto &param_j = res_fn->param_blocks[j];
+        if (param_j->fixed) {
+          continue;
+        }
+        const int idx_j = param_order[param_j];
+        const int size_j = param_j->local_size;
+        const matx_t &J_j = res_fn->min_jacobian_blocks[j];
+
+        if (i == j) {
+          // Form diagonals of H
+          H.block(idx_i, idx_i, size_i, size_i) += J_i.transpose() * J_i;
+        } else {
+          // Form off-diagonals of H
+          // clang-format off
+            H.block(idx_i, idx_j, size_i, size_j) += J_i.transpose() * J_j;
+            H.block(idx_j, idx_i, size_j, size_i) += (J_i.transpose() * J_j).transpose();
+          // clang-format on
+        }
+      }
+    }
+  }
+}
+
 void calib_vi_t::load_data(const std::string &data_path) {
   // Form timeline
   timeline_t timeline;
@@ -1133,86 +1362,6 @@ void calib_vi_t::show_results() {
 
   // Imu extrinsics
   print_matrix("T_cam0_imu0", get_imu_extrinsics(), "  ");
-}
-
-int calib_vi_t::recover_calib_covar(matx_t &calib_covar) const {
-  // Recover calibration covariance
-  // -- Setup covariance blocks to estimate
-  auto T_BS = imu_exts->param.data();
-  std::vector<std::pair<const double *, const double *>> covar_blocks;
-  covar_blocks.push_back({T_BS, T_BS});
-  // -- Estimate covariance
-  ::ceres::Covariance::Options options;
-  ::ceres::Covariance covar_est(options);
-  if (covar_est.Compute(covar_blocks, problem) == false) {
-    LOG_ERROR("Failed to estimate covariance!");
-    LOG_ERROR("Maybe Hessian is not full rank?");
-    return -1;
-  }
-  // -- Extract covariances sub-blocks
-  Eigen::Matrix<double, 6, 6, Eigen::RowMajor> T_BS_covar;
-  covar_est.GetCovarianceBlockInTangentSpace(T_BS, T_BS, T_BS_covar.data());
-  // -- Form covariance matrix block
-  calib_covar = zeros(6, 6);
-  calib_covar.block(0, 0, 6, 6) = T_BS_covar;
-  // -- Check if calib_covar is full-rank?
-  if (rank(calib_covar) != calib_covar.rows()) {
-    LOG_ERROR("calib_covar is not full rank!");
-    return -1;
-  }
-
-  return 0;
-}
-
-void calib_vi_t::marginalize() {
-  // Mark the pose to be marginalized
-  auto view = calib_views.front();
-  view->pose.marginalize = true;
-  view->sb.marginalize = true;
-
-  // Form new marg_residual_t
-  if (marg_residual == nullptr) {
-    // Initialize first marg_residual_t
-    marg_residual = new marg_residual_t();
-
-  } else {
-    // Add previous marg_residual_t to new
-    auto new_marg_residual = new marg_residual_t();
-    new_marg_residual->add(marg_residual);
-
-    // Delete old marg_residual_t
-    problem->RemoveResidualBlock(marg_residual_id);
-
-    // Point to new marg_residual_t
-    marg_residual = new_marg_residual;
-  }
-
-  // Marginalize view
-  marg_residual_id = view->marginalize(marg_residual);
-
-  // Remove view
-  calib_views.pop_front();
-  delete view;
-}
-
-void calib_vi_t::reset() {
-  // Reset flags
-  imu_started = false;
-  vision_started = false;
-  initialized = false;
-
-  // Reset data
-  grid_buf.clear();
-  prev_grids.clear();
-  imu_buf.clear();
-
-  // Reset problem data
-  for (auto view : calib_views) {
-    delete view;
-  }
-  calib_views.clear();
-
-  delete marg_residual;
 }
 
 int calib_vi_t::save_results(const std::string &save_path) const {

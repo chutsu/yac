@@ -297,32 +297,39 @@ struct calib_nbt_t {
 
   /** Find NBT thread */
   void find_nbt_thread() {
-    std::unique_lock<std::mutex> guard(mtx);
     finding_nbt = true;
+
+    // Calculate information
+    timestamp_t ts_now;
+    nbt_data_t nbt_data;
+    matx_t H;
+    {
+      std::unique_lock<std::mutex> guard(mtx);
+      ts_now = calib->calib_views.back()->ts;
+      nbt_data = nbt_data_t{*calib.get()};
+
+      if (calib->recover_calib_info(H) != 0) {
+        LOG_WARN("Failed to recover calibration info!");
+        LOG_WARN("Skipping!");
+        return;
+      }
+    }
 
     // Pre-check
     if (calib->running == false) {
       return;
     }
 
-    // Calculate initial information
-    matx_t H;
-    if (calib->recover_calib_info(H) != 0) {
-      LOG_WARN("Failed to recover calibration info!");
-      LOG_WARN("Skipping!");
-      return;
-    }
-
     // Generate NBTs
     LOG_INFO("Generate NBTs");
     const int cam_idx = 0;
-    const real_t cam_dt = 1.0 / calib->get_camera_rate();
-    const timestamp_t ts_now = calib->calib_views.back()->ts;
+    const real_t cam_dt = 1.0 / nbt_data.cam_rate;
     const timestamp_t ts_start = ts_now + cam_dt;
     const timestamp_t ts_end = ts_start + sec2ts(3.0);
-    const mat4_t T_WF = calib->get_fiducial_pose();
+    const calib_target_t calib_target = nbt_data.calib_target;
+    const mat4_t T_WF = nbt_data.T_WF;
     lissajous_trajs_t trajs;
-    nbt_lissajous_trajs(ts_start, ts_end, calib->calib_target, T_WF, trajs);
+    nbt_lissajous_trajs(ts_start, ts_end, calib_target, T_WF, trajs);
 
     // Evaluate NBT trajectories
     LOG_INFO("Evaluate NBTs");
@@ -331,7 +338,6 @@ struct calib_nbt_t {
     matx_t H_nbt;
     real_t info_k = 0.0;
     real_t info_kp1 = 0.0;
-    const nbt_data_t nbt_data{*calib.get()};
     const int best_idx = nbt_find(trajs, nbt_data, H, true, &info_k, &info_kp1);
 
     prof.stop("find_nbt");

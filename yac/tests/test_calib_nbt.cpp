@@ -1162,6 +1162,12 @@ int test_nbt_find_lissajous() {
   // calib.enable_marginalization = true;
   test_setup_lissajous(calib, imu_params);
 
+  // Calculate initial information
+  matx_t H;
+  if (calib.recover_calib_info(H) != 0) {
+    return -1;
+  }
+
   // Generate trajectories
   LOG_INFO("Generate NBT trajectories");
   const int cam_idx = 0;
@@ -1170,12 +1176,6 @@ int test_nbt_find_lissajous() {
   const mat4_t T_WF = calib.get_fiducial_pose();
   lissajous_trajs_t trajs;
   nbt_lissajous_trajs(ts_start, ts_end, calib.calib_target, T_WF, trajs);
-
-  // Calculate initial information
-  matx_t H;
-  if (calib.recover_calib_info(H) != 0) {
-    return -1;
-  }
 
   // Evaluate NBT trajectories
   LOG_INFO("Evaluate NBT trajectories");

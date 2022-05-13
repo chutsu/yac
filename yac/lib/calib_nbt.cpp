@@ -1082,8 +1082,8 @@ int nbt_eval(const lissajous_traj_t &traj,
     }
   }
   // calib_nbt.verbose = true;
-  // calib_nbt.max_iter = 5;
-  // calib_nbt.solve();
+  calib_nbt.max_iter = 5;
+  calib_nbt.solve();
 
   // Calculate info
   if (calib_nbt.recover_calib_info(H_nbt) != 0) {
@@ -1161,6 +1161,7 @@ int nbt_find(const lissajous_trajs_t &trajs,
 
   // Evaluate trajectories
   std::map<int, real_t> info_kp1;
+#pragma omp parallel for shared(info_kp1)
   for (size_t traj_idx = 0; traj_idx < trajs.size(); traj_idx++) {
     // Evaluate
     LOG_INFO("Evalulate traj[%ld]", traj_idx);

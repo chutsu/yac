@@ -208,53 +208,122 @@ class LissajousTraj:
     self.t = np.linspace(0, self.T, 250)
 
     # Trajectory type
+    # -- Random
+    if traj_type == "random":
+      self._traj_random()
+
     # -- Figure 8
-    if traj_type == "figure8":
-      self.a = 2.0 * pi * 1.0
-      self.b = 2.0 * pi * 2.0
-      self.delta = pi
-      self.psi = 2.0
-      self.yaw_bound = -atan2(self.A, self.R)
-      self.pitch_bound = -atan2(self.B, self.R)
+    elif traj_type == "hfig8":
+      self._traj_hfig8()
+
+    elif traj_type == "vfig8":
+      self._traj_vfig8()
 
     # -- Vertical pan
     elif traj_type == "vert-pan":
-      self.a = 2.0 * pi * 0.0
-      self.b = 2.0 * pi * 1.0
-      self.delta = 0.0
-      self.psi = 1.0
-      self.yaw_bound = 0.0
-      self.pitch_bound = -atan2(self.B, self.R)
+      self._traj_vert()
 
     # -- Horizontal pan
     elif traj_type == "horiz-pan":
-      self.a = 2.0 * pi * 1.0
-      self.b = 2.0 * pi * 0.0
-      self.delta = 0.0
-      self.psi = 1.0
-      self.yaw_bound = atan2(self.A, self.R)
-      self.pitch_bound = 0.0
+      self._traj_horiz()
 
     # -- Diagonal (bottom left to top right) pan
     elif traj_type == "diag0":
-      self.a = 2.0 * pi * 1.0
-      self.b = 2.0 * pi * 1.0
-      self.delta = 0.0
-      self.psi = 1.0
-      self.yaw_bound = atan2(self.A, self.R)
-      self.pitch_bound = -atan2(self.B, self.R)
+      self._traj_diag0()
 
     # -- Diagonal (top left to bottom right) pan
     elif traj_type == "diag1":
-      self.a = 2.0 * pi * 1.0
-      self.b = 2.0 * pi * 1.0
-      self.delta = pi
-      self.psi = 1.0
-      self.yaw_bound = -atan2(self.A, self.R)
-      self.pitch_bound = -atan2(self.B, self.R)
+      self._traj_diag1()
 
     else:
       raise RuntimeError(f"Invalid traj_type[{traj_type}]")
+
+  def _traj_random(self):
+    """ Trajectory random """
+    traj_types = ["hfig8", "vfig8", "vert-pan", "horiz-pan", "diag0", "diag1"]
+    # traj_idx = np.random.randint(0, len(traj_types) - 1)
+    traj_idx = 1
+    traj_type = traj_types[traj_idx]
+
+    # -- Figure8
+    if traj_type == "hfig8":
+      self._traj_hfig8()
+
+    elif traj_type == "vfig8":
+      self._traj_vfig8()
+
+    # -- Vertical pan
+    elif traj_type == "vert-pan":
+      self._traj_vert()
+
+    # -- Horizontal pan
+    elif traj_type == "horiz-pan":
+      self._traj_horiz()
+
+    # -- Diagonal (bottom left to top right) pan
+    elif traj_type == "diag0":
+      self._traj_diag0()
+
+    # -- Diagonal (top left to bottom right) pan
+    elif traj_type == "diag1":
+      self._traj_diag1()
+
+    else:
+      raise RuntimeError(f"Invalid traj_type[{traj_type}]")
+
+  def _traj_vfig8(self, a=2.0, b=1.0):
+    """ Trajectory Horizontal Figure 8 """
+    self.a = 2.0 * pi * a
+    self.b = 2.0 * pi * b
+    self.delta = pi
+    self.psi = 1.0
+    self.yaw_bound = -atan2(self.A, self.R)
+    self.pitch_bound = -atan2(self.B, self.R)
+
+  def _traj_hfig8(self, a=1.0, b=2.0):
+    """ Trajectory Horizontal Figure 8 """
+    self.a = 2.0 * pi * a
+    self.b = 2.0 * pi * b
+    self.delta = pi
+    self.psi = 2.0
+    self.yaw_bound = -atan2(self.A, self.R)
+    self.pitch_bound = -atan2(self.B, self.R)
+
+  def _traj_vert(self):
+    """ Trajectory Vertical Pan """
+    self.a = 2.0 * pi * 0.0
+    self.b = 2.0 * pi * 1.0
+    self.delta = 0.0
+    self.psi = 1.0
+    self.yaw_bound = 0.0
+    self.pitch_bound = -atan2(self.B, self.R)
+
+  def _traj_horiz(self):
+    """ Trajectory Horizontal Pan """
+    self.a = 2.0 * pi * 1.0
+    self.b = 2.0 * pi * 0.0
+    self.delta = 0.0
+    self.psi = 1.0
+    self.yaw_bound = atan2(self.A, self.R)
+    self.pitch_bound = 0.0
+
+  def _traj_diag0(self):
+    """ Trajectory Diagonal 0 """
+    self.a = 2.0 * pi * 1.0
+    self.b = 2.0 * pi * 1.0
+    self.delta = 0.0
+    self.psi = 1.0
+    self.yaw_bound = atan2(self.A, self.R)
+    self.pitch_bound = -atan2(self.B, self.R)
+
+  def _traj_diag1(self):
+    """ Trajectory Diagonal 1 """
+    self.a = 2.0 * pi * 1.0
+    self.b = 2.0 * pi * 1.0
+    self.delta = pi
+    self.psi = 1.0
+    self.yaw_bound = -atan2(self.A, self.R)
+    self.pitch_bound = -atan2(self.B, self.R)
 
   def get_pose(self, t):
     """ Return pose """
@@ -632,8 +701,14 @@ def generate_animations():
   C_WF = euler321(np.deg2rad(-90.0), 0.0, np.deg2rad(90.0))
   T_WF = tf(C_WF, r_WF)
 
-  traj = LissajousTraj("figure8", T_WF)
-  traj.plot_3d(save_path="traj-figure8.mp4", save_anim=False)
+  traj = LissajousTraj("random", T_WF)
+  traj.plot_3d(save_path="traj-random.mp4", save_anim=True, azim=-180.0)
+
+  # traj = LissajousTraj("hfig8", T_WF)
+  # traj.plot_3d(save_path="traj-hfig8.mp4", save_anim=False)
+
+  # traj = LissajousTraj("vfig8", T_WF)
+  # traj.plot_3d(save_path="traj-vfig8.mp4", save_anim=False)
 
   # traj = LissajousTraj("vert-pan", T_WF)
   # traj.plot_3d(save_path="traj-vert.mp4", save_anim=True)
@@ -659,7 +734,7 @@ def test_velocity():
   r_WF = np.array([0.0, 0.0, 0.0])
   C_WF = euler321(np.deg2rad(-90.0), 0.0, np.deg2rad(90.0))
   T_WF = tf(C_WF, r_WF)
-  traj = LissajousTraj("figure8", T_WF)
+  traj = LissajousTraj("hfig8", T_WF)
 
   # -- Integrate velocity
   T_WS = traj.get_pose(traj.t[0])
@@ -731,7 +806,7 @@ def test_acceleration():
   r_WF = np.array([0.0, 0.0, 0.0])
   C_WF = euler321(np.deg2rad(-90.0), 0.0, np.deg2rad(90.0))
   T_WF = tf(C_WF, r_WF)
-  traj = LissajousTraj("figure8", T_WF)
+  traj = LissajousTraj("hfig8", T_WF)
 
   # -- Integrate acceleration
   r_WS = tf_trans(traj.get_pose(traj.t[0]))
@@ -779,7 +854,7 @@ def test_angular_velocity():
   r_WF = np.array([0.0, 0.0, 0.0])
   C_WF = euler321(np.deg2rad(-90.0), 0.0, np.deg2rad(90.0))
   T_WF = tf(C_WF, r_WF)
-  traj = LissajousTraj("figure8", T_WF)
+  traj = LissajousTraj("hfig8", T_WF)
 
   # -- Integrate angular_velocity
   C_WS = tf_rot(traj.get_pose(traj.t[0]))
@@ -856,7 +931,7 @@ def test_integration():
   r_WF = np.array([0.0, 0.0, 0.0])
   C_WF = euler321(np.deg2rad(-90.0), 0.0, np.deg2rad(90.0))
   T_WF = tf(C_WF, r_WF)
-  traj = LissajousTraj("figure8", T_WF)
+  traj = LissajousTraj("hfig8", T_WF)
 
   # Integrate angular velocity
   r_WS = tf_trans(traj.get_pose(traj.t[0]))
@@ -1024,8 +1099,8 @@ def test_integration():
 # sympy_q_OS_dot(True)
 
 # Tests
-# generate_animations()
+generate_animations()
 # test_velocity()
 # test_acceleration()
 # test_angular_velocity()
-test_integration()
+# test_integration()

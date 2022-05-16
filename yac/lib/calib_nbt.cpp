@@ -1164,7 +1164,6 @@ int nbt_find(const lissajous_trajs_t &trajs,
 #pragma omp parallel for shared(info_kp1)
   for (size_t traj_idx = 0; traj_idx < trajs.size(); traj_idx++) {
     // Evaluate
-    LOG_INFO("Evalulate traj[%ld]", traj_idx);
     matx_t H_nbt;
     const int retval = nbt_eval(trajs[traj_idx], nbt_data, H, H_nbt);
 

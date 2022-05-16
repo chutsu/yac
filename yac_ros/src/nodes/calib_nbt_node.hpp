@@ -338,12 +338,12 @@ struct calib_nbt_t {
     matx_t H_nbt;
     real_t info_k = 0.0;
     real_t info_kp1 = 0.0;
-    const int best_idx = nbt_find(trajs, nbt_data, H, true, &info_k, &info_kp1);
+    const int idx = nbt_find(trajs, nbt_data, H, false, &info_k, &info_kp1);
 
     prof.stop("find_nbt");
     prof.print("find_nbt");
-    if (best_idx >= 0) {
-      publish_nbt(trajs[best_idx], nbt_pub);
+    if (idx >= 0) {
+      publish_nbt(trajs[idx], nbt_pub);
     }
 
     // Track info

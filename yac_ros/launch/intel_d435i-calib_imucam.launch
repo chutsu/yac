@@ -50,7 +50,7 @@
     output="screen" />
 
   <!-- NBV -->
-  <node pkg="yac_ros" type="calib_nbt_node" name="yac_node" required="true" output="screen">
+  <node pkg="yac_ros" type="calib_nbt_node" name="yac_node" required="true" output="screen" launch-prefix="gdb -ex run --args">
     <param name="config_file" value="$(arg config_file)" />
     <param name="publish_tfs" value="true" />
     <param name="image_format" value="bgr8" />

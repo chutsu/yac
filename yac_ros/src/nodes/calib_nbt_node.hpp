@@ -57,13 +57,14 @@ void publish_nbt(const lissajous_traj_t &traj, ros::Publisher &pub) {
 struct calib_nbt_t {
   // Calibration state
   enum CALIB_STATE {
+    SETUP = 0,
     INITIALIZE = 1,
     NBT = 2,
     BATCH = 3,
   };
 
   // Flags
-  int state = INITIALIZE;
+  int state = SETUP;
   std::mutex mtx;
   bool keep_running = true;
   bool finding_nbt = false;
@@ -76,6 +77,8 @@ struct calib_nbt_t {
   std::map<int, std::string> cam_dirs;
   bool use_apriltags3 = true;
   int min_init_views = 10;
+  double nbv_reproj_threshold = 10.0;
+  double nbv_hold_threshold = 1.0;
 
   // ROS
   const std::string node_name;
@@ -98,6 +101,12 @@ struct calib_nbt_t {
   std::unique_ptr<calib_vi_t> calib;
   std::map<timestamp_t, real_t> calib_info;
   std::map<timestamp_t, real_t> calib_info_predict;
+
+  // Initialization
+  aprilgrid_t calib_origin;
+  mat4_t T_FC0;
+  double nbv_reproj_err = -1.0;
+  struct timespec nbv_hold_tic = (struct timespec){0, 0};
 
   // Data
   size_t frame_idx = 0;
@@ -133,6 +142,24 @@ struct calib_nbt_t {
 
     // Setup ROS
     setup_ros(config_file);
+
+    // Setup initial starting pose
+    // -- Calibration origin
+    const int cam_idx = 0;
+    mat4_t T_FO;
+    calib_target_origin(T_FO,
+                        calib->calib_target,
+                        calib->cam_geoms[cam_idx],
+                        calib->cam_params[cam_idx]);
+    // -- Camera pose
+    const vec3_t rpy = deg2rad(vec3_t{-180.0, 0.0, 0.0});
+    const mat3_t C_FC0 = euler321(rpy);
+    T_FC0 = tf(C_FC0, tf_trans(T_FO));
+    calib_origin = nbv_target_grid(calib->calib_target,
+                                   calib->cam_geoms[cam_idx],
+                                   calib->cam_params[cam_idx],
+                                   0,
+                                   T_FC0);
 
     // Loop
     loop();
@@ -273,6 +300,50 @@ struct calib_nbt_t {
     }
   }
 
+  /** Draw NBV */
+  void draw_nbv(const int cam_idx, cv::Mat &img) {
+    // // Draw NBV
+    const auto cam_geom = calib->cam_geoms[cam_idx];
+    const auto cam_params = calib->cam_params[cam_idx];
+    nbv_draw(calib->calib_target, cam_geom, cam_params, T_FC0, img);
+
+    // Show NBV Reproj Error
+    draw_nbv_reproj_error(nbv_reproj_err, img);
+
+    // Show NBV status
+    if (nbv_reproj_err > 0.0 && nbv_reproj_err < (nbv_reproj_threshold * 1.5)) {
+      std::string text = "Nearly There!";
+      if (nbv_reproj_err <= nbv_reproj_threshold) {
+        text = "HOLD IT!";
+      }
+      draw_status_text(text, img);
+    }
+  }
+
+  /** Check if reached NBV */
+  bool check_nbv_reached(const aprilgrid_t &grid) {
+    // Check if NBV reached
+    std::vector<double> errs;
+    bool reached = nbv_reached(calib_origin, grid, nbv_reproj_threshold, errs);
+    nbv_reproj_err = mean(errs);
+    if (reached == false) {
+      nbv_hold_tic = (struct timespec){0, 0}; // Reset hold timer
+      return false;
+    }
+
+    // Start NBV hold timer
+    if (nbv_hold_tic.tv_sec == 0) {
+      nbv_hold_tic = tic();
+    }
+
+    // If hold threshold not met
+    if (toc(&nbv_hold_tic) < nbv_hold_threshold) {
+      return false;
+    }
+
+    return true;
+  }
+
   /** Visualize */
   void visualize() {
     // Pre-check
@@ -297,22 +368,20 @@ struct calib_nbt_t {
 
   /** Find NBT thread */
   void find_nbt_thread() {
+    std::unique_lock<std::mutex> guard(mtx);
     finding_nbt = true;
 
     // Calculate information
     timestamp_t ts_now;
     nbt_data_t nbt_data;
     matx_t H;
-    {
-      std::unique_lock<std::mutex> guard(mtx);
-      ts_now = calib->calib_views.back()->ts;
-      nbt_data = nbt_data_t{*calib.get()};
+    ts_now = calib->calib_views.back()->ts;
+    nbt_data = nbt_data_t{*calib.get()};
 
-      if (calib->recover_calib_info(H) != 0) {
-        LOG_WARN("Failed to recover calibration info!");
-        LOG_WARN("Skipping!");
-        return;
-      }
+    if (calib->recover_calib_info(H) != 0) {
+      LOG_WARN("Failed to recover calibration info!");
+      LOG_WARN("Skipping!");
+      return;
     }
 
     // Pre-check
@@ -322,7 +391,6 @@ struct calib_nbt_t {
 
     // Generate NBTs
     LOG_INFO("Generate NBTs");
-    const int cam_idx = 0;
     const real_t cam_dt = 1.0 / nbt_data.cam_rate;
     const timestamp_t ts_start = ts_now + cam_dt;
     const timestamp_t ts_end = ts_start + sec2ts(3.0);
@@ -364,6 +432,31 @@ struct calib_nbt_t {
     } else {
       LOG_WARN("Already finding NBT!");
     }
+  }
+
+  /** Move camera to calibration origin before initializing calibrator */
+  void mode_setup(const timestamp_t ts,
+                  const int cam_idx,
+                  const cv::Mat &cam_img) {
+    // Pre-check
+    if (state != SETUP || cam_idx != 0) {
+      return;
+    }
+
+    // Detect and draw calibration origin
+    cv::Mat viz = gray2rgb(cam_img);
+    const auto &grid = calib->detector->detect(ts, cam_img);
+    if (grid.detected) {
+      draw_nbv(0, viz);
+
+      if (check_nbv_reached(grid)) {
+        state = INITIALIZE;
+      }
+    }
+
+    // Visualize
+    cv::imshow("Viz", viz);
+    event_handler(cv::waitKey(1));
   }
 
   /** Initialize Intrinsics + Extrinsics Mode */
@@ -464,6 +557,12 @@ struct calib_nbt_t {
    * @param[in] msg Imu message
    */
   void imu0_callback(const sensor_msgs::ImuConstPtr &msg) {
+    // Pre-check
+    if (state == SETUP) {
+      return;
+    }
+
+    // Add measurement
     std::lock_guard<std::mutex> guard(mtx);
     const timestamp_t ts = msg->header.stamp.toNSec();
     const auto gyr = msg->angular_velocity;
@@ -472,6 +571,7 @@ struct calib_nbt_t {
     const vec3_t w_m{gyr.x, gyr.y, gyr.z};
     calib->add_measurement(ts, a_m, w_m);
 
+    // Write imu measurement to file
     fprintf(imu_file, "%ld,", ts);
     fprintf(imu_file, "%f,%f,%f,", gyr.x, gyr.y, gyr.z);
     fprintf(imu_file, "%f,%f,%f\n", acc.x, acc.y, acc.z);
@@ -490,26 +590,27 @@ struct calib_nbt_t {
     const timestamp_t ts = msg->header.stamp.toNSec();
     const cv::Mat cam_img = msg_convert(msg);
 
-    // Write image measurement to disk
-    const std::string img_fname = std::to_string(ts) + ".png";
-    const std::string img_path = cam_dirs[cam_idx] + "/data/" + img_fname;
-    cv::imwrite(img_path.c_str(), cam_img);
-    fprintf(cam_files[cam_idx], "%ld,%ld.png\n", ts, ts);
-    fflush(cam_files[cam_idx]);
+    // Record
+    if (state != SETUP) {
+      // Add camera image to calibrator
+      const bool ready = calib->add_measurement(ts, cam_idx, cam_img);
+      if (ready == false) {
+        return;
+      }
 
-    // Add camera image to calibrator
-    const bool ready = calib->add_measurement(ts, cam_idx, cam_img);
-    if (ready == false) {
-      return;
+      // Write image measurement to disk
+      const std::string img_fname = std::to_string(ts) + ".png";
+      const std::string img_path = cam_dirs[cam_idx] + "/data/" + img_fname;
+      cv::imwrite(img_path.c_str(), cam_img);
+      fprintf(cam_files[cam_idx], "%ld,%ld.png\n", ts, ts);
+      fflush(cam_files[cam_idx]);
     }
-
-    // printf("\nts: %ld\n", ts);
-    // calib->prof.print("detection");
-    // calib->prof.print("solve");
-    // calib->prof.print("marginalize");
 
     // States
     switch (state) {
+      case SETUP:
+        mode_setup(ts, cam_idx, cam_img);
+        break;
       case INITIALIZE:
         mode_init();
         break;

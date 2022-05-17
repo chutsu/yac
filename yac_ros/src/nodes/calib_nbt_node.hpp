@@ -325,7 +325,7 @@ struct calib_nbt_t {
     const int cam_idx = 0;
     const real_t cam_dt = 1.0 / nbt_data.cam_rate;
     const timestamp_t ts_start = ts_now + cam_dt;
-    const timestamp_t ts_end = ts_start + sec2ts(2.0);
+    const timestamp_t ts_end = ts_start + sec2ts(3.0);
     const calib_target_t calib_target = nbt_data.calib_target;
     const mat4_t T_WF = nbt_data.T_WF;
     lissajous_trajs_t trajs;
@@ -338,7 +338,7 @@ struct calib_nbt_t {
     matx_t H_nbt;
     real_t info_k = 0.0;
     real_t info_kp1 = 0.0;
-    const int idx = nbt_find(trajs, nbt_data, H, false, &info_k, &info_kp1);
+    const int idx = nbt_find(trajs, nbt_data, H, true, &info_k, &info_kp1);
 
     prof.stop("find_nbt");
     prof.print("find_nbt");

@@ -21,36 +21,51 @@ lissajous_traj_t::lissajous_traj_t(const std::string &traj_type_,
     b = 2.0 * M_PI * 2.0;
     delta = M_PI;
     psi = 2.0;
+    A = A * 0.8;
+    B = B * 0.8;
     yaw_bound = -atan2(A, R);
     pitch_bound = -atan2(B, R);
+
   } else if (traj_type == "vert-pan") {
     a = 2.0 * M_PI * 0.0;
     b = 2.0 * M_PI * 1.0;
     delta = 0.0;
     psi = 1.0;
+    A = A * 1.5;
+    B = B * 1.5;
     yaw_bound = 0.0;
     pitch_bound = -atan2(B, R);
+
   } else if (traj_type == "horiz-pan") {
     a = 2.0 * M_PI * 1.0;
     b = 2.0 * M_PI * 0.0;
     delta = 0.0;
     psi = 1.0;
+    A = A * 1.5;
+    B = B * 1.5;
     yaw_bound = atan2(A, R);
     pitch_bound = 0.0;
+
   } else if (traj_type == "diag0") {
     a = 2.0 * M_PI * 1.0;
     b = 2.0 * M_PI * 1.0;
     delta = 0.0;
     psi = 1.0;
+    // A = A * 1.2;
+    // B = B * 1.2;
     yaw_bound = atan2(A, R);
     pitch_bound = -atan2(B, R);
+
   } else if (traj_type == "diag1") {
     a = 2.0 * M_PI * 1.0;
     b = 2.0 * M_PI * 1.0;
     delta = M_PI;
     psi = 1.0;
+    // A = A * 1.2;
+    // B = B * 1.2;
     yaw_bound = -atan2(A, R);
     pitch_bound = -atan2(B, R);
+
   } else {
     throw std::runtime_error("Implementation Error!");
   }
@@ -600,7 +615,7 @@ void nbt_lissajous_trajs(const timestamp_t &ts_start,
   const real_t T = ts2sec(ts_end - ts_start);
 
   // Add trajectories
-  trajs.emplace_back("figure8", ts_start, T_WF, T_FO, R, A, B, T);
+  // trajs.emplace_back("figure8", ts_start, T_WF, T_FO, R, A, B, T);
   trajs.emplace_back("vert-pan", ts_start, T_WF, T_FO, R, A, B, T);
   trajs.emplace_back("horiz-pan", ts_start, T_WF, T_FO, R, A, B, T);
   trajs.emplace_back("diag0", ts_start, T_WF, T_FO, R, A, B, T);

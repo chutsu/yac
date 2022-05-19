@@ -712,7 +712,8 @@ mat4_t calib_vi_t::estimate_sensor_pose(const CamIdx2Grids &grids) {
 
     // Estimate relative pose
     const camera_geometry_t *cam = cam_geoms.at(cam_idx);
-    const auto cam_res = get_camera_resolution(cam_idx).data();
+    const veci2_t cam_res_vec = get_camera_resolution(cam_idx);
+    const int cam_res[2] = {cam_res_vec.x(), cam_res_vec.y()};
     const vecx_t cam_params = get_camera_params(cam_idx);
     mat4_t T_CiF = I(4);
     if (grid.estimate(cam, cam_res, cam_params, T_CiF) != 0) {

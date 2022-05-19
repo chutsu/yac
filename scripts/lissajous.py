@@ -933,7 +933,7 @@ def test_integration():
   T_WF = tf(C_WF, r_WF)
   traj = LissajousTraj("hfig8", T_WF)
 
-  # Integrate angular velocity
+  # Test integration
   r_WS = tf_trans(traj.get_pose(traj.t[0]))
   v_WS = traj.get_velocity(traj.t[0])
   C_WS = tf_rot(traj.get_pose(traj.t[0]))
@@ -1099,8 +1099,8 @@ def test_integration():
 # sympy_q_OS_dot(True)
 
 # Tests
-generate_animations()
+# generate_animations()
 # test_velocity()
 # test_acceleration()
 # test_angular_velocity()
-# test_integration()
+test_integration()

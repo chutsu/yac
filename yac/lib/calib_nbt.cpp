@@ -72,8 +72,8 @@ lissajous_traj_t::lissajous_traj_t(const std::string &traj_type_,
 }
 
 quat_t lissajous_traj_t::get_q_OS(const timestamp_t ts_k) const {
-  const real_t t = ts2sec(ts_k - ts_start);
-  if (t < 0.0) {
+  const real_t t = ts2sec(ts_k) - ts2sec(ts_start);
+  if (t < 0.0 || t > T) {
     FATAL("Implementation Error!");
   }
 
@@ -107,8 +107,8 @@ quat_t lissajous_traj_t::get_q_OS(const timestamp_t ts_k) const {
 }
 
 quat_t lissajous_traj_t::get_q_OS_dot(const timestamp_t ts_k) const {
-  const real_t t = ts2sec(ts_k - ts_start);
-  if (t < 0.0) {
+  const real_t t = ts2sec(ts_k) - ts2sec(ts_start);
+  if (t < 0.0 || t > T) {
     FATAL("Implementation Error!");
   }
 
@@ -126,8 +126,8 @@ quat_t lissajous_traj_t::get_q_OS_dot(const timestamp_t ts_k) const {
 }
 
 mat4_t lissajous_traj_t::get_pose(const timestamp_t ts_k) const {
-  const real_t t = ts2sec(ts_k - ts_start);
-  if (t < 0.0) {
+  const real_t t = ts2sec(ts_k) - ts2sec(ts_start);
+  if (t < 0.0 || t > T) {
     FATAL("Implementation Error!");
   }
 
@@ -155,8 +155,8 @@ mat4_t lissajous_traj_t::get_pose(const timestamp_t ts_k) const {
 }
 
 vec3_t lissajous_traj_t::get_velocity(const timestamp_t ts_k) const {
-  const real_t t = ts2sec(ts_k - ts_start);
-  if (t < 0.0) {
+  const real_t t = ts2sec(ts_k) - ts2sec(ts_start);
+  if (t < 0.0 || t > T) {
     FATAL("Implementation Error!");
   }
 
@@ -184,8 +184,8 @@ vec3_t lissajous_traj_t::get_velocity(const timestamp_t ts_k) const {
 }
 
 vec3_t lissajous_traj_t::get_acceleration(const timestamp_t ts_k) const {
-  const real_t t = ts2sec(ts_k - ts_start);
-  if (t < 0.0) {
+  const real_t t = ts2sec(ts_k) - ts2sec(ts_start);
+  if (t < 0.0 || t > T) {
     FATAL("Implementation Error!");
   }
 
@@ -258,8 +258,8 @@ vec3_t lissajous_traj_t::get_acceleration(const timestamp_t ts_k) const {
 }
 
 vec3_t lissajous_traj_t::get_angular_velocity(const timestamp_t ts_k) const {
-  const real_t t = ts2sec(ts_k - ts_start);
-  if (t < 0.0) {
+  const real_t t = ts2sec(ts_k) - ts2sec(ts_start);
+  if (t < 0.0 || t > T) {
     FATAL("Implementation Error!");
   }
 
@@ -612,10 +612,10 @@ void nbt_lissajous_trajs(const timestamp_t &ts_start,
   const real_t R = std::max(calib_width, calib_height) * 1.0;
   const real_t A = calib_width * 0.5;
   const real_t B = calib_height * 0.5;
-  const real_t T = ts2sec(ts_end - ts_start);
+  const real_t T = ts2sec(ts_end) - ts2sec(ts_start);
 
   // Add trajectories
-  // trajs.emplace_back("figure8", ts_start, T_WF, T_FO, R, A, B, T);
+  trajs.emplace_back("figure8", ts_start, T_WF, T_FO, R, A, B, T);
   trajs.emplace_back("vert-pan", ts_start, T_WF, T_FO, R, A, B, T);
   trajs.emplace_back("horiz-pan", ts_start, T_WF, T_FO, R, A, B, T);
   trajs.emplace_back("diag0", ts_start, T_WF, T_FO, R, A, B, T);

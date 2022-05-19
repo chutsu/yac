@@ -830,22 +830,27 @@ int test_simulate_imu_lissajous() {
   // Save trajectory
   remove_dir("/tmp/nbt/traj");
   dir_create("/tmp/nbt/traj");
-  const auto &traj = trajs[0];
+  const int traj_idx = 3;
+  const auto &traj = trajs[traj_idx];
   char buffer[1024];
-  snprintf(buffer, sizeof(buffer), "/tmp/nbt/traj/traj_%d.csv", 0);
+  snprintf(buffer, sizeof(buffer), "/tmp/nbt/traj/traj_%d.csv", traj_idx);
   printf("saving trajectory to [%s]\n", buffer);
   traj.save(std::string{buffer});
 
   // Save fiducial pose
   mat2csv("/tmp/nbt/fiducial_pose.csv", T_WF);
 
-  // -- Simulate imu measurements
+  // Simulate imu measurements
   imu_params_t imu_params;
   imu_params.rate = 200.0;
   imu_params.sigma_g_c = 0.002;
   imu_params.sigma_a_c = 0.0001;
   imu_params.sigma_gw_c = 0.003;
   imu_params.sigma_aw_c = 0.00001;
+  // imu_params.sigma_g_c = 0.00001;
+  // imu_params.sigma_a_c = 0.00001;
+  // imu_params.sigma_gw_c = 0.00001;
+  // imu_params.sigma_aw_c = 0.00001;
 
   timestamps_t imu_time;
   vec3s_t imu_accel;
@@ -854,7 +859,7 @@ int test_simulate_imu_lissajous() {
   vec3s_t imu_vels;
   simulate_imu(ts_start,
                ts_end,
-               trajs[0],
+               traj,
                imu_params,
                imu_time,
                imu_accel,
@@ -891,6 +896,7 @@ int test_simulate_imu_lissajous() {
   }
   fclose(data_csv);
 
+  // Test imu residual
   const timestamp_t ts_i = imu_time.front();
   const timestamp_t ts_j = imu_time.back();
   const vec3_t v_i = imu_vels.front();
@@ -908,6 +914,51 @@ int test_simulate_imu_lissajous() {
 
   printf("imu_buf size: %ld\n", imu_buf.size());
   print_vector("r", residual.residuals);
+
+  // Test Integration
+  const real_t dt = 1.0 / imu_params.rate;
+  const real_t dt_sq = dt * dt;
+  const vec3_t g_W{0.0, 0.0, 10.0};
+  vec3_t r_WS = tf_trans(traj.get_pose(ts_start));
+  vec3_t v_WS = traj.get_velocity(ts_start);
+  mat3_t C_WS = tf_rot(traj.get_pose(ts_start));
+
+  std::vector<vec3_t> pos_est;
+  std::vector<vec3_t> pos_gnd;
+  std::vector<vec3_t> euler_est;
+  std::vector<vec3_t> euler_gnd;
+  std::vector<real_t> angle_diff;
+
+  // timestamp_t ts_k = ts_start + sec2ts(dt);
+  // while (ts_k <= ts_end) {
+  for (size_t k = 1; k < imu_time.size(); k++) {
+    const auto ts_k = imu_time[k];
+    const vec3_t a_S_WS = imu_accel[k];
+    const vec3_t w_S_WS = imu_gyro[k];
+
+    const mat4_t T_WS_gnd = traj.get_pose(ts_k);
+    const vec3_t r_WS_gnd = tf_trans(T_WS_gnd);
+    const mat3_t C_WS_gnd = tf_rot(T_WS_gnd);
+
+    // Integrate
+    r_WS += (v_WS * dt) + (0.5 * C_WS * a_S_WS * dt_sq) - (0.5 * g_W * dt_sq);
+    v_WS += (C_WS * a_S_WS * dt) - g_W * dt;
+    C_WS = C_WS * yac::lie::Exp(w_S_WS * dt);
+
+    // Calculate position difference
+    const real_t dpos = (r_WS - r_WS_gnd).norm();
+
+    // Calculate angle difference using axis-angle equation
+    const mat3_t dC = C_WS_gnd.transpose() * C_WS;
+    const real_t ddeg = rad2deg(acos((dC.trace() - 1.0) / 2.0));
+    angle_diff.push_back(ddeg);
+
+    // Track integrated vs ground truth postion and rotation
+    pos_est.push_back(r_WS);
+    pos_gnd.push_back(r_WS_gnd);
+    euler_est.push_back(quat2euler(quat_t{C_WS}));
+    euler_gnd.push_back(quat2euler(quat_t{C_WS_gnd}));
+  }
 
   return 0;
 }

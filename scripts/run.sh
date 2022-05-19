@@ -110,7 +110,7 @@ RUN_CMD="./test_calib_nbt --target test_nbt_find_lissajous"
 tmux send-keys -t dev -R C-l C-m
 tmux send-keys -t dev -R "\
 cd ~/projects/yac \
-&& sudo make lib \
+&& sudo make lib_relwithdeb \
 && cd build && ${RUN_CMD}
 " C-m
 exit

@@ -5,17 +5,22 @@ ENDIF (POLICY CMP0048)
 PROJECT(yac)
 
 # COMPILATION SETTINGS
+SET(USE_ADDRESS_SANITIZER ON)
 SET(CMAKE_CXX_STANDARD 17)
-ADD_COMPILE_OPTIONS(
-  -Wall
-  -Wextra
-  # -fsanitize=address
-  # -fno-omit-frame-pointer
-)
-# LINK_LIBRARIES(
-#   -fsanitize=address
-#   -static-libasan # Use -static-libsan for Clang
-# )
+ADD_COMPILE_OPTIONS(-Wall -Wextra)
+
+# ADDRESS SANITIZER
+IF (USE_ADDRESS_SANITIZER)
+  MESSAGE(AUTHOR_WARNING "Building with address sanitizer - This will make executables 2x slower!")
+  ADD_COMPILE_OPTIONS(
+    -fsanitize=address
+    -fno-omit-frame-pointer
+  )
+  LINK_LIBRARIES(
+    -fsanitize=address
+    -static-libasan # Use -static-libsan for Clang
+  )
+ENDIF()
 
 # DEPENDENCIES
 LIST(APPEND CMAKE_MODULE_PATH "../cmake")

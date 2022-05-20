@@ -75,6 +75,7 @@ struct pose_t : param_t {
 #if FIDUCIAL_PARAMS_SIZE == 2 || FIDUCIAL_PARAMS_SIZE == 3
 struct fiducial_t : param_t {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
+  mat4_t T_WF;
 
   fiducial_t(const mat4_t &T_WF_, const bool fixed_ = false);
 
@@ -83,9 +84,6 @@ struct fiducial_t : param_t {
   void perturb(const int i, const real_t step_size) override;
   void update();
   mat4_t estimate();
-
-private:
-  mat4_t T_WF;
 };
 
 #elif FIDUCIAL_PARAMS_SIZE == 7

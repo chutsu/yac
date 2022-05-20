@@ -319,20 +319,20 @@ struct nbt_data_t {
   }
 
   ~nbt_data_t() {
-    // // IMU
-    // if (imu_exts) {
-    //   delete imu_exts;
-    // }
-    // if (time_delay) {
-    //   delete time_delay;
-    // }
+    // IMU
+    if (imu_exts) {
+      delete imu_exts;
+    }
+    if (time_delay) {
+      delete time_delay;
+    }
 
-    // // Cameras
-    // for (const auto &[cam_idx, params] : cam_geoms) {
-    //   delete cam_geoms[cam_idx];
-    //   delete cam_params[cam_idx];
-    //   delete cam_exts[cam_idx];
-    // }
+    // Cameras
+    for (const auto &[cam_idx, params] : cam_geoms) {
+      delete cam_geoms[cam_idx];
+      delete cam_params[cam_idx];
+      delete cam_exts[cam_idx];
+    }
   }
 };
 

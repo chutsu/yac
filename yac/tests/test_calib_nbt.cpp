@@ -1195,6 +1195,25 @@ int test_nbt_eval_lissajous() {
   const real_t info = -1.0 * log(H_nbt.inverse().determinant()) / log(2.0);
   printf("info: %f\n", info);
 
+  {
+    ParameterOrder param_order;
+    matx_t H_;
+    calib.form_hessian(param_order, H_);
+
+    matx_t H_nbt;
+    schurs_complement(H_, H_.rows() - 6, 6, H_nbt);
+    H_nbt = H + H_nbt;
+
+    const Eigen::JacobiSVD<matx_t> svd(H_nbt,
+                                       Eigen::ComputeThinU |
+                                           Eigen::ComputeThinV);
+    const vecx_t sv = svd.singularValues();
+    const real_t info =
+        1.0 * sv.head(svd.rank()).array().log().sum() / log(2.0);
+    // const real_t info = -1.0 * log(H_nbt.inverse().determinant()) / log(2.0);
+    printf("info: %f\n", info);
+  }
+
   return 0;
 }
 

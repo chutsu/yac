@@ -2,6 +2,50 @@
 
 namespace yac {
 
+static void schurs_complement(const matx_t &H,
+                              const size_t m, // Marginalize
+                              const size_t r, // Remain
+                              matx_t &H_marg) {
+  assert(m > 0 && r > 0);
+
+  // Setup
+  const long local_size = m + r;
+  H_marg = zeros(local_size, local_size);
+
+  // Pseudo inverse of Hmm via Eigen-decomposition:
+  //
+  //   A_pinv = V * Lambda_pinv * V_transpose
+  //
+  // Where Lambda_pinv is formed by **replacing every non-zero diagonal
+  // entry by its reciprocal, leaving the zeros in place, and transposing
+  // the resulting matrix.
+  // clang-format off
+  matx_t Hmm = H.block(r, r, m, m);
+  Hmm = 0.5 * (Hmm + Hmm.transpose()); // Enforce Symmetry
+  const double eps = 1.0e-8;
+  const Eigen::SelfAdjointEigenSolver<matx_t> eig(Hmm);
+  const matx_t V = eig.eigenvectors();
+  // const auto eigvals = (eig.eigenvalues().array() > eps).select(eig.eigenvalues().array(), 0);
+  const auto eigvals_inv = (eig.eigenvalues().array() > eps).select(eig.eigenvalues().array().inverse(), 0);
+  const matx_t Lambda_inv = vecx_t(eigvals_inv).asDiagonal();
+  const matx_t Hmm_inv = V * Lambda_inv * V.transpose();
+  const double inv_check = ((Hmm * Hmm_inv) - I(m, m)).sum();
+  if (fabs(inv_check) > 1e-4) {
+    LOG_WARN("Inverse identity check: %f", inv_check);
+    LOG_WARN("This is bad ... Usually means marg_residual_t is bad!");
+  }
+  // clang-format on
+
+  // Calculate Schur's complement
+  // H = [Hrr, Hrm,
+  //      Hmr, Hmm]
+  const matx_t Hrr = H.block(0, 0, r, r);
+  const matx_t Hrm = H.block(0, r, r, m);
+  const matx_t Hmr = H.block(r, 0, m, r);
+
+  H_marg = Hrr - Hrm * Hmm_inv * Hmr;
+}
+
 // VISUAL INERTIAL CALIBRATION VIEW ////////////////////////////////////////////
 
 calib_vi_view_t::calib_vi_view_t(const timestamp_t ts_,
@@ -1007,6 +1051,29 @@ void calib_vi_t::add_measurement(const timestamp_t imu_ts,
         calib_info_ok = true;
       } else {
         calib_info_ok = false;
+      }
+
+      const real_t info =
+          -1.0 * log(calib_info.inverse().determinant()) / log(2.0);
+      printf("\ninfo [ceres]: %f\n", info);
+
+      {
+        ParameterOrder param_order;
+        matx_t H_;
+        form_hessian(param_order, H_);
+
+        matx_t H_nbt;
+        schurs_complement(H_, H_.rows() - 6, 6, H_nbt);
+
+        const Eigen::JacobiSVD<matx_t> svd(H_nbt,
+                                           Eigen::ComputeThinU |
+                                               Eigen::ComputeThinV);
+        const vecx_t sv = svd.singularValues();
+        const real_t info =
+            -1.0 * sv.head(svd.rank()).array().log().sum() / log(2.0);
+        // const real_t info = -1.0 * log(H_nbt.inverse().determinant()) /
+        // log(2.0);
+        printf("info [custom]: %f\n", info);
       }
     }
 

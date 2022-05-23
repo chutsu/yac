@@ -361,6 +361,11 @@ struct calib_nbt_t {
       draw_detected(calib->grid_buf[cam_idx], viz);
     }
 
+    // if (calib->calib_info_ok) {
+    //   printf("calib_info_ok: %d\n", calib->calib_info_ok);
+    //   print_matrix("calib_info", calib->calib_info);
+    // }
+
     // Show
     cv::imshow("Viz", viz);
     event_handler(cv::waitKey(1));

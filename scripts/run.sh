@@ -8,7 +8,7 @@ set -e
 # python3 scripts/plot_imu.py && exit
 # python3 scripts/plot_camera.py && exit
 # python3 scripts/plot_info.py && exit
-python3 scripts/plot_nbt.py && exit
+# python3 scripts/plot_nbt.py && exit
 # python3 scripts/plot_poses.py /tmp/calib-estimates.yaml && exit
 # python3 scripts/plot_poses.py /tmp/poses_est.csv && exit
 # python3 scripts/plot_poses.py /tmp/poses_gnd.csv && exit
@@ -81,7 +81,7 @@ python3 scripts/plot_nbt.py && exit
 # RUN_CMD="./test_calib_vi"
 # RUN_CMD="./test_calib_vi --target test_calib_vi"
 # RUN_CMD="./test_calib_vi --target test_calib_vi_batch"
-# RUN_CMD="./test_calib_vi --target test_calib_vi_online"
+RUN_CMD="./test_calib_vi --target test_calib_vi_online"
 # RUN_CMD="./test_calib_vi --target test_calib_vi_copy_constructor"
 
 # YAC - NBV
@@ -108,7 +108,7 @@ python3 scripts/plot_nbt.py && exit
 # RUN_CMD="./test_calib_nbt --target test_nbt_eval"
 # RUN_CMD="./test_calib_nbt --target test_nbt_find"
 # RUN_CMD="./test_calib_nbt --target test_lissajous_trajs"
-RUN_CMD="./test_calib_nbt --target test_nbt_lissajous_trajs"
+# RUN_CMD="./test_calib_nbt --target test_nbt_lissajous_trajs"
 # RUN_CMD="./test_calib_nbt --target test_simulate_cameras_lissajous"
 # RUN_CMD="./test_calib_nbt --target test_simulate_imu_lissajous"
 # RUN_CMD="./test_calib_nbt --target test_nbt_eval_lissajous"

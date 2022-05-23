@@ -687,6 +687,8 @@ int test_nbt_lissajous_trajs() {
     vec3_t v_WS = traj.get_velocity(0);
 
     timestamp_t ts_k = 0;
+    real_t path_length = 0.0;
+
     while (ts_k <= ts_end) {
       // Get sensor acceleration and angular velocity in world frame
       const auto a_WS_W = traj.get_acceleration(ts_k);
@@ -707,9 +709,11 @@ int test_nbt_lissajous_trajs() {
       // -- Position at time k
       const vec3_t b_a = ones(3, 1) * imu.b_a;
       const vec3_t n_a = ones(3, 1) * imu.sigma_a_c;
+      const vec3_t r_WS_km1 = r_WS;
       r_WS += v_WS * dt_s;
       r_WS += 0.5 * g_W * dt_s_sq;
       r_WS += 0.5 * C_WS * (a_WS_S - b_a - n_a) * dt_s_sq;
+      path_length += (r_WS - r_WS_km1).norm();
       // -- velocity at time k
       v_WS += C_WS * (a_WS_S - b_a - n_a) * dt_s + g_W * dt_s;
       // -- Attitude at time k
@@ -738,7 +742,8 @@ int test_nbt_lissajous_trajs() {
     const vec3_t rpy_gnd = quat2euler(tf_quat(traj.get_pose(ts_end)));
     printf("index: %d  ", index);
     printf("trans diff: %f\t", (r_est - r_gnd).norm());
-    printf("rot   diff: %f\n", (rpy_est - rpy_gnd).norm());
+    printf("rot   diff: %f\t", (rpy_est - rpy_gnd).norm());
+    printf("path_length: %f\n", path_length);
   }
 
   return 0;

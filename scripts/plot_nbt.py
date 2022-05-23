@@ -44,11 +44,11 @@ def plot_state():
 
   ts = data['#ts'].to_numpy()
   time = (ts - ts[0]) * 1e-9
-  pos = data[['rx', 'ry', 'rz']].to_numpy()
-  quat = data[['qw', 'qx', 'qy', 'qz']].to_numpy()
-  vel = data[['vx', 'vy', 'vz']].to_numpy()
-  acc = data[['ax', 'ay', 'az']].to_numpy()
-  gyr = data[['wx', 'wy', 'wz']].to_numpy()
+  pos = data[['r_WS_W_x', 'r_WS_W_y', 'r_WS_W_z']].to_numpy()
+  quat = data[['q_WS_W_w', 'q_WS_W_x', 'q_WS_W_y', 'q_WS_W_z']].to_numpy()
+  vel = data[['v_WS_W_x', 'v_WS_W_y', 'v_WS_W_z']].to_numpy()
+  acc = data[['a_WS_S_x', 'a_WS_S_y', 'a_WS_S_z']].to_numpy()
+  gyr = data[['w_WS_S_x', 'w_WS_S_y', 'w_WS_S_z']].to_numpy()
 
   # Plot position, velocity and acceleartion
   plt.figure()

@@ -77,6 +77,6 @@ def plot_scene(imu_data):
 if __name__ == "__main__":
   imu_data = pandas.read_csv("/tmp/imu_data.csv")
   plot_imu_measurements(imu_data)
-  plot_imu_velocities(imu_data)
-  plot_scene(imu_data)
+  # plot_imu_velocities(imu_data)
+  # plot_scene(imu_data)
   plt.show()

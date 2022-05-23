@@ -1,9 +1,24 @@
 #!/bin/bash
 set -e
 
-# python3 scripts/lissajous.py
-# # python3 scripts/lissajous.py > /tmp/out.txt
-# exit
+# python3 scripts/aprilgrid_generate.py --nx 6 --ny 6 --tsize 0.088 && exit
+# python3 scripts/marg_sandbox.py && exit
+# python3 scripts/blake_zisserman.py && exit
+# python3 scripts/plot_frames.py && exit
+# python3 scripts/plot_imu.py && exit
+# python3 scripts/plot_camera.py && exit
+# python3 scripts/plot_info.py && exit
+python3 scripts/plot_nbt.py && exit
+# python3 scripts/plot_poses.py /tmp/calib-estimates.yaml && exit
+# python3 scripts/plot_poses.py /tmp/poses_est.csv && exit
+# python3 scripts/plot_poses.py /tmp/poses_gnd.csv && exit
+# python3 scripts/plot_stats.py && exit
+# python3 scripts/plot_xyz.py /tmp/vel.csv "#ts" vx vy vz && exit
+# python3 scripts/plot_xyz.py /tmp/acc.csv "#ts" ax ay az && exit
+# python3 scripts/plot_xyz.py /tmp/gyr.csv "#ts" wx wy wz && exit
+# python3 scripts/sandbox.py && exit
+# python3 scripts/lissajous.py && exit
+# python3 scripts/lissajous.py > /tmp/out.txt && exit
 
 # --prefix 'gdb -ex=run -ex=\"set confirm off\" -ex=bt -ex=quit -args'
 # --prefix 'gdb -ex run'
@@ -34,7 +49,7 @@ set -e
 # RUN_CMD="./test_calib_residuals --target test_pose_prior"
 # RUN_CMD="./test_calib_residuals --target test_reproj_residual"
 # RUN_CMD="./test_calib_residuals --target test_fiducial_residual"
-# RUN_CMD="./test_calib_residuals --target test_imu_residual"
+# RUN_CMD="./test_calib_residuals --target test_marg_residual"
 
 # YAC - CAMERA CALIBRATION
 # RUN_CMD="./test_calib_camera"
@@ -93,11 +108,11 @@ set -e
 # RUN_CMD="./test_calib_nbt --target test_nbt_eval"
 # RUN_CMD="./test_calib_nbt --target test_nbt_find"
 # RUN_CMD="./test_calib_nbt --target test_lissajous_trajs"
-# RUN_CMD="./test_calib_nbt --target test_nbt_lissajous_trajs"
+RUN_CMD="./test_calib_nbt --target test_nbt_lissajous_trajs"
 # RUN_CMD="./test_calib_nbt --target test_simulate_cameras_lissajous"
 # RUN_CMD="./test_calib_nbt --target test_simulate_imu_lissajous"
 # RUN_CMD="./test_calib_nbt --target test_nbt_eval_lissajous"
-RUN_CMD="./test_calib_nbt --target test_nbt_find_lissajous"
+# RUN_CMD="./test_calib_nbt --target test_nbt_find_lissajous"
 
 # YAC - SOLVER
 # RUN_CMD="./test_solver"
@@ -147,23 +162,6 @@ cd ~/projects/yac \
 " C-m
 exit
 # && rm -rf /tmp/calib_data \
-
-# python3 scripts/aprilgrid_generate.py --nx 6 --ny 6 --tsize 0.088
-# python3 scripts/marg_sandbox.py
-# python3 scripts/blake_zisserman.py
-# python3 scripts/plot_frames.py
-# python3 scripts/plot_imu.py
-# python3 scripts/plot_camera.py
-# python3 scripts/plot_info.py
-# python3 scripts/plot_nbt.py
-# python3 scripts/plot_poses.py /tmp/calib-estimates.yaml
-# python3 scripts/plot_poses.py /tmp/poses_est.csv
-# python3 scripts/plot_poses.py /tmp/poses_gnd.csv
-# python3 scripts/plot_stats.py
-# python3 scripts/plot_xyz.py /tmp/vel.csv "#ts" vx vy vz
-# python3 scripts/plot_xyz.py /tmp/acc.csv "#ts" ax ay az
-# python3 scripts/plot_xyz.py /tmp/gyr.csv "#ts" wx wy wz
-# python3 scripts/sandbox.py
 
 # make
 # make lib_debug

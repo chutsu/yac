@@ -52,8 +52,8 @@ lissajous_traj_t::lissajous_traj_t(const std::string &traj_type_,
     b = 2.0 * M_PI * 1.0;
     delta = 0.0;
     psi = 1.0;
-    A = calib_width * 0.35;
-    B = calib_height * 0.35;
+    A = calib_width * 0.3534;
+    B = calib_height * 0.3534;
     yaw_bound = atan2(A, R);
     pitch_bound = -atan2(B, R);
 
@@ -62,8 +62,8 @@ lissajous_traj_t::lissajous_traj_t(const std::string &traj_type_,
     b = 2.0 * M_PI * 1.0;
     delta = M_PI;
     psi = 1.0;
-    A = calib_width * 0.35;
-    B = calib_height * 0.35;
+    A = calib_width * 0.3534;
+    B = calib_height * 0.3534;
     yaw_bound = -atan2(A, R);
     pitch_bound = -atan2(B, R);
 
@@ -286,12 +286,12 @@ int lissajous_traj_t::save(const std::string &save_path) const {
   }
 
   // File Header
-  file << "#ts,";                  // Timestamp
-  file << "rx,ry,rz,";             // Position
-  file << "qx,qy,qz,qw,";          // Rotation
-  file << "vx,vy,vz,";             // Velocity
-  file << "ax,ay,az,";             // Acceleartion
-  file << "wx,wy,wz" << std::endl; // Angular velocity
+  file << "#ts,";                                    // Timestamp
+  file << "r_WS_W_x,r_WS_W_y,r_WS_W_z,";             // Position
+  file << "q_WS_W_x,q_WS_W_y,q_WS_W_z,q_WS_W_w,";    // Rotation
+  file << "v_WS_W_x,v_WS_W_y,v_WS_W_z,";             // Velocity
+  file << "a_WS_S_x,a_WS_S_y,a_WS_S_z,";             // Acceleartion
+  file << "w_WS_S_x,w_WS_S_y,w_WS_S_z" << std::endl; // Angular velocity
 
   // Output trajectory timestamps, positions and orientations as csv
   const timestamp_t ts_end = ts_start + sec2ts(T);
@@ -299,36 +299,44 @@ int lissajous_traj_t::save(const std::string &save_path) const {
   const auto timestamps = linspace(ts_start, ts_end, num_positions);
 
   for (const auto ts : timestamps) {
-    const mat4_t T_WS = get_pose(ts);
-    const vec3_t r_WS = tf_trans(T_WS);
-    const quat_t q_WS = tf_quat(T_WS);
-    const vec3_t v_WS = get_velocity(ts);
-    const vec3_t a_WS = get_acceleration(ts);
-    const vec3_t w_WS = get_angular_velocity(ts);
+    // Sensor pose, velocity, acceleration and angular velocity
+    const mat4_t T_WS_W = get_pose(ts);
+    const mat3_t C_WS_W = tf_rot(T_WS_W);
+    const vec3_t r_WS_W = tf_trans(T_WS_W);
+    const quat_t q_WS_W = tf_quat(T_WS_W);
+    const vec3_t v_WS_W = get_velocity(ts);
+    const vec3_t a_WS_W = get_acceleration(ts);
+    const vec3_t w_WS_W = get_angular_velocity(ts);
+
+    // Compute accelerometer and gyroscope measurement
+    const vec3_t g_W{0.0, 0.0, 10.0}; // Gravity vector
+    const mat3_t C_SW_W = C_WS_W.transpose();
+    const vec3_t w_WS_S = C_SW_W * w_WS_W;
+    const vec3_t a_WS_S = C_SW_W * (a_WS_W + g_W);
 
     // Timestamp
     file << ts << ",";
-    // Position
-    file << r_WS.x() << ",";
-    file << r_WS.y() << ",";
-    file << r_WS.z() << ",";
-    // Rotation
-    file << q_WS.x() << ",";
-    file << q_WS.y() << ",";
-    file << q_WS.z() << ",";
-    file << q_WS.w() << ",";
-    // Velocity
-    file << v_WS.x() << ",";
-    file << v_WS.y() << ",";
-    file << v_WS.z() << ",";
-    // Acceleartion
-    file << a_WS.x() << ",";
-    file << a_WS.y() << ",";
-    file << a_WS.z() << ",";
-    // Angular velocity
-    file << w_WS.x() << ",";
-    file << w_WS.y() << ",";
-    file << w_WS.z() << std::endl;
+    // Position in world frame
+    file << r_WS_W.x() << ",";
+    file << r_WS_W.y() << ",";
+    file << r_WS_W.z() << ",";
+    // Rotation in world frame
+    file << q_WS_W.x() << ",";
+    file << q_WS_W.y() << ",";
+    file << q_WS_W.z() << ",";
+    file << q_WS_W.w() << ",";
+    // Velocity in world frame
+    file << v_WS_W.x() << ",";
+    file << v_WS_W.y() << ",";
+    file << v_WS_W.z() << ",";
+    // Acceleartion in body frame
+    file << a_WS_S.x() << ",";
+    file << a_WS_S.y() << ",";
+    file << a_WS_S.z() << ",";
+    // Angular velocity in body frame
+    file << w_WS_S.x() << ",";
+    file << w_WS_S.y() << ",";
+    file << w_WS_S.z() << std::endl;
   }
 
   // Close file

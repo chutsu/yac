@@ -698,9 +698,6 @@ int test_nbt_lissajous_trajs() {
       const vec3_t g{0.0, 0.0, imu.g};
       const vec3_t a_WS_S = C_WS.transpose() * (a_WS_W + g);
       const vec3_t w_WS_S = C_WS.transpose() * w_WS_W;
-      // const auto T_WS_W = traj.get_pose(ts_k);
-      // const vec3_t a_WS_S = tf_rot(T_WS_W).transpose() * (a_WS_W + g);
-      // const vec3_t w_WS_S = tf_rot(T_WS_W).transpose() * w_WS_W;
 
       // Propagate simulated ideal IMU measurements
       const real_t dt_s = ts2sec(dt);

@@ -101,9 +101,14 @@ struct calib_vi_t {
 
   // Problem data
   profiler_t prof;
+  size_t calib_view_counter = 0;
   std::deque<calib_vi_view_t *> calib_views;
   ceres::ResidualBlockId marg_residual_id;
   marg_residual_t *marg_residual = nullptr;
+
+  // Calibration Information
+  bool calib_info_ok = false;
+  matx_t calib_info;
 
   // Optimization
   PoseLocalParameterization pose_plus;

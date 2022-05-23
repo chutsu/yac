@@ -465,6 +465,12 @@ calib_vi_t::calib_vi_t(const std::string &config_path) {
 }
 
 calib_vi_t::~calib_vi_t() {
+  // Calibration views
+  for (auto &view : calib_views) {
+    delete view;
+  }
+
+  // Camera parameters
   for (auto &[cam_idx, cam] : cam_params) {
     UNUSED(cam_idx);
     if (cam) {
@@ -472,6 +478,7 @@ calib_vi_t::~calib_vi_t() {
     }
   }
 
+  // Camera extrinsics
   for (auto &[cam_idx, exts] : cam_exts) {
     UNUSED(cam_idx);
     if (exts) {
@@ -479,18 +486,22 @@ calib_vi_t::~calib_vi_t() {
     }
   }
 
+  // IMU extrinsics
   if (imu_exts) {
     delete imu_exts;
   }
 
+  // Fiducial
   if (fiducial) {
     delete fiducial;
   }
 
+  // Time delay
   if (time_delay) {
     delete time_delay;
   }
 
+  // Problem
   if (problem) {
     delete problem;
   }
@@ -771,10 +782,23 @@ void calib_vi_t::initialize(const CamIdx2Grids &grids, imu_data_t &imu_buf) {
   T_WS = tf(C_WS, offset);
 
   // Set fiducial
-  fiducial = new fiducial_t{T_WF};
-  problem->AddParameterBlock(fiducial->param.data(), FIDUCIAL_PARAMS_SIZE);
-  if (fiducial->param.size() == 7) {
-    problem->SetParameterization(fiducial->param.data(), &pose_plus);
+  if (fiducial == nullptr) {
+    fiducial = new fiducial_t{T_WF};
+    problem->AddParameterBlock(fiducial->param.data(), FIDUCIAL_PARAMS_SIZE);
+    if (fiducial->param.size() == 7) {
+      problem->SetParameterization(fiducial->param.data(), &pose_plus);
+    }
+  } else {
+#if FIDUCIAL_PARAMS_SIZE == 2
+    const vec3_t rpy = quat2euler(tf_quat(T_WF));
+    fiducial->param = vec2_t{rpy.x(), rpy.y()};
+    fiducial->T_WF = T_WF;
+#elif FIDUCIAL_PARAMS_SIZE == 3
+    fiducial->param = quat2euler(tf_quat(T_WF));
+    fiducial->T_WF = T_WF;
+#elif FIDUCIAL_PARAMS_SIZE == 7
+    fiducial->set_tf(T_WF);
+#endif
   }
 
   // Print to screen
@@ -802,7 +826,7 @@ void calib_vi_t::initialize(const CamIdx2Grids &grids, imu_data_t &imu_buf) {
 
   initialized = true;
   prev_grids = grids;
-}
+} // namespace yac
 
 void calib_vi_t::add_view(const CamIdx2Grids &grids) {
   // Pre-check
@@ -850,6 +874,7 @@ void calib_vi_t::add_view(const CamIdx2Grids &grids) {
   // Note: instead of using the propagated sensor pose T_WS_k using imu
   // measurements, we are estimating `T_WS_k` via vision. This is because
   // vision estimate is better in this case.
+  calib_view_counter++;
   calib_views.push_back(new calib_vi_view_t{ts_k,
                                             grids,
                                             T_WS_k,
@@ -974,6 +999,16 @@ void calib_vi_t::add_measurement(const timestamp_t imu_ts,
     // if (verbose) {
     //   std::cout << summary.BriefReport() << std::endl;
     // }
+
+    // Calculate calib_info
+    const int rate = get_camera_rate() * 2;
+    if (calib_view_counter % rate == 0) {
+      if (recover_calib_info(calib_info) == 0) {
+        calib_info_ok = true;
+      } else {
+        calib_info_ok = false;
+      }
+    }
 
     // Marginalize oldest view
     prof.start("marginalize");

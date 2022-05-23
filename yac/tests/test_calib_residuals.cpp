@@ -296,12 +296,91 @@ int test_fiducial_residual() {
   return 0;
 }
 
+int test_marg_residual() {
+  // Fiducial corners
+  const calib_target_t calib_target;
+  fiducial_corners_t corners{calib_target};
+
+  // Camera parameters
+  pinhole_radtan4_t cam_geom;
+  const int cam_idx = 0;
+  const int cam_res[2] = {752, 480};
+  const std::string proj_model = "pinhole";
+  const std::string dist_model = "radtan4";
+  const vec4_t proj_params{458.654, 457.296, 367.215, 248.375};
+  const vec4_t dist_params{-0.28340811, 0.07395907, 0.00019359, 1.76187114e-05};
+  camera_params_t cam_params{cam_idx,
+                             cam_res,
+                             proj_model,
+                             dist_model,
+                             proj_params,
+                             dist_params};
+
+  // Camera extrinsics
+  mat4_t T_C0Ci = I(4);
+  extrinsics_t cam_exts{T_C0Ci};
+
+  // Form reprojection residuals
+  std::vector<pose_t> rel_poses;
+  std::vector<reproj_residual_t *> reproj_residuals;
+  auto cam_grids = setup_test_data();
+
+  for (size_t k = 0; k < cam_grids[0].size(); k++) {
+    if (cam_grids[0][k].detected) {
+      const auto &grid = cam_grids[0][k];
+
+      // Estimate camera fiducial relative pose
+      mat4_t T_CiF;
+      if (grid.estimate(&cam_geom, cam_res, cam_params.param, T_CiF) != 0) {
+        FATAL("Failed to estimate relative pose!");
+      }
+
+      // Get measurements
+      std::vector<int> tag_ids;
+      std::vector<int> corner_indicies;
+      vec2s_t keypoints;
+      vec3s_t object_points;
+      grid.get_measurements(tag_ids, corner_indicies, keypoints, object_points);
+
+      // Form reprojection residual
+      mat4_t T_C0F = T_C0Ci * T_CiF;
+      rel_poses.emplace_back(grid.timestamp, T_C0F);
+      auto corner = corners.get_corner(tag_ids[0], corner_indicies[0]);
+      const mat2_t covar = I(2);
+      reproj_residuals.push_back(new reproj_residual_t{&cam_geom,
+                                                       &cam_params,
+                                                       &cam_exts,
+                                                       &rel_poses.back(),
+                                                       corner,
+                                                       keypoints[0],
+                                                       covar});
+    }
+  }
+
+  // Form marginalization residual
+  marg_residual_t marg_residual;
+  for (auto res : reproj_residuals) {
+    marg_residual.add(res);
+  }
+
+  marg_residual_t marg_copy;
+  marg_copy.add(&marg_residual);
+
+  // // Clean up
+  // for (auto res : reproj_residuals) {
+  //   delete res;
+  // }
+
+  return 0;
+}
+
 void test_suite() {
   MU_ADD_TEST(test_eval);
   MU_ADD_TEST(test_prior);
   MU_ADD_TEST(test_pose_prior);
   MU_ADD_TEST(test_reproj_residual);
   MU_ADD_TEST(test_fiducial_residual);
+  MU_ADD_TEST(test_marg_residual);
 }
 
 } // namespace yac

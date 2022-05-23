@@ -181,7 +181,8 @@ int test_calib_vi_batch() {
 }
 
 int test_calib_vi_online() {
-  MU_CHECK(test_calib_vi("online") == 0);
+  int max_views = -1;
+  MU_CHECK(test_calib_vi("online", max_views) == 0);
   return 0;
 }
 
@@ -257,7 +258,7 @@ void test_suite() {
   MU_ADD_TEST(test_calib_vi_add_camera);
   MU_ADD_TEST(test_calib_vi_batch);
   MU_ADD_TEST(test_calib_vi_online);
-  MU_ADD_TEST(test_calib_vi_copy_constructor);
+  // MU_ADD_TEST(test_calib_vi_copy_constructor);
 }
 
 } // namespace yac

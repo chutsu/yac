@@ -1427,6 +1427,11 @@ marg_residual_t::~marg_residual_t() {
   for (auto res_block : res_blocks_) {
     delete res_block;
   }
+
+  marg_param_ptrs_.clear();
+  remain_param_ptrs_.clear();
+  param_index_.clear();
+  x0_.clear();
 }
 
 size_t marg_residual_t::get_residual_size() const { return r_; }
@@ -1534,16 +1539,6 @@ void marg_residual_t::form_hessian(matx_t &H, vecx_t &b) {
       mutable_parameter_block_sizes()->push_back(param_block->global_size);
     }
   }
-
-  // printf("nb_marg_params: %ld\n", marg_param_ptrs_.size());
-  // for (const auto &param : marg_param_ptrs_) {
-  //   printf("- marg_param: %s\n", param->type.c_str());
-  // }
-  //
-  // printf("nb_remain_params: %ld\n", remain_param_ptrs_.size());
-  // for (const auto &param : remain_param_ptrs_) {
-  //   printf("- remain_param: %s\n", param->type.c_str());
-  // }
 
   // !! VERY IMPORTANT !! Now we know the Hessian size, we can update the
   // number of residuals for ceres::CostFunction

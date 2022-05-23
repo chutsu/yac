@@ -22,8 +22,8 @@ lissajous_traj_t::lissajous_traj_t(const std::string &traj_type_,
     b = 2.0 * M_PI * 2.0;
     delta = M_PI;
     psi = 2.0;
-    A = calib_width * 0.21;
-    B = calib_height * 0.21;
+    A = calib_width * 0.22;
+    B = calib_height * 0.22;
     yaw_bound = -atan2(A, R);
     pitch_bound = -atan2(B, R);
 
@@ -611,16 +611,16 @@ void nbt_lissajous_trajs(const timestamp_t &ts_start,
 
   // Lissajous parameters
   const real_t R = std::max(calib_width, calib_height) * 1.0;
-  const real_t A = calib_width * 0.5;
-  const real_t B = calib_height * 0.5;
+  const real_t w = calib_width;
+  const real_t h = calib_height;
   const real_t T = ts2sec(ts_end) - ts2sec(ts_start);
 
   // Add trajectories
-  trajs.emplace_back("figure8", ts_start, T_WF, T_FO, R, A, B, T);
-  trajs.emplace_back("vert-pan", ts_start, T_WF, T_FO, R, A, B, T);
-  trajs.emplace_back("horiz-pan", ts_start, T_WF, T_FO, R, A, B, T);
-  trajs.emplace_back("diag0", ts_start, T_WF, T_FO, R, A, B, T);
-  trajs.emplace_back("diag1", ts_start, T_WF, T_FO, R, A, B, T);
+  trajs.emplace_back("figure8", ts_start, T_WF, T_FO, R, w, h, T);
+  trajs.emplace_back("vert-pan", ts_start, T_WF, T_FO, R, w, h, T);
+  trajs.emplace_back("horiz-pan", ts_start, T_WF, T_FO, R, w, h, T);
+  trajs.emplace_back("diag0", ts_start, T_WF, T_FO, R, w, h, T);
+  trajs.emplace_back("diag1", ts_start, T_WF, T_FO, R, w, h, T);
 }
 
 /** SIMULATION ***************************************************************/

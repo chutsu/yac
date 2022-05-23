@@ -9,11 +9,12 @@ lissajous_traj_t::lissajous_traj_t(const std::string &traj_type_,
                                    const mat4_t &T_WF_,
                                    const mat4_t &T_FO_,
                                    const real_t R_,
-                                   const real_t A_,
-                                   const real_t B_,
+                                   const real_t calib_width_,
+                                   const real_t calib_height_,
                                    const real_t T_)
     : traj_type{traj_type_}, ts_start{ts_start_}, T_WF{T_WF_}, T_FO{T_FO_},
-      R{R_}, A{A_}, B{B_}, T{T_}, f{1.0 / T}, w{2.0 * M_PI * f} {
+      calib_width{calib_width_},
+      calib_height{calib_height_}, R{R_}, T{T_}, f{1.0 / T}, w{2.0 * M_PI * f} {
   // Trajectory type
   // -- Figure 8
   if (traj_type == "figure8") {
@@ -21,8 +22,8 @@ lissajous_traj_t::lissajous_traj_t(const std::string &traj_type_,
     b = 2.0 * M_PI * 2.0;
     delta = M_PI;
     psi = 2.0;
-    A = A * 0.8;
-    B = B * 0.8;
+    A = calib_width * 0.21;
+    B = calib_height * 0.21;
     yaw_bound = -atan2(A, R);
     pitch_bound = -atan2(B, R);
 
@@ -31,8 +32,8 @@ lissajous_traj_t::lissajous_traj_t(const std::string &traj_type_,
     b = 2.0 * M_PI * 1.0;
     delta = 0.0;
     psi = 1.0;
-    A = A * 1.5;
-    B = B * 1.5;
+    A = calib_width * 0.5;
+    B = calib_height * 0.5;
     yaw_bound = 0.0;
     pitch_bound = -atan2(B, R);
 
@@ -41,8 +42,8 @@ lissajous_traj_t::lissajous_traj_t(const std::string &traj_type_,
     b = 2.0 * M_PI * 0.0;
     delta = 0.0;
     psi = 1.0;
-    A = A * 1.5;
-    B = B * 1.5;
+    A = calib_width * 0.5;
+    B = calib_height * 0.5;
     yaw_bound = atan2(A, R);
     pitch_bound = 0.0;
 
@@ -51,8 +52,8 @@ lissajous_traj_t::lissajous_traj_t(const std::string &traj_type_,
     b = 2.0 * M_PI * 1.0;
     delta = 0.0;
     psi = 1.0;
-    // A = A * 1.2;
-    // B = B * 1.2;
+    A = calib_width * 0.35;
+    B = calib_height * 0.35;
     yaw_bound = atan2(A, R);
     pitch_bound = -atan2(B, R);
 
@@ -61,8 +62,8 @@ lissajous_traj_t::lissajous_traj_t(const std::string &traj_type_,
     b = 2.0 * M_PI * 1.0;
     delta = M_PI;
     psi = 1.0;
-    // A = A * 1.2;
-    // B = B * 1.2;
+    A = calib_width * 0.35;
+    B = calib_height * 0.35;
     yaw_bound = -atan2(A, R);
     pitch_bound = -atan2(B, R);
 

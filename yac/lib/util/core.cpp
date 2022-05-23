@@ -2006,12 +2006,14 @@ void sim_imu_measurement(sim_imu_t &imu,
   const mat3_t C_SW = tf_rot(T_WS_W).transpose();
   const vec3_t w_g = mvn(rndeng); // Gyro white noise
   // w_WS_S = C_SW * w_WS_W + imu.b_g + w_g * imu.sigma_g_c * sqrt(dt);
+  UNUSED(w_g);
   w_WS_S = C_SW * w_WS_W;
 
   // Compute accel measurement
   const vec3_t g{0.0, 0.0, imu.g}; // Gravity vector
   const vec3_t w_a = mvn(rndeng);  // Accel white noise
   // a_WS_S = C_SW * (a_WS_W + g) + imu.b_a + w_a * imu.sigma_a_c * sqrt(dt);
+  UNUSED(w_a);
   a_WS_S = C_SW * (a_WS_W + g);
 
   imu.ts_prev = ts;

@@ -89,6 +89,7 @@ INCLUDE_DIRECTORIES(${catkin_INCLUDE_DIRS})
 ADD_MESSAGE_FILES(
   DIRECTORY msgs
   FILES
+  CalibTarget.msg
   CalibVI.msg
   CameraParams.msg
   Extrinsics.msg
@@ -152,8 +153,11 @@ TARGET_LINK_LIBRARIES(calib_imucam_node ${DEPS})
 # ADD_EXECUTABLE(calib_mocap_node src/nodes/calib_mocap_node.cpp)
 # TARGET_LINK_LIBRARIES(calib_mocap_node ${DEPS})
 
-ADD_EXECUTABLE(calib_nbt_node src/nodes/calib_nbt_node.cpp)
-TARGET_LINK_LIBRARIES(calib_nbt_node ${DEPS})
+ADD_EXECUTABLE(calib_nbt_eval_node src/nodes/calib_nbt_eval_node.cpp)
+TARGET_LINK_LIBRARIES(calib_nbt_eval_node ${DEPS})
+
+ADD_EXECUTABLE(calib_nbt_rt_node src/nodes/calib_nbt_rt_node.cpp)
+TARGET_LINK_LIBRARIES(calib_nbt_rt_node ${DEPS})
 
 ADD_EXECUTABLE(calib_nbv_node src/nodes/calib_nbv_node.cpp)
 TARGET_LINK_LIBRARIES(calib_nbv_node ${DEPS})

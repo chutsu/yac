@@ -49,13 +49,17 @@
     required="true"
     output="screen" />
 
-  <!-- NBV -->
-  <node pkg="yac_ros" type="calib_nbt_node" name="yac_node" required="true" output="screen" launch-prefix="gdb -ex run --args">
+  <!-- NBT Real-Time Node -->
+  <node pkg="yac_ros" type="calib_nbt_rt_node" name="yac_nbt_rt_node" required="true" output="screen" launch-prefix="gdb -ex run --args">
     <param name="config_file" value="$(arg config_file)" />
     <param name="publish_tfs" value="true" />
     <param name="image_format" value="bgr8" />
     <param name="cam0_topic" value="/rs/ir0/image" />
     <param name="cam1_topic" value="/rs/ir1/image" />
     <param name="imu0_topic" value="/rs/imu0/data" />
+  </node>
+
+  <!-- NBT Eval Node -->
+  <node pkg="yac_ros" type="calib_nbt_eval_node" name="yac_nbt_eval_node" required="true" output="screen">
   </node>
 </launch>

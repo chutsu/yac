@@ -1,5 +1,5 @@
 #include "calib_nbv_node.hpp"
-#include "calib_nbt_node.hpp"
+#include "calib_nbt_rt_node.hpp"
 
 int main(int argc, char *argv[]) {
   // Setup ROS Node

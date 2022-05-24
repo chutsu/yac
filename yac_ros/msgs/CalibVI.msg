@@ -1,6 +1,9 @@
 # Header
 std_msgs/Header        header
 
+# Calibration Target
+yac_ros/CalibTarget    calib_target
+
 # IMU
 float64                imu_rate
 yac_ros/ImuParams      imu_params

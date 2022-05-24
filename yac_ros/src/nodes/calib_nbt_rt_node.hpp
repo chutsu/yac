@@ -56,28 +56,35 @@ void publish_nbt(const lissajous_traj_t &traj, ros::Publisher &pub) {
   pub.publish(path_msg);
 }
 
-void publish_nbt_data(const calib_vi_t &calib, ros::Publisher &pub) {
+void publish_nbt_data(const calib_vi_t *calib, ros::Publisher &pub) {
   yac_ros::CalibVI msg;
 
   // Header
   msg.header.stamp = ros::Time::now();
 
+  // Calibration Target
+  msg.calib_target.target_type = calib->calib_target.target_type;
+  msg.calib_target.tag_rows = calib->calib_target.tag_rows;
+  msg.calib_target.tag_cols = calib->calib_target.tag_cols;
+  msg.calib_target.tag_size = calib->calib_target.tag_size;
+  msg.calib_target.tag_spacing = calib->calib_target.tag_spacing;
+
   // IMU
   // -- Imu rate
-  msg.imu_rate = calib.get_imu_rate();
+  msg.imu_rate = calib->get_imu_rate();
   // -- Imu params
-  msg.imu_params.rate = calib.imu_params.rate;
-  msg.imu_params.a_max = calib.imu_params.a_max;
-  msg.imu_params.g_max = calib.imu_params.g_max;
-  msg.imu_params.sigma_g_c = calib.imu_params.sigma_g_c;
-  msg.imu_params.sigma_a_c = calib.imu_params.sigma_a_c;
-  msg.imu_params.sigma_gw_c = calib.imu_params.sigma_gw_c;
-  msg.imu_params.sigma_aw_c = calib.imu_params.sigma_aw_c;
-  msg.imu_params.sigma_bg = calib.imu_params.sigma_bg;
-  msg.imu_params.sigma_ba = calib.imu_params.sigma_ba;
-  msg.imu_params.g = calib.imu_params.g;
+  msg.imu_params.rate = calib->imu_params.rate;
+  msg.imu_params.a_max = calib->imu_params.a_max;
+  msg.imu_params.g_max = calib->imu_params.g_max;
+  msg.imu_params.sigma_g_c = calib->imu_params.sigma_g_c;
+  msg.imu_params.sigma_a_c = calib->imu_params.sigma_a_c;
+  msg.imu_params.sigma_gw_c = calib->imu_params.sigma_gw_c;
+  msg.imu_params.sigma_aw_c = calib->imu_params.sigma_aw_c;
+  msg.imu_params.sigma_bg = calib->imu_params.sigma_bg;
+  msg.imu_params.sigma_ba = calib->imu_params.sigma_ba;
+  msg.imu_params.g = calib->imu_params.g;
   // -- Imu extrinsics
-  const vecx_t imu_exts = tf_vec(calib.imu_exts->tf());
+  const vecx_t imu_exts = tf_vec(calib->imu_exts->tf());
   msg.imu_exts.name = "imu0";
   msg.imu_exts.pose[0] = imu_exts[0];
   msg.imu_exts.pose[1] = imu_exts[1];
@@ -89,21 +96,25 @@ void publish_nbt_data(const calib_vi_t &calib, ros::Publisher &pub) {
 
   // Cameras
   // --- Camera rate
-  msg.cam_rate = calib.get_camera_rate();
+  msg.cam_rate = calib->get_camera_rate();
   // --- Camera params
-  for (const auto &[cam_idx, cam] : calib.cam_params) {
+  for (const auto &[cam_idx, cam] : calib->cam_params) {
     yac_ros::CameraParams cam_msg;
     cam_msg.cam_idx = cam_idx;
-    cam_msg.cam_geom = cam->proj_model + "-" + cam->dist_model;
+    cam_msg.proj_model = cam->proj_model;
+    cam_msg.dist_model = cam->dist_model;
     cam_msg.resolution[0] = cam->resolution[0];
-    cam_msg.resolution[0] = cam->resolution[1];
-    for (size_t i = 0; i < cam->param.size(); i++) {
-      cam_msg.params.push_back(cam->param[i]);
+    cam_msg.resolution[1] = cam->resolution[1];
+    for (size_t i = 0; i < cam->proj_params().size(); i++) {
+      cam_msg.proj_params.push_back(cam->proj_params()[i]);
+    }
+    for (size_t i = 0; i < cam->dist_params().size(); i++) {
+      cam_msg.dist_params.push_back(cam->dist_params()[i]);
     }
     msg.cam_params.push_back(cam_msg);
   }
   // --- Camera extrinsics
-  for (const auto &[cam_idx, cam_exts] : calib.cam_exts) {
+  for (const auto &[cam_idx, cam_exts] : calib->cam_exts) {
     const vecx_t exts = tf_vec(cam_exts->tf());
     yac_ros::Extrinsics exts_msg;
     exts_msg.name = "cam" + std::to_string(cam_idx);
@@ -118,7 +129,7 @@ void publish_nbt_data(const calib_vi_t &calib, ros::Publisher &pub) {
   }
 
   // Fiducial Pose
-  const vecx_t fiducial_pose = tf_vec(calib.get_fiducial_pose());
+  const vecx_t fiducial_pose = tf_vec(calib->get_fiducial_pose());
   msg.fiducial_pose[0] = fiducial_pose[0];
   msg.fiducial_pose[1] = fiducial_pose[1];
   msg.fiducial_pose[2] = fiducial_pose[2];
@@ -128,7 +139,7 @@ void publish_nbt_data(const calib_vi_t &calib, ros::Publisher &pub) {
   msg.fiducial_pose[6] = fiducial_pose[6];
 
   // Calibration info
-  const matx_t H = calib.calib_info;
+  const matx_t H = calib->calib_info;
   size_t H_idx = 0;
   for (size_t i = 0; i < 6; i++) {
     for (size_t j = 0; j < 6; j++) {
@@ -368,7 +379,7 @@ struct calib_nbt_t {
           keep_running = false;
           break;
         case 'n':
-          if (state != NBT) {
+          if (state != NBT || calib->calib_info_ok == false) {
             LOG_WARN("Not in NBT mode yet ...");
             return;
           }
@@ -460,74 +471,8 @@ struct calib_nbt_t {
     event_handler(cv::waitKey(1));
   }
 
-  /** Find NBT thread */
-  void find_nbt_thread() {
-    if (calib->calib_info_ok == false) {
-      return;
-    }
-    finding_nbt = true;
-
-    // // Calculate information
-    // matx_t H;
-    // timestamp_t ts_now;
-    // nbt_data_t nbt_data;
-    // {
-    //   std::unique_lock<std::mutex> guard(mtx);
-    //   H = calib->calib_info;
-    //   ts_now = calib->calib_views.back()->ts;
-    //   nbt_data = nbt_data_t{*calib.get()};
-    // }
-
-    // // Pre-check
-    // if (calib->running == false) {
-    //   return;
-    // }
-
-    // // Generate NBTs
-    // LOG_INFO("Generate NBTs");
-    // const real_t cam_dt = 1.0 / nbt_data.cam_rate;
-    // const timestamp_t ts_start = ts_now + cam_dt;
-    // const timestamp_t ts_end = ts_start + sec2ts(3.0);
-    // const calib_target_t calib_target = nbt_data.calib_target;
-    // const mat4_t T_WF = nbt_data.T_WF;
-    // lissajous_trajs_t trajs;
-    // nbt_lissajous_trajs(ts_start, ts_end, calib_target, T_WF, trajs);
-
-    // Evaluate NBT trajectories
-    // LOG_INFO("Evaluate NBTs");
-    // prof.start("find_nbt");
-
-    // real_t info_k = 0.0;
-    // real_t info_kp1 = 0.0;
-    // const int idx = nbt_find(trajs, nbt_data, H, true, &info_k, &info_kp1);
-
-    // prof.stop("find_nbt");
-    // prof.print("find_nbt");
-    // if (idx >= 0) {
-    //   publish_nbt(trajs[idx], nbt_pub);
-    // }
-
-    // // Track info
-    // calib_info[ts_now] = info_k;
-    // calib_info_predict[ts_now] = info_kp1;
-
-    // Toggle finding NBT flag
-    finding_nbt = false;
-  }
-
   /** Find NBT */
-  void find_nbt() {
-    publish_nbt_data(*calib.get(), nbt_data_pub);
-
-    // if (finding_nbt == false) {
-    //   if (nbt_thread.joinable()) {
-    //     nbt_thread.join();
-    //   }
-    //   nbt_thread = std::thread(&calib_nbt_t::find_nbt_thread, this);
-    // } else {
-    //   LOG_WARN("Already finding NBT!");
-    // }
-  }
+  void find_nbt() { publish_nbt_data(calib.get(), nbt_data_pub); }
 
   /** Move camera to calibration origin before initializing calibrator */
   void mode_setup(const timestamp_t ts,
@@ -589,6 +534,16 @@ struct calib_nbt_t {
   void mode_nbt() {
     // Visualize
     visualize();
+
+    // // Trigger NBT
+    // if (calib->calib_info_ok == false) {
+    //   return;
+    // }
+    // const int rate = calib->get_camera_rate() * 5;
+    // const bool rate_ok = (calib->calib_view_counter % rate == 0);
+    // if (rate_ok) {
+    //   find_nbt();
+    // }
   }
 
   /** Finish **/

@@ -2,10 +2,11 @@
 
 namespace yac {
 
-static void schurs_complement(const matx_t &H,
-                              const size_t m, // Marginalize
-                              const size_t r, // Remain
-                              matx_t &H_marg) {
+static void schurs_complement(const matx_t &H, // Original Hessian
+                              const size_t m,  // Marginalize
+                              const size_t r,  // Remain
+                              matx_t &H_marg,  // Marginalized Hessian
+                              const bool debug = false) {
   assert(m > 0 && r > 0);
 
   // Setup
@@ -29,10 +30,12 @@ static void schurs_complement(const matx_t &H,
   const auto eigvals_inv = (eig.eigenvalues().array() > eps).select(eig.eigenvalues().array().inverse(), 0);
   const matx_t Lambda_inv = vecx_t(eigvals_inv).asDiagonal();
   const matx_t Hmm_inv = V * Lambda_inv * V.transpose();
-  const double inv_check = ((Hmm * Hmm_inv) - I(m, m)).sum();
-  if (fabs(inv_check) > 1e-4) {
-    LOG_WARN("Inverse identity check: %f", inv_check);
-    LOG_WARN("This is bad ... Usually means marg_residual_t is bad!");
+  if (debug) {
+    const double inv_check = ((Hmm * Hmm_inv) - I(m, m)).sum();
+    if (fabs(inv_check) > 1e-4) {
+      LOG_WARN("Inverse identity check: %f", inv_check);
+      LOG_WARN("This is bad ... Usually means marg_residual_t is bad!");
+    }
   }
   // clang-format on
 
@@ -1055,26 +1058,7 @@ void calib_vi_t::add_measurement(const timestamp_t imu_ts,
 
       const real_t info =
           -1.0 * log(calib_info.inverse().determinant()) / log(2.0);
-      printf("\ninfo [ceres]: %f\n", info);
-
-      {
-        ParameterOrder param_order;
-        matx_t H_;
-        form_hessian(param_order, H_);
-
-        matx_t H_nbt;
-        schurs_complement(H_, H_.rows() - 6, 6, H_nbt);
-
-        const Eigen::JacobiSVD<matx_t> svd(H_nbt,
-                                           Eigen::ComputeThinU |
-                                               Eigen::ComputeThinV);
-        const vecx_t sv = svd.singularValues();
-        const real_t info =
-            -1.0 * sv.head(svd.rank()).array().log().sum() / log(2.0);
-        // const real_t info = -1.0 * log(H_nbt.inverse().determinant()) /
-        // log(2.0);
-        printf("info [custom]: %f\n", info);
-      }
+      printf("info [ceres]: %f\n", info);
     }
 
     // Marginalize oldest view
@@ -1117,11 +1101,28 @@ int calib_vi_t::recover_calib_covar(matx_t &calib_covar) const {
 }
 
 int calib_vi_t::recover_calib_info(matx_t &H) const {
-  matx_t covar;
-  if (recover_calib_covar(covar) != 0) {
-    return -1;
-  }
-  H = covar.inverse();
+  // Ceres-version
+  // matx_t covar;
+  // if (recover_calib_covar(covar) != 0) {
+  //   return -1;
+  // }
+  // H = covar.inverse();
+
+  // Custom-version
+  // Form full Hessian
+  ParameterOrder param_order;
+  matx_t H_full;
+  form_hessian(param_order, H_full);
+
+  // Marginalize out everything apart from T_BS
+  schurs_complement(H_full, H_full.rows() - 6, 6, H);
+
+  // // clang-format off
+  // const Eigen::JacobiSVD<matx_t> svd(H, Eigen::ComputeThinU |
+  // Eigen::ComputeThinV); const vecx_t sv = svd.singularValues(); const
+  // real_t info = sv.head(svd.rank()).array().log().sum() / log(2.0);
+  // printf("info [custom]: %f\n", info);
+  // // clang-format on
 
   return 0;
 }

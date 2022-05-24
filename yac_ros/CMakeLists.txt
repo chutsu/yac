@@ -85,6 +85,17 @@ FIND_PACKAGE(
 )
 INCLUDE_DIRECTORIES(${catkin_INCLUDE_DIRS})
 
+# CUSTOM ROS MESSAGES
+ADD_MESSAGE_FILES(
+  DIRECTORY msgs
+  FILES
+  CalibVI.msg
+  CameraParams.msg
+  Extrinsics.msg
+  ImuParams.msg
+)
+GENERATE_MESSAGES(DEPENDENCIES std_msgs geometry_msgs)
+
 # CATKING PACKAGE
 CATKIN_PACKAGE(
   CATKIN_DEPENDS

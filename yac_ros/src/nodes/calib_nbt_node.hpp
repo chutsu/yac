@@ -13,6 +13,8 @@
 #include "../ros_calib.hpp"
 #include "../ros_utils.hpp"
 
+#include <yac_ros/CalibVI.h>
+
 namespace yac {
 
 void publish_nbt(const ctraj_t &traj, ros::Publisher &pub) {
@@ -52,6 +54,90 @@ void publish_nbt(const lissajous_traj_t &traj, ros::Publisher &pub) {
   }
 
   pub.publish(path_msg);
+}
+
+void publish_nbt_data(const calib_vi_t &calib, ros::Publisher &pub) {
+  yac_ros::CalibVI msg;
+
+  // Header
+  msg.header.stamp = ros::Time::now();
+
+  // IMU
+  // -- Imu rate
+  msg.imu_rate = calib.get_imu_rate();
+  // -- Imu params
+  msg.imu_params.rate = calib.imu_params.rate;
+  msg.imu_params.a_max = calib.imu_params.a_max;
+  msg.imu_params.g_max = calib.imu_params.g_max;
+  msg.imu_params.sigma_g_c = calib.imu_params.sigma_g_c;
+  msg.imu_params.sigma_a_c = calib.imu_params.sigma_a_c;
+  msg.imu_params.sigma_gw_c = calib.imu_params.sigma_gw_c;
+  msg.imu_params.sigma_aw_c = calib.imu_params.sigma_aw_c;
+  msg.imu_params.sigma_bg = calib.imu_params.sigma_bg;
+  msg.imu_params.sigma_ba = calib.imu_params.sigma_ba;
+  msg.imu_params.g = calib.imu_params.g;
+  // -- Imu extrinsics
+  const vecx_t imu_exts = tf_vec(calib.imu_exts->tf());
+  msg.imu_exts.name = "imu0";
+  msg.imu_exts.pose[0] = imu_exts[0];
+  msg.imu_exts.pose[1] = imu_exts[1];
+  msg.imu_exts.pose[2] = imu_exts[2];
+  msg.imu_exts.pose[3] = imu_exts[3];
+  msg.imu_exts.pose[4] = imu_exts[4];
+  msg.imu_exts.pose[5] = imu_exts[5];
+  msg.imu_exts.pose[6] = imu_exts[6];
+
+  // Cameras
+  // --- Camera rate
+  msg.cam_rate = calib.get_camera_rate();
+  // --- Camera params
+  for (const auto &[cam_idx, cam] : calib.cam_params) {
+    yac_ros::CameraParams cam_msg;
+    cam_msg.cam_idx = cam_idx;
+    cam_msg.cam_geom = cam->proj_model + "-" + cam->dist_model;
+    cam_msg.resolution[0] = cam->resolution[0];
+    cam_msg.resolution[0] = cam->resolution[1];
+    for (size_t i = 0; i < cam->param.size(); i++) {
+      cam_msg.params.push_back(cam->param[i]);
+    }
+    msg.cam_params.push_back(cam_msg);
+  }
+  // --- Camera extrinsics
+  for (const auto &[cam_idx, cam_exts] : calib.cam_exts) {
+    const vecx_t exts = tf_vec(cam_exts->tf());
+    yac_ros::Extrinsics exts_msg;
+    exts_msg.name = "cam" + std::to_string(cam_idx);
+    exts_msg.pose[0] = exts[0];
+    exts_msg.pose[1] = exts[1];
+    exts_msg.pose[2] = exts[2];
+    exts_msg.pose[3] = exts[3];
+    exts_msg.pose[4] = exts[4];
+    exts_msg.pose[5] = exts[5];
+    exts_msg.pose[6] = exts[6];
+    msg.cam_exts.push_back(exts_msg);
+  }
+
+  // Fiducial Pose
+  const vecx_t fiducial_pose = tf_vec(calib.get_fiducial_pose());
+  msg.fiducial_pose[0] = fiducial_pose[0];
+  msg.fiducial_pose[1] = fiducial_pose[1];
+  msg.fiducial_pose[2] = fiducial_pose[2];
+  msg.fiducial_pose[3] = fiducial_pose[3];
+  msg.fiducial_pose[4] = fiducial_pose[4];
+  msg.fiducial_pose[5] = fiducial_pose[5];
+  msg.fiducial_pose[6] = fiducial_pose[6];
+
+  // Calibration info
+  const matx_t H = calib.calib_info;
+  size_t H_idx = 0;
+  for (size_t i = 0; i < 6; i++) {
+    for (size_t j = 0; j < 6; j++) {
+      msg.calib_info[H_idx] = H(i, j);
+      H_idx++;
+    }
+  }
+
+  pub.publish(msg);
 }
 
 struct calib_nbt_t {
@@ -96,6 +182,8 @@ struct calib_nbt_t {
   ros::Publisher rviz_pub;
   // -- NBT publisher
   ros::Publisher nbt_pub;
+  // -- NBT Data publisher
+  ros::Publisher nbt_data_pub;
 
   // Calibration
   std::unique_ptr<calib_vi_t> calib;
@@ -247,6 +335,7 @@ struct calib_nbt_t {
     // clang-format off
     rviz_pub = ros_nh.advertise<visualization_msgs::Marker>("/yac_ros/rviz", 0);
     nbt_pub = ros_nh.advertise<nav_msgs::Path>("/yac_ros/nbt", 0);
+    nbt_data_pub = ros_nh.advertise<yac_ros::CalibVI>("/yac_ros/nbt_data", 0);
     // clang-format on
 
     // Subscribers
@@ -428,14 +517,16 @@ struct calib_nbt_t {
 
   /** Find NBT */
   void find_nbt() {
-    if (finding_nbt == false) {
-      if (nbt_thread.joinable()) {
-        nbt_thread.join();
-      }
-      nbt_thread = std::thread(&calib_nbt_t::find_nbt_thread, this);
-    } else {
-      LOG_WARN("Already finding NBT!");
-    }
+    publish_nbt_data(*calib.get(), nbt_data_pub);
+
+    // if (finding_nbt == false) {
+    //   if (nbt_thread.joinable()) {
+    //     nbt_thread.join();
+    //   }
+    //   nbt_thread = std::thread(&calib_nbt_t::find_nbt_thread, this);
+    // } else {
+    //   LOG_WARN("Already finding NBT!");
+    // }
   }
 
   /** Move camera to calibration origin before initializing calibrator */

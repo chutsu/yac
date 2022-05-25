@@ -94,7 +94,7 @@ calib_vi_view_t::calib_vi_view_t(const timestamp_t ts_,
       auto res = new fiducial_residual_t(ts,
                                          cam_geoms[cam_idx].get(),
                                          cam_params[cam_idx].get(),
-                                         cam_exts[cam_idx],
+                                         cam_exts[cam_idx].get(),
                                          imu_exts,
                                          fiducial,
                                          &pose,
@@ -524,13 +524,13 @@ calib_vi_t::~calib_vi_t() {
   //   }
   // }
 
-  // Camera extrinsics
-  for (auto &[cam_idx, exts] : cam_exts) {
-    UNUSED(cam_idx);
-    if (exts) {
-      delete exts;
-    }
-  }
+  // // Camera extrinsics
+  // for (auto &[cam_idx, exts] : cam_exts) {
+  //   UNUSED(cam_idx);
+  //   if (exts) {
+  //     delete exts;
+  //   }
+  // }
 
   // IMU extrinsics
   if (imu_exts) {
@@ -621,7 +621,7 @@ void calib_vi_t::add_camera(const int cam_idx,
   }
 
   // Camera extrinsics
-  cam_exts[cam_idx] = new extrinsics_t{T_BCi};
+  cam_exts[cam_idx] = std::make_shared<extrinsics_t>(T_BCi);
   problem->AddParameterBlock(cam_exts[cam_idx]->param.data(), 7);
   problem->SetParameterization(cam_exts[cam_idx]->param.data(), &pose_plus);
   if (fix_extrinsics) {

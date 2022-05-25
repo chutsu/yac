@@ -281,7 +281,7 @@ struct nbv_evaluator_t {
   calib_target_t calib_target;
   std::vector<int> cam_indices;
   CamIdx2Parameters cam_params;
-  std::map<int, extrinsics_t *> cam_exts;
+  CamIdx2Extrinsics cam_exts;
   CamIdx2Geometry cam_geoms;
   fiducial_corners_t *corners = nullptr;
 

@@ -314,7 +314,8 @@ struct nbt_data_t {
     }
 
     for (const auto &[cam_idx, exts] : calib.cam_exts) {
-      cam_exts[cam_idx] = new extrinsics_t{exts->tf(), exts->fixed};
+      cam_exts[cam_idx] =
+          std::make_shared<extrinsics_t>(exts->tf(), exts->fixed);
     }
 
     // Fiducial pose
@@ -330,12 +331,12 @@ struct nbt_data_t {
       delete time_delay;
     }
 
-    // Cameras
-    for (const auto &[cam_idx, params] : cam_geoms) {
-      // delete cam_geoms[cam_idx];
-      // delete cam_params[cam_idx];
-      delete cam_exts[cam_idx];
-    }
+    // // Cameras
+    // for (const auto &[cam_idx, params] : cam_geoms) {
+    //   // delete cam_geoms[cam_idx];
+    //   // delete cam_params[cam_idx];
+    //   // delete cam_exts[cam_idx];
+    // }
   }
 };
 

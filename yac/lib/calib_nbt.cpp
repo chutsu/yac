@@ -697,7 +697,7 @@ void simulate_cameras(const timestamp_t &ts_start,
       UNUSED(_);
       const auto &geom = cam_geoms.at(cam_idx).get();
       const auto &cam = cam_params.at(cam_idx).get();
-      const auto &ext = cam_exts.at(cam_idx);
+      const auto &ext = cam_exts.at(cam_idx).get();
       const auto &grid =
           simulate_aprilgrid(ts_k, target, T_FC0, geom, cam, ext);
       cam_grids[ts_k][cam_idx] = grid;
@@ -735,7 +735,7 @@ void simulate_cameras(const timestamp_t &ts_start,
       UNUSED(_);
       const auto geom = cam_geoms.at(cam_idx).get();
       const auto &cam = cam_params.at(cam_idx).get();
-      const auto &ext = cam_exts.at(cam_idx);
+      const auto &ext = cam_exts.at(cam_idx).get();
       const auto &grid =
           simulate_aprilgrid(ts_k, target, T_FC0, geom, cam, ext);
       cam_grids[ts_k][cam_idx] = grid;
@@ -1062,7 +1062,7 @@ int nbt_eval(const lissajous_traj_t &traj,
                     nbt_data.time_delay->fixed);
   // -- Add cameras
   for (const auto &[cam_idx, cam] : nbt_data.cam_params) {
-    const auto &cam_ext = nbt_data.cam_exts.at(cam_idx);
+    const auto cam_ext = nbt_data.cam_exts.at(cam_idx).get();
     calib_nbt.add_camera(cam_idx,
                          cam->resolution,
                          cam->proj_model,

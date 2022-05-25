@@ -192,7 +192,7 @@ calib_view_t::calib_view_t(const timestamp_t ts_,
       auto p_FFi_ = corners_->get_corner(tag_id, corner_idx);
       auto res_fn = new reproj_residual_t(cam_geoms_->at(cam_idx).get(),
                                           cam_params_->at(cam_idx).get(),
-                                          cam_exts_->at(cam_idx),
+                                          cam_exts_->at(cam_idx).get(),
                                           T_C0F_,
                                           p_FFi_,
                                           z,
@@ -482,7 +482,7 @@ static void calib_initialize(const bool verbose,
   // -- Add camera extrinsics
   for (auto &[cam_idx, param] : cam_exts) {
     UNUSED(cam_idx);
-    solver->add_param(param);
+    solver->add_param(param.get());
   }
   // -- Add reprojection errors
   for (auto &[ts, cam_grids] : calib_data) {
@@ -801,10 +801,10 @@ calib_camera_t::~calib_camera_t() {
   //   delete param;
   // }
 
-  for (auto &[cam_idx, exts] : cam_exts) {
-    UNUSED(cam_idx);
-    delete exts;
-  }
+  // for (auto &[cam_idx, exts] : cam_exts) {
+  //   UNUSED(cam_idx);
+  //   delete exts;
+  // }
 
   if (corners) {
     delete corners;
@@ -994,11 +994,11 @@ void calib_camera_t::add_camera(const int cam_idx,
   }
 
   // Camera extrinsics
-  cam_exts[cam_idx] = new extrinsics_t{ext, fix_extrinsics};
+  cam_exts[cam_idx] = std::make_shared<extrinsics_t>(ext, fix_extrinsics);
 
   // Add parameter
   solver->add_param(cam_params[cam_idx].get());
-  solver->add_param(cam_exts[cam_idx]);
+  solver->add_param(cam_exts[cam_idx].get());
 }
 
 void calib_camera_t::add_camera(const int cam_idx,
@@ -1608,7 +1608,7 @@ int calib_camera_t::_calc_info(real_t *info) {
   }
   for (const auto &[cam_idx, cam_ext] : cam_exts) {
     if (cam_ext->fixed == false) {
-      params.push_back(cam_ext);
+      params.push_back(cam_ext.get());
     }
   }
 
@@ -2450,7 +2450,7 @@ real_t nbv_evaluator_t::eval(const mat4_t &T_FC0) {
       auto p_FFi = corners->get_corner(tag_id, corner_idx);
       auto res_fn = new reproj_residual_t(cam_geoms.at(cam_idx).get(),
                                           cam_params.at(cam_idx).get(),
-                                          cam_exts.at(cam_idx),
+                                          cam_exts.at(cam_idx).get(),
                                           &nbv_pose,
                                           p_FFi,
                                           z,

@@ -181,7 +181,7 @@ int test_calib_vi_batch() {
 }
 
 int test_calib_vi_online() {
-  int max_views = -1;
+  int max_views = 10;
   MU_CHECK(test_calib_vi("online", max_views) == 0);
   return 0;
 }

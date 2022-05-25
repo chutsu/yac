@@ -153,7 +153,7 @@ RUN_CMD="roslaunch yac_ros intel_d435i-calib_imucam.launch \
 tmux send-keys -t dev -R C-l C-m
 tmux send-keys -t dev -R "\
 cd ~/projects/yac \
-&& sudo make lib \
+&& sudo make lib_relwithdeb \
 && make release \
 && rm -rf /tmp/calib_data/calib_imu \
 && cd ~/yac_ws \

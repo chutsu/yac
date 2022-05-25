@@ -1428,10 +1428,10 @@ marg_residual_t::~marg_residual_t() {
     delete res_block;
   }
 
-  marg_param_ptrs_.clear();
-  remain_param_ptrs_.clear();
-  param_index_.clear();
-  x0_.clear();
+  // marg_param_ptrs_.clear();
+  // remain_param_ptrs_.clear();
+  // param_index_.clear();
+  // x0_.clear();
 }
 
 size_t marg_residual_t::get_residual_size() const { return r_; }
@@ -1458,6 +1458,11 @@ void marg_residual_t::add(calib_residual_t *res_block) {
     FATAL("res_block == nullptr!");
   }
   res_blocks_.push_back(res_block);
+
+  // if (res_block->type == "marg_residual_t") {
+  //   printf("clearing old marg_residual residuals\n");
+  //   ((marg_residual_t *)res_block)->res_blocks_.clear();
+  // }
 }
 
 void marg_residual_t::add_remain_param(param_t *param) {

@@ -498,13 +498,13 @@ int test_nbt_eval() {
   mat4_t T_FO;
   calib_target_origin(T_FO,
                       calib.calib_target,
-                      calib.cam_geoms[cam_idx],
+                      calib.cam_geoms[cam_idx].get(),
                       calib.cam_params[cam_idx]);
 
   nbt_orbit_trajs(ts_start,
                   ts_end,
                   calib.calib_target,
-                  calib.cam_geoms[cam_idx],
+                  calib.cam_geoms[cam_idx].get(),
                   calib.cam_params[cam_idx],
                   calib.imu_exts,
                   calib.get_fiducial_pose(),
@@ -575,13 +575,13 @@ int test_nbt_find() {
   mat4_t T_FO;
   calib_target_origin(T_FO,
                       calib.calib_target,
-                      calib.cam_geoms[cam_idx],
+                      calib.cam_geoms[cam_idx].get(),
                       calib.cam_params[cam_idx]);
 
   nbt_orbit_trajs(ts_start,
                   ts_end,
                   calib.calib_target,
-                  calib.cam_geoms[cam_idx],
+                  calib.cam_geoms[cam_idx].get(),
                   calib.cam_params[cam_idx],
                   calib.imu_exts,
                   calib.get_fiducial_pose(),

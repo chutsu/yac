@@ -92,7 +92,7 @@ calib_vi_view_t::calib_vi_view_t(const timestamp_t ts_,
 
       // Form residual
       auto res = new fiducial_residual_t(ts,
-                                         cam_geoms[cam_idx],
+                                         cam_geoms[cam_idx].get(),
                                          cam_params[cam_idx],
                                          cam_exts[cam_idx],
                                          imu_exts,
@@ -230,7 +230,7 @@ int calib_vi_view_t::filter_view(const real_t outlier_threshold) {
 }
 
 void calib_vi_view_t::form_imu_residual(const imu_params_t &imu_params,
-                                        imu_data_t &imu_buf,
+                                        const imu_data_t imu_buf,
                                         pose_t *pose_j,
                                         sb_params_t *sb_j) {
   assert(imu_params.rate > 0);
@@ -247,7 +247,6 @@ void calib_vi_view_t::form_imu_residual(const imu_params_t &imu_params,
                                               sb.param.data(),
                                               pose_j->param.data(),
                                               sb_j->param.data());
-  imu_buf.trim(pose_j->ts);
 }
 
 ceres::ResidualBlockId
@@ -612,9 +611,9 @@ void calib_vi_t::add_camera(const int cam_idx,
 
   // Camera geometry
   if (proj_model == "pinhole" && dist_model == "radtan4") {
-    cam_geoms[cam_idx] = &pinhole_radtan4;
+    cam_geoms[cam_idx] = std::make_shared<pinhole_radtan4_t>();
   } else if (proj_model == "pinhole" && dist_model == "equi4") {
-    cam_geoms[cam_idx] = &pinhole_equi4;
+    cam_geoms[cam_idx] = std::make_shared<pinhole_equi4_t>();
   } else {
     FATAL("Invalid [%s-%s] camera model!",
           proj_model.c_str(),
@@ -769,7 +768,7 @@ mat4_t calib_vi_t::estimate_sensor_pose(const CamIdx2Grids &grids) {
     }
 
     // Estimate relative pose
-    const camera_geometry_t *cam = cam_geoms.at(cam_idx);
+    const camera_geometry_t *cam = cam_geoms.at(cam_idx).get();
     const veci2_t cam_res_vec = get_camera_resolution(cam_idx);
     const int cam_res[2] = {cam_res_vec.x(), cam_res_vec.y()};
     const vecx_t cam_params = get_camera_params(cam_idx);
@@ -798,7 +797,7 @@ void calib_vi_t::initialize(const CamIdx2Grids &grids, imu_data_t &imu_buf) {
   assert(grids.at(0).detected);
 
   // Estimate relative pose - T_C0F
-  const camera_geometry_t *cam = cam_geoms.at(0);
+  const camera_geometry_t *cam = cam_geoms.at(0).get();
   const int *cam_res = cam_params.at(0)->resolution;
   const vecx_t params = get_camera_params(0);
   mat4_t T_C0F;
@@ -937,6 +936,7 @@ void calib_vi_t::add_view(const CamIdx2Grids &grids) {
   // Form imu factor between view km1 and k
   auto view_k = calib_views.back();
   view_km1->form_imu_residual(imu_params, imu_buf, &view_k->pose, &view_k->sb);
+  imu_buf.trim(view_k->pose.ts);
 
   prev_grids = grids;
 }
@@ -944,6 +944,8 @@ void calib_vi_t::add_view(const CamIdx2Grids &grids) {
 bool calib_vi_t::add_measurement(const timestamp_t ts,
                                  const int cam_idx,
                                  const cv::Mat &cam_image) {
+  std::lock_guard<std::mutex> guard(mtx);
+
   // Add image to image buffer
   img_buf[cam_idx] = {ts, cam_image};
 
@@ -994,6 +996,8 @@ bool calib_vi_t::add_measurement(const timestamp_t ts,
 }
 
 void calib_vi_t::add_measurement(const int cam_idx, const aprilgrid_t &grid) {
+  std::lock_guard<std::mutex> guard(mtx);
+
   // Do not add vision data before first imu measurement
   if (imu_started == false) {
     return;
@@ -1006,6 +1010,8 @@ void calib_vi_t::add_measurement(const int cam_idx, const aprilgrid_t &grid) {
 void calib_vi_t::add_measurement(const timestamp_t imu_ts,
                                  const vec3_t &a_m,
                                  const vec3_t &w_m) {
+  std::lock_guard<std::mutex> guard(mtx);
+
   // Add imu measuremrent
   imu_buf.add(imu_ts, a_m, w_m);
   imu_started = true;
@@ -1102,20 +1108,20 @@ int calib_vi_t::recover_calib_covar(matx_t &calib_covar) const {
 
 int calib_vi_t::recover_calib_info(matx_t &H) const {
   // Ceres-version
-  // matx_t covar;
-  // if (recover_calib_covar(covar) != 0) {
-  //   return -1;
-  // }
-  // H = covar.inverse();
+  matx_t covar;
+  if (recover_calib_covar(covar) != 0) {
+    return -1;
+  }
+  H = covar.inverse();
 
-  // Custom-version
-  // Form full Hessian
-  ParameterOrder param_order;
-  matx_t H_full;
-  form_hessian(param_order, H_full);
+  // // Custom-version
+  // // Form full Hessian
+  // ParameterOrder param_order;
+  // matx_t H_full;
+  // form_hessian(param_order, H_full);
 
-  // Marginalize out everything apart from T_BS
-  schurs_complement(H_full, H_full.rows() - 6, 6, H);
+  // // Marginalize out everything apart from T_BS
+  // schurs_complement(H_full, H_full.rows() - 6, 6, H);
 
   // // clang-format off
   // const Eigen::JacobiSVD<matx_t> svd(H, Eigen::ComputeThinU |

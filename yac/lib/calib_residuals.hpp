@@ -382,7 +382,7 @@ public:
 
 // clang-format off
 using CamIdx2Grids = std::map<int, aprilgrid_t>;
-using CamIdx2Geometry = std::map<int, camera_geometry_t *>;
+using CamIdx2Geometry = std::map<int, std::shared_ptr<camera_geometry_t>>;
 using CamIdx2Parameters = std::map<int, camera_params_t *>;
 using CamIdx2Extrinsics = std::map<int, extrinsics_t *>;
 using CamIdx2ReprojResiduals = std::map<int, std::deque<reproj_residual_t *>>;

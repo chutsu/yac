@@ -249,7 +249,7 @@ int calib_nbv_poses(std::map<int, mat4s_t> &nbv_poses,
   nbv_poses.clear();
   for (const auto [cam_idx, _] : cam_geoms) {
     UNUSED(_);
-    const auto geom = cam_geoms.at(cam_idx);
+    const auto geom = cam_geoms.at(cam_idx).get();
     const auto cam = cam_params.at(cam_idx);
     const auto ext = cam_exts.at(cam_idx);
     const mat4_t T_C0Ci = ext->tf();

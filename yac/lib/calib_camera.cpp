@@ -24,14 +24,14 @@ camchain_t::camchain_t(const camera_data_t &cam_data,
     const int cam_i = cam_indicies[0];
     const auto params_i = cam_params.at(cam_i);
     const auto res_i = params_i->resolution;
-    const auto geom_i = cam_geoms.at(cam_i);
+    const auto geom_i = cam_geoms.at(cam_i).get();
     const auto &grid_i = grids[0];
 
     for (size_t i = 1; i < cam_indicies.size(); i++) {
       const auto cam_j = cam_indicies[i];
       const auto params_j = cam_params.at(cam_j);
       const auto res_j = params_j->resolution;
-      const auto geom_j = cam_geoms.at(cam_j);
+      const auto geom_j = cam_geoms.at(cam_j).get();
       const auto &grid_j = grids[i];
 
       if (contains(cam_i, cam_j) == false) {
@@ -190,7 +190,7 @@ calib_view_t::calib_view_t(const timestamp_t ts_,
       const int corner_idx = corner_idxs[i];
       const vec2_t z = kps[i];
       auto p_FFi_ = corners_->get_corner(tag_id, corner_idx);
-      auto res_fn = new reproj_residual_t(cam_geoms_->at(cam_idx),
+      auto res_fn = new reproj_residual_t(cam_geoms_->at(cam_idx).get(),
                                           cam_params_->at(cam_idx),
                                           cam_exts_->at(cam_idx),
                                           T_C0F_,
@@ -509,7 +509,7 @@ static void calib_initialize(const bool verbose,
     }
 
     // Estimate relative pose T_C0F
-    const auto cam_geom = cam_geoms[best_cam_idx];
+    const auto cam_geom = cam_geoms[best_cam_idx].get();
     const vecx_t param = cam_params[best_cam_idx]->param;
     const auto res = cam_params[best_cam_idx]->resolution;
     mat4_t T_CiF;
@@ -757,9 +757,9 @@ calib_camera_t::calib_camera_t(const calib_camera_t *calib) {
   // -- Camera geometries
   for (const auto &[cam_idx, cam_geom] : calib->cam_geoms) {
     if (cam_geom->type == "PINHOLE-RADTAN4") {
-      cam_geoms[cam_idx] = &pinhole_radtan4;
+      cam_geoms[cam_idx] = std::make_shared<pinhole_radtan4_t>();
     } else if (cam_geom->type == "PINHOLE-EQUI4") {
-      cam_geoms[cam_idx] = &pinhole_equi4;
+      cam_geoms[cam_idx] = std::make_shared<pinhole_equi4_t>();
     } else {
       FATAL("Implementation Error!");
     }
@@ -986,9 +986,9 @@ void calib_camera_t::add_camera(const int cam_idx,
 
   // Camera geometry
   if (proj_model == "pinhole" && dist_model == "radtan4") {
-    cam_geoms[cam_idx] = &pinhole_radtan4;
+    cam_geoms[cam_idx] = std::make_shared<pinhole_radtan4_t>();
   } else if (proj_model == "pinhole" && dist_model == "equi4") {
-    cam_geoms[cam_idx] = &pinhole_equi4;
+    cam_geoms[cam_idx] = std::make_shared<pinhole_equi4_t>();
   } else {
     FATAL("Unsupported [%s]-[%s]!", proj_model.c_str(), dist_model.c_str());
   }
@@ -1096,7 +1096,7 @@ void calib_camera_t::add_pose(const timestamp_t ts,
   const auto param = cam_params[cam_idx]->param;
   const auto res = cam_params[cam_idx]->resolution;
   mat4_t T_CiF;
-  if (best_grid.estimate(cam_geom, res, param, T_CiF) != 0) {
+  if (best_grid.estimate(cam_geom.get(), res, param, T_CiF) != 0) {
     FATAL("Failed to estimate relative pose!");
   }
 
@@ -1319,7 +1319,7 @@ int calib_camera_t::find_nbv(const std::map<int, mat4s_t> &nbv_poses,
       for (const auto cam_idx : get_camera_indices()) {
         const mat4_t T_C0Ci = cam_exts[cam_idx]->tf();
         cam_grids[cam_idx] = nbv_target_grid(calib_target,
-                                             cam_geoms[cam_idx],
+                                             cam_geoms[cam_idx].get(),
                                              cam_params[cam_idx],
                                              nbv_ts,
                                              T_FC0 * T_C0Ci);
@@ -2145,7 +2145,7 @@ real_t calib_camera_t::inspect(const std::map<int, aprilgrids_t> &valid_data) {
   // Estimate relative poses T_C0F
   std::map<timestamp_t, mat4_t> fiducial_poses;
   for (const auto cam_idx : get_camera_indices()) {
-    const auto cam_geom = cam_geoms[cam_idx];
+    const auto cam_geom = cam_geoms[cam_idx].get();
     const auto cam_param = cam_params[cam_idx];
     const auto cam_res = cam_param->resolution;
     const auto T_C0Ci = cam_exts[cam_idx]->tf();

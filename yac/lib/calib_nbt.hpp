@@ -294,9 +294,9 @@ struct nbt_data_t {
 
     for (const auto &[cam_idx, cam_geom] : calib.cam_geoms) {
       if (cam_geom->type == "PINHOLE-RADTAN4") {
-        cam_geoms[cam_idx] = new pinhole_radtan4_t();
+        cam_geoms[cam_idx] = std::make_shared<pinhole_radtan4_t>();
       } else if (cam_geom->type == "PINHOLE-EQUI4") {
-        cam_geoms[cam_idx] = new pinhole_equi4_t();
+        cam_geoms[cam_idx] = std::make_shared<pinhole_equi4_t>();
       } else {
         FATAL("cam_geom->type: [%s] not implemented!", cam_geom->type.c_str());
       }
@@ -331,7 +331,7 @@ struct nbt_data_t {
 
     // Cameras
     for (const auto &[cam_idx, params] : cam_geoms) {
-      delete cam_geoms[cam_idx];
+      // delete cam_geoms[cam_idx];
       delete cam_params[cam_idx];
       delete cam_exts[cam_idx];
     }

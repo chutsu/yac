@@ -205,10 +205,10 @@ struct calib_nbt_eval_t {
 
     real_t info_k = 0.0;
     real_t info_kp1 = 0.0;
-    const int idx = nbt_find(trajs, nbt_data, H, true, &info_k, &info_kp1);
-    if (idx >= 0) {
-      publish_nbt(trajs[idx], nbt_pub);
-    }
+    // const int idx = nbt_find(trajs, nbt_data, H, true, &info_k, &info_kp1);
+    // if (idx >= 0) {
+    //   publish_nbt(trajs[idx], nbt_pub);
+    // }
 
     // Track info
     calib_info[ts_now] = info_k;

@@ -50,7 +50,7 @@
     output="screen" />
 
   <!-- NBT Real-Time Node -->
-  <node pkg="yac_ros" type="calib_nbt_rt_node" name="yac_nbt_rt_node" required="true" output="screen" launch-prefix="gdb -ex run --args">
+  <node pkg="yac_ros" type="calib_nbt_rt_node" name="yac_nbt_rt_node" required="true" output="screen">
     <param name="config_file" value="$(arg config_file)" />
     <param name="publish_tfs" value="true" />
     <param name="image_format" value="bgr8" />

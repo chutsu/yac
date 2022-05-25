@@ -695,7 +695,7 @@ void simulate_cameras(const timestamp_t &ts_start,
     // was positioned at T_C0F
     for (auto &[cam_idx, _] : cam_geoms) {
       UNUSED(_);
-      const auto &geom = cam_geoms.at(cam_idx);
+      const auto &geom = cam_geoms.at(cam_idx).get();
       const auto &cam = cam_params.at(cam_idx);
       const auto &ext = cam_exts.at(cam_idx);
       const auto &grid =
@@ -733,7 +733,7 @@ void simulate_cameras(const timestamp_t &ts_start,
     // was positioned at T_C0F
     for (auto &[cam_idx, _] : cam_geoms) {
       UNUSED(_);
-      const auto &geom = cam_geoms.at(cam_idx);
+      const auto geom = cam_geoms.at(cam_idx).get();
       const auto &cam = cam_params.at(cam_idx);
       const auto &ext = cam_exts.at(cam_idx);
       const auto &grid =
@@ -1185,7 +1185,6 @@ int nbt_find(const lissajous_trajs_t &trajs,
 
   // Evaluate trajectories
   std::map<int, real_t> info_kp1;
-#pragma omp parallel for shared(info_kp1)
   for (size_t traj_idx = 0; traj_idx < trajs.size(); traj_idx++) {
     // Evaluate
     matx_t H_nbt;

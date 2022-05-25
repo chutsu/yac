@@ -358,13 +358,13 @@ int test_marg_residual() {
   }
 
   // Form marginalization residual
-  marg_residual_t marg_residual;
+  marg_residual_t *marg_residual = new marg_residual_t();
   for (auto res : reproj_residuals) {
-    marg_residual.add(res);
+    marg_residual->add(res);
   }
 
   marg_residual_t marg_copy;
-  marg_copy.add(&marg_residual);
+  marg_copy.add(marg_residual);
 
   // // Clean up
   // for (auto res : reproj_residuals) {

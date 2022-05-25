@@ -4,7 +4,7 @@ BUILD_DIR=build
 CATKIN_WS=${HOME}/yac_ws
 YAC_PATH=${CATKIN_WS}/src/yac
 ROS_VERSION="noetic"
-NUM_CPU=4
+NUM_CPU=2
 
 .PHONY: help deps lib_debug lib debug release download_test_data tests
 

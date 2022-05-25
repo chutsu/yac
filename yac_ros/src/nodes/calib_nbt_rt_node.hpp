@@ -143,8 +143,7 @@ void publish_nbt_data(const calib_vi_t *calib, ros::Publisher &pub) {
   size_t H_idx = 0;
   for (size_t i = 0; i < 6; i++) {
     for (size_t j = 0; j < 6; j++) {
-      msg.calib_info[H_idx] = H(i, j);
-      H_idx++;
+      msg.calib_info[H_idx++] = H(i, j);
     }
   }
 

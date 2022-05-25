@@ -34,7 +34,7 @@ struct calib_vi_view_t {
   CamIdx2FiducialResiduals fiducial_residuals;
   // -- Imu residual
   ceres::ResidualBlockId imu_residual_id;
-  imu_residual_t *imu_residual = nullptr;
+  std::shared_ptr<imu_residual_t> imu_residual;
 
   calib_vi_view_t() = default;
   calib_vi_view_t(const timestamp_t ts_,
@@ -86,9 +86,9 @@ struct calib_vi_t {
   CamIdx2Geometry cam_geoms;
   CamIdx2Parameters cam_params;
   CamIdx2Extrinsics cam_exts;
-  extrinsics_t *imu_exts = nullptr;
-  fiducial_t *fiducial = nullptr;
-  time_delay_t *time_delay = nullptr;
+  std::unique_ptr<extrinsics_t> imu_exts;
+  std::unique_ptr<fiducial_t> fiducial;
+  std::unique_ptr<time_delay_t> time_delay;
 
   // Data
   // -- Vision data
@@ -105,7 +105,7 @@ struct calib_vi_t {
   size_t calib_view_counter = 0;
   std::deque<calib_vi_view_t *> calib_views;
   ceres::ResidualBlockId marg_residual_id;
-  marg_residual_t *marg_residual = nullptr;
+  std::shared_ptr<marg_residual_t> marg_residual;
 
   // Calibration Information
   bool calib_info_ok = false;
@@ -114,19 +114,14 @@ struct calib_vi_t {
   // Optimization
   PoseLocalParameterization pose_plus;
   ceres::Problem::Options prob_options;
-  ceres::Problem *problem = nullptr;
-  ceres::LossFunction *loss = nullptr;
+  std::unique_ptr<ceres::Problem> problem;
 
   // AprilGrid detector
   std::unique_ptr<aprilgrid_detector_t> detector;
 
-  // Camera geometries
-  pinhole_radtan4_t pinhole_radtan4;
-  pinhole_equi4_t pinhole_equi4;
-
   // Constructor / Destructor
   calib_vi_t(const calib_target_t &calib_target_);
-  calib_vi_t(const calib_vi_t &calib);
+  // calib_vi_t(const calib_vi_t &calib);
   calib_vi_t(const std::string &config_path);
   ~calib_vi_t();
 

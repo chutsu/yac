@@ -294,8 +294,8 @@ struct calib_nbv_t {
   /** Draw NBV */
   void draw_nbv(cv::Mat &img) {
     // Draw NBV
-    const auto cam_geom = calib->cam_geoms[nbv_cam_idx];
-    const auto cam_params = calib->cam_params[nbv_cam_idx];
+    const auto cam_geom = calib->cam_geoms[nbv_cam_idx].get();
+    const auto cam_params = calib->cam_params[nbv_cam_idx].get();
     const mat4_t T_FC0 = nbv_poses.at(nbv_cam_idx).at(nbv_idx);
     const mat4_t T_C0Ci = calib->cam_exts[nbv_cam_idx]->tf();
     const mat4_t T_FCi = T_FC0 * T_C0Ci;
@@ -603,8 +603,8 @@ struct calib_nbv_t {
         const mat4_t T_C0Ci = calib->cam_exts[nbv_cam_idx]->tf();
         const mat4_t T_FCi = T_FC0 * T_C0Ci;
         nbv_target = nbv_target_grid(calib->calib_target,
-                                     calib->cam_geoms[nbv_cam_idx],
-                                     calib->cam_params[nbv_cam_idx],
+                                     calib->cam_geoms[nbv_cam_idx].get(),
+                                     calib->cam_params[nbv_cam_idx].get(),
                                      0,
                                      T_FCi);
 
@@ -663,7 +663,7 @@ struct calib_nbv_t {
     // Publish NBV and camera pose
     if (grid_buffer.count(nbv_cam_idx)) {
       const auto &grid = grid_buffer[nbv_cam_idx].first;
-      const auto cam_geom = calib->cam_geoms[nbv_cam_idx];
+      const auto cam_geom = calib->cam_geoms[nbv_cam_idx].get();
       const auto cam_res = calib->cam_params[nbv_cam_idx]->resolution;
       const vecx_t &cam_param = calib->cam_params[nbv_cam_idx]->param;
       const mat4_t &cam_exts = calib->cam_exts[nbv_cam_idx]->tf();

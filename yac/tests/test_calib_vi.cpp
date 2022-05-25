@@ -186,72 +186,74 @@ int test_calib_vi_online() {
   return 0;
 }
 
-int test_calib_vi_copy_constructor() {
-  const auto timeline = setup_test_data();
+// int test_calib_vi_copy_constructor() {
+//   const auto timeline = setup_test_data();
 
-  // Setup VI calibrator
-  calib_vi_t calib{CALIB_CONFIG};
+//   // Setup VI calibrator
+//   calib_vi_t calib{CALIB_CONFIG};
 
-  LOG_INFO("Adding data to problem ...");
-  int nb_margs = 0;
-  for (const auto &ts : timeline.timestamps) {
-    const auto kv = timeline.data.equal_range(ts);
+//   LOG_INFO("Adding data to problem ...");
+//   int nb_margs = 0;
+//   for (const auto &ts : timeline.timestamps) {
+//     const auto kv = timeline.data.equal_range(ts);
 
-    // Handle multiple events in the same timestamp
-    for (auto it = kv.first; it != kv.second; it++) {
-      const auto event = it->second;
+//     // Handle multiple events in the same timestamp
+//     for (auto it = kv.first; it != kv.second; it++) {
+//       const auto event = it->second;
 
-      // Aprilgrid event
-      if (auto grid_event = dynamic_cast<aprilgrid_event_t *>(event)) {
-        auto cam_idx = grid_event->cam_idx;
-        auto &grid = grid_event->grid;
-        calib.add_measurement(cam_idx, grid);
-      }
+//       // Aprilgrid event
+//       if (auto grid_event = dynamic_cast<aprilgrid_event_t *>(event)) {
+//         auto cam_idx = grid_event->cam_idx;
+//         auto &grid = grid_event->grid;
+//         calib.add_measurement(cam_idx, grid);
+//       }
 
-      // Imu event
-      if (auto imu_event = dynamic_cast<imu_event_t *>(event)) {
-        const auto ts = imu_event->ts;
-        const auto &acc = imu_event->acc;
-        const auto &gyr = imu_event->gyr;
-        calib.add_measurement(ts, acc, gyr);
-      }
-    }
+//       // Imu event
+//       if (auto imu_event = dynamic_cast<imu_event_t *>(event)) {
+//         const auto ts = imu_event->ts;
+//         const auto &acc = imu_event->acc;
+//         const auto &gyr = imu_event->gyr;
+//         calib.add_measurement(ts, acc, gyr);
+//       }
+//     }
 
-    // Test copy-constructor
-    if (calib.marg_residual != nullptr) {
-      matx_t calib_covar_orig;
-      calib.recover_calib_covar(calib_covar_orig);
-      printf("Original:\n");
-      printf("nb_views: %ld\n", calib.calib_views.size());
-      printf("nb_params: %d\n", calib.problem->NumParameterBlocks());
-      printf("nb_residuals: %d\n", calib.problem->NumResidualBlocks());
-      printf("det(covar): %e\n\n", calib_covar_orig.determinant());
+//     // Test copy-constructor
+//     if (calib.marg_residual != nullptr) {
+//       matx_t calib_covar_orig;
+//       calib.recover_calib_covar(calib_covar_orig);
+//       printf("Original:\n");
+//       printf("nb_views: %ld\n", calib.calib_views.size());
+//       printf("nb_params: %d\n", calib.problem->NumParameterBlocks());
+//       printf("nb_residuals: %d\n", calib.problem->NumResidualBlocks());
+//       printf("det(covar): %e\n\n", calib_covar_orig.determinant());
 
-      matx_t calib_covar_copy;
-      calib_vi_t copy{calib};
-      copy.recover_calib_covar(calib_covar_copy);
-      printf("Copy:\n");
-      printf("nb_views: %ld\n", copy.calib_views.size());
-      printf("nb_params: %d\n", copy.problem->NumParameterBlocks());
-      printf("nb_residuals: %d\n", copy.problem->NumResidualBlocks());
-      printf("det(covar): %e\n\n", calib_covar_copy.determinant());
+//       matx_t calib_covar_copy;
+//       calib_vi_t copy{calib};
+//       copy.recover_calib_covar(calib_covar_copy);
+//       printf("Copy:\n");
+//       printf("nb_views: %ld\n", copy.calib_views.size());
+//       printf("nb_params: %d\n", copy.problem->NumParameterBlocks());
+//       printf("nb_residuals: %d\n", copy.problem->NumResidualBlocks());
+//       printf("det(covar): %e\n\n", calib_covar_copy.determinant());
 
-      // clang-format off
-      MU_CHECK(calib.calib_views.size() == copy.calib_views.size());
-      MU_CHECK(calib.problem->NumParameterBlocks() == copy.problem->NumParameterBlocks());
-      MU_CHECK(calib.problem->NumResidualBlocks() == copy.problem->NumResidualBlocks());
-      MU_CHECK((calib_covar_orig -calib_covar_copy).norm() < 1e-4);
-      // clang-format on
+//       // clang-format off
+//       MU_CHECK(calib.calib_views.size() == copy.calib_views.size());
+//       MU_CHECK(calib.problem->NumParameterBlocks() ==
+//       copy.problem->NumParameterBlocks());
+//       MU_CHECK(calib.problem->NumResidualBlocks() ==
+//       copy.problem->NumResidualBlocks()); MU_CHECK((calib_covar_orig
+//       -calib_covar_copy).norm() < 1e-4);
+//       // clang-format on
 
-      printf("Solving with copied calibrator!\n");
-      copy.solve();
+//       printf("Solving with copied calibrator!\n");
+//       copy.solve();
 
-      break;
-    }
-  }
+//       break;
+//     }
+//   }
 
-  return 0;
-}
+//   return 0;
+// }
 
 void test_suite() {
   MU_ADD_TEST(test_calib_vi_add_imu);

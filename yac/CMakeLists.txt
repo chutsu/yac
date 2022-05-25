@@ -5,7 +5,7 @@ ENDIF (POLICY CMP0048)
 PROJECT(yac)
 
 # COMPILATION SETTINGS
-SET(USE_ADDRESS_SANITIZER ON)
+SET(USE_ADDRESS_SANITIZER OFF)
 SET(CMAKE_CXX_STANDARD 17)
 ADD_COMPILE_OPTIONS(-Wall -Wextra)
 
@@ -96,10 +96,10 @@ ADD_LIBRARY(
   lib/calib_loss.cpp
   lib/calib_residuals.cpp
   # lib/calib_mocap.cpp
-  # lib/calib_nbt.cpp
+  lib/calib_nbt.cpp
   lib/calib_nbv.cpp
   lib/calib_params.cpp
-  # lib/calib_vi.cpp
+  lib/calib_vi.cpp
   lib/solver.cpp
   lib/suitesparse.cpp
 )

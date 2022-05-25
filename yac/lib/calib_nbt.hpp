@@ -264,8 +264,8 @@ struct nbt_data_t {
   // IMU
   real_t imu_rate;
   imu_params_t imu_params;
-  extrinsics_t *imu_exts = nullptr;
-  time_delay_t *time_delay = nullptr;
+  std::unique_ptr<extrinsics_t> imu_exts;
+  std::unique_ptr<time_delay_t> time_delay;
 
   // Cameras
   real_t cam_rate;
@@ -284,10 +284,10 @@ struct nbt_data_t {
     // Imu parameters
     imu_rate = calib.get_imu_rate();
     imu_params = calib.imu_params;
-    imu_exts = new extrinsics_t{calib.imu_exts->tf()};
+    imu_exts = std::make_unique<extrinsics_t>(calib.imu_exts->tf());
     const auto td_val = calib.time_delay->param(0);
     const auto td_fixed = calib.time_delay->fixed;
-    time_delay = new time_delay_t{td_val, td_fixed};
+    time_delay = std::make_unique<time_delay_t>(td_val, td_fixed);
 
     // Camera parameters
     cam_rate = calib.get_camera_rate();
@@ -322,22 +322,7 @@ struct nbt_data_t {
     T_WF = calib.get_fiducial_pose();
   }
 
-  ~nbt_data_t() {
-    // IMU
-    if (imu_exts) {
-      delete imu_exts;
-    }
-    if (time_delay) {
-      delete time_delay;
-    }
-
-    // // Cameras
-    // for (const auto &[cam_idx, params] : cam_geoms) {
-    //   // delete cam_geoms[cam_idx];
-    //   // delete cam_params[cam_idx];
-    //   // delete cam_exts[cam_idx];
-    // }
-  }
+  ~nbt_data_t() = default;
 };
 
 /**
@@ -349,7 +334,8 @@ struct nbt_data_t {
  *
  * @returns 0 for success or -1 for failure
  */
-int nbt_eval(const ctraj_t &traj, const calib_vi_t &calib, matx_t &calib_covar);
+// int nbt_eval(const ctraj_t &traj, const calib_vi_t &calib, matx_t
+// &calib_covar);
 int nbt_eval(const lissajous_traj_t &traj,
              const nbt_data_t &nbt_data,
              const matx_t &H,

@@ -101,8 +101,8 @@ struct calib_nbt_eval_t {
     imu_ext[5] = msg.imu_exts.pose[5];
     imu_ext[6] = msg.imu_exts.pose[6];
     const mat4_t T_BS = tf(imu_ext);
-    nbt_data.imu_exts = new extrinsics_t{T_BS};
-    nbt_data.time_delay = new time_delay_t{0.0};
+    nbt_data.imu_exts = std::make_unique<extrinsics_t>(T_BS);
+    nbt_data.time_delay = std::make_unique<time_delay_t>(0.0);
     print_matrix("T_BS", T_BS);
 
     // Camera parameters
@@ -117,9 +117,9 @@ struct calib_nbt_eval_t {
 
       // Camera geometry
       if (proj_model == "pinhole" && dist_model == "radtan4") {
-        nbt_data.cam_geoms[cam_idx] = new pinhole_radtan4_t();
+        nbt_data.cam_geoms[cam_idx] = std::make_shared<pinhole_radtan4_t>();
       } else if (proj_model == "pinhole" && dist_model == "equi4") {
-        nbt_data.cam_geoms[cam_idx] = new pinhole_equi4_t();
+        nbt_data.cam_geoms[cam_idx] = std::make_shared<pinhole_equi4_t>();
       } else {
         FATAL("[%s-%s] Not implemented!",
               proj_model.c_str(),
@@ -139,13 +139,14 @@ struct calib_nbt_eval_t {
         dist_params(i) = cam.dist_params[i];
       }
 
-      nbt_data.cam_params[cam_idx] = new camera_params_t(cam_idx,
-                                                         cam_res,
-                                                         proj_model,
-                                                         dist_model,
-                                                         proj_params,
-                                                         dist_params,
-                                                         true);
+      nbt_data.cam_params[cam_idx] =
+          std::make_shared<camera_params_t>(cam_idx,
+                                            cam_res,
+                                            proj_model,
+                                            dist_model,
+                                            proj_params,
+                                            dist_params,
+                                            true);
       printf("res: %d, %d\n", cam_res[0], cam_res[1]);
       print_vector("cam" + std::to_string(cam_idx) + "_params",
                    nbt_data.cam_params[cam_idx]->param);
@@ -160,7 +161,7 @@ struct calib_nbt_eval_t {
       cam_ext[5] = msg.cam_exts[cam_idx].pose[5];
       cam_ext[6] = msg.cam_exts[cam_idx].pose[6];
       const mat4_t T_BCi = tf(cam_ext);
-      nbt_data.cam_exts[cam_idx] = new extrinsics_t{T_BCi};
+      nbt_data.cam_exts[cam_idx] = std::make_shared<extrinsics_t>(T_BCi, true);
 
       print_vector("cam" + std::to_string(cam_idx) + "_exts",
                    nbt_data.cam_exts[cam_idx]->param);
@@ -205,10 +206,10 @@ struct calib_nbt_eval_t {
 
     real_t info_k = 0.0;
     real_t info_kp1 = 0.0;
-    // const int idx = nbt_find(trajs, nbt_data, H, true, &info_k, &info_kp1);
-    // if (idx >= 0) {
-    //   publish_nbt(trajs[idx], nbt_pub);
-    // }
+    const int idx = nbt_find(trajs, nbt_data, H, true, &info_k, &info_kp1);
+    if (idx >= 0) {
+      publish_nbt(trajs[idx], nbt_pub);
+    }
 
     // Track info
     calib_info[ts_now] = info_k;

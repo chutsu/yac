@@ -388,7 +388,7 @@ using CamIdx2Parameters = std::map<int, std::shared_ptr<camera_params_t>>;
 using CamIdx2Extrinsics = std::map<int, std::shared_ptr<extrinsics_t>>;
 using CamIdx2ReprojResiduals = std::map<int, std::deque<std::shared_ptr<reproj_residual_t>>>;
 using CamIdx2ReprojResidualIds = std::map<int, std::deque<ceres::ResidualBlockId>>;
-using CamIdx2FiducialResiduals = std::map<int, std::deque<fiducial_residual_t *>>;
+using CamIdx2FiducialResiduals = std::map<int, std::deque<std::shared_ptr<fiducial_residual_t>>>;
 using CamIdx2FiducialResidualIds = std::map<int, std::deque<ceres::ResidualBlockId>>;
 using StampedPoses = std::map<timestamp_t, std::shared_ptr<pose_t>>;
 // clang-format on

@@ -247,15 +247,15 @@ struct calib_nbt_t {
     mat4_t T_FO;
     calib_target_origin(T_FO,
                         calib->calib_target,
-                        calib->cam_geoms[cam_idx],
-                        calib->cam_params[cam_idx]);
+                        calib->cam_geoms[cam_idx].get(),
+                        calib->cam_params[cam_idx].get());
     // -- Camera pose
     const vec3_t rpy = deg2rad(vec3_t{-180.0, 0.0, 0.0});
     const mat3_t C_FC0 = euler321(rpy);
     T_FC0 = tf(C_FC0, tf_trans(T_FO));
     calib_origin = nbv_target_grid(calib->calib_target,
-                                   calib->cam_geoms[cam_idx],
-                                   calib->cam_params[cam_idx],
+                                   calib->cam_geoms[cam_idx].get(),
+                                   calib->cam_params[cam_idx].get(),
                                    0,
                                    T_FC0);
 
@@ -402,8 +402,8 @@ struct calib_nbt_t {
   /** Draw NBV */
   void draw_nbv(const int cam_idx, cv::Mat &img) {
     // // Draw NBV
-    const auto cam_geom = calib->cam_geoms[cam_idx];
-    const auto cam_params = calib->cam_params[cam_idx];
+    const auto cam_geom = calib->cam_geoms[cam_idx].get();
+    const auto cam_params = calib->cam_params[cam_idx].get();
     nbv_draw(calib->calib_target, cam_geom, cam_params, T_FC0, img);
 
     // Show NBV Reproj Error

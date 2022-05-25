@@ -122,13 +122,13 @@ RUN_CMD="./test_calib_vi --target test_calib_vi_online"
 # RUN_CMD="./test_marg_residual"
 # RUN_CMD="./test_marg_residual --target test_marg_block"
 
-tmux send-keys -t dev -R C-l C-m
-tmux send-keys -t dev -R "\
-cd ~/projects/yac \
-&& sudo make lib_relwithdeb \
-&& cd build && ${RUN_CMD}
-" C-m
-exit
+# tmux send-keys -t dev -R C-l C-m
+# tmux send-keys -t dev -R "\
+# cd ~/projects/yac \
+# && sudo make lib_relwithdeb \
+# && cd build && ${RUN_CMD}
+# " C-m
+# exit
 
 # YAC - ROS NODES
 # RUN_CMD="roslaunch yac_ros record_camera.launch"

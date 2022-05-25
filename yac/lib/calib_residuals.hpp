@@ -317,7 +317,7 @@ public:
   // Residual blocks and parameters involved for marginalization
   size_t m_ = 0; // Size of params to marginalize
   size_t r_ = 0; // Size of params to remain
-  std::vector<calib_residual_t *> res_blocks_;
+  std::vector<std::shared_ptr<calib_residual_t>> res_blocks_;
   std::vector<param_t *> marg_param_ptrs_;
   std::vector<param_t *> remain_param_ptrs_;
   std::unordered_map<param_t *, int> param_index_;
@@ -345,7 +345,7 @@ public:
   std::vector<double *> get_param_ptrs();
 
   /* Add Cost Function */
-  void add(calib_residual_t *error);
+  void add(std::shared_ptr<calib_residual_t> res_fn);
 
   /* Add Parameter block */
   void add_remain_param(param_t *param);
@@ -363,9 +363,10 @@ public:
                          const bool debug = false);
 
   /* Marginalize */
-  void marginalize(std::vector<param_t *> &marg_params,
-                   std::vector<calib_residual_t *> &marg_residuals,
-                   const bool debug = false);
+  void
+  marginalize(std::vector<param_t *> &marg_params,
+              std::vector<std::shared_ptr<calib_residual_t>> &marg_residuals,
+              const bool debug = false);
   ceres::ResidualBlockId marginalize(ceres::Problem *problem);
 
   /* Compute Delta Chi */
@@ -385,10 +386,11 @@ using CamIdx2Grids = std::map<int, aprilgrid_t>;
 using CamIdx2Geometry = std::map<int, std::shared_ptr<camera_geometry_t>>;
 using CamIdx2Parameters = std::map<int, std::shared_ptr<camera_params_t>>;
 using CamIdx2Extrinsics = std::map<int, std::shared_ptr<extrinsics_t>>;
-using CamIdx2ReprojResiduals = std::map<int, std::deque<reproj_residual_t *>>;
+using CamIdx2ReprojResiduals = std::map<int, std::deque<std::shared_ptr<reproj_residual_t>>>;
 using CamIdx2ReprojResidualIds = std::map<int, std::deque<ceres::ResidualBlockId>>;
 using CamIdx2FiducialResiduals = std::map<int, std::deque<fiducial_residual_t *>>;
 using CamIdx2FiducialResidualIds = std::map<int, std::deque<ceres::ResidualBlockId>>;
+using StampedPoses = std::map<timestamp_t, std::shared_ptr<pose_t>>;
 // clang-format on
 
 } //  namespace yac

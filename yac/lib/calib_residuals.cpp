@@ -1424,9 +1424,9 @@ bool imu_residual_t::EvaluateWithMinimalJacobians(
 marg_residual_t::marg_residual_t() : calib_residual_t{"marg_residual_t"} {}
 
 marg_residual_t::~marg_residual_t() {
-  for (auto res_block : res_blocks_) {
-    delete res_block;
-  }
+  // for (auto res_block : res_blocks_) {
+  //   delete res_block;
+  // }
 
   // marg_param_ptrs_.clear();
   // remain_param_ptrs_.clear();
@@ -1452,7 +1452,7 @@ std::vector<double *> marg_residual_t::get_param_ptrs() {
   return params;
 }
 
-void marg_residual_t::add(calib_residual_t *res_block) {
+void marg_residual_t::add(std::shared_ptr<calib_residual_t> res_block) {
   // Check pointer to residual block
   if (res_block == nullptr) {
     FATAL("res_block == nullptr!");
@@ -1563,7 +1563,7 @@ void marg_residual_t::form_hessian(matx_t &H, vecx_t &b) {
   H = zeros(local_size, local_size);
   b = zeros(local_size, 1);
 
-  for (calib_residual_t *res_block : res_blocks_) {
+  for (auto res_block : res_blocks_) {
     // Setup parameter data
     std::vector<double *> param_ptrs;
     for (auto param_block : res_block->param_blocks) {
@@ -1684,7 +1684,7 @@ void marg_residual_t::schurs_complement(const matx_t &H,
 
 void marg_residual_t::marginalize(
     std::vector<param_t *> &marg_params,
-    std::vector<calib_residual_t *> &marg_residuals,
+    std::vector<std::shared_ptr<calib_residual_t>> &marg_residuals,
     const bool debug) {
   // Form Hessian and RHS of Gauss newton
   matx_t H;
@@ -1761,7 +1761,7 @@ void marg_residual_t::marginalize(
 ceres::ResidualBlockId marg_residual_t::marginalize(ceres::Problem *problem) {
   // Marginalize
   std::vector<param_t *> marg_params;
-  std::vector<calib_residual_t *> marg_residuals;
+  std::vector<std::shared_ptr<calib_residual_t>> marg_residuals;
   marginalize(marg_params, marg_residuals);
 
   // Remove parameter blocks from problem, which in turn ceres will remove
@@ -1772,10 +1772,10 @@ ceres::ResidualBlockId marg_residual_t::marginalize(ceres::Problem *problem) {
     }
   }
 
-  // Delete residual blocks - no longer needed
-  for (auto res_block : marg_residuals) {
-    delete res_block;
-  }
+  // // Delete residual blocks - no longer needed
+  // for (auto res_block : marg_residuals) {
+  //   delete res_block;
+  // }
 
   // Change flag to denote marginalized and add it self to problem
   marginalized_ = true;

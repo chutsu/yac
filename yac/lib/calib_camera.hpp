@@ -150,15 +150,15 @@ struct calib_camera_t {
   // Problem
   std::default_random_engine calib_rng;
   solver_t *solver = nullptr;
-  marg_residual_t *marg_residual = nullptr;
+  std::shared_ptr<marg_residual_t> marg_residual;
   calib_loss_t *loss_fn = nullptr;
 
   // State variables
-  fiducial_corners_t *corners;
+  std::unique_ptr<fiducial_corners_t> corners;
   CamIdx2Geometry cam_geoms;
   CamIdx2Parameters cam_params;
   CamIdx2Extrinsics cam_exts;
-  std::map<timestamp_t, pose_t *> poses;
+  StampedPoses poses;
 
   // Sliding window
   timestamps_t calib_view_timestamps;
@@ -167,10 +167,6 @@ struct calib_camera_t {
 
   // AprilGrid detector
   std::unique_ptr<aprilgrid_detector_t> detector;
-
-  // Camera geometries
-  pinhole_radtan4_t pinhole_radtan4;
-  pinhole_equi4_t pinhole_equi4;
 
   // Constructor / Destructor
   calib_camera_t() = delete;
@@ -283,7 +279,7 @@ struct nbv_evaluator_t {
   CamIdx2Parameters cam_params;
   CamIdx2Extrinsics cam_exts;
   CamIdx2Geometry cam_geoms;
-  fiducial_corners_t *corners = nullptr;
+  std::unique_ptr<fiducial_corners_t> corners;
 
   // Hessian
   size_t remain_size = 0;

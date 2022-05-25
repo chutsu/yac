@@ -96,10 +96,10 @@ ADD_LIBRARY(
   lib/calib_loss.cpp
   lib/calib_residuals.cpp
   # lib/calib_mocap.cpp
-  lib/calib_nbt.cpp
+  # lib/calib_nbt.cpp
   lib/calib_nbv.cpp
   lib/calib_params.cpp
-  lib/calib_vi.cpp
+  # lib/calib_vi.cpp
   lib/solver.cpp
   lib/suitesparse.cpp
 )
@@ -117,29 +117,29 @@ FILE(COPY tests/test_data DESTINATION ${TEST_BIN_PATH})
 FILE(COPY tests/test_data/mocap_data DESTINATION /tmp)
 ADD_DEFINITIONS(-DTEST_PATH="${TEST_BIN_PATH}")
 
-ADD_EXECUTABLE(test_util_aprilgrid tests/util/test_aprilgrid.cpp)
-TARGET_LINK_LIBRARIES(test_util_aprilgrid yac ${DEPS})
+# ADD_EXECUTABLE(test_util_aprilgrid tests/util/test_aprilgrid.cpp)
+# TARGET_LINK_LIBRARIES(test_util_aprilgrid yac ${DEPS})
 
-ADD_EXECUTABLE(test_util_config tests/util/test_config.cpp)
-TARGET_LINK_LIBRARIES(test_util_config yac ${DEPS})
+# ADD_EXECUTABLE(test_util_config tests/util/test_config.cpp)
+# TARGET_LINK_LIBRARIES(test_util_config yac ${DEPS})
 
-ADD_EXECUTABLE(test_util_core tests/util/test_core.cpp)
-TARGET_LINK_LIBRARIES(test_util_core yac ${DEPS})
+# ADD_EXECUTABLE(test_util_core tests/util/test_core.cpp)
+# TARGET_LINK_LIBRARIES(test_util_core yac ${DEPS})
 
-ADD_EXECUTABLE(test_util_cv tests/util/test_cv.cpp)
-TARGET_LINK_LIBRARIES(test_util_cv yac ${DEPS})
+# ADD_EXECUTABLE(test_util_cv tests/util/test_cv.cpp)
+# TARGET_LINK_LIBRARIES(test_util_cv yac ${DEPS})
 
-ADD_EXECUTABLE(test_util_data tests/util/test_data.cpp)
-TARGET_LINK_LIBRARIES(test_util_data yac ${DEPS})
+# ADD_EXECUTABLE(test_util_data tests/util/test_data.cpp)
+# TARGET_LINK_LIBRARIES(test_util_data yac ${DEPS})
 
-ADD_EXECUTABLE(test_util_fs tests/util/test_fs.cpp)
-TARGET_LINK_LIBRARIES(test_util_fs yac ${DEPS})
+# ADD_EXECUTABLE(test_util_fs tests/util/test_fs.cpp)
+# TARGET_LINK_LIBRARIES(test_util_fs yac ${DEPS})
 
-ADD_EXECUTABLE(test_util_net tests/util/test_net.cpp)
-TARGET_LINK_LIBRARIES(test_util_net yac ${DEPS})
+# ADD_EXECUTABLE(test_util_net tests/util/test_net.cpp)
+# TARGET_LINK_LIBRARIES(test_util_net yac ${DEPS})
 
-ADD_EXECUTABLE(test_util_timeline tests/util/test_timeline.cpp)
-TARGET_LINK_LIBRARIES(test_util_timeline yac ${DEPS})
+# ADD_EXECUTABLE(test_util_timeline tests/util/test_timeline.cpp)
+# TARGET_LINK_LIBRARIES(test_util_timeline yac ${DEPS})
 
 ADD_EXECUTABLE(test_calib_camera tests/test_calib_camera.cpp)
 TARGET_LINK_LIBRARIES(test_calib_camera yac ${DEPS})
@@ -153,21 +153,21 @@ TARGET_LINK_LIBRARIES(test_calib_residuals yac ${DEPS})
 # ADD_EXECUTABLE(test_calib_mocap tests/test_calib_mocap.cpp)
 # TARGET_LINK_LIBRARIES(test_calib_mocap yac ${DEPS})
 
-ADD_EXECUTABLE(test_calib_nbt tests/test_calib_nbt.cpp)
-TARGET_LINK_LIBRARIES(test_calib_nbt yac ${DEPS})
+# ADD_EXECUTABLE(test_calib_nbt tests/test_calib_nbt.cpp)
+# TARGET_LINK_LIBRARIES(test_calib_nbt yac ${DEPS})
 
-ADD_EXECUTABLE(test_calib_nbv tests/test_calib_nbv.cpp)
-TARGET_LINK_LIBRARIES(test_calib_nbv yac ${DEPS})
+# ADD_EXECUTABLE(test_calib_nbv tests/test_calib_nbv.cpp)
+# TARGET_LINK_LIBRARIES(test_calib_nbv yac ${DEPS})
 
 ADD_EXECUTABLE(test_calib_vi tests/test_calib_vi.cpp)
 TARGET_LINK_LIBRARIES(test_calib_vi yac ${DEPS})
 
-ADD_EXECUTABLE(test_solver tests/test_solver.cpp)
-TARGET_LINK_LIBRARIES(test_solver yac ${DEPS})
+# ADD_EXECUTABLE(test_solver tests/test_solver.cpp)
+# TARGET_LINK_LIBRARIES(test_solver yac ${DEPS})
 
-# DEMO
-ADD_EXECUTABLE(calib_euroc demo/calib_euroc.cpp)
-TARGET_LINK_LIBRARIES(calib_euroc yac ${DEPS})
+# # DEMO
+# ADD_EXECUTABLE(calib_euroc demo/calib_euroc.cpp)
+# TARGET_LINK_LIBRARIES(calib_euroc yac ${DEPS})
 
-ADD_EXECUTABLE(calib_inspect demo/calib_inspect.cpp)
-TARGET_LINK_LIBRARIES(calib_inspect yac ${DEPS})
+# ADD_EXECUTABLE(calib_inspect demo/calib_inspect.cpp)
+# TARGET_LINK_LIBRARIES(calib_inspect yac ${DEPS})

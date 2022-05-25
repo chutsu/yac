@@ -322,7 +322,7 @@ int test_marg_residual() {
 
   // Form reprojection residuals
   std::vector<pose_t> rel_poses;
-  std::vector<reproj_residual_t *> reproj_residuals;
+  std::vector<std::shared_ptr<reproj_residual_t>> reproj_residuals;
   auto cam_grids = setup_test_data();
 
   for (size_t k = 0; k < cam_grids[0].size(); k++) {
@@ -347,18 +347,19 @@ int test_marg_residual() {
       rel_poses.emplace_back(grid.timestamp, T_C0F);
       auto corner = corners.get_corner(tag_ids[0], corner_indicies[0]);
       const mat2_t covar = I(2);
-      reproj_residuals.push_back(new reproj_residual_t{&cam_geom,
-                                                       &cam_params,
-                                                       &cam_exts,
-                                                       &rel_poses.back(),
-                                                       corner,
-                                                       keypoints[0],
-                                                       covar});
+      reproj_residuals.push_back(
+          std::make_shared<reproj_residual_t>(&cam_geom,
+                                              &cam_params,
+                                              &cam_exts,
+                                              &rel_poses.back(),
+                                              corner,
+                                              keypoints[0],
+                                              covar));
     }
   }
 
   // Form marginalization residual
-  marg_residual_t *marg_residual = new marg_residual_t();
+  auto marg_residual = std::make_shared<marg_residual_t>();
   for (auto res : reproj_residuals) {
     marg_residual->add(res);
   }

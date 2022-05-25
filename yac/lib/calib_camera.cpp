@@ -190,26 +190,27 @@ calib_view_t::calib_view_t(const timestamp_t ts_,
       const int corner_idx = corner_idxs[i];
       const vec2_t z = kps[i];
       auto p_FFi_ = corners_->get_corner(tag_id, corner_idx);
-      auto res_fn = new reproj_residual_t(cam_geoms_->at(cam_idx).get(),
-                                          cam_params_->at(cam_idx).get(),
-                                          cam_exts_->at(cam_idx).get(),
-                                          T_C0F_,
-                                          p_FFi_,
-                                          z,
-                                          covar,
-                                          loss);
-      solver->add_residual(res_fn);
+      auto res_fn =
+          std::make_shared<reproj_residual_t>(cam_geoms_->at(cam_idx).get(),
+                                              cam_params_->at(cam_idx).get(),
+                                              cam_exts_->at(cam_idx).get(),
+                                              T_C0F_,
+                                              p_FFi_,
+                                              z,
+                                              covar,
+                                              loss);
+      solver->add_residual(res_fn.get());
       res_fns[cam_idx].push_back(res_fn);
     }
   }
 }
 
 calib_view_t::~calib_view_t() {
-  for (auto &[cam_idx, cam_residuals] : res_fns) {
-    for (auto res_fn : cam_residuals) {
-      delete res_fn;
-    }
-  }
+  // for (auto &[cam_idx, cam_residuals] : res_fns) {
+  //   for (auto res_fn : cam_residuals) {
+  //     delete res_fn;
+  //   }
+  // }
 }
 
 int calib_view_t::nb_detections() const {
@@ -327,8 +328,8 @@ int calib_view_t::filter_view(const vec2_t &threshold) {
         }
 
         // Remove residual block from ceres::Problem
-        solver->remove_residual(res);
-        delete res;
+        solver->remove_residual(res.get());
+        // delete res;
 
         res_fns_it = res_fns[cam_idx].erase(res_fns_it);
         nb_outliers++;
@@ -365,14 +366,14 @@ void calib_view_t::marginalize(marg_residual_t *marg_residual) {
 
   // Marginalize
   std::vector<param_t *> marg_params;
-  std::vector<calib_residual_t *> marg_residuals;
+  std::vector<std::shared_ptr<calib_residual_t>> marg_residuals;
   marg_residual->marginalize(marg_params, marg_residuals);
   for (auto param : marg_params) {
     solver->remove_param(param);
   }
-  for (auto res_fn : marg_residuals) {
-    delete res_fn;
-  }
+  // for (auto res_fn : marg_residuals) {
+  //   delete res_fn;
+  // }
   solver->add_residual(marg_residual);
 
   // Clear residuals
@@ -456,22 +457,23 @@ static void calib_initialize(const bool verbose,
                              CamIdx2Geometry &cam_geoms,
                              CamIdx2Parameters &cam_params,
                              CamIdx2Extrinsics &cam_exts,
-                             std::map<timestamp_t, pose_t *> &poses,
+                             StampedPoses &poses,
                              calib_loss_t *loss_fn) {
   // Setup solver
-  solver_t *solver = nullptr;
+  std::unique_ptr<solver_t> solver;
   if (solver_type == "CERES-SOLVER") {
-    solver = new ceres_solver_t();
+    solver = std::make_unique<ceres_solver_t>();
   } else if (solver_type == "YAC-SOLVER") {
-    solver = new yac_solver_t();
+    solver = std::make_unique<yac_solver_t>();
   } else {
     FATAL("Unsupported solver type [%s]", solver_type.c_str());
   }
 
   // Data
   poses.clear();
-  std::map<timestamp_t, calib_view_t *> calib_views;
-  auto corners = new fiducial_corners_t(calib_target);
+  std::map<timestamp_t, std::unique_ptr<calib_view_t>> calib_views;
+  std::unique_ptr<fiducial_corners_t> corners =
+      std::make_unique<fiducial_corners_t>(calib_target);
 
   // Setup problem
   // -- Add camera parameters
@@ -520,19 +522,19 @@ static void calib_initialize(const bool verbose,
     // Add relative pose T_C0F
     const mat4_t T_C0Ci = cam_exts.at(best_cam_idx)->tf();
     const mat4_t T_C0F = T_C0Ci * T_CiF;
-    poses[ts] = new pose_t{ts, T_C0F};
-    solver->add_param(poses[ts]);
+    poses[ts] = std::make_shared<pose_t>(ts, T_C0F);
+    solver->add_param(poses[ts].get());
 
     // Add calibration view
-    calib_views[ts] = new calib_view_t{ts,
-                                       cam_grids,
-                                       corners,
-                                       solver,
-                                       &cam_geoms,
-                                       &cam_params,
-                                       &cam_exts,
-                                       poses[ts],
-                                       loss_fn};
+    calib_views[ts] = std::make_unique<calib_view_t>(ts,
+                                                     cam_grids,
+                                                     corners.get(),
+                                                     solver.get(),
+                                                     &cam_geoms,
+                                                     &cam_params,
+                                                     &cam_exts,
+                                                     poses[ts].get(),
+                                                     loss_fn);
   }
 
   // Solve
@@ -547,13 +549,6 @@ static void calib_initialize(const bool verbose,
   //   print_estimates(stdout, cam_params, cam_exts);
   //   printf("\n");
   // }
-
-  // Clean up
-  for (auto &[ts, view] : calib_views) {
-    delete view;
-  }
-  delete corners;
-  delete solver;
 }
 
 calib_camera_t::calib_camera_t(const calib_target_t &calib_target_)
@@ -569,7 +564,7 @@ calib_camera_t::calib_camera_t(const calib_target_t &calib_target_)
   }
 
   // AprilGrid
-  corners = new fiducial_corners_t(calib_target);
+  corners = std::make_unique<fiducial_corners_t>(calib_target);
   detector = std::make_unique<aprilgrid_detector_t>(calib_target.tag_rows,
                                                     calib_target.tag_cols,
                                                     calib_target.tag_size,
@@ -678,7 +673,7 @@ calib_camera_t::calib_camera_t(const std::string &config_path)
   }
 
   // AprilGrid
-  corners = new fiducial_corners_t(calib_target);
+  corners = std::make_unique<fiducial_corners_t>(calib_target);
   detector = std::make_unique<aprilgrid_detector_t>(calib_target.tag_rows,
                                                     calib_target.tag_cols,
                                                     calib_target.tag_size,
@@ -753,7 +748,7 @@ calib_camera_t::calib_camera_t(const calib_camera_t *calib) {
 
   // State Variables - Make copies
   // -- Fiducial corners
-  corners = new fiducial_corners_t(calib_target);
+  corners = std::make_unique<fiducial_corners_t>(calib_target);
   // -- Camera geometries
   for (const auto &[cam_idx, cam_geom] : calib->cam_geoms) {
     if (cam_geom->type == "PINHOLE-RADTAN4") {
@@ -806,22 +801,22 @@ calib_camera_t::~calib_camera_t() {
   //   delete exts;
   // }
 
-  if (corners) {
-    delete corners;
-  }
+  // if (corners) {
+  //   delete corners;
+  // }
 
-  for (auto &[ts, pose] : poses) {
-    UNUSED(ts);
-    delete pose;
-  }
+  // for (auto &[ts, pose] : poses) {
+  //   UNUSED(ts);
+  //   delete pose;
+  // }
 
   if (solver) {
     delete solver;
   }
 
-  if (marg_residual) {
-    delete marg_residual;
-  }
+  // if (marg_residual) {
+  //   delete marg_residual;
+  // }
 
   if (loss_fn) {
     delete loss_fn;
@@ -1103,8 +1098,8 @@ void calib_camera_t::add_pose(const timestamp_t ts,
   // Add relative pose T_C0F
   const mat4_t T_C0Ci = get_camera_extrinsics(cam_idx);
   const mat4_t T_C0F = T_C0Ci * T_CiF;
-  poses[ts] = new pose_t{ts, T_C0F, fixed};
-  solver->add_param(poses[ts]);
+  poses[ts] = std::make_shared<pose_t>(ts, T_C0F, fixed);
+  solver->add_param(poses[ts].get());
 }
 
 bool calib_camera_t::add_view(const std::map<int, aprilgrid_t> &cam_grids) {
@@ -1135,20 +1130,20 @@ bool calib_camera_t::add_view(const std::map<int, aprilgrid_t> &cam_grids) {
   if (poses.count(ts) == 0) {
     add_pose(ts, cam_grids);
   }
-  if (solver->has_param(poses[ts]) == false) {
-    solver->add_param(poses[ts]);
+  if (solver->has_param(poses[ts].get()) == false) {
+    solver->add_param(poses[ts].get());
   }
 
   // Add calibration view
   calib_view_timestamps.push_back(ts);
   calib_views[ts] = new calib_view_t{ts,
                                      cam_grids,
-                                     corners,
+                                     corners.get(),
                                      solver,
                                      &cam_geoms,
                                      &cam_params,
                                      &cam_exts,
-                                     poses[ts],
+                                     poses[ts].get(),
                                      loss_fn};
 
   return true;
@@ -1198,12 +1193,12 @@ bool calib_camera_t::add_nbv_view(const std::map<int, aprilgrid_t> &cam_grids) {
 void calib_camera_t::remove_view(const timestamp_t ts) {
   // Remove pose
   if (poses.count(ts)) {
-    auto pose_ptr = poses[ts];
+    auto pose_ptr = poses[ts].get();
     if (solver->has_param(pose_ptr)) {
       solver->remove_param(pose_ptr);
     }
     poses.erase(ts);
-    delete pose_ptr;
+    // delete pose_ptr;
   }
 
   // Remove view
@@ -1248,22 +1243,22 @@ void calib_camera_t::marginalize() {
   // Form new marg_residual_t
   if (marg_residual == nullptr) {
     // Initialize first marg_residual_t
-    marg_residual = new marg_residual_t();
+    marg_residual = std::make_shared<marg_residual_t>();
 
   } else {
     // Add previous marg_residual_t to new
-    auto new_marg_residual = new marg_residual_t();
+    auto new_marg_residual = std::make_shared<marg_residual_t>();
     new_marg_residual->add(marg_residual);
 
     // Delete old marg_residual_t
-    solver->remove_residual(marg_residual);
+    solver->remove_residual(marg_residual.get());
 
     // Point to new marg_residual_t
-    marg_residual = new_marg_residual;
+    marg_residual = std::move(new_marg_residual);
   }
 
   // Marginalize view
-  view->marginalize(marg_residual);
+  view->marginalize(marg_residual.get());
 
   // Remove view
   remove_view(marg_ts);
@@ -1310,8 +1305,8 @@ int calib_camera_t::find_nbv(const std::map<int, mat4s_t> &nbv_poses,
       const mat4_t T_FC0 = nbv_cam_poses.at(i);
       const mat4_t T_C0F = tf_inv(T_FC0);
       if (poses.count(nbv_ts) == 0) {
-        poses[nbv_ts] = new pose_t{nbv_ts, T_C0F};
-        solver->add_param(poses[nbv_ts]);
+        poses[nbv_ts] = std::make_shared<pose_t>(nbv_ts, T_C0F);
+        solver->add_param(poses[nbv_ts].get());
       }
 
       // Add NBV view
@@ -1454,7 +1449,7 @@ void calib_camera_t::_initialize_intrinsics() {
     }
 
     // Initialize camera
-    std::map<timestamp_t, pose_t *> init_poses;
+    StampedPoses init_poses;
     calib_initialize(verbose,
                      calib_target,
                      extract(calib_data, cam_idx),
@@ -1468,12 +1463,6 @@ void calib_camera_t::_initialize_intrinsics() {
       printf("Initialized to:\n");
       print_camera_params(stdout, cam_idx, cam_params[cam_idx].get());
       printf("\n");
-    }
-
-    // Clean up
-    for (auto &[ts, pose] : init_poses) {
-      UNUSED(ts);
-      delete pose;
     }
 
     // Un-fix camera extrinsics
@@ -1516,7 +1505,7 @@ void calib_camera_t::_initialize_extrinsics() {
   // }
 
   // Refine camera extrinsics via joint-optimization
-  std::map<timestamp_t, pose_t *> init_poses;
+  StampedPoses init_poses;
   calib_initialize(verbose,
                    calib_target,
                    calib_data,
@@ -1536,12 +1525,12 @@ void calib_camera_t::_initialize_extrinsics() {
   //   printf("\n");
   // }
 
-  // Clean up
-  for (auto &[ts, pose] : init_poses) {
-    UNUSED(ts);
-    delete pose;
-  }
-  init_poses.clear();
+  // // Clean up
+  // for (auto &[ts, pose] : init_poses) {
+  //   UNUSED(ts);
+  //   delete pose;
+  // }
+  // init_poses.clear();
 }
 
 int calib_camera_t::_filter_all_views() {
@@ -2264,7 +2253,7 @@ nbv_evaluator_t::nbv_evaluator_t(calib_camera_t *calib) {
   marg_size = calib->calib_views.size() * 6;
 
   // Fiducial corners
-  corners = new fiducial_corners_t(calib->calib_target);
+  corners = std::make_unique<fiducial_corners_t>(calib->calib_target);
 
   // Form Hessian
   size_t H_size = remain_size + marg_size + 6;
@@ -2272,9 +2261,9 @@ nbv_evaluator_t::nbv_evaluator_t(calib_camera_t *calib) {
 }
 
 nbv_evaluator_t::~nbv_evaluator_t() {
-  if (corners) {
-    delete corners;
-  }
+  // if (corners) {
+  //   delete corners;
+  // }
 }
 
 void nbv_evaluator_t::form_param_order(

@@ -6,7 +6,7 @@ namespace yac {
 
 camchain_t::camchain_t(const camera_data_t &cam_data,
                        const CamIdx2Geometry &cam_geoms,
-                       const std::map<int, camera_params_t *> &cam_params) {
+                       const CamIdx2Parameters &cam_params) {
   for (const auto &kv : cam_data) {
     const auto &ts = kv.first;
 
@@ -191,7 +191,7 @@ calib_view_t::calib_view_t(const timestamp_t ts_,
       const vec2_t z = kps[i];
       auto p_FFi_ = corners_->get_corner(tag_id, corner_idx);
       auto res_fn = new reproj_residual_t(cam_geoms_->at(cam_idx).get(),
-                                          cam_params_->at(cam_idx),
+                                          cam_params_->at(cam_idx).get(),
                                           cam_exts_->at(cam_idx),
                                           T_C0F_,
                                           p_FFi_,
@@ -421,7 +421,7 @@ void print_estimates(FILE *out,
   // Camera parameters
   for (auto &kv : cam_params) {
     const auto cam_idx = kv.first;
-    const auto cam = kv.second;
+    const auto cam = kv.second.get();
     print_camera_params(out, cam_idx, cam);
     fprintf(out, "\n");
   }
@@ -477,7 +477,7 @@ static void calib_initialize(const bool verbose,
   // -- Add camera parameters
   for (auto &[cam_idx, param] : cam_params) {
     UNUSED(cam_idx);
-    solver->add_param(param);
+    solver->add_param(param.get());
   }
   // -- Add camera extrinsics
   for (auto &[cam_idx, param] : cam_exts) {
@@ -796,10 +796,10 @@ calib_camera_t::~calib_camera_t() {
     delete view;
   }
 
-  for (auto &[cam_idx, param] : cam_params) {
-    UNUSED(cam_idx);
-    delete param;
-  }
+  // for (auto &[cam_idx, param] : cam_params) {
+  //   UNUSED(cam_idx);
+  //   delete param;
+  // }
 
   for (auto &[cam_idx, exts] : cam_exts) {
     UNUSED(cam_idx);
@@ -976,13 +976,13 @@ void calib_camera_t::add_camera(const int cam_idx,
                                 const bool fix_intrinsics,
                                 const bool fix_extrinsics) {
   // Camera parameters
-  cam_params[cam_idx] = new camera_params_t{cam_idx,
-                                            cam_res,
-                                            proj_model,
-                                            dist_model,
-                                            proj_params,
-                                            dist_params,
-                                            fix_intrinsics};
+  cam_params[cam_idx] = std::make_shared<camera_params_t>(cam_idx,
+                                                          cam_res,
+                                                          proj_model,
+                                                          dist_model,
+                                                          proj_params,
+                                                          dist_params,
+                                                          fix_intrinsics);
 
   // Camera geometry
   if (proj_model == "pinhole" && dist_model == "radtan4") {
@@ -997,7 +997,7 @@ void calib_camera_t::add_camera(const int cam_idx,
   cam_exts[cam_idx] = new extrinsics_t{ext, fix_extrinsics};
 
   // Add parameter
-  solver->add_param(cam_params[cam_idx]);
+  solver->add_param(cam_params[cam_idx].get());
   solver->add_param(cam_exts[cam_idx]);
 }
 
@@ -1320,7 +1320,7 @@ int calib_camera_t::find_nbv(const std::map<int, mat4s_t> &nbv_poses,
         const mat4_t T_C0Ci = cam_exts[cam_idx]->tf();
         cam_grids[cam_idx] = nbv_target_grid(calib_target,
                                              cam_geoms[cam_idx].get(),
-                                             cam_params[cam_idx],
+                                             cam_params[cam_idx].get(),
                                              nbv_ts,
                                              T_FC0 * T_C0Ci);
       }
@@ -1466,7 +1466,7 @@ void calib_camera_t::_initialize_intrinsics() {
                      loss_fn);
     if (verbose) {
       printf("Initialized to:\n");
-      print_camera_params(stdout, cam_idx, cam_params[cam_idx]);
+      print_camera_params(stdout, cam_idx, cam_params[cam_idx].get());
       printf("\n");
     }
 
@@ -1603,7 +1603,7 @@ int calib_camera_t::_calc_info(real_t *info) {
   std::vector<param_t *> params;
   for (const auto &[cam_idx, cam_param] : cam_params) {
     if (cam_param->fixed == false) {
-      params.push_back(cam_param);
+      params.push_back(cam_param.get());
     }
   }
   for (const auto &[cam_idx, cam_ext] : cam_exts) {
@@ -2252,9 +2252,9 @@ nbv_evaluator_t::nbv_evaluator_t(calib_camera_t *calib) {
   // Camera geometries
   for (const auto &[cam_idx, cam_geom] : calib->cam_geoms) {
     if (cam_geom->type == "PINHOLE-RADTAN4") {
-      cam_geoms[cam_idx] = &pinhole_radtan4;
+      cam_geoms[cam_idx] = std::make_shared<pinhole_radtan4_t>();
     } else if (cam_geom->type == "PINHOLE-EQUI4") {
-      cam_geoms[cam_idx] = &pinhole_equi4;
+      cam_geoms[cam_idx] = std::make_shared<pinhole_equi4_t>();
     } else {
       FATAL("Implementation Error!");
     }
@@ -2418,8 +2418,8 @@ real_t nbv_evaluator_t::eval(const mat4_t &T_FC0) {
   for (const auto cam_idx : cam_indices) {
     const mat4_t T_C0Ci = cam_exts[cam_idx]->tf();
     cam_grids[cam_idx] = nbv_target_grid(calib_target,
-                                         cam_geoms[cam_idx],
-                                         cam_params[cam_idx],
+                                         cam_geoms[cam_idx].get(),
+                                         cam_params[cam_idx].get(),
                                          nbv_ts,
                                          T_FC0 * T_C0Ci);
   }
@@ -2448,8 +2448,8 @@ real_t nbv_evaluator_t::eval(const mat4_t &T_FC0) {
       const int corner_idx = corner_idxs[i];
       const vec2_t z = kps[i];
       auto p_FFi = corners->get_corner(tag_id, corner_idx);
-      auto res_fn = new reproj_residual_t(cam_geoms.at(cam_idx),
-                                          cam_params.at(cam_idx),
+      auto res_fn = new reproj_residual_t(cam_geoms.at(cam_idx).get(),
+                                          cam_params.at(cam_idx).get(),
                                           cam_exts.at(cam_idx),
                                           &nbv_pose,
                                           p_FFi,

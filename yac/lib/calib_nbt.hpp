@@ -303,13 +303,14 @@ struct nbt_data_t {
     }
 
     for (const auto &[cam_idx, cam_param] : calib.cam_params) {
-      cam_params[cam_idx] = new camera_params_t(cam_param->cam_index,
-                                                cam_param->resolution,
-                                                cam_param->proj_model,
-                                                cam_param->dist_model,
-                                                cam_param->proj_params(),
-                                                cam_param->dist_params(),
-                                                cam_param->fixed);
+      cam_params[cam_idx] =
+          std::make_shared<camera_params_t>(cam_param->cam_index,
+                                            cam_param->resolution,
+                                            cam_param->proj_model,
+                                            cam_param->dist_model,
+                                            cam_param->proj_params(),
+                                            cam_param->dist_params(),
+                                            cam_param->fixed);
     }
 
     for (const auto &[cam_idx, exts] : calib.cam_exts) {
@@ -332,7 +333,7 @@ struct nbt_data_t {
     // Cameras
     for (const auto &[cam_idx, params] : cam_geoms) {
       // delete cam_geoms[cam_idx];
-      delete cam_params[cam_idx];
+      // delete cam_params[cam_idx];
       delete cam_exts[cam_idx];
     }
   }

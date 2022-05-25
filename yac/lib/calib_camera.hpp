@@ -21,7 +21,7 @@ struct camchain_t {
   /** Constructor */
   camchain_t(const camera_data_t &cam_data,
              const CamIdx2Geometry &cam_geoms,
-             const std::map<int, camera_params_t *> &cam_params);
+             const CamIdx2Parameters &cam_params);
 
   void _get_aprilgrids(const timestamp_t &ts,
                        const camera_data_t &cam_data,
@@ -280,9 +280,9 @@ struct nbv_evaluator_t {
   // Data
   calib_target_t calib_target;
   std::vector<int> cam_indices;
-  std::map<int, camera_params_t *> cam_params;
+  CamIdx2Parameters cam_params;
   std::map<int, extrinsics_t *> cam_exts;
-  std::map<int, camera_geometry_t *> cam_geoms;
+  CamIdx2Geometry cam_geoms;
   fiducial_corners_t *corners = nullptr;
 
   // Hessian
@@ -294,10 +294,6 @@ struct nbv_evaluator_t {
   std::vector<param_t *> cam_ptrs;
   std::vector<param_t *> extrinsics_ptrs;
   matx_t H_k;
-
-  // Camera geometries
-  pinhole_radtan4_t pinhole_radtan4;
-  pinhole_equi4_t pinhole_equi4;
 
   nbv_evaluator_t() = delete;
   nbv_evaluator_t(calib_camera_t *calib);

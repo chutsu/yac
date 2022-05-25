@@ -93,7 +93,7 @@ calib_vi_view_t::calib_vi_view_t(const timestamp_t ts_,
       // Form residual
       auto res = new fiducial_residual_t(ts,
                                          cam_geoms[cam_idx].get(),
-                                         cam_params[cam_idx],
+                                         cam_params[cam_idx].get(),
                                          cam_exts[cam_idx],
                                          imu_exts,
                                          fiducial,
@@ -516,13 +516,13 @@ calib_vi_t::~calib_vi_t() {
     delete view;
   }
 
-  // Camera parameters
-  for (auto &[cam_idx, cam] : cam_params) {
-    UNUSED(cam_idx);
-    if (cam) {
-      delete cam;
-    }
-  }
+  // // Camera parameters
+  // for (auto &[cam_idx, cam] : cam_params) {
+  //   UNUSED(cam_idx);
+  //   if (cam) {
+  //     delete cam;
+  //   }
+  // }
 
   // Camera extrinsics
   for (auto &[cam_idx, exts] : cam_exts) {
@@ -595,12 +595,12 @@ void calib_vi_t::add_camera(const int cam_idx,
                             const bool fix_params,
                             const bool fix_extrinsics) {
   // Camera parameters
-  cam_params[cam_idx] = new camera_params_t{cam_idx,
-                                            cam_res,
-                                            proj_model,
-                                            dist_model,
-                                            proj_params,
-                                            dist_params};
+  cam_params[cam_idx] = std::make_shared<camera_params_t>(cam_idx,
+                                                          cam_res,
+                                                          proj_model,
+                                                          dist_model,
+                                                          proj_params,
+                                                          dist_params);
   if (fix_params) {
     auto data_ptr = cam_params[cam_idx]->param.data();
     auto block_size = cam_params[cam_idx]->global_size;

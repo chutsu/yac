@@ -696,7 +696,7 @@ void simulate_cameras(const timestamp_t &ts_start,
     for (auto &[cam_idx, _] : cam_geoms) {
       UNUSED(_);
       const auto &geom = cam_geoms.at(cam_idx).get();
-      const auto &cam = cam_params.at(cam_idx);
+      const auto &cam = cam_params.at(cam_idx).get();
       const auto &ext = cam_exts.at(cam_idx);
       const auto &grid =
           simulate_aprilgrid(ts_k, target, T_FC0, geom, cam, ext);
@@ -734,7 +734,7 @@ void simulate_cameras(const timestamp_t &ts_start,
     for (auto &[cam_idx, _] : cam_geoms) {
       UNUSED(_);
       const auto geom = cam_geoms.at(cam_idx).get();
-      const auto &cam = cam_params.at(cam_idx);
+      const auto &cam = cam_params.at(cam_idx).get();
       const auto &ext = cam_exts.at(cam_idx);
       const auto &grid =
           simulate_aprilgrid(ts_k, target, T_FC0, geom, cam, ext);

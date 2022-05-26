@@ -298,143 +298,6 @@ calib_vi_t::calib_vi_t(const calib_target_t &calib_target_)
                                                     calib_target.tag_spacing);
 }
 
-// calib_vi_t::calib_vi_t(const calib_vi_t &calib) {
-//   // Settings
-//   verbose = calib.verbose;
-//   max_num_threads = calib.max_num_threads;
-//   max_iter = calib.max_iter;
-//   enable_outlier_rejection = calib.enable_outlier_rejection;
-//   enable_marginalization = calib.enable_marginalization;
-//   outlier_threshold = calib.outlier_threshold;
-//   window_size = calib.window_size;
-
-//   // Optimization
-//   prob_options = calib.prob_options;
-//   problem = std::make_unique<ceres::Problem>(prob_options);
-
-//   // State-Variables
-//   // -- IMU extrinsics and time delay
-//   add_imu(calib.imu_params,
-//           calib.get_imu_extrinsics(),
-//           calib.get_imucam_time_delay(),
-//           calib.imu_exts->fixed,
-//           calib.time_delay->fixed);
-//   // -- Cameras
-//   for (const auto &cam_idx : calib.get_camera_indices()) {
-//     add_camera(cam_idx,
-//                calib.cam_params.at(cam_idx)->resolution,
-//                calib.cam_params.at(cam_idx)->proj_model,
-//                calib.cam_params.at(cam_idx)->dist_model,
-//                calib.cam_params.at(cam_idx)->proj_params(),
-//                calib.cam_params.at(cam_idx)->dist_params(),
-//                calib.cam_exts.at(cam_idx)->tf(),
-//                calib.cam_params.at(cam_idx)->fixed,
-//                calib.cam_exts.at(cam_idx)->fixed);
-//   }
-//   // -- Fiducial
-//   fiducial = std::make_unique<fiducial_t>(calib.get_fiducial_pose());
-//   problem->AddParameterBlock(fiducial->param.data(), FIDUCIAL_PARAMS_SIZE);
-//   if (fiducial->param.size() == 7) {
-//     problem->SetParameterization(fiducial->param.data(), &pose_plus);
-//   }
-
-//   // Data
-//   initialized = calib.initialized;
-//   // -- Vision data
-//   img_buf = calib.img_buf;
-//   grid_buf = calib.grid_buf;
-//   calib_target = calib.calib_target;
-//   prev_grids = calib.prev_grids;
-//   // -- Imu data
-//   imu_params = calib.imu_params;
-//   imu_buf = calib.imu_buf;
-
-//   // Problem data
-//   // -- Calibration views
-//   for (const auto view : calib.calib_views) {
-//     calib_views.push_back(new calib_vi_view_t{view->ts,
-//                                               view->grids,
-//                                               view->pose.tf(),
-//                                               view->sb.param,
-//                                               cam_geoms,
-//                                               cam_params,
-//                                               cam_exts,
-//                                               imu_exts,
-//                                               fiducial.get(),
-//                                               problem.get(),
-//                                               &pose_plus});
-//   }
-//   for (size_t k = 0; k < calib_views.size(); k++) {
-//     auto view_k = calib.calib_views[k];
-//     if (view_k->imu_residual == nullptr) {
-//       continue;
-//     }
-
-//     auto imu_data = view_k->imu_residual->imu_data_;
-//     auto pose_j = &calib_views[k + 1]->pose;
-//     auto sb_j = &calib_views[k + 1]->sb;
-//     calib_views[k]->form_imu_residual(imu_params, imu_data, pose_j, sb_j);
-//   }
-//   // -- Marginalization Error
-//   // Note: The following approach to deep-copying the Marginalization Error
-//   // is not ideal, however there isn't an easier way because the
-//   // marginalization residual from the source were referencing parameters and
-//   // residual blocks from the original calibrator.
-//   if (calib.marg_residual != nullptr) {
-//     // New marginalization residual
-//     marg_residual_t *marg_residual = new marg_residual_t();
-//     marg_residual->marginalized_ = calib.marg_residual->marginalized_;
-//     marg_residual->m_ = calib.marg_residual->m_;
-//     marg_residual->r_ = calib.marg_residual->r_;
-
-//     // Residuals and parameter blocks
-//     marg_residual->set_residual_size(calib.marg_residual->num_residuals());
-//     for (auto param_block : calib.marg_residual->param_blocks) {
-//       // Obtain the corresponding deep-copy parameter
-//       param_t *remain_param = nullptr;
-//       if (param_block->type == "pose_t") {
-//         remain_param = get_pose_param(param_block->ts);
-//       } else if (param_block->type == "sb_params_t") {
-//         remain_param = get_sb_param(param_block->ts);
-//       } else if (param_block->type == "extrinsics_t") {
-//         // Note: This only works because the only extrinsics the calibrator
-//         // is trying to solve is te CAM-IMU extrinsics
-//         remain_param = imu_exts;
-//       } else if (param_block->type == "fiducial_t") {
-//         remain_param = fiducial;
-//       } else if (param_block->type == "time_delay_t") {
-//         remain_param = time_delay;
-//       } else {
-//         FATAL("Implementation Error! Not supposed to reach here!");
-//       }
-
-//       // Add corresponding deep-copied parameter into marginalization
-//       residual marg_residual->add_remain_param(remain_param);
-//       marg_residual->param_index_[remain_param] =
-//           calib.marg_residual->param_index_.at(param_block);
-
-//       // Linearization point x0
-//       marg_residual->x0_[remain_param->data()] = remain_param->param;
-//     }
-
-//     // Linearized residuals and jacobians
-//     marg_residual->r0_ = calib.marg_residual->r0_;
-//     marg_residual->J0_ = calib.marg_residual->J0_;
-
-//     // Add to ceres::problem
-//     marg_residual_id =
-//         problem->AddResidualBlock(marg_residual,
-//                                   NULL,
-//                                   marg_residual->get_param_ptrs());
-//   }
-
-//   // AprilGrid detector
-//   detector = std::make_unique<aprilgrid_detector_t>(calib_target.tag_rows,
-//                                                     calib_target.tag_cols,
-//                                                     calib_target.tag_size,
-//                                                     calib_target.tag_spacing);
-// }
-
 calib_vi_t::calib_vi_t(const std::string &config_path) {
   // Ceres-Problem
   prob_options.local_parameterization_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
@@ -519,42 +382,6 @@ calib_vi_t::~calib_vi_t() {
   for (auto &view : calib_views) {
     delete view;
   }
-
-  // // Camera parameters
-  // for (auto &[cam_idx, cam] : cam_params) {
-  //   UNUSED(cam_idx);
-  //   if (cam) {
-  //     delete cam;
-  //   }
-  // }
-
-  // // Camera extrinsics
-  // for (auto &[cam_idx, exts] : cam_exts) {
-  //   UNUSED(cam_idx);
-  //   if (exts) {
-  //     delete exts;
-  //   }
-  // }
-
-  // // IMU extrinsics
-  // if (imu_exts) {
-  //   delete imu_exts;
-  // }
-
-  // // Fiducial
-  // if (fiducial) {
-  //   delete fiducial;
-  // }
-
-  // // Time delay
-  // if (time_delay) {
-  //   delete time_delay;
-  // }
-
-  // // Problem
-  // if (problem) {
-  //   delete problem;
-  // }
 }
 
 void calib_vi_t::add_imu(const imu_params_t &imu_params_,
@@ -1119,20 +946,15 @@ int calib_vi_t::recover_calib_info(matx_t &H) const {
   H = covar.inverse();
 
   // // Custom-version
-  // // Form full Hessian
-  // ParameterOrder param_order;
-  // matx_t H_full;
-  // form_hessian(param_order, H_full);
+  // {
+  //   // Form full Hessian
+  //   ParameterOrder param_order;
+  //   matx_t H_full;
+  //   form_hessian(param_order, H_full);
 
-  // // Marginalize out everything apart from T_BS
-  // schurs_complement(H_full, H_full.rows() - 6, 6, H);
-
-  // // clang-format off
-  // const Eigen::JacobiSVD<matx_t> svd(H, Eigen::ComputeThinU |
-  // Eigen::ComputeThinV); const vecx_t sv = svd.singularValues(); const
-  // real_t info = sv.head(svd.rank()).array().log().sum() / log(2.0);
-  // printf("info [custom]: %f\n", info);
-  // // clang-format on
+  //   // Marginalize out everything apart from T_BS
+  //   schurs_complement(H_full, H_full.rows() - 6, 6, H);
+  // }
 
   return 0;
 }

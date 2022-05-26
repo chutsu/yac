@@ -22,18 +22,19 @@ lissajous_traj_t::lissajous_traj_t(const std::string &traj_type_,
     b = 2.0 * M_PI * 2.0;
     delta = M_PI;
     psi = 2.0;
-    A = calib_width * 0.15;
-    B = calib_height * 0.15;
+    A = calib_width * 0.3;
+    B = calib_height * 0.3;
     yaw_bound = -atan2(A, R);
     pitch_bound = -atan2(B, R);
+    // pitch_bound = 0.0;
 
   } else if (traj_type == "vert-pan") {
     a = 2.0 * M_PI * 0.0;
     b = 2.0 * M_PI * 1.0;
     delta = 0.0;
     psi = 1.0;
-    A = calib_width * 0.5;
-    B = calib_height * 0.5;
+    A = calib_width * 1.0;
+    B = calib_height * 1.0;
     yaw_bound = 0.0;
     pitch_bound = -atan2(B, R);
 
@@ -42,8 +43,8 @@ lissajous_traj_t::lissajous_traj_t(const std::string &traj_type_,
     b = 2.0 * M_PI * 0.0;
     delta = 0.0;
     psi = 1.0;
-    A = calib_width * 0.5;
-    B = calib_height * 0.5;
+    A = calib_width * 1.0;
+    B = calib_height * 1.0;
     yaw_bound = atan2(A, R);
     pitch_bound = 0.0;
 
@@ -52,8 +53,8 @@ lissajous_traj_t::lissajous_traj_t(const std::string &traj_type_,
     b = 2.0 * M_PI * 1.0;
     delta = 0.0;
     psi = 1.0;
-    A = calib_width * 0.3534;
-    B = calib_height * 0.3534;
+    A = calib_width * 0.65;
+    B = calib_height * 0.65;
     yaw_bound = atan2(A, R);
     pitch_bound = -atan2(B, R);
 
@@ -62,8 +63,8 @@ lissajous_traj_t::lissajous_traj_t(const std::string &traj_type_,
     b = 2.0 * M_PI * 1.0;
     delta = M_PI;
     psi = 1.0;
-    A = calib_width * 0.3534;
-    B = calib_height * 0.3534;
+    A = calib_width * 0.65;
+    B = calib_height * 0.65;
     yaw_bound = -atan2(A, R);
     pitch_bound = -atan2(B, R);
 

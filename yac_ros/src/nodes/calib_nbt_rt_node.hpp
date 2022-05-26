@@ -460,11 +460,6 @@ struct calib_nbt_t {
       draw_detected(calib->grid_buf[cam_idx], viz);
     }
 
-    // if (calib->calib_info_ok) {
-    //   printf("calib_info_ok: %d\n", calib->calib_info_ok);
-    //   print_matrix("calib_info", calib->calib_info);
-    // }
-
     // Show
     cv::imshow("Viz", viz);
     event_handler(cv::waitKey(1));
@@ -521,7 +516,7 @@ struct calib_nbt_t {
     // Change settings for online execution
     calib->enable_marginalization = true;
     calib->max_iter = 5;
-    calib->window_size = 5;
+    calib->window_size = 4;
     calib->reset();
 
     // Transition to NBT mode
@@ -538,7 +533,6 @@ struct calib_nbt_t {
     // if (calib->calib_info_ok == false) {
     //   return;
     // }
-    // const int rate = calib->get_camera_rate() * 5;
     // const bool rate_ok = (calib->calib_view_counter % rate == 0);
     // if (rate_ok) {
     //   find_nbt();

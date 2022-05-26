@@ -103,12 +103,10 @@ struct calib_nbt_eval_t {
     const mat4_t T_BS = tf(imu_ext);
     nbt_data.imu_exts = std::make_unique<extrinsics_t>(T_BS);
     nbt_data.time_delay = std::make_unique<time_delay_t>(0.0);
-    print_matrix("T_BS", T_BS);
 
     // Camera parameters
     // -- Camera rate
     nbt_data.cam_rate = msg.cam_rate;
-    printf("cam_rate: %f\n", nbt_data.cam_rate);
     // -- Camera params and extrinsics
     for (size_t cam_idx = 0; cam_idx < msg.cam_params.size(); cam_idx++) {
       const auto &cam = msg.cam_params[cam_idx];
@@ -147,9 +145,6 @@ struct calib_nbt_eval_t {
                                             proj_params,
                                             dist_params,
                                             true);
-      printf("res: %d, %d\n", cam_res[0], cam_res[1]);
-      print_vector("cam" + std::to_string(cam_idx) + "_params",
-                   nbt_data.cam_params[cam_idx]->param);
 
       // Camera extrinsics
       vecx_t cam_ext = zeros(7, 1);
@@ -162,9 +157,6 @@ struct calib_nbt_eval_t {
       cam_ext[6] = msg.cam_exts[cam_idx].pose[6];
       const mat4_t T_BCi = tf(cam_ext);
       nbt_data.cam_exts[cam_idx] = std::make_shared<extrinsics_t>(T_BCi, true);
-
-      print_vector("cam" + std::to_string(cam_idx) + "_exts",
-                   nbt_data.cam_exts[cam_idx]->param);
     }
 
     // Fiducial pose
@@ -178,7 +170,6 @@ struct calib_nbt_eval_t {
     fiducial_pose[5] = msg.fiducial_pose[5];
     fiducial_pose[6] = msg.fiducial_pose[6];
     nbt_data.T_WF = tf(fiducial_pose);
-    print_matrix("T_WF", nbt_data.T_WF);
 
     // Calibration info
     matx_t H = zeros(6, 6);

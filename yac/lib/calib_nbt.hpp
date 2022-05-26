@@ -62,75 +62,6 @@ struct lissajous_traj_t {
 using lissajous_trajs_t = std::vector<lissajous_traj_t>;
 
 /**
- * NBT Orbit Trajectories
- *
- * @param[in] ts_start Start timestamp
- * @param[in] ts_end End timestamp
- * @param[in] target Calibration target configuration
- * @param[in] cam0_geoms Camera0 geometry
- * @param[in] cam0_params Camera0 parameters
- * @param[in] imu_exts Imu-Camera extrinsics T_C0S
- * @param[in] T_WF Fiducial world pose
- * @param[in] T_FO Fiducial-Calibration origin relative pose
- * @param[out] trajs Simulated trajectories
- */
-void nbt_orbit_trajs(const timestamp_t &ts_start,
-                     const timestamp_t &ts_end,
-                     const calib_target_t &target,
-                     const camera_geometry_t *cam0_geoms,
-                     const camera_params_t *cam0_params,
-                     const extrinsics_t *imu_exts,
-                     const mat4_t &T_WF,
-                     const mat4_t &T_FO,
-                     ctrajs_t &trajs);
-
-/**
- * NBT Pan Trajectories
- *
- * @param[in] ts_start Start timestamp
- * @param[in] ts_end End timestamp
- * @param[in] target Calibration target configuration
- * @param[in] cam0_geoms Camera0 geometry
- * @param[in] cam0_params Camera0 parameters
- * @param[in] imu_exts Imu-Camera extrinsics T_C0S
- * @param[in] T_WF Fiducial world pose
- * @param[in] T_FO Fiducial-Calibration origin relative pose
- * @param[out] trajs Simulated trajectories
- */
-void nbt_pan_trajs(const timestamp_t &ts_start,
-                   const timestamp_t &ts_end,
-                   const calib_target_t &target,
-                   const camera_geometry_t *cam0_geoms,
-                   const camera_params_t *cam0_params,
-                   const extrinsics_t *imu_exts,
-                   const mat4_t &T_WF,
-                   const mat4_t &T_FO,
-                   ctrajs_t &trajs);
-
-/**
- * NBT Figure-8 Trajectories
- *
- * @param[in] ts_start Start timestamp
- * @param[in] ts_end End timestamp
- * @param[in] target Calibration target configuration
- * @param[in] cam0_geoms Camera0 geometry
- * @param[in] cam0_params Camera0 parameters
- * @param[in] imu_exts Imu-Camera extrinsics T_C0S
- * @param[in] T_WF Fiducial world pose
- * @param[in] T_FO Fiducial-Calibration origin relative pose
- * @param[out] trajs Simulated trajectories
- */
-void nbt_figure8_trajs(const timestamp_t &ts_start,
-                       const timestamp_t &ts_end,
-                       const calib_target_t &target,
-                       const camera_geometry_t *cam0_geoms,
-                       const camera_params_t *cam0_params,
-                       const extrinsics_t *imu_exts,
-                       const mat4_t &T_WF,
-                       const mat4_t &T_FO,
-                       ctrajs_t &trajs);
-
-/**
  * NBT Lassojous Trajectories
  *
  * @param[in] ts_start Start timestamp
@@ -187,17 +118,6 @@ aprilgrid_t simulate_aprilgrid(const timestamp_t ts,
  */
 void simulate_cameras(const timestamp_t &ts_start,
                       const timestamp_t &ts_end,
-                      const ctraj_t &traj,
-                      const calib_target_t &target,
-                      const CamIdx2Geometry &cam_geoms,
-                      const CamIdx2Parameters &cam_params,
-                      const CamIdx2Extrinsics &cam_exts,
-                      const double cam_rate,
-                      const mat4_t &T_WF,
-                      camera_data_t &cam_grids,
-                      std::map<timestamp_t, mat4_t> &T_WC0_sim);
-void simulate_cameras(const timestamp_t &ts_start,
-                      const timestamp_t &ts_end,
                       const lissajous_traj_t &traj,
                       const calib_target_t &target,
                       const CamIdx2Geometry &cam_geoms,
@@ -223,15 +143,6 @@ void simulate_cameras(const timestamp_t &ts_start,
  */
 void simulate_imu(const timestamp_t &ts_start,
                   const timestamp_t &ts_end,
-                  const ctraj_t &traj,
-                  const imu_params_t &imu_params,
-                  timestamps_t &imu_time,
-                  vec3s_t &imu_accel,
-                  vec3s_t &imu_gyro,
-                  mat4s_t &imu_poses,
-                  vec3s_t &imu_vels);
-void simulate_imu(const timestamp_t &ts_start,
-                  const timestamp_t &ts_end,
                   const lissajous_traj_t &traj,
                   const imu_params_t &imu_params,
                   timestamps_t &imu_time,
@@ -243,20 +154,8 @@ void simulate_imu(const timestamp_t &ts_start,
 /** NBT EVALUATION ***********************************************************/
 
 /**
- * Create timeline for NBT
- *
- * @param[in] cam_grids Camera data
- * @param[in] imu_ts IMU timestamps
- * @param[in] imu_acc IMU accelerometer measurments
- * @param[in] imu_gyr IMU gyroscope measurements
- * @param[out] timeline Timeline
+ * Next-Best-Trajectory Data
  */
-void nbt_create_timeline(const camera_data_t &cam_grids,
-                         const timestamps_t &imu_ts,
-                         const vec3s_t &imu_acc,
-                         const vec3s_t &imu_gyr,
-                         timeline_t &timeline);
-
 struct nbt_data_t {
   // Calibration target
   calib_target_t calib_target;
@@ -277,53 +176,24 @@ struct nbt_data_t {
   mat4_t T_WF;
 
   nbt_data_t() = default;
-  nbt_data_t(const calib_vi_t &calib) {
-    // Calibration target
-    calib_target = calib.calib_target;
-
-    // Imu parameters
-    imu_rate = calib.get_imu_rate();
-    imu_params = calib.imu_params;
-    imu_exts = std::make_unique<extrinsics_t>(calib.imu_exts->tf());
-    const auto td_val = calib.time_delay->param(0);
-    const auto td_fixed = calib.time_delay->fixed;
-    time_delay = std::make_unique<time_delay_t>(td_val, td_fixed);
-
-    // Camera parameters
-    cam_rate = calib.get_camera_rate();
-
-    for (const auto &[cam_idx, cam_geom] : calib.cam_geoms) {
-      if (cam_geom->type == "PINHOLE-RADTAN4") {
-        cam_geoms[cam_idx] = std::make_shared<pinhole_radtan4_t>();
-      } else if (cam_geom->type == "PINHOLE-EQUI4") {
-        cam_geoms[cam_idx] = std::make_shared<pinhole_equi4_t>();
-      } else {
-        FATAL("cam_geom->type: [%s] not implemented!", cam_geom->type.c_str());
-      }
-    }
-
-    for (const auto &[cam_idx, cam_param] : calib.cam_params) {
-      cam_params[cam_idx] =
-          std::make_shared<camera_params_t>(cam_param->cam_index,
-                                            cam_param->resolution,
-                                            cam_param->proj_model,
-                                            cam_param->dist_model,
-                                            cam_param->proj_params(),
-                                            cam_param->dist_params(),
-                                            cam_param->fixed);
-    }
-
-    for (const auto &[cam_idx, exts] : calib.cam_exts) {
-      cam_exts[cam_idx] =
-          std::make_shared<extrinsics_t>(exts->tf(), exts->fixed);
-    }
-
-    // Fiducial pose
-    T_WF = calib.get_fiducial_pose();
-  }
-
+  nbt_data_t(const calib_vi_t &calib);
   ~nbt_data_t() = default;
 };
+
+/**
+ * Create timeline for NBT
+ *
+ * @param[in] cam_grids Camera data
+ * @param[in] imu_ts IMU timestamps
+ * @param[in] imu_acc IMU accelerometer measurments
+ * @param[in] imu_gyr IMU gyroscope measurements
+ * @param[out] timeline Timeline
+ */
+void nbt_create_timeline(const camera_data_t &cam_grids,
+                         const timestamps_t &imu_ts,
+                         const vec3s_t &imu_acc,
+                         const vec3s_t &imu_gyr,
+                         timeline_t &timeline);
 
 /**
  * Evaluate NBT
@@ -334,8 +204,6 @@ struct nbt_data_t {
  *
  * @returns 0 for success or -1 for failure
  */
-// int nbt_eval(const ctraj_t &traj, const calib_vi_t &calib, matx_t
-// &calib_covar);
 int nbt_eval(const lissajous_traj_t &traj,
              const nbt_data_t &nbt_data,
              const matx_t &H,
@@ -350,9 +218,6 @@ int nbt_eval(const lissajous_traj_t &traj,
  *
  * @returns 0 for success or -1 for failure
  */
-int nbt_find(const ctrajs_t &trajs,
-             const calib_vi_t &calib,
-             const bool verbose = false);
 int nbt_find(const lissajous_trajs_t &trajs,
              const nbt_data_t &nbt_data,
              const matx_t &H,

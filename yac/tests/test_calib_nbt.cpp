@@ -271,7 +271,7 @@ int test_nbt_lissajous_trajs() {
   return 0;
 }
 
-int test_simulate_cameras_lissajous() {
+int test_simulate_cameras() {
   // Setup calibrator
   const calib_target_t target;
   calib_vi_t calib{target};
@@ -339,7 +339,7 @@ int test_simulate_cameras_lissajous() {
   return 0;
 }
 
-int test_simulate_imu_lissajous() {
+int test_simulate_imu() {
   // Setup test
   std::map<int, camera_params_t> cam_params;
   extrinsics_t imu_exts;
@@ -673,7 +673,7 @@ static void schurs_complement(const matx_t &H,
   H_marg = Hrr - Hrm * Hmm_inv * Hmr;
 }
 
-int test_nbt_eval_lissajous() {
+int test_nbt_eval() {
   // Imu params
   imu_params_t imu_params;
   imu_params.rate = 200.0;
@@ -742,7 +742,7 @@ int test_nbt_eval_lissajous() {
   return 0;
 }
 
-int test_nbt_find_lissajous() {
+int test_nbt_find() {
   // Imu params
   imu_params_t imu_params;
   imu_params.rate = 200.0;
@@ -768,7 +768,7 @@ int test_nbt_find_lissajous() {
   // Generate trajectories
   LOG_INFO("Generate NBT trajectories");
   const int cam_idx = 0;
-  const timestamp_t ts_start = sec2ts(3.01);
+  const timestamp_t ts_start = 0;
   const timestamp_t ts_end = ts_start + sec2ts(3.0);
   const mat4_t T_WF = calib.get_fiducial_pose();
   lissajous_trajs_t trajs;
@@ -797,10 +797,10 @@ int test_nbt_find_lissajous() {
 void test_suite() {
   MU_ADD_TEST(test_lissajous_traj);
   MU_ADD_TEST(test_nbt_lissajous_trajs);
-  MU_ADD_TEST(test_simulate_cameras_lissajous);
-  MU_ADD_TEST(test_simulate_imu_lissajous);
-  MU_ADD_TEST(test_nbt_eval_lissajous);
-  MU_ADD_TEST(test_nbt_find_lissajous);
+  MU_ADD_TEST(test_simulate_cameras);
+  MU_ADD_TEST(test_simulate_imu);
+  MU_ADD_TEST(test_nbt_eval);
+  MU_ADD_TEST(test_nbt_find);
 }
 
 } // namespace yac

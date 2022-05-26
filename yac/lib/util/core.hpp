@@ -50,6 +50,8 @@
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
 #include <Eigen/Geometry>
+#include <Eigen/StdVector>
+#include <Eigen/StdDeque>
 #include <unsupported/Eigen/Splines>
 
 #include <opencv2/opencv.hpp>
@@ -110,7 +112,7 @@ using vec3s_t = std::vector<vec3_t, Eigen::aligned_allocator<vec3_t>>;
 using vec4s_t = std::vector<vec4_t, Eigen::aligned_allocator<vec4_t>>;
 using vec5s_t = std::vector<vec5_t, Eigen::aligned_allocator<vec5_t>>;
 using vec6s_t = std::vector<vec6_t, Eigen::aligned_allocator<vec6_t>>;
-using vecxs_t = std::vector<vecx_t>;
+using vecxs_t = std::vector<vecx_t, Eigen::aligned_allocator<vec6_t>>;
 
 using row_vector_t = Eigen::Matrix<real_t, 1, dynamic_t>;
 using col_vector_t = Eigen::Matrix<real_t, dynamic_t, 1>;
@@ -1641,8 +1643,8 @@ struct imu_meas_t {
 struct imu_data_t {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
   std::deque<timestamp_t> timestamps;
-  std::deque<vec3_t> accel;
-  std::deque<vec3_t> gyro;
+  std::deque<vec3_t, Eigen::aligned_allocator<vec3_t>> accel;
+  std::deque<vec3_t, Eigen::aligned_allocator<vec3_t>> gyro;
 
   imu_data_t() = default;
   ~imu_data_t() = default;
@@ -1670,6 +1672,11 @@ struct imu_data_t {
   }
 
   void trim(const timestamp_t ts_end) {
+    // Pre-check
+    if (timestamps.size() == 0) {
+      return;
+    }
+
     // Make sure the trim timestamp is after the first imu measurement
     if (ts_end < timestamps.front()) {
       return;

@@ -5,7 +5,7 @@ ENDIF (POLICY CMP0048)
 PROJECT(yac_ros)
 
 # COMPILATION SETTINGS
-SET(USE_ADDRESS_SANITIZER OFF)
+SET(USE_ADDRESS_SANITIZER ON)
 SET(CMAKE_CXX_STANDARD 17)
 ADD_COMPILE_OPTIONS(-Wall -Wextra)
 
@@ -25,17 +25,9 @@ ENDIF()
 # DEPENDENCIES
 LIST(APPEND CMAKE_MODULE_PATH "../cmake")
 
-# IF (NOT DEFINED Eigen3_DIR)
-#   SET(Eigen3_DIR "/opt/yac/share/eigen3/cmake")
-# ENDIF()
-
 IF (NOT DEFINED apriltag3_DIR)
   SET(apriltag3_DIR "/opt/yac/share/apriltag3/cmake")  # Use custom AprilTag3
 ENDIF()
-
-# IF (NOT DEFINED Ceres_DIR OR "${Ceres_DIR}" STREQUAL "Ceres_DIR-NOTFOUND")
-#   SET(Ceres_DIR "/opt/yac/lib/cmake/Ceres")
-# ENDIF()
 
 IF (NOT DEFINED USE_OPENMP)
   SET(USE_OPENMP ON)

@@ -32,7 +32,9 @@ struct lissajous_traj_t {
   real_t T; // Period - Time it takes to complete [secs]
   real_t f; // Frequency
   real_t w; // Angular velocity
-  real_t psi;
+
+  real_t yaw_scale;   // Yaw scale
+  real_t pitch_scale; // Pitch scale
 
   real_t pitch_bound;
   real_t yaw_bound;

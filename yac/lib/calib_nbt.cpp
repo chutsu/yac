@@ -16,34 +16,69 @@ lissajous_traj_t::lissajous_traj_t(const std::string &traj_type_,
       calib_width{calib_width_},
       calib_height{calib_height_}, R{R_}, T{T_}, f{1.0 / T}, w{2.0 * M_PI * f} {
   // Trajectory type
-  // -- Figure 8
-  if (traj_type == "figure8") {
+  if (traj_type == "fig8-horiz") {
     a = 2.0 * M_PI * 1.0;
     b = 2.0 * M_PI * 2.0;
     delta = M_PI;
-    psi = 2.0;
     A = calib_width * 0.3;
     B = calib_height * 0.3;
+    yaw_scale = 1.0;
+    pitch_scale = 2.0;
     yaw_bound = -atan2(A, R);
     pitch_bound = -atan2(B, R);
 
-  } else if (traj_type == "vert-pan") {
+  } else if (traj_type == "fig8-vert") {
+    a = 2.0 * M_PI * 2.0;
+    b = 2.0 * M_PI * 1.0;
+    delta = M_PI;
+    A = calib_width * 0.3;
+    B = calib_height * 0.3;
+    yaw_scale = 2.0;
+    pitch_scale = 1.0;
+    yaw_bound = -atan2(A, R);
+    pitch_bound = -atan2(B, R);
+
+  } else if (traj_type == "s-horiz") {
+    a = 2.0 * M_PI * 1.0;
+    b = 2.0 * M_PI * 3.0;
+    delta = M_PI;
+    A = calib_width * 0.3;
+    B = calib_height * 0.3;
+    yaw_scale = 1.0;
+    pitch_scale = 0.0;
+    yaw_bound = -atan2(A, R);
+    pitch_bound = -atan2(B, R);
+
+  } else if (traj_type == "s-vert") {
+    a = 2.0 * M_PI * 3.0;
+    b = 2.0 * M_PI * 1.0;
+    delta = M_PI;
+    A = calib_width * 0.3;
+    B = calib_height * 0.3;
+    yaw_scale = 0.0;
+    pitch_scale = 1.0;
+    yaw_bound = -atan2(A, R);
+    pitch_bound = -atan2(B, R);
+
+  } else if (traj_type == "pan-vert") {
     a = 2.0 * M_PI * 0.0;
     b = 2.0 * M_PI * 1.0;
     delta = 0.0;
-    psi = 1.0;
     A = calib_width * 0.95;
     B = calib_height * 0.95;
+    yaw_scale = 1.0;
+    pitch_scale = 1.0;
     yaw_bound = 0.0;
     pitch_bound = -atan2(B, R);
 
-  } else if (traj_type == "horiz-pan") {
+  } else if (traj_type == "pan-horiz") {
     a = 2.0 * M_PI * 1.0;
     b = 2.0 * M_PI * 0.0;
     delta = 0.0;
-    psi = 1.0;
     A = calib_width * 0.95;
     B = calib_height * 0.95;
+    yaw_scale = 1.0;
+    pitch_scale = 1.0;
     yaw_bound = atan2(A, R);
     pitch_bound = 0.0;
 
@@ -51,9 +86,10 @@ lissajous_traj_t::lissajous_traj_t(const std::string &traj_type_,
     a = 2.0 * M_PI * 1.0;
     b = 2.0 * M_PI * 1.0;
     delta = 0.0;
-    psi = 1.0;
     A = calib_width * 0.64;
     B = calib_height * 0.64;
+    yaw_scale = 1.0;
+    pitch_scale = 1.0;
     yaw_bound = atan2(A, R);
     pitch_bound = -atan2(B, R);
 
@@ -61,9 +97,10 @@ lissajous_traj_t::lissajous_traj_t(const std::string &traj_type_,
     a = 2.0 * M_PI * 1.0;
     b = 2.0 * M_PI * 1.0;
     delta = M_PI;
-    psi = 1.0;
     A = calib_width * 0.64;
     B = calib_height * 0.64;
+    yaw_scale = 1.0;
+    pitch_scale = 1.0;
     yaw_bound = -atan2(A, R);
     pitch_bound = -atan2(B, R);
 
@@ -81,8 +118,8 @@ quat_t lissajous_traj_t::get_q_OS(const timestamp_t ts_k) const {
   const real_t w = 2.0 * M_PI * f;
   const real_t k = pow(sin(0.25 * w * t), 2.0);
 
-  const real_t att_x = M_PI + pitch_bound * sin(2 * M_PI * psi * k);
-  const real_t att_y = yaw_bound * sin(2 * M_PI * k);
+  const real_t att_x = M_PI + pitch_bound * sin(2 * M_PI * pitch_scale * k);
+  const real_t att_y = yaw_bound * sin(2 * M_PI * yaw_scale * k);
   const real_t att_z = 0.0;
 
   const real_t phi = att_x;
@@ -113,14 +150,12 @@ quat_t lissajous_traj_t::get_q_OS_dot(const timestamp_t ts_k) const {
     FATAL("Implementation Error!");
   }
 
-  const real_t w = 2.0 * M_PI * f;
-  const real_t psi_k = psi;
-
   // clang-format off
-  const real_t q_OS_w_dot = -1.5707963267948966*pitch_bound*psi_k*w*sin(0.25*t*w)*sin(0.5*pitch_bound*sin(6.2831853071795862*psi_k*pow(sin(0.25*t*w), 2)) + 1.5707963267948966)*cos(6.2831853071795862*psi_k*pow(sin(0.25*t*w), 2))*cos(0.25*t*w)*cos(0.5*yaw_bound*sin(6.2831853071795862*pow(sin(0.25*t*w), 2)))/sqrt(pow(sin(0.5*yaw_bound*sin(6.2831853071795862*pow(sin(0.25*t*w), 2))), 2)*pow(sin(0.5*pitch_bound*sin(6.2831853071795862*psi_k*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2) + pow(sin(0.5*yaw_bound*sin(6.2831853071795862*pow(sin(0.25*t*w), 2))), 2)*pow(cos(0.5*pitch_bound*sin(6.2831853071795862*psi_k*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2) + pow(sin(0.5*pitch_bound*sin(6.2831853071795862*psi_k*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2)*pow(cos(0.5*yaw_bound*sin(6.2831853071795862*pow(sin(0.25*t*w), 2))), 2) + pow(cos(0.5*yaw_bound*sin(6.2831853071795862*pow(sin(0.25*t*w), 2))), 2)*pow(cos(0.5*pitch_bound*sin(6.2831853071795862*psi_k*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2)) - 1.5707963267948966*w*yaw_bound*sin(0.25*t*w)*sin(0.5*yaw_bound*sin(6.2831853071795862*pow(sin(0.25*t*w), 2)))*cos(0.25*t*w)*cos(0.5*pitch_bound*sin(6.2831853071795862*psi_k*pow(sin(0.25*t*w), 2)) + 1.5707963267948966)*cos(6.2831853071795862*pow(sin(0.25*t*w), 2))/sqrt(pow(sin(0.5*yaw_bound*sin(6.2831853071795862*pow(sin(0.25*t*w), 2))), 2)*pow(sin(0.5*pitch_bound*sin(6.2831853071795862*psi_k*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2) + pow(sin(0.5*yaw_bound*sin(6.2831853071795862*pow(sin(0.25*t*w), 2))), 2)*pow(cos(0.5*pitch_bound*sin(6.2831853071795862*psi_k*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2) + pow(sin(0.5*pitch_bound*sin(6.2831853071795862*psi_k*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2)*pow(cos(0.5*yaw_bound*sin(6.2831853071795862*pow(sin(0.25*t*w), 2))), 2) + pow(cos(0.5*yaw_bound*sin(6.2831853071795862*pow(sin(0.25*t*w), 2))), 2)*pow(cos(0.5*pitch_bound*sin(6.2831853071795862*psi_k*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2));
-  const real_t q_OS_x_dot = 1.5707963267948966*pitch_bound*psi_k*w*sin(0.25*t*w)*cos(6.2831853071795862*psi_k*pow(sin(0.25*t*w), 2))*cos(0.25*t*w)*cos(0.5*yaw_bound*sin(6.2831853071795862*pow(sin(0.25*t*w), 2)))*cos(0.5*pitch_bound*sin(6.2831853071795862*psi_k*pow(sin(0.25*t*w), 2)) + 1.5707963267948966)/sqrt(pow(sin(0.5*yaw_bound*sin(6.2831853071795862*pow(sin(0.25*t*w), 2))), 2)*pow(sin(0.5*pitch_bound*sin(6.2831853071795862*psi_k*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2) + pow(sin(0.5*yaw_bound*sin(6.2831853071795862*pow(sin(0.25*t*w), 2))), 2)*pow(cos(0.5*pitch_bound*sin(6.2831853071795862*psi_k*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2) + pow(sin(0.5*pitch_bound*sin(6.2831853071795862*psi_k*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2)*pow(cos(0.5*yaw_bound*sin(6.2831853071795862*pow(sin(0.25*t*w), 2))), 2) + pow(cos(0.5*yaw_bound*sin(6.2831853071795862*pow(sin(0.25*t*w), 2))), 2)*pow(cos(0.5*pitch_bound*sin(6.2831853071795862*psi_k*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2)) - 1.5707963267948966*w*yaw_bound*sin(0.25*t*w)*sin(0.5*yaw_bound*sin(6.2831853071795862*pow(sin(0.25*t*w), 2)))*sin(0.5*pitch_bound*sin(6.2831853071795862*psi_k*pow(sin(0.25*t*w), 2)) + 1.5707963267948966)*cos(0.25*t*w)*cos(6.2831853071795862*pow(sin(0.25*t*w), 2))/sqrt(pow(sin(0.5*yaw_bound*sin(6.2831853071795862*pow(sin(0.25*t*w), 2))), 2)*pow(sin(0.5*pitch_bound*sin(6.2831853071795862*psi_k*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2) + pow(sin(0.5*yaw_bound*sin(6.2831853071795862*pow(sin(0.25*t*w), 2))), 2)*pow(cos(0.5*pitch_bound*sin(6.2831853071795862*psi_k*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2) + pow(sin(0.5*pitch_bound*sin(6.2831853071795862*psi_k*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2)*pow(cos(0.5*yaw_bound*sin(6.2831853071795862*pow(sin(0.25*t*w), 2))), 2) + pow(cos(0.5*yaw_bound*sin(6.2831853071795862*pow(sin(0.25*t*w), 2))), 2)*pow(cos(0.5*pitch_bound*sin(6.2831853071795862*psi_k*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2));
-  const real_t q_OS_y_dot = -1.5707963267948966*pitch_bound*psi_k*w*sin(0.25*t*w)*sin(0.5*yaw_bound*sin(6.2831853071795862*pow(sin(0.25*t*w), 2)))*sin(0.5*pitch_bound*sin(6.2831853071795862*psi_k*pow(sin(0.25*t*w), 2)) + 1.5707963267948966)*cos(6.2831853071795862*psi_k*pow(sin(0.25*t*w), 2))*cos(0.25*t*w)/sqrt(pow(sin(0.5*yaw_bound*sin(6.2831853071795862*pow(sin(0.25*t*w), 2))), 2)*pow(sin(0.5*pitch_bound*sin(6.2831853071795862*psi_k*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2) + pow(sin(0.5*yaw_bound*sin(6.2831853071795862*pow(sin(0.25*t*w), 2))), 2)*pow(cos(0.5*pitch_bound*sin(6.2831853071795862*psi_k*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2) + pow(sin(0.5*pitch_bound*sin(6.2831853071795862*psi_k*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2)*pow(cos(0.5*yaw_bound*sin(6.2831853071795862*pow(sin(0.25*t*w), 2))), 2) + pow(cos(0.5*yaw_bound*sin(6.2831853071795862*pow(sin(0.25*t*w), 2))), 2)*pow(cos(0.5*pitch_bound*sin(6.2831853071795862*psi_k*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2)) + 1.5707963267948966*w*yaw_bound*sin(0.25*t*w)*cos(0.25*t*w)*cos(0.5*yaw_bound*sin(6.2831853071795862*pow(sin(0.25*t*w), 2)))*cos(0.5*pitch_bound*sin(6.2831853071795862*psi_k*pow(sin(0.25*t*w), 2)) + 1.5707963267948966)*cos(6.2831853071795862*pow(sin(0.25*t*w), 2))/sqrt(pow(sin(0.5*yaw_bound*sin(6.2831853071795862*pow(sin(0.25*t*w), 2))), 2)*pow(sin(0.5*pitch_bound*sin(6.2831853071795862*psi_k*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2) + pow(sin(0.5*yaw_bound*sin(6.2831853071795862*pow(sin(0.25*t*w), 2))), 2)*pow(cos(0.5*pitch_bound*sin(6.2831853071795862*psi_k*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2) + pow(sin(0.5*pitch_bound*sin(6.2831853071795862*psi_k*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2)*pow(cos(0.5*yaw_bound*sin(6.2831853071795862*pow(sin(0.25*t*w), 2))), 2) + pow(cos(0.5*yaw_bound*sin(6.2831853071795862*pow(sin(0.25*t*w), 2))), 2)*pow(cos(0.5*pitch_bound*sin(6.2831853071795862*psi_k*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2));
-  const real_t q_OS_z_dot = -1.5707963267948966*pitch_bound*psi_k*w*sin(0.25*t*w)*sin(0.5*yaw_bound*sin(6.2831853071795862*pow(sin(0.25*t*w), 2)))*cos(6.2831853071795862*psi_k*pow(sin(0.25*t*w), 2))*cos(0.25*t*w)*cos(0.5*pitch_bound*sin(6.2831853071795862*psi_k*pow(sin(0.25*t*w), 2)) + 1.5707963267948966)/sqrt(pow(sin(0.5*yaw_bound*sin(6.2831853071795862*pow(sin(0.25*t*w), 2))), 2)*pow(sin(0.5*pitch_bound*sin(6.2831853071795862*psi_k*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2) + pow(sin(0.5*yaw_bound*sin(6.2831853071795862*pow(sin(0.25*t*w), 2))), 2)*pow(cos(0.5*pitch_bound*sin(6.2831853071795862*psi_k*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2) + pow(sin(0.5*pitch_bound*sin(6.2831853071795862*psi_k*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2)*pow(cos(0.5*yaw_bound*sin(6.2831853071795862*pow(sin(0.25*t*w), 2))), 2) + pow(cos(0.5*yaw_bound*sin(6.2831853071795862*pow(sin(0.25*t*w), 2))), 2)*pow(cos(0.5*pitch_bound*sin(6.2831853071795862*psi_k*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2)) - 1.5707963267948966*w*yaw_bound*sin(0.25*t*w)*sin(0.5*pitch_bound*sin(6.2831853071795862*psi_k*pow(sin(0.25*t*w), 2)) + 1.5707963267948966)*cos(0.25*t*w)*cos(0.5*yaw_bound*sin(6.2831853071795862*pow(sin(0.25*t*w), 2)))*cos(6.2831853071795862*pow(sin(0.25*t*w), 2))/sqrt(pow(sin(0.5*yaw_bound*sin(6.2831853071795862*pow(sin(0.25*t*w), 2))), 2)*pow(sin(0.5*pitch_bound*sin(6.2831853071795862*psi_k*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2) + pow(sin(0.5*yaw_bound*sin(6.2831853071795862*pow(sin(0.25*t*w), 2))), 2)*pow(cos(0.5*pitch_bound*sin(6.2831853071795862*psi_k*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2) + pow(sin(0.5*pitch_bound*sin(6.2831853071795862*psi_k*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2)*pow(cos(0.5*yaw_bound*sin(6.2831853071795862*pow(sin(0.25*t*w), 2))), 2) + pow(cos(0.5*yaw_bound*sin(6.2831853071795862*pow(sin(0.25*t*w), 2))), 2)*pow(cos(0.5*pitch_bound*sin(6.2831853071795862*psi_k*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2));
+  const real_t w = 2.0 * M_PI * f;
+  const real_t q_OS_w_dot = -1.5707963267948966*pitch_bound*pitch_scale*w*sin(0.25*t*w)*sin(0.5*pitch_bound*sin(6.2831853071795862*pitch_scale*pow(sin(0.25*t*w), 2)) + 1.5707963267948966)*cos(6.2831853071795862*pitch_scale*pow(sin(0.25*t*w), 2))*cos(0.25*t*w)*cos(0.5*yaw_bound*sin(6.2831853071795862*yaw_scale*pow(sin(0.25*t*w), 2)))/sqrt(pow(sin(0.5*yaw_bound*sin(6.2831853071795862*yaw_scale*pow(sin(0.25*t*w), 2))), 2)*pow(sin(0.5*pitch_bound*sin(6.2831853071795862*pitch_scale*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2) + pow(sin(0.5*yaw_bound*sin(6.2831853071795862*yaw_scale*pow(sin(0.25*t*w), 2))), 2)*pow(cos(0.5*pitch_bound*sin(6.2831853071795862*pitch_scale*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2) + pow(sin(0.5*pitch_bound*sin(6.2831853071795862*pitch_scale*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2)*pow(cos(0.5*yaw_bound*sin(6.2831853071795862*yaw_scale*pow(sin(0.25*t*w), 2))), 2) + pow(cos(0.5*yaw_bound*sin(6.2831853071795862*yaw_scale*pow(sin(0.25*t*w), 2))), 2)*pow(cos(0.5*pitch_bound*sin(6.2831853071795862*pitch_scale*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2)) - 1.5707963267948966*w*yaw_bound*yaw_scale*sin(0.25*t*w)*sin(0.5*yaw_bound*sin(6.2831853071795862*yaw_scale*pow(sin(0.25*t*w), 2)))*cos(0.25*t*w)*cos(6.2831853071795862*yaw_scale*pow(sin(0.25*t*w), 2))*cos(0.5*pitch_bound*sin(6.2831853071795862*pitch_scale*pow(sin(0.25*t*w), 2)) + 1.5707963267948966)/sqrt(pow(sin(0.5*yaw_bound*sin(6.2831853071795862*yaw_scale*pow(sin(0.25*t*w), 2))), 2)*pow(sin(0.5*pitch_bound*sin(6.2831853071795862*pitch_scale*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2) + pow(sin(0.5*yaw_bound*sin(6.2831853071795862*yaw_scale*pow(sin(0.25*t*w), 2))), 2)*pow(cos(0.5*pitch_bound*sin(6.2831853071795862*pitch_scale*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2) + pow(sin(0.5*pitch_bound*sin(6.2831853071795862*pitch_scale*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2)*pow(cos(0.5*yaw_bound*sin(6.2831853071795862*yaw_scale*pow(sin(0.25*t*w), 2))), 2) + pow(cos(0.5*yaw_bound*sin(6.2831853071795862*yaw_scale*pow(sin(0.25*t*w), 2))), 2)*pow(cos(0.5*pitch_bound*sin(6.2831853071795862*pitch_scale*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2));
+  const real_t q_OS_x_dot = 1.5707963267948966*pitch_bound*pitch_scale*w*sin(0.25*t*w)*cos(6.2831853071795862*pitch_scale*pow(sin(0.25*t*w), 2))*cos(0.25*t*w)*cos(0.5*yaw_bound*sin(6.2831853071795862*yaw_scale*pow(sin(0.25*t*w), 2)))*cos(0.5*pitch_bound*sin(6.2831853071795862*pitch_scale*pow(sin(0.25*t*w), 2)) + 1.5707963267948966)/sqrt(pow(sin(0.5*yaw_bound*sin(6.2831853071795862*yaw_scale*pow(sin(0.25*t*w), 2))), 2)*pow(sin(0.5*pitch_bound*sin(6.2831853071795862*pitch_scale*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2) + pow(sin(0.5*yaw_bound*sin(6.2831853071795862*yaw_scale*pow(sin(0.25*t*w), 2))), 2)*pow(cos(0.5*pitch_bound*sin(6.2831853071795862*pitch_scale*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2) + pow(sin(0.5*pitch_bound*sin(6.2831853071795862*pitch_scale*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2)*pow(cos(0.5*yaw_bound*sin(6.2831853071795862*yaw_scale*pow(sin(0.25*t*w), 2))), 2) + pow(cos(0.5*yaw_bound*sin(6.2831853071795862*yaw_scale*pow(sin(0.25*t*w), 2))), 2)*pow(cos(0.5*pitch_bound*sin(6.2831853071795862*pitch_scale*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2)) - 1.5707963267948966*w*yaw_bound*yaw_scale*sin(0.25*t*w)*sin(0.5*yaw_bound*sin(6.2831853071795862*yaw_scale*pow(sin(0.25*t*w), 2)))*sin(0.5*pitch_bound*sin(6.2831853071795862*pitch_scale*pow(sin(0.25*t*w), 2)) + 1.5707963267948966)*cos(0.25*t*w)*cos(6.2831853071795862*yaw_scale*pow(sin(0.25*t*w), 2))/sqrt(pow(sin(0.5*yaw_bound*sin(6.2831853071795862*yaw_scale*pow(sin(0.25*t*w), 2))), 2)*pow(sin(0.5*pitch_bound*sin(6.2831853071795862*pitch_scale*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2) + pow(sin(0.5*yaw_bound*sin(6.2831853071795862*yaw_scale*pow(sin(0.25*t*w), 2))), 2)*pow(cos(0.5*pitch_bound*sin(6.2831853071795862*pitch_scale*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2) + pow(sin(0.5*pitch_bound*sin(6.2831853071795862*pitch_scale*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2)*pow(cos(0.5*yaw_bound*sin(6.2831853071795862*yaw_scale*pow(sin(0.25*t*w), 2))), 2) + pow(cos(0.5*yaw_bound*sin(6.2831853071795862*yaw_scale*pow(sin(0.25*t*w), 2))), 2)*pow(cos(0.5*pitch_bound*sin(6.2831853071795862*pitch_scale*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2));
+  const real_t q_OS_y_dot = -1.5707963267948966*pitch_bound*pitch_scale*w*sin(0.25*t*w)*sin(0.5*yaw_bound*sin(6.2831853071795862*yaw_scale*pow(sin(0.25*t*w), 2)))*sin(0.5*pitch_bound*sin(6.2831853071795862*pitch_scale*pow(sin(0.25*t*w), 2)) + 1.5707963267948966)*cos(6.2831853071795862*pitch_scale*pow(sin(0.25*t*w), 2))*cos(0.25*t*w)/sqrt(pow(sin(0.5*yaw_bound*sin(6.2831853071795862*yaw_scale*pow(sin(0.25*t*w), 2))), 2)*pow(sin(0.5*pitch_bound*sin(6.2831853071795862*pitch_scale*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2) + pow(sin(0.5*yaw_bound*sin(6.2831853071795862*yaw_scale*pow(sin(0.25*t*w), 2))), 2)*pow(cos(0.5*pitch_bound*sin(6.2831853071795862*pitch_scale*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2) + pow(sin(0.5*pitch_bound*sin(6.2831853071795862*pitch_scale*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2)*pow(cos(0.5*yaw_bound*sin(6.2831853071795862*yaw_scale*pow(sin(0.25*t*w), 2))), 2) + pow(cos(0.5*yaw_bound*sin(6.2831853071795862*yaw_scale*pow(sin(0.25*t*w), 2))), 2)*pow(cos(0.5*pitch_bound*sin(6.2831853071795862*pitch_scale*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2)) + 1.5707963267948966*w*yaw_bound*yaw_scale*sin(0.25*t*w)*cos(0.25*t*w)*cos(0.5*yaw_bound*sin(6.2831853071795862*yaw_scale*pow(sin(0.25*t*w), 2)))*cos(6.2831853071795862*yaw_scale*pow(sin(0.25*t*w), 2))*cos(0.5*pitch_bound*sin(6.2831853071795862*pitch_scale*pow(sin(0.25*t*w), 2)) + 1.5707963267948966)/sqrt(pow(sin(0.5*yaw_bound*sin(6.2831853071795862*yaw_scale*pow(sin(0.25*t*w), 2))), 2)*pow(sin(0.5*pitch_bound*sin(6.2831853071795862*pitch_scale*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2) + pow(sin(0.5*yaw_bound*sin(6.2831853071795862*yaw_scale*pow(sin(0.25*t*w), 2))), 2)*pow(cos(0.5*pitch_bound*sin(6.2831853071795862*pitch_scale*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2) + pow(sin(0.5*pitch_bound*sin(6.2831853071795862*pitch_scale*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2)*pow(cos(0.5*yaw_bound*sin(6.2831853071795862*yaw_scale*pow(sin(0.25*t*w), 2))), 2) + pow(cos(0.5*yaw_bound*sin(6.2831853071795862*yaw_scale*pow(sin(0.25*t*w), 2))), 2)*pow(cos(0.5*pitch_bound*sin(6.2831853071795862*pitch_scale*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2));
+  const real_t q_OS_z_dot = -1.5707963267948966*pitch_bound*pitch_scale*w*sin(0.25*t*w)*sin(0.5*yaw_bound*sin(6.2831853071795862*yaw_scale*pow(sin(0.25*t*w), 2)))*cos(6.2831853071795862*pitch_scale*pow(sin(0.25*t*w), 2))*cos(0.25*t*w)*cos(0.5*pitch_bound*sin(6.2831853071795862*pitch_scale*pow(sin(0.25*t*w), 2)) + 1.5707963267948966)/sqrt(pow(sin(0.5*yaw_bound*sin(6.2831853071795862*yaw_scale*pow(sin(0.25*t*w), 2))), 2)*pow(sin(0.5*pitch_bound*sin(6.2831853071795862*pitch_scale*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2) + pow(sin(0.5*yaw_bound*sin(6.2831853071795862*yaw_scale*pow(sin(0.25*t*w), 2))), 2)*pow(cos(0.5*pitch_bound*sin(6.2831853071795862*pitch_scale*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2) + pow(sin(0.5*pitch_bound*sin(6.2831853071795862*pitch_scale*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2)*pow(cos(0.5*yaw_bound*sin(6.2831853071795862*yaw_scale*pow(sin(0.25*t*w), 2))), 2) + pow(cos(0.5*yaw_bound*sin(6.2831853071795862*yaw_scale*pow(sin(0.25*t*w), 2))), 2)*pow(cos(0.5*pitch_bound*sin(6.2831853071795862*pitch_scale*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2)) - 1.5707963267948966*w*yaw_bound*yaw_scale*sin(0.25*t*w)*sin(0.5*pitch_bound*sin(6.2831853071795862*pitch_scale*pow(sin(0.25*t*w), 2)) + 1.5707963267948966)*cos(0.25*t*w)*cos(0.5*yaw_bound*sin(6.2831853071795862*yaw_scale*pow(sin(0.25*t*w), 2)))*cos(6.2831853071795862*yaw_scale*pow(sin(0.25*t*w), 2))/sqrt(pow(sin(0.5*yaw_bound*sin(6.2831853071795862*yaw_scale*pow(sin(0.25*t*w), 2))), 2)*pow(sin(0.5*pitch_bound*sin(6.2831853071795862*pitch_scale*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2) + pow(sin(0.5*yaw_bound*sin(6.2831853071795862*yaw_scale*pow(sin(0.25*t*w), 2))), 2)*pow(cos(0.5*pitch_bound*sin(6.2831853071795862*pitch_scale*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2) + pow(sin(0.5*pitch_bound*sin(6.2831853071795862*pitch_scale*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2)*pow(cos(0.5*yaw_bound*sin(6.2831853071795862*yaw_scale*pow(sin(0.25*t*w), 2))), 2) + pow(cos(0.5*yaw_bound*sin(6.2831853071795862*yaw_scale*pow(sin(0.25*t*w), 2))), 2)*pow(cos(0.5*pitch_bound*sin(6.2831853071795862*pitch_scale*pow(sin(0.25*t*w), 2)) + 1.5707963267948966), 2));
   // clang-format on
 
   return quat_t{q_OS_w_dot, q_OS_x_dot, q_OS_y_dot, q_OS_z_dot};
@@ -137,8 +172,8 @@ mat4_t lissajous_traj_t::get_pose(const timestamp_t ts_k) const {
   const real_t theta = pow(sin(0.25 * w * t), 2);
 
   // Rotation
-  const real_t pitch = pitch_bound * sin(psi * w * T * theta);
-  const real_t yaw = yaw_bound * sin(w * T * theta);
+  const real_t pitch = pitch_bound * sin(w * T * pitch_scale * theta);
+  const real_t yaw = yaw_bound * sin(w * T * yaw_scale * theta);
   const vec3_t rpy{M_PI + pitch, yaw, 0.0};
   const mat3_t C_OS = euler321(rpy);
 
@@ -368,9 +403,12 @@ void nbt_lissajous_trajs(const timestamp_t &ts_start,
   const real_t T = ts2sec(ts_end) - ts2sec(ts_start);
 
   // Add trajectories
-  trajs.emplace_back("figure8", ts_start, T_WF, T_FO, R, w, h, T);
-  trajs.emplace_back("vert-pan", ts_start, T_WF, T_FO, R, w, h, T);
-  trajs.emplace_back("horiz-pan", ts_start, T_WF, T_FO, R, w, h, T);
+  trajs.emplace_back("fig8-horiz", ts_start, T_WF, T_FO, R, w, h, T);
+  trajs.emplace_back("fig8-vert", ts_start, T_WF, T_FO, R, w, h, T);
+  trajs.emplace_back("s-horiz", ts_start, T_WF, T_FO, R, w, h, T);
+  trajs.emplace_back("s-vert", ts_start, T_WF, T_FO, R, w, h, T);
+  trajs.emplace_back("pan-vert", ts_start, T_WF, T_FO, R, w, h, T);
+  trajs.emplace_back("pan-horiz", ts_start, T_WF, T_FO, R, w, h, T);
   trajs.emplace_back("diag0", ts_start, T_WF, T_FO, R, w, h, T);
   trajs.emplace_back("diag1", ts_start, T_WF, T_FO, R, w, h, T);
 }

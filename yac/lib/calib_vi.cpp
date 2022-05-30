@@ -892,10 +892,6 @@ void calib_vi_t::add_measurement(const timestamp_t imu_ts,
       } else {
         calib_info_ok = false;
       }
-
-      const real_t info =
-          -1.0 * log(calib_info.inverse().determinant()) / log(2.0);
-      printf("info [ceres]: %f\n", info);
     }
 
     // Marginalize oldest view

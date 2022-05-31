@@ -73,58 +73,6 @@ static void setup_test(std::map<int, camera_params_t> &cam_params,
   setup_calib_target(cam_params[0], target, T_FO, &T_WF);
 }
 
-static timeline_t setup_test_data() {
-  // Load grid data
-  timeline_t timeline;
-
-  // -- Add cam0 grids
-  std::vector<std::string> cam0_files;
-  list_files(TEST_IMUCAM_DATA "/cam0", cam0_files);
-  for (auto grid_path : cam0_files) {
-    grid_path = std::string(TEST_IMUCAM_DATA "/cam0/") + grid_path;
-    aprilgrid_t grid(grid_path);
-    if (grid.detected == false) {
-      const auto grid_fname = parse_fname(grid_path);
-      const auto ts_str = grid_fname.substr(0, 19);
-      grid.timestamp = std::stoull(ts_str);
-      grid.tag_rows = 6;
-      grid.tag_cols = 6;
-      grid.tag_size = 0.088;
-      grid.tag_spacing = 0.3;
-    }
-    timeline.add(grid.timestamp, 0, grid);
-  }
-
-  // -- Add cam1 grids
-  std::vector<std::string> cam1_files;
-  list_files(TEST_IMUCAM_DATA "/cam1", cam1_files);
-  for (auto grid_path : cam1_files) {
-    grid_path = std::string(TEST_IMUCAM_DATA "/cam1/") + grid_path;
-    aprilgrid_t grid(grid_path);
-    if (grid.detected == false) {
-      const auto grid_fname = parse_fname(grid_path);
-      const auto ts_str = grid_fname.substr(0, 19);
-      grid.timestamp = std::stoull(ts_str);
-      grid.tag_rows = 6;
-      grid.tag_cols = 6;
-      grid.tag_size = 0.088;
-      grid.tag_spacing = 0.3;
-    }
-    timeline.add(grid.timestamp, 1, grid);
-  }
-
-  // -- Add imu events
-  timestamps_t imu_ts;
-  vec3s_t imu_acc;
-  vec3s_t imu_gyr;
-  load_imu_data(TEST_IMUCAM_DATA "/imu0.csv", imu_ts, imu_acc, imu_gyr);
-  for (size_t k = 0; k < imu_ts.size(); k++) {
-    timeline.add(imu_ts[k], imu_acc[k], imu_gyr[k]);
-  }
-
-  return timeline;
-}
-
 int test_lissajous_traj() {
   // Fiducial pose
   const vec3_t r_WF{0.0, 0.0, 0.0};
@@ -474,11 +422,13 @@ int test_simulate_imu() {
 
     // Calculate position difference
     const real_t dpos = (r_WS - r_WS_gnd).norm();
+    MU_CHECK(dpos < 0.01);
 
     // Calculate angle difference using axis-angle equation
     const mat3_t dC = C_WS_gnd.transpose() * C_WS;
     const real_t ddeg = rad2deg(acos((dC.trace() - 1.0) / 2.0));
     angle_diff.push_back(ddeg);
+    MU_CHECK(ddeg < 0.01);
 
     // Track integrated vs ground truth postion and rotation
     pos_est.push_back(r_WS);
@@ -700,7 +650,6 @@ int test_nbt_eval() {
 
   // Generate trajectories
   LOG_INFO("Generate NBT trajectories");
-  const int cam_idx = 0;
   const timestamp_t ts_start = sec2ts(3.01);
   const timestamp_t ts_end = ts_start + sec2ts(3.0);
   const mat4_t T_WF = calib.get_fiducial_pose();
@@ -719,6 +668,7 @@ int test_nbt_eval() {
   const int retval = nbt_eval(trajs[0], nbt_data, H, H_nbt);
   const real_t info = -1.0 * log(H_nbt.inverse().determinant()) / log(2.0);
   printf("info: %f\n", info);
+  MU_CHECK(retval == 0);
 
   {
     ParameterOrder param_order;
@@ -729,14 +679,12 @@ int test_nbt_eval() {
     schurs_complement(H_, H_.rows() - 6, 6, H_nbt);
     H_nbt = H + H_nbt;
 
-    const Eigen::JacobiSVD<matx_t> svd(H_nbt,
-                                       Eigen::ComputeThinU |
-                                           Eigen::ComputeThinV);
+    // clang-format off
+    const Eigen::JacobiSVD<matx_t> svd(H_nbt, Eigen::ComputeThinU | Eigen::ComputeThinV);
     const vecx_t sv = svd.singularValues();
-    const real_t info =
-        1.0 * sv.head(svd.rank()).array().log().sum() / log(2.0);
-    // const real_t info = -1.0 * log(H_nbt.inverse().determinant()) / log(2.0);
+    const real_t info = 1.0 * sv.head(svd.rank()).array().log().sum() / log(2.0);
     printf("info: %f\n", info);
+    // clang-format on
   }
 
   return 0;
@@ -764,10 +712,10 @@ int test_nbt_find() {
   if (calib.recover_calib_info(H) != 0) {
     return -1;
   }
+  H.setIdentity();
 
   // Generate trajectories
   LOG_INFO("Generate NBT trajectories");
-  const int cam_idx = 0;
   const timestamp_t ts_start = 0;
   const timestamp_t ts_end = ts_start + sec2ts(3.0);
   const mat4_t T_WF = calib.get_fiducial_pose();

@@ -1683,11 +1683,25 @@ struct imu_data_t {
     }
 
     // Trim IMU measurements
-    while (ts_end > timestamps.front()) {
-      timestamps.pop_front();
-      accel.pop_front();
-      gyro.pop_front();
+    // while (ts_end > timestamps.front()) {
+    //   timestamps.pop_front();
+    //   accel.pop_front();
+    //   gyro.pop_front();
+    // }
+
+    std::deque<timestamp_t> timestamps_new;
+    std::deque<vec3_t, Eigen::aligned_allocator<vec3_t>> accel_new;
+    std::deque<vec3_t, Eigen::aligned_allocator<vec3_t>> gyro_new;
+    for (size_t k = 0; k < timestamps.size(); k++) {
+      if (timestamps[k] > ts_end) {
+        timestamps_new.push_back(timestamps[k]);
+        accel_new.push_back(accel[k]);
+        gyro_new.push_back(gyro[k]);
+      }
     }
+    timestamps = timestamps_new;
+    accel = accel_new;
+    gyro = gyro_new;
   }
 
   imu_data_t extract(const timestamp_t ts_start, const timestamp_t ts_end) {

@@ -128,18 +128,6 @@ calib_vi_view_t::~calib_vi_view_t() {
   if (problem->HasParameterBlock(sb.param.data())) {
     problem->RemoveParameterBlock(sb.param.data());
   }
-
-  // // Delete fiducial residuals
-  // for (auto &[cam_idx, res_fns] : fiducial_residuals) {
-  //   for (auto res : res_fns) {
-  //     delete res;
-  //   }
-  // }
-
-  // // Delete IMU residual
-  // if (imu_residual) {
-  //   delete imu_residual;
-  // }
 }
 
 std::vector<int> calib_vi_view_t::get_camera_indices() const {

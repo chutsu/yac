@@ -17,24 +17,6 @@
 
 namespace yac {
 
-void publish_nbt(const ctraj_t &traj, ros::Publisher &pub) {
-  auto ts = ros::Time::now();
-  auto frame_id = "map";
-
-  nav_msgs::Path path_msg;
-  path_msg.header.seq = 0;
-  path_msg.header.stamp = ts;
-  path_msg.header.frame_id = frame_id;
-
-  for (size_t i = 0; i < traj.orientations.size(); i++) {
-    auto pose = tf(traj.orientations[i], traj.positions[i]);
-    auto pose_stamped = msg_build(0, ts, frame_id, pose);
-    path_msg.poses.push_back(pose_stamped);
-  }
-
-  pub.publish(path_msg);
-}
-
 void publish_nbt(const lissajous_traj_t &traj, ros::Publisher &pub) {
   auto ts = ros::Time::now();
   auto frame_id = "map";
@@ -529,14 +511,15 @@ struct calib_nbt_t {
     // Visualize
     visualize();
 
-    // // Trigger NBT
-    // if (calib->calib_info_ok == false) {
-    //   return;
-    // }
-    // const bool rate_ok = (calib->calib_view_counter % rate == 0);
-    // if (rate_ok) {
-    //   find_nbt();
-    // }
+    // Trigger NBT
+    if (calib->calib_info_ok == false) {
+      return;
+    }
+    const bool rate_ok = (calib->calib_view_counter % (15 * 5) == 0);
+    if (rate_ok) {
+      LOG_INFO("FIND NBT!");
+      find_nbt();
+    }
   }
 
   /** Finish **/

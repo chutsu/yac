@@ -1378,14 +1378,16 @@ int calib_camera_t::find_nbv_fast(const std::map<int, mat4s_t> &nbv_poses,
     total_nbv_poses += nbv_cam_poses.size();
   }
   progressbar bar(total_nbv_poses);
-  // printf("Num residuals: %ld\n", solver->num_residuals());
-  // printf("Num parameters: %ld\n", solver->num_params());
-  // printf("Finding NBV [out of %d poses]: ", total_nbv_poses);
 
   // Evaluate NBVs
-  nbv_evaluator_t nbv_eval(this);
   std::map<int, std::map<int, real_t>> nbv_scores;
-  for (const auto &[nbv_cam_idx, nbv_cam_poses] : nbv_poses) {
+  nbv_evaluator_t nbv_eval(this);
+#pragma omp parallel for shared(nbv_scores)
+  for (size_t idx = 0; idx < nbv_poses.size(); idx++) {
+    const int nbv_cam_idx = idx;
+    const auto &nbv_cam_poses = nbv_poses.at(nbv_cam_idx);
+
+    // for (const auto &[nbv_cam_idx, nbv_cam_poses] : nbv_poses) {
     for (size_t i = 0; i < nbv_cam_poses.size(); i++) {
       const mat4_t T_FC0 = nbv_cam_poses.at(i);
       const real_t nbv_score = nbv_eval.eval(T_FC0);
@@ -2260,12 +2262,6 @@ nbv_evaluator_t::nbv_evaluator_t(calib_camera_t *calib) {
   form_hessian(H_size, calib->solver->res_fns, H_k);
 }
 
-nbv_evaluator_t::~nbv_evaluator_t() {
-  // if (corners) {
-  //   delete corners;
-  // }
-}
-
 void nbv_evaluator_t::form_param_order(
     const std::unordered_set<calib_residual_t *> &res_fns) {
   // Evaluate residuals
@@ -2354,8 +2350,8 @@ void nbv_evaluator_t::form_hessian(
         } else {
           // Form off-diagonals of H
           // clang-format off
-            H.block(idx_i, idx_j, size_i, size_j) += J_i.transpose() * J_j;
-            H.block(idx_j, idx_i, size_j, size_i) += (J_i.transpose() * J_j).transpose();
+          H.block(idx_i, idx_j, size_i, size_j) += J_i.transpose() * J_j;
+          H.block(idx_j, idx_i, size_j, size_i) += (J_i.transpose() * J_j).transpose();
           // clang-format on
         }
       }

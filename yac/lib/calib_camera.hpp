@@ -293,7 +293,7 @@ struct nbv_evaluator_t {
 
   nbv_evaluator_t() = delete;
   nbv_evaluator_t(calib_camera_t *calib);
-  ~nbv_evaluator_t();
+  ~nbv_evaluator_t() = default;
 
   void form_param_order(const std::unordered_set<calib_residual_t *> &res_fns);
   void form_hessian(const size_t H_size,

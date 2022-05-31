@@ -53,8 +53,8 @@ lissajous_traj_t::lissajous_traj_t(const std::string &traj_type_,
     a = 2.0 * M_PI * 3.0;
     b = 2.0 * M_PI * 1.0;
     delta = M_PI;
-    A = calib_width * 0.5;
-    B = calib_height * 0.5;
+    A = calib_width * 0.55;
+    B = calib_height * 0.55;
     yaw_scale = 0.0;
     pitch_scale = 1.0;
     yaw_bound = -atan2(A, R);
@@ -397,15 +397,15 @@ void nbt_lissajous_trajs(const timestamp_t &ts_start,
   const mat4_t T_FO = tf(I(3), calib_center);
 
   // Lissajous parameters
-  const real_t R = std::max(calib_width, calib_height) * 1.0;
+  const real_t R = std::max(calib_width, calib_height) * 1.2;
   const real_t w = calib_width;
   const real_t h = calib_height;
   const real_t T = ts2sec(ts_end) - ts2sec(ts_start);
 
   // Add trajectories
   trajs.emplace_back("fig8-horiz", ts_start, T_WF, T_FO, R, w, h, T);
-  // trajs.emplace_back("fig8-vert", ts_start, T_WF, T_FO, R, w, h, T);
-  // trajs.emplace_back("s-horiz", ts_start, T_WF, T_FO, R, w, h, T);
+  trajs.emplace_back("fig8-vert", ts_start, T_WF, T_FO, R, w, h, T);
+  trajs.emplace_back("s-horiz", ts_start, T_WF, T_FO, R, w, h, T);
   trajs.emplace_back("s-vert", ts_start, T_WF, T_FO, R, w, h, T);
   trajs.emplace_back("pan-vert", ts_start, T_WF, T_FO, R, w, h, T);
   trajs.emplace_back("pan-horiz", ts_start, T_WF, T_FO, R, w, h, T);
@@ -608,43 +608,6 @@ void nbt_create_timeline(const camera_data_t &cam_grids,
       }
     }
   }
-}
-
-static void schurs_complement(const matx_t &H,
-                              const size_t m, // Marginalize
-                              const size_t r, // Remain
-                              matx_t &H_marg) {
-  // Pseudo inverse of Hmm via Eigen-decomposition:
-  //
-  //   A_pinv = V * Lambda_pinv * V_transpose
-  //
-  // Where Lambda_pinv is formed by **replacing every non-zero diagonal
-  // entry by its reciprocal, leaving the zeros in place, and transposing
-  // the resulting matrix.
-  // clang-format off
-  matx_t Hmm = H.block(r, r, m, m);
-  Hmm = 0.5 * (Hmm + Hmm.transpose()); // Enforce Symmetry
-  const double eps = 1.0e-8;
-  const Eigen::SelfAdjointEigenSolver<matx_t> eig(Hmm);
-  const matx_t V = eig.eigenvectors();
-  const auto eigvals_inv = (eig.eigenvalues().array() > eps).select(eig.eigenvalues().array().inverse(), 0);
-  const matx_t Lambda_inv = vecx_t(eigvals_inv).asDiagonal();
-  const matx_t Hmm_inv = V * Lambda_inv * V.transpose();
-  // const double inv_check = ((Hmm * Hmm_inv) - I(m, m)).sum();
-  // if (fabs(inv_check) > 1e-4) {
-  //   LOG_WARN("Inverse identity check: %f", inv_check);
-  //   LOG_WARN("This is bad ... Usually means marg_residual_t is bad!");
-  // }
-  // clang-format on
-
-  // Calculate Schur's complement
-  // H = [Hrr, Hrm,
-  //      Hmr, Hmm]
-  const matx_t Hrr = H.block(0, 0, r, r);
-  const matx_t Hrm = H.block(0, r, r, m);
-  const matx_t Hmr = H.block(r, 0, m, r);
-
-  H_marg = Hrr - Hrm * Hmm_inv * Hmr;
 }
 
 int nbt_eval(const lissajous_traj_t &traj,

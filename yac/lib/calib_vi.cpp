@@ -58,9 +58,9 @@ calib_vi_view_t::calib_vi_view_t(const timestamp_t ts_,
                                  CamIdx2Geometry &cam_geoms_,
                                  CamIdx2Parameters &cam_params_,
                                  CamIdx2Extrinsics &cam_exts_,
-                                 extrinsics_t *imu_exts_,
-                                 fiducial_t *fiducial_,
-                                 ceres::Problem *problem_,
+                                 std::shared_ptr<extrinsics_t> imu_exts_,
+                                 std::shared_ptr<fiducial_t> fiducial_,
+                                 std::shared_ptr<ceres::Problem> problem_,
                                  PoseLocalParameterization *pose_plus)
     : ts{ts_}, grids{grids_}, pose{ts_, T_WS_}, sb{ts_, sb_},
       cam_geoms{cam_geoms_}, cam_params{cam_params_}, cam_exts{cam_exts_},
@@ -96,8 +96,8 @@ calib_vi_view_t::calib_vi_view_t(const timestamp_t ts_,
                                                 cam_geoms[cam_idx].get(),
                                                 cam_params[cam_idx].get(),
                                                 cam_exts[cam_idx].get(),
-                                                imu_exts,
-                                                fiducial,
+                                                imu_exts.get(),
+                                                fiducial.get(),
                                                 &pose,
                                                 tag_id,
                                                 corner_idx,
@@ -228,12 +228,12 @@ void calib_vi_view_t::form_imu_residual(const imu_params_t &imu_params,
   assert(fltcmp(imu_params.sigma_aw_c, 0.0) != 0);
   assert(fltcmp(imu_params.sigma_gw_c, 0.0) != 0);
 
-  imu_residual = make_shared<imu_residual_t>(imu_params,
-                                             imu_buf,
-                                             &pose,
-                                             &sb,
-                                             pose_j,
-                                             sb_j);
+  imu_residual = std::make_shared<imu_residual_t>(imu_params,
+                                                  imu_buf,
+                                                  &pose,
+                                                  &sb,
+                                                  pose_j,
+                                                  sb_j);
   imu_residual_id = problem->AddResidualBlock(imu_residual.get(),
                                               NULL,
                                               pose.param.data(),
@@ -255,12 +255,11 @@ calib_vi_view_t::marginalize(marg_residual_t *marg_residual) {
       marg_residual->add(residual);
     }
   }
-  const auto res_id = marg_residual->marginalize(problem);
+  const auto res_id = marg_residual->marginalize(problem.get());
 
   // Clear residuals
   fiducial_residual_ids.clear();
   fiducial_residuals.clear();
-  // imu_residual = nullptr;
   // ^ Important! we don't want to delete the residual blocks when the view is
   // deconstructed, but rather by adding the residual functions to the
   // marginalization residual we pass the ownership to marg_residual_t
@@ -277,7 +276,7 @@ calib_vi_t::calib_vi_t(const calib_target_t &calib_target_)
   prob_options.cost_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
   prob_options.loss_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
   prob_options.enable_fast_removal = true;
-  problem = std::make_unique<ceres::Problem>(prob_options);
+  problem = std::make_shared<ceres::Problem>(prob_options);
 
   // AprilGrid detector
   detector = std::make_unique<aprilgrid_detector_t>(calib_target.tag_rows,
@@ -292,7 +291,7 @@ calib_vi_t::calib_vi_t(const std::string &config_path) {
   prob_options.cost_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
   prob_options.loss_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
   prob_options.enable_fast_removal = true;
-  problem = std::make_unique<ceres::Problem>(prob_options);
+  problem = std::make_shared<ceres::Problem>(prob_options);
 
   // Load configuration
   config_t config{config_path};
@@ -365,13 +364,6 @@ calib_vi_t::calib_vi_t(const std::string &config_path) {
                                                     calib_target.tag_spacing);
 }
 
-calib_vi_t::~calib_vi_t() {
-  // Calibration views
-  for (auto &view : calib_views) {
-    delete view;
-  }
-}
-
 void calib_vi_t::add_imu(const imu_params_t &imu_params_,
                          const mat4_t &T_BS,
                          const double td,
@@ -387,7 +379,7 @@ void calib_vi_t::add_imu(const imu_params_t &imu_params_,
   imu_params = imu_params_;
 
   // Imu extrinsics
-  imu_exts = std::make_unique<extrinsics_t>(T_BS);
+  imu_exts = std::make_shared<extrinsics_t>(T_BS);
   problem->AddParameterBlock(imu_exts->param.data(), 7);
   problem->SetParameterization(imu_exts->param.data(), &pose_plus);
   if (fix_extrinsics) {
@@ -396,7 +388,7 @@ void calib_vi_t::add_imu(const imu_params_t &imu_params_,
   }
 
   // Imu time delay
-  time_delay = std::make_unique<time_delay_t>(td);
+  time_delay = std::make_shared<time_delay_t>(td);
   problem->AddParameterBlock(time_delay->param.data(), 1);
   if (fix_time_delay) {
     problem->SetParameterBlockConstant(time_delay->param.data());
@@ -648,7 +640,7 @@ void calib_vi_t::initialize(const CamIdx2Grids &grids, imu_data_t &imu_buf) {
 
   // Set fiducial
   if (fiducial == nullptr) {
-    fiducial = std::make_unique<fiducial_t>(T_WF);
+    fiducial = std::make_shared<fiducial_t>(T_WF);
     problem->AddParameterBlock(fiducial->param.data(), FIDUCIAL_PARAMS_SIZE);
     if (fiducial->param.size() == 7) {
       problem->SetParameterization(fiducial->param.data(), &pose_plus);
@@ -677,21 +669,21 @@ void calib_vi_t::initialize(const CamIdx2Grids &grids, imu_data_t &imu_buf) {
   // First calibration view
   const timestamp_t ts = grids.at(0).timestamp;
   const vec_t<9> sb = zeros(9, 1);
-  calib_views.push_back(new calib_vi_view_t{ts,
-                                            grids,
-                                            T_WS,
-                                            sb,
-                                            cam_geoms,
-                                            cam_params,
-                                            cam_exts,
-                                            imu_exts.get(),
-                                            fiducial.get(),
-                                            problem.get(),
-                                            &pose_plus});
+  calib_views.push_back(std::make_shared<calib_vi_view_t>(ts,
+                                                          grids,
+                                                          T_WS,
+                                                          sb,
+                                                          cam_geoms,
+                                                          cam_params,
+                                                          cam_exts,
+                                                          imu_exts,
+                                                          fiducial,
+                                                          problem,
+                                                          &pose_plus));
 
   initialized = true;
   prev_grids = grids;
-} // namespace yac
+}
 
 void calib_vi_t::add_view(const CamIdx2Grids &grids) {
   // Pre-check
@@ -740,17 +732,17 @@ void calib_vi_t::add_view(const CamIdx2Grids &grids) {
   // measurements, we are estimating `T_WS_k` via vision. This is because
   // vision estimate is better in this case.
   calib_view_counter++;
-  calib_views.push_back(new calib_vi_view_t{ts_k,
-                                            grids,
-                                            T_WS_k,
-                                            sb_k,
-                                            cam_geoms,
-                                            cam_params,
-                                            cam_exts,
-                                            imu_exts.get(),
-                                            fiducial.get(),
-                                            problem.get(),
-                                            &pose_plus});
+  calib_views.push_back(std::make_shared<calib_vi_view_t>(ts_k,
+                                                          grids,
+                                                          T_WS_k,
+                                                          sb_k,
+                                                          cam_geoms,
+                                                          cam_params,
+                                                          cam_exts,
+                                                          imu_exts,
+                                                          fiducial,
+                                                          problem,
+                                                          &pose_plus));
 
   // Form imu factor between view km1 and k
   auto view_k = calib_views.back();
@@ -971,7 +963,7 @@ void calib_vi_t::marginalize() {
 
   // Remove view
   calib_views.pop_front();
-  delete view;
+  // delete view;
 }
 
 void calib_vi_t::reset() {
@@ -986,9 +978,9 @@ void calib_vi_t::reset() {
   imu_buf.clear();
 
   // Reset problem data
-  for (auto view : calib_views) {
-    delete view;
-  }
+  // for (auto view : calib_views) {
+  //   delete view;
+  // }
   calib_views.clear();
 
   // delete marg_residual;

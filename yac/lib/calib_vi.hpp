@@ -23,12 +23,12 @@ struct calib_vi_view_t {
   CamIdx2Geometry &cam_geoms;
   CamIdx2Parameters &cam_params;
   CamIdx2Extrinsics &cam_exts;
-  extrinsics_t *imu_exts = nullptr;
-  fiducial_t *fiducial = nullptr;
-  PoseLocalParameterization *pose_plus = nullptr;
+  std::shared_ptr<extrinsics_t> imu_exts;
+  std::shared_ptr<fiducial_t> fiducial;
+  PoseLocalParameterization *pose_plus;
 
   // Problem
-  ceres::Problem *problem = nullptr;
+  std::shared_ptr<ceres::Problem> problem;
   // -- Fiducial errors
   CamIdx2FiducialResidualIds fiducial_residual_ids;
   CamIdx2FiducialResiduals fiducial_residuals;
@@ -44,9 +44,9 @@ struct calib_vi_view_t {
                   CamIdx2Geometry &cam_geoms_,
                   CamIdx2Parameters &cam_params_,
                   CamIdx2Extrinsics &cam_exts_,
-                  extrinsics_t *imu_exts_,
-                  fiducial_t *fiducial_,
-                  ceres::Problem *problem_,
+                  std::shared_ptr<extrinsics_t> imu_exts_,
+                  std::shared_ptr<fiducial_t> fiducial_,
+                  std::shared_ptr<ceres::Problem> problem_,
                   PoseLocalParameterization *pose_plus);
   ~calib_vi_view_t();
 
@@ -86,9 +86,9 @@ struct calib_vi_t {
   CamIdx2Geometry cam_geoms;
   CamIdx2Parameters cam_params;
   CamIdx2Extrinsics cam_exts;
-  std::unique_ptr<extrinsics_t> imu_exts;
-  std::unique_ptr<fiducial_t> fiducial;
-  std::unique_ptr<time_delay_t> time_delay;
+  std::shared_ptr<extrinsics_t> imu_exts;
+  std::shared_ptr<fiducial_t> fiducial;
+  std::shared_ptr<time_delay_t> time_delay;
 
   // Data
   // -- Vision data
@@ -103,7 +103,7 @@ struct calib_vi_t {
   // Problem data
   profiler_t prof;
   size_t calib_view_counter = 0;
-  std::deque<calib_vi_view_t *> calib_views;
+  std::deque<std::shared_ptr<calib_vi_view_t>> calib_views;
   ceres::ResidualBlockId marg_residual_id;
   std::shared_ptr<marg_residual_t> marg_residual;
 
@@ -114,7 +114,7 @@ struct calib_vi_t {
   // Optimization
   PoseLocalParameterization pose_plus;
   ceres::Problem::Options prob_options;
-  std::unique_ptr<ceres::Problem> problem;
+  std::shared_ptr<ceres::Problem> problem;
 
   // AprilGrid detector
   std::unique_ptr<aprilgrid_detector_t> detector;
@@ -123,7 +123,7 @@ struct calib_vi_t {
   calib_vi_t(const calib_target_t &calib_target_);
   // calib_vi_t(const calib_vi_t &calib);
   calib_vi_t(const std::string &config_path);
-  ~calib_vi_t();
+  ~calib_vi_t() = default;
 
   void add_imu(const imu_params_t &imu_params_,
                const mat4_t &T_BS,

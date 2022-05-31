@@ -42,8 +42,8 @@ lissajous_traj_t::lissajous_traj_t(const std::string &traj_type_,
     a = 2.0 * M_PI * 1.0;
     b = 2.0 * M_PI * 3.0;
     delta = M_PI;
-    A = calib_width * 0.3;
-    B = calib_height * 0.3;
+    A = calib_width * 0.5;
+    B = calib_height * 0.5;
     yaw_scale = 1.0;
     pitch_scale = 0.0;
     yaw_bound = -atan2(A, R);
@@ -53,8 +53,8 @@ lissajous_traj_t::lissajous_traj_t(const std::string &traj_type_,
     a = 2.0 * M_PI * 3.0;
     b = 2.0 * M_PI * 1.0;
     delta = M_PI;
-    A = calib_width * 0.3;
-    B = calib_height * 0.3;
+    A = calib_width * 0.5;
+    B = calib_height * 0.5;
     yaw_scale = 0.0;
     pitch_scale = 1.0;
     yaw_bound = -atan2(A, R);
@@ -86,8 +86,8 @@ lissajous_traj_t::lissajous_traj_t(const std::string &traj_type_,
     a = 2.0 * M_PI * 1.0;
     b = 2.0 * M_PI * 1.0;
     delta = 0.0;
-    A = calib_width * 0.64;
-    B = calib_height * 0.64;
+    A = calib_width * 0.6;
+    B = calib_height * 0.6;
     yaw_scale = 1.0;
     pitch_scale = 1.0;
     yaw_bound = atan2(A, R);
@@ -97,8 +97,8 @@ lissajous_traj_t::lissajous_traj_t(const std::string &traj_type_,
     a = 2.0 * M_PI * 1.0;
     b = 2.0 * M_PI * 1.0;
     delta = M_PI;
-    A = calib_width * 0.64;
-    B = calib_height * 0.64;
+    A = calib_width * 0.6;
+    B = calib_height * 0.6;
     yaw_scale = 1.0;
     pitch_scale = 1.0;
     yaw_bound = -atan2(A, R);
@@ -404,8 +404,8 @@ void nbt_lissajous_trajs(const timestamp_t &ts_start,
 
   // Add trajectories
   trajs.emplace_back("fig8-horiz", ts_start, T_WF, T_FO, R, w, h, T);
-  trajs.emplace_back("fig8-vert", ts_start, T_WF, T_FO, R, w, h, T);
-  trajs.emplace_back("s-horiz", ts_start, T_WF, T_FO, R, w, h, T);
+  // trajs.emplace_back("fig8-vert", ts_start, T_WF, T_FO, R, w, h, T);
+  // trajs.emplace_back("s-horiz", ts_start, T_WF, T_FO, R, w, h, T);
   trajs.emplace_back("s-vert", ts_start, T_WF, T_FO, R, w, h, T);
   trajs.emplace_back("pan-vert", ts_start, T_WF, T_FO, R, w, h, T);
   trajs.emplace_back("pan-horiz", ts_start, T_WF, T_FO, R, w, h, T);
@@ -654,15 +654,6 @@ int nbt_eval(const lissajous_traj_t &traj,
   // Setup
   const timestamp_t ts_start = traj.ts_start;
   const timestamp_t ts_end = ts_start + sec2ts(traj.T);
-  // const real_t cam_rate = calib.get_camera_rate();
-  // const real_t imu_rate = calib.get_imu_rate();
-  // if ((imu_rate - calib.imu_params.rate) > 50) {
-  //   LOG_ERROR("(imu_rate - imu_params.rate) > 50");
-  //   LOG_ERROR("imu_rate: %f", imu_rate);
-  //   LOG_ERROR("imu_params.rate: %f", calib.imu_params.rate);
-  //   FATAL("Measured IMU rate is different to configured imu
-  //   rate!");
-  // }
 
   // Simulate imu measurements
   timestamps_t imu_ts;

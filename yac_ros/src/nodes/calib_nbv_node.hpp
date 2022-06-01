@@ -127,6 +127,7 @@ struct calib_nbv_t {
     }
 
     // Loop
+    LOG_INFO("Point the camera at the calibration target to initialize...");
     loop();
   }
 

@@ -87,10 +87,10 @@ void publish_nbt_data(const calib_vi_t *calib, ros::Publisher &pub) {
     cam_msg.dist_model = cam->dist_model;
     cam_msg.resolution[0] = cam->resolution[0];
     cam_msg.resolution[1] = cam->resolution[1];
-    for (size_t i = 0; i < cam->proj_params().size(); i++) {
+    for (int i = 0; i < cam->proj_params().size(); i++) {
       cam_msg.proj_params.push_back(cam->proj_params()[i]);
     }
-    for (size_t i = 0; i < cam->dist_params().size(); i++) {
+    for (int i = 0; i < cam->dist_params().size(); i++) {
       cam_msg.dist_params.push_back(cam->dist_params()[i]);
     }
     msg.cam_params.push_back(cam_msg);
@@ -138,7 +138,7 @@ struct calib_nbt_t {
     SETUP = 0,
     INITIALIZE = 1,
     NBT = 2,
-    BATCH = 3,
+    FINISH = 3,
   };
 
   // Flags
@@ -157,10 +157,13 @@ struct calib_nbt_t {
   int min_init_views = 10;
   double nbv_reproj_threshold = 10.0;
   double nbv_hold_threshold = 1.0;
+  const std::string finish_topic = "/yac_ros/nbt_finish";
 
   // ROS
   const std::string node_name;
   ros::NodeHandle ros_nh;
+  // -- NBT Finish subscriber
+  ros::Subscriber finish_sub;
   // -- IMU
   std::string imu0_topic;
   ros::Subscriber imu0_sub;
@@ -242,6 +245,7 @@ struct calib_nbt_t {
                                    T_FC0);
 
     // Loop
+    LOG_INFO("Move to calibration origin!");
     loop();
   }
 
@@ -332,6 +336,9 @@ struct calib_nbt_t {
 
     // Subscribers
     // clang-format off
+    // -- NBT Finish
+    LOG_INFO("Subscribing to [%s]", finish_topic.c_str());
+    finish_sub = ros_nh.subscribe(finish_topic, 1, &calib_nbt_t::finish_callback, this);
     // -- IMU
     LOG_INFO("Subscribing to imu0 @ [%s]", imu0_topic.c_str());
     imu0_sub = ros_nh.subscribe(imu0_topic, 1000, &calib_nbt_t::imu0_callback, this);
@@ -357,7 +364,6 @@ struct calib_nbt_t {
         case 'f':
           LOG_INFO("Finishing ...");
           finish();
-          keep_running = false;
           break;
         case 'n':
           if (state != NBT || calib->calib_info_ok == false) {
@@ -464,6 +470,7 @@ struct calib_nbt_t {
     const auto &grid = calib->detector->detect(ts, cam_img);
     if (grid.detected) {
       draw_nbv(0, viz);
+      draw_detected(grid, viz);
 
       if (check_nbv_reached(grid)) {
         state = INITIALIZE;
@@ -524,6 +531,9 @@ struct calib_nbt_t {
 
   /** Finish **/
   void finish() {
+    // Change state
+    state = FINISH;
+
     // Unsubscribe imu0
     LOG_INFO("Unsubscribing from [%s]", imu0_topic.c_str());
     imu0_sub.shutdown();
@@ -550,6 +560,9 @@ struct calib_nbt_t {
       fprintf(info_csv, "%f\n", calib_info_predict[ts]);
     }
     fclose(info_csv);
+
+    // Kill loop
+    keep_running = false;
   }
 
   /** Publish Estimates */
@@ -650,6 +663,15 @@ struct calib_nbt_t {
 
     // Publish estimates
     publish_estimates(ts);
+  }
+
+  /** Finish callback */
+  void finish_callback(const std_msgs::Bool &msg) {
+    // Pre-check
+    if (msg.data == false) {
+      return;
+    }
+    finish();
   }
 
   void loop() {

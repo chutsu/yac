@@ -91,9 +91,9 @@ int calib_nbv_poses(mat4s_t &nbv_poses,
                     const calib_target_t &target,
                     const camera_geometry_t *cam_geom,
                     const camera_params_t *cam_params,
-                    const int range_x_size = 5,
-                    const int range_y_size = 5,
-                    const int range_z_size = 3);
+                    const int range_x_size = 8,
+                    const int range_y_size = 8,
+                    const int range_z_size = 1);
 
 /**
  * Calibration NBV poses
@@ -114,9 +114,9 @@ int calib_nbv_poses(std::map<int, mat4s_t> &nbv_poses,
                     const CamIdx2Geometry &cam_geoms,
                     const CamIdx2Parameters &cam_params,
                     const CamIdx2Extrinsics &cam_exts,
-                    const int range_x_size = 5,
-                    const int range_y_size = 5,
-                    const int range_z_size = 3);
+                    const int range_x_size = 8,
+                    const int range_y_size = 8,
+                    const int range_z_size = 1);
 
 /**
  * NBV Target Grid

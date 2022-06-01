@@ -33,7 +33,11 @@ struct calib_nbt_eval_t {
   const std::string node_name;
   ros::NodeHandle ros_nh;
   ros::Publisher nbt_pub;
+  ros::Publisher finish_pub;
   ros::Subscriber nbt_data_sub;
+
+  // Setting
+  real_t nbt_threshold = 0.5;
 
   // Data
   std::map<timestamp_t, real_t> calib_info;
@@ -46,6 +50,7 @@ struct calib_nbt_eval_t {
   calib_nbt_eval_t(const std::string &node_name_) : node_name{node_name_} {
     // Publishers
     nbt_pub = ros_nh.advertise<nav_msgs::Path>("/yac_ros/nbt", 0);
+    finish_pub = ros_nh.advertise<std_msgs::Bool>("/yac_ros/nbt_finish", 0);
 
     // Subscribers
     const std::string nbt_data_topic = "/yac_ros/nbt_data";
@@ -194,12 +199,20 @@ struct calib_nbt_eval_t {
 
     // Evaluate NBT trajectories
     LOG_INFO("Evaluate NBTs");
-
     real_t info_k = 0.0;
     real_t info_kp1 = 0.0;
     const int idx = nbt_find(trajs, nbt_data, H, true, &info_k, &info_kp1);
     if (idx >= 0) {
       publish_nbt(trajs[idx], nbt_pub);
+    }
+
+    // Check if info gain is below threshold
+    const auto info_gain = 0.5 * (info_k - info_kp1);
+    if (info_gain < nbt_threshold) {
+      LOG_INFO("Info Gain Threshold Met!");
+      std_msgs::Bool msg;
+      msg.data = true;
+      finish_pub.publish(msg);
     }
 
     // Track info

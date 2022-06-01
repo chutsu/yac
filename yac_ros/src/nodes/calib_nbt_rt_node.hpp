@@ -192,7 +192,6 @@ struct calib_nbt_t {
   struct timespec nbv_hold_tic = (struct timespec){0, 0};
 
   // Data
-  size_t frame_idx = 0;
   profiler_t prof;
   std::map<int, FILE *> cam_files;
   FILE *imu_file;
@@ -658,16 +657,17 @@ struct calib_nbt_t {
     if (state != SETUP) {
       // Add camera image to calibrator
       const bool ready = calib->add_measurement(ts, cam_idx, cam_img);
-      if (ready == false) {
-        return;
-      }
 
-      // Write image measurement to disk
+      // Write image measurements to disk
       const std::string img_fname = std::to_string(ts) + ".png";
       const std::string img_path = cam_dirs[cam_idx] + "/data/" + img_fname;
       cv::imwrite(img_path.c_str(), cam_img);
       fprintf(cam_files[cam_idx], "%ld,%ld.png\n", ts, ts);
       fflush(cam_files[cam_idx]);
+
+      if (ready == false) {
+        return;
+      }
     }
 
     // States

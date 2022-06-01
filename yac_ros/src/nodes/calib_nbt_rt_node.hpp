@@ -381,7 +381,7 @@ struct calib_nbt_t {
         }
         case 'r':
           LOG_INFO("Resetting ...");
-          state = INITIALIZE;
+          reset();
           break;
       }
     }
@@ -451,6 +451,31 @@ struct calib_nbt_t {
     // Show
     cv::imshow("Viz", viz);
     event_handler(cv::waitKey(1));
+  }
+
+  /** Reset */
+  void reset() {
+    // Reset state
+    state = SETUP;
+
+    // Reset calibrator
+    calib.reset();
+    calib = std::make_unique<calib_vi_t>(calib_file);
+    calib->max_iter = 30;
+
+    // Clear calibration info
+    calib_info.clear();
+    calib_info_predict.clear();
+
+    // Remove calibration directory
+    const std::string dir_path = data_path;
+    const std::string cmd = "rm -rf " + dir_path;
+    if (system(cmd.c_str()) != 0) {
+      FATAL("Failed to remove dir [%s]", dir_path.c_str());
+    }
+
+    // Create calibration directory
+    prep_output();
   }
 
   /** Find NBT */

@@ -329,7 +329,6 @@ int calib_view_t::filter_view(const vec2_t &threshold) {
 
         // Remove residual block from ceres::Problem
         solver->remove_residual(res.get());
-        // delete res;
 
         res_fns_it = res_fns[cam_idx].erase(res_fns_it);
         nb_outliers++;
@@ -773,7 +772,6 @@ calib_camera_t::calib_camera_t(const calib_camera_t *calib) {
   }
 
   // Sliding window
-  calib_view_timestamps = calib->calib_view_timestamps;
   filtered_timestamps = calib->filtered_timestamps;
   for (const auto &[ts, view] : calib->calib_views) {
     add_view(view->grids);
@@ -1135,7 +1133,6 @@ bool calib_camera_t::add_view(const std::map<int, aprilgrid_t> &cam_grids) {
   }
 
   // Add calibration view
-  calib_view_timestamps.push_back(ts);
   calib_views[ts] = new calib_view_t{ts,
                                      cam_grids,
                                      corners.get(),
@@ -1162,7 +1159,7 @@ bool calib_camera_t::add_nbv_view(const std::map<int, aprilgrid_t> &cam_grids) {
   solver->solve(5);
 
   // Calculate information gain
-  const timestamp_t ts = calib_view_timestamps.back();
+  const timestamp_t ts = calib_views.rbegin()->first;
   real_t info_kp1 = 0.0;
   if (_calc_info(&info_kp1) != 0) {
     _restore_estimates();
@@ -1206,11 +1203,6 @@ void calib_camera_t::remove_view(const timestamp_t ts) {
     auto view_it = calib_views.find(ts);
     delete view_it->second;
     calib_views.erase(view_it);
-
-    auto ts_it = std::find(calib_view_timestamps.begin(),
-                           calib_view_timestamps.end(),
-                           ts);
-    calib_view_timestamps.erase(ts_it);
   }
 }
 
@@ -1236,7 +1228,7 @@ void calib_camera_t::remove_all_views() {
 
 void calib_camera_t::marginalize() {
   // Mark the pose to be marginalized
-  auto marg_ts = calib_view_timestamps[0];
+  auto marg_ts = calib_views.begin()->first;
   auto view = calib_views[marg_ts];
   poses[marg_ts]->marginalize = true;
 
@@ -1370,9 +1362,6 @@ int calib_camera_t::find_nbv_fast(const std::map<int, mat4s_t> &nbv_poses,
   }
 
   // Find NBV
-  // const timestamp_t last_ts = *timestamps.rbegin(); // std::set is orderd
-  // const timestamp_t nbv_ts = last_ts + 1;
-
   int total_nbv_poses = 0;
   for (const auto &[nbv_cam_idx, nbv_cam_poses] : nbv_poses) {
     total_nbv_poses += nbv_cam_poses.size();
@@ -1387,7 +1376,6 @@ int calib_camera_t::find_nbv_fast(const std::map<int, mat4s_t> &nbv_poses,
     const int nbv_cam_idx = idx;
     const auto &nbv_cam_poses = nbv_poses.at(nbv_cam_idx);
 
-    // for (const auto &[nbv_cam_idx, nbv_cam_poses] : nbv_poses) {
     for (size_t i = 0; i < nbv_cam_poses.size(); i++) {
       const mat4_t T_FC0 = nbv_cam_poses.at(i);
       const real_t nbv_score = nbv_eval.eval(T_FC0);
@@ -1621,12 +1609,12 @@ int calib_camera_t::_remove_outliers(const bool filter_all) {
   timestamps_t view_timestamps;
   if (filter_all) {
     // Filter all views - in reverse order
-    for (int k = calib_view_timestamps.size() - 1; k >= 0; k--) {
-      view_timestamps.push_back(calib_view_timestamps[k]);
+    for (auto iter = calib_views.rbegin(); iter != calib_views.rend(); ++iter) {
+      view_timestamps.push_back(iter->first);
     }
   } else {
     // Only filter last view
-    const auto last_ts = calib_view_timestamps.back();
+    const auto last_ts = calib_views.rbegin()->first;
     if (filtered_timestamps.count(last_ts) == 0) {
       view_timestamps.push_back(last_ts);
       filtered_timestamps.insert(last_ts);

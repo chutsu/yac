@@ -161,7 +161,6 @@ struct calib_camera_t {
   StampedPoses poses;
 
   // Sliding window
-  timestamps_t calib_view_timestamps;
   std::set<timestamp_t> filtered_timestamps;
   std::map<timestamp_t, calib_view_t *> calib_views;
 

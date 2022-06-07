@@ -26,7 +26,7 @@ cam1:
   dist_model: "radtan4"
 
 imu0:
-  rate: 400
+  rate: 250
   a_max: 160.0 # acceleration saturation [m/s^2]
   g_max: 10.0 # gyro saturation [rad/s]
   sigma_g_c: 0.00278 # gyro noise density [rad/s/sqrt(Hz)]

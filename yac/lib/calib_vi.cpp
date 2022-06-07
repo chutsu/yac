@@ -865,7 +865,7 @@ void calib_vi_t::add_measurement(const timestamp_t imu_ts,
     // }
 
     // Calculate calib_info
-    const int rate = get_camera_rate() * 2;
+    const int rate = get_camera_rate() * 5;
     if (calib_view_counter % rate == 0) {
       if (recover_calib_info(calib_info) == 0) {
         calib_info_ok = true;
@@ -1251,9 +1251,19 @@ void calib_vi_t::show_results() {
   }
   printf("\n");
 
+  // Calibration target
+  printf("calib_target:\n");
+  printf("  tag_rows: %d\n", calib_target.tag_rows);
+  printf("  tag_cols: %d\n", calib_target.tag_cols);
+  printf("  tag_size: %f\n", calib_target.tag_size);
+  printf("  tag_spacing: %f\n", calib_target.tag_spacing);
+  printf("\n");
+
   // Cameras
   for (int cam_idx = 0; cam_idx < nb_cams(); cam_idx++) {
     printf("cam%d:\n", cam_idx);
+    printf("  proj_model: %s\n", cam_params[cam_idx]->proj_model.c_str());
+    printf("  dist_model: %s\n", cam_params[cam_idx]->dist_model.c_str());
     print_vector("  proj_params", cam_params[cam_idx]->proj_params());
     print_vector("  dist_params", cam_params[cam_idx]->dist_params());
     printf("\n");

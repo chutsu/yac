@@ -12,6 +12,7 @@ set -e
 # python3 scripts/plot_poses.py /tmp/calib-estimates.yaml && exit
 # python3 scripts/plot_poses.py /tmp/poses_est.csv && exit
 # python3 scripts/plot_poses.py /tmp/poses_gnd.csv && exit
+# python3 scripts/plot_poses.py /tmp/calib_poses.csv && exit
 # python3 scripts/plot_stats.py && exit
 # python3 scripts/plot_xyz.py /tmp/vel.csv "#ts" vx vy vz && exit
 # python3 scripts/plot_xyz.py /tmp/acc.csv "#ts" ax ay az && exit
@@ -87,7 +88,7 @@ set -e
 # RUN_CMD="./test_calib_nbv"
 # RUN_CMD="./test_calib_nbv --target test_calib_target_origin"
 # RUN_CMD="./test_calib_nbv --target test_calib_init_poses"
-# RUN_CMD="./test_calib_nbv --target test_calib_nbv_poses"
+RUN_CMD="./test_calib_nbv --target test_calib_nbv_poses"
 # RUN_CMD="./test_calib_nbv --target test_nbv_draw"
 # RUN_CMD="./test_calib_nbv --target test_nbv_test_grid"
 # RUN_CMD="./test_calib_nbv --target test_nbv_find"
@@ -104,7 +105,7 @@ set -e
 # RUN_CMD="./test_calib_nbt --target test_simulate_cameras"
 # RUN_CMD="./test_calib_nbt --target test_simulate_imu"
 # RUN_CMD="./test_calib_nbt --target test_nbt_eval"
-RUN_CMD="./test_calib_nbt --target test_nbt_find"
+# RUN_CMD="./test_calib_nbt --target test_nbt_find"
 
 # YAC - SOLVER
 # RUN_CMD="./test_solver"
@@ -115,6 +116,14 @@ RUN_CMD="./test_calib_nbt --target test_nbt_find"
 # cd ~/projects/yac \
 # && sudo make lib_relwithdeb \
 # && cd build && ${RUN_CMD}
+# " C-m
+# exit
+
+# tmux send-keys -t dev -R C-l C-m
+# tmux send-keys -t dev -R "\
+# cd ~/projects/yac \
+# && sudo make lib_relwithdeb \
+# && cd build && ./calib_vi /tmp/calib_data/calib_camera/calib-results.yaml /tmp/calib_data/calib_imu
 # " C-m
 # exit
 
@@ -138,19 +147,18 @@ RUN_CMD="roslaunch yac_ros intel_d435i-calib_imucam.launch \
 # RUN_CMD="roslaunch yac_ros intel_d435i-calib_imucam.launch"
 
 
+# && rm -rf /tmp/calib_data \
 tmux send-keys -t dev -R C-l C-m
 tmux send-keys -t dev -R "\
 cd ~/projects/yac \
-&& sudo make lib_relwithdeb \
+&& sudo make lib \
 && make release \
-&& rm -rf /tmp/calib_data/calib_camera \
 && rm -rf /tmp/calib_data/calib_imu \
 && cd ~/yac_ws \
 && source devel/setup.bash \
 && ${RUN_CMD}
 " C-m
 exit
-# && rm -rf /tmp/calib_data \
 
 # make
 # make lib_debug

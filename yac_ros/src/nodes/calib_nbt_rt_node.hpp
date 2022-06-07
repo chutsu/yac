@@ -286,7 +286,7 @@ struct calib_nbt_t {
       FATAL("Failed to create dir [%s]", imu_dir.c_str());
     }
     imu_file = fopen((imu_dir + "/data.csv").c_str(), "w");
-    fprintf(imu_file, "ts,gx,gy,gz,ax,ay,az\n");
+    fprintf(imu_file, "ts,ax,ay,az,gx,gy,gz\n");
     // -- Create Camera directories and image index file
     for (const auto &cam_idx : calib->get_camera_indices()) {
       const auto cam_dir = data_path + "/cam" + std::to_string(cam_idx);
@@ -546,11 +546,11 @@ struct calib_nbt_t {
     if (calib->calib_info_ok == false) {
       return;
     }
-    const bool rate_ok = (calib->calib_view_counter % (15 * 5) == 0);
-    if (rate_ok) {
-      LOG_INFO("FIND NBT!");
-      find_nbt();
-    }
+    // const bool rate_ok = (calib->calib_view_counter % (15 * 5) == 0);
+    // if (rate_ok) {
+    //   LOG_INFO("FIND NBT!");
+    //   find_nbt();
+    // }
   }
 
   /** Finish **/
@@ -568,12 +568,6 @@ struct calib_nbt_t {
       cam_sub.shutdown();
     }
 
-    // Solve and save results
-    const auto results_path = data_path + "/calib-results.yaml";
-    calib->solve();
-    calib->show_results();
-    calib->save_results(results_path);
-
     // Save info
     const std::string info_path = data_path + "/calib_info.csv";
     FILE *info_csv = fopen(info_path.c_str(), "w");
@@ -584,6 +578,14 @@ struct calib_nbt_t {
       fprintf(info_csv, "%f\n", calib_info_predict[ts]);
     }
     fclose(info_csv);
+
+    // Solve with full data and save results
+    const auto results_path = data_path + "/calib-results.yaml";
+    calib_vi_t final_calib(calib_file);
+    final_calib.load_data(data_path);
+    final_calib.solve();
+    final_calib.show_results();
+    final_calib.save_results(results_path);
 
     // Kill loop
     keep_running = false;
@@ -634,11 +636,11 @@ struct calib_nbt_t {
     const vec3_t w_m{gyr.x, gyr.y, gyr.z};
     calib->add_measurement(ts, a_m, w_m);
 
-    // Write imu measurement to file
-    fprintf(imu_file, "%ld,", ts);
-    fprintf(imu_file, "%f,%f,%f,", gyr.x, gyr.y, gyr.z);
-    fprintf(imu_file, "%f,%f,%f\n", acc.x, acc.y, acc.z);
-    fflush(imu_file);
+    // // Write imu measurement to file
+    // fprintf(imu_file, "%ld,", ts);
+    // fprintf(imu_file, "%f,%f,%f,", acc.x, acc.y, acc.z);
+    // fprintf(imu_file, "%f,%f,%f\n", gyr.x, gyr.y, gyr.z);
+    // fflush(imu_file);
   }
 
   /**
@@ -658,12 +660,12 @@ struct calib_nbt_t {
       // Add camera image to calibrator
       const bool ready = calib->add_measurement(ts, cam_idx, cam_img);
 
-      // Write image measurements to disk
-      const std::string img_fname = std::to_string(ts) + ".png";
-      const std::string img_path = cam_dirs[cam_idx] + "/data/" + img_fname;
-      cv::imwrite(img_path.c_str(), cam_img);
-      fprintf(cam_files[cam_idx], "%ld,%ld.png\n", ts, ts);
-      fflush(cam_files[cam_idx]);
+      // // Write image measurements to disk
+      // const std::string img_fname = std::to_string(ts) + ".png";
+      // const std::string img_path = cam_dirs[cam_idx] + "/data/" + img_fname;
+      // cv::imwrite(img_path.c_str(), cam_img);
+      // fprintf(cam_files[cam_idx], "%ld,%ld.png\n", ts, ts);
+      // fflush(cam_files[cam_idx]);
 
       if (ready == false) {
         return;

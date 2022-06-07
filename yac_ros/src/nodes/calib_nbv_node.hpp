@@ -30,7 +30,7 @@ struct calib_nbv_t {
   bool enable_auto_init = true;
   int min_intrinsics_views = 5;
   real_t min_intrinsics_view_diff = 10.0;
-  double nbv_reproj_threshold = 10.0;
+  double nbv_reproj_threshold = 20.0;
   double nbv_hold_threshold = 1.0;
 
   // ROS
@@ -234,6 +234,7 @@ struct calib_nbv_t {
 
   /** Add view to calibrator */
   void add_view() {
+    // Convert grid_buffer to view_data
     std::map<int, aprilgrid_t> view_data;
     for (const auto &[cam_idx, data] : grid_buffer) {
       const auto &grid = data.first;
@@ -245,7 +246,19 @@ struct calib_nbv_t {
       cam_images[cam_idx][ts] = img;
       cam_grids[cam_idx][ts] = grid;
     }
-    calib->add_view(view_data);
+
+    // Add view
+    // calib->add_view(view_data);
+    if (calib->add_nbv_view(view_data)) {
+      LOG_INFO("Add View!");
+      if (calib->nb_views() >= calib->min_nbv_views) {
+        calib->_remove_outliers(false);
+      }
+    } else {
+      LOG_INFO("Reject View!");
+    }
+
+    // Solve
     calib->verbose = false;
     calib->enable_nbv = false;
     calib->enable_outlier_filter = false;

@@ -155,7 +155,7 @@ struct calib_nbt_t {
   std::map<int, std::string> cam_dirs;
   bool use_apriltags3 = true;
   int min_init_views = 10;
-  double nbv_reproj_threshold = 10.0;
+  double nbv_reproj_threshold = 50.0;
   double nbv_hold_threshold = 1.0;
   const std::string finish_topic = "/yac_ros/nbt_finish";
 
@@ -546,11 +546,11 @@ struct calib_nbt_t {
     if (calib->calib_info_ok == false) {
       return;
     }
-    // const bool rate_ok = (calib->calib_view_counter % (15 * 5) == 0);
-    // if (rate_ok) {
-    //   LOG_INFO("FIND NBT!");
-    //   find_nbt();
-    // }
+    const bool rate_ok = (calib->calib_view_counter % (15 * 5) == 0);
+    if (rate_ok) {
+      LOG_INFO("FIND NBT!");
+      find_nbt();
+    }
   }
 
   /** Finish **/
@@ -636,11 +636,11 @@ struct calib_nbt_t {
     const vec3_t w_m{gyr.x, gyr.y, gyr.z};
     calib->add_measurement(ts, a_m, w_m);
 
-    // // Write imu measurement to file
-    // fprintf(imu_file, "%ld,", ts);
-    // fprintf(imu_file, "%f,%f,%f,", acc.x, acc.y, acc.z);
-    // fprintf(imu_file, "%f,%f,%f\n", gyr.x, gyr.y, gyr.z);
-    // fflush(imu_file);
+    // Write imu measurement to file
+    fprintf(imu_file, "%ld,", ts);
+    fprintf(imu_file, "%f,%f,%f,", acc.x, acc.y, acc.z);
+    fprintf(imu_file, "%f,%f,%f\n", gyr.x, gyr.y, gyr.z);
+    fflush(imu_file);
   }
 
   /**
@@ -660,12 +660,12 @@ struct calib_nbt_t {
       // Add camera image to calibrator
       const bool ready = calib->add_measurement(ts, cam_idx, cam_img);
 
-      // // Write image measurements to disk
-      // const std::string img_fname = std::to_string(ts) + ".png";
-      // const std::string img_path = cam_dirs[cam_idx] + "/data/" + img_fname;
-      // cv::imwrite(img_path.c_str(), cam_img);
-      // fprintf(cam_files[cam_idx], "%ld,%ld.png\n", ts, ts);
-      // fflush(cam_files[cam_idx]);
+      // Write image measurements to disk
+      const std::string img_fname = std::to_string(ts) + ".png";
+      const std::string img_path = cam_dirs[cam_idx] + "/data/" + img_fname;
+      cv::imwrite(img_path.c_str(), cam_img);
+      fprintf(cam_files[cam_idx], "%ld,%ld.png\n", ts, ts);
+      fflush(cam_files[cam_idx]);
 
       if (ready == false) {
         return;

@@ -163,3 +163,6 @@ TARGET_LINK_LIBRARIES(calib_euroc yac ${DEPS})
 
 ADD_EXECUTABLE(calib_inspect demo/calib_inspect.cpp)
 TARGET_LINK_LIBRARIES(calib_inspect yac ${DEPS})
+
+ADD_EXECUTABLE(calib_vi demo/calib_vi.cpp)
+TARGET_LINK_LIBRARIES(calib_vi yac ${DEPS})

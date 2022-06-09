@@ -2,52 +2,53 @@
 
 namespace yac {
 
-static void schurs_complement(const matx_t &H, // Original Hessian
-                              const size_t m,  // Marginalize
-                              const size_t r,  // Remain
-                              matx_t &H_marg,  // Marginalized Hessian
-                              const bool debug = false) {
-  assert(m > 0 && r > 0);
+// static void schurs_complement(const matx_t &H, // Original Hessian
+//                              const size_t m,  // Marginalize
+//                              const size_t r,  // Remain
+//                              matx_t &H_marg,  // Marginalized Hessian
+//                              const bool debug = false) {
+//  assert(m > 0 && r > 0);
 
-  // Setup
-  const long local_size = m + r;
-  H_marg = zeros(local_size, local_size);
+//  // Setup
+//  const long local_size = m + r;
+//  H_marg = zeros(local_size, local_size);
 
-  // Pseudo inverse of Hmm via Eigen-decomposition:
-  //
-  //   A_pinv = V * Lambda_pinv * V_transpose
-  //
-  // Where Lambda_pinv is formed by **replacing every non-zero diagonal
-  // entry by its reciprocal, leaving the zeros in place, and transposing
-  // the resulting matrix.
-  // clang-format off
-  matx_t Hmm = H.block(r, r, m, m);
-  Hmm = 0.5 * (Hmm + Hmm.transpose()); // Enforce Symmetry
-  const double eps = 1.0e-8;
-  const Eigen::SelfAdjointEigenSolver<matx_t> eig(Hmm);
-  const matx_t V = eig.eigenvectors();
-  // const auto eigvals = (eig.eigenvalues().array() > eps).select(eig.eigenvalues().array(), 0);
-  const auto eigvals_inv = (eig.eigenvalues().array() > eps).select(eig.eigenvalues().array().inverse(), 0);
-  const matx_t Lambda_inv = vecx_t(eigvals_inv).asDiagonal();
-  const matx_t Hmm_inv = V * Lambda_inv * V.transpose();
-  if (debug) {
-    const double inv_check = ((Hmm * Hmm_inv) - I(m, m)).sum();
-    if (fabs(inv_check) > 1e-4) {
-      LOG_WARN("Inverse identity check: %f", inv_check);
-      LOG_WARN("This is bad ... Usually means marg_residual_t is bad!");
-    }
-  }
-  // clang-format on
+//  // Pseudo inverse of Hmm via Eigen-decomposition:
+//  //
+//  //   A_pinv = V * Lambda_pinv * V_transpose
+//  //
+//  // Where Lambda_pinv is formed by **replacing every non-zero diagonal
+//  // entry by its reciprocal, leaving the zeros in place, and transposing
+//  // the resulting matrix.
+//  // clang-format off
+//  matx_t Hmm = H.block(r, r, m, m);
+//  Hmm = 0.5 * (Hmm + Hmm.transpose()); // Enforce Symmetry
+//  const double eps = 1.0e-8;
+//  const Eigen::SelfAdjointEigenSolver<matx_t> eig(Hmm);
+//  const matx_t V = eig.eigenvectors();
+//  // const auto eigvals = (eig.eigenvalues().array() >
+//  eps).select(eig.eigenvalues().array(), 0); const auto eigvals_inv =
+//  (eig.eigenvalues().array() >
+//  eps).select(eig.eigenvalues().array().inverse(), 0); const matx_t Lambda_inv
+//  = vecx_t(eigvals_inv).asDiagonal(); const matx_t Hmm_inv = V * Lambda_inv *
+//  V.transpose(); if (debug) {
+//    const double inv_check = ((Hmm * Hmm_inv) - I(m, m)).sum();
+//    if (fabs(inv_check) > 1e-4) {
+//      LOG_WARN("Inverse identity check: %f", inv_check);
+//      LOG_WARN("This is bad ... Usually means marg_residual_t is bad!");
+//    }
+//  }
+//  // clang-format on
 
-  // Calculate Schur's complement
-  // H = [Hrr, Hrm,
-  //      Hmr, Hmm]
-  const matx_t Hrr = H.block(0, 0, r, r);
-  const matx_t Hrm = H.block(0, r, r, m);
-  const matx_t Hmr = H.block(r, 0, m, r);
+//  // Calculate Schur's complement
+//  // H = [Hrr, Hrm,
+//  //      Hmr, Hmm]
+//  const matx_t Hrr = H.block(0, 0, r, r);
+//  const matx_t Hrm = H.block(0, r, r, m);
+//  const matx_t Hmr = H.block(r, 0, m, r);
 
-  H_marg = Hrr - Hrm * Hmm_inv * Hmr;
-}
+//  H_marg = Hrr - Hrm * Hmm_inv * Hmr;
+//}
 
 // VISUAL INERTIAL CALIBRATION VIEW ////////////////////////////////////////////
 
@@ -82,6 +83,14 @@ calib_vi_view_t::calib_vi_view_t(const timestamp_t ts_,
     vec2s_t kps;
     vec3s_t pts;
     grid.get_measurements(tag_ids, corner_idxs, kps, pts);
+
+    // Show warning on low number of measurements
+    if (tag_ids.size() < (4 * 3)) {
+      LOG_WARN("Warning [cam%d @ ts: %ld] only has %ld measurements!",
+               cam_idx,
+               ts,
+               corner_idxs.size());
+    }
 
     // Add residuals to problem
     for (size_t i = 0; i < tag_ids.size(); i++) {
@@ -260,9 +269,6 @@ calib_vi_view_t::marginalize(marg_residual_t *marg_residual) {
   // Clear residuals
   fiducial_residual_ids.clear();
   fiducial_residuals.clear();
-  // ^ Important! we don't want to delete the residual blocks when the view is
-  // deconstructed, but rather by adding the residual functions to the
-  // marginalization residual we pass the ownership to marg_residual_t
 
   return res_id;
 }
@@ -745,6 +751,9 @@ void calib_vi_t::add_view(const CamIdx2Grids &grids) {
                                                           &pose_plus));
 
   // Form imu factor between view km1 and k
+  if (imu_buf.size() < 5) {
+    FATAL("imu_buf.size() < 5");
+  }
   auto view_k = calib_views.back();
   view_km1->form_imu_residual(imu_params, imu_buf, &view_k->pose, &view_k->sb);
   imu_buf.trim(view_k->pose.ts);

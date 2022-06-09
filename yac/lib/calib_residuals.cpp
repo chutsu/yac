@@ -1423,17 +1423,6 @@ bool imu_residual_t::EvaluateWithMinimalJacobians(
 
 marg_residual_t::marg_residual_t() : calib_residual_t{"marg_residual_t"} {}
 
-marg_residual_t::~marg_residual_t() {
-  // for (auto res_block : res_blocks_) {
-  //   delete res_block;
-  // }
-
-  // marg_param_ptrs_.clear();
-  // remain_param_ptrs_.clear();
-  // param_index_.clear();
-  // x0_.clear();
-}
-
 size_t marg_residual_t::get_residual_size() const { return r_; }
 
 void marg_residual_t::set_residual_size(size_t size) {

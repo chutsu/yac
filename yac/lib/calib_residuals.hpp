@@ -330,7 +330,7 @@ public:
   marg_residual_t();
 
   /* Destructor */
-  ~marg_residual_t();
+  ~marg_residual_t() = default;
 
   /* Get Residual Size */
   size_t get_residual_size() const;

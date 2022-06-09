@@ -80,7 +80,7 @@ struct calib_vi_t {
   bool enable_marginalization = false;
   double outlier_threshold = 4.0;
   int window_size = 4;
-  const real_t img_scale = 0.5;
+  const real_t img_scale = 0.4;
 
   // State-Variables
   CamIdx2Geometry cam_geoms;

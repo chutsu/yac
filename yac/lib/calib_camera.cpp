@@ -2399,7 +2399,7 @@ real_t nbv_evaluator_t::eval(const mat4_t &T_FC0) {
 
   // Form reprojection errors
   const mat2_t covar = I(2);
-  std::unordered_set<calib_residual_t *> res_fns;
+  std::vector<calib_residual_t *> res_fns;
   for (const auto &[cam_idx, cam_grid] : cam_grids) {
     if (cam_params.count(cam_idx) == 0) {
       continue;
@@ -2429,7 +2429,7 @@ real_t nbv_evaluator_t::eval(const mat4_t &T_FC0) {
                                           z,
                                           covar,
                                           nullptr);
-      res_fns.insert(res_fn);
+      res_fns.push_back(res_fn);
     }
   }
 

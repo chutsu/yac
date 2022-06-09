@@ -194,7 +194,7 @@ int calib_nbv_poses(mat4s_t &nbv_poses,
   const vec3_t target_center{target_width / 2.0, target_height / 2.0, 0.0};
 
   // Pose settings
-  const double xy_scale = 1.5;
+  const double xy_scale = 1.6;
   const double d_start = r_FO(2);
   const double d_end = d_start * 1.5;
   const double h_width = target_width / 2.0;

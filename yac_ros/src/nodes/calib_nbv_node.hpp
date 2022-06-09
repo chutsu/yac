@@ -30,7 +30,7 @@ struct calib_nbv_t {
   bool enable_auto_init = true;
   int min_intrinsics_views = 5;
   real_t min_intrinsics_view_diff = 10.0;
-  double nbv_reproj_threshold = 20.0;
+  double nbv_reproj_threshold = 30.0;
   double nbv_hold_threshold = 1.0;
 
   // ROS
@@ -635,9 +635,9 @@ struct calib_nbv_t {
         printf("\n");
 
         // Track info
-        const timestamp_t ts_now = calib->calib_view_timestamps.back();
-        calib_info[ts_now] = info;
-        calib_info_predict[ts_now] = nbv_info;
+        const timestamp_t last_ts = calib->calib_views.rbegin()->first;
+        calib_info[last_ts] = info;
+        calib_info_predict[last_ts] = nbv_info;
 
       } else if (retval == -2) {
         LOG_INFO("NBV Threshold met!");
@@ -727,16 +727,19 @@ struct calib_nbv_t {
     // Final solve and save results
     LOG_INFO("Optimize over all NBVs");
     const std::string results_path = camera_data_path + "/calib-results.yaml";
-    calib_camera_t nbv_calib(config_file);
-    nbv_calib.add_camera_data(cam_grids, false);
-    for (const auto &[cam_idx, cam_param] : calib->cam_params) {
-      nbv_calib.cam_params[cam_idx]->param = cam_param->param;
-    }
-    for (const auto &[cam_idx, cam_ext] : calib->cam_exts) {
-      nbv_calib.cam_exts[cam_idx]->param = cam_ext->param;
-    }
-    nbv_calib.solve();
-    nbv_calib.save_results(results_path);
+    calib->solve(true);
+    calib->save_results(results_path);
+    // calib_camera_t nbv_calib(config_file);
+    // nbv_calib.enable_nbv = false;
+    // nbv_calib.add_camera_data(cam_grids, false);
+    // for (const auto &[cam_idx, cam_param] : calib->cam_params) {
+    //   nbv_calib.cam_params[cam_idx]->param = cam_param->param;
+    // }
+    // for (const auto &[cam_idx, cam_ext] : calib->cam_exts) {
+    //   nbv_calib.cam_exts[cam_idx]->param = cam_ext->param;
+    // }
+    // nbv_calib.solve();
+    // nbv_calib.save_results(results_path);
 
     // Save info
     const std::string info_path = camera_data_path + "/calib_info.csv";

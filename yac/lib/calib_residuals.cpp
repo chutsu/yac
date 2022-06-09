@@ -1447,11 +1447,6 @@ void marg_residual_t::add(std::shared_ptr<calib_residual_t> res_block) {
     FATAL("res_block == nullptr!");
   }
   res_blocks_.push_back(res_block);
-
-  // if (res_block->type == "marg_residual_t") {
-  //   printf("clearing old marg_residual residuals\n");
-  //   ((marg_residual_t *)res_block)->res_blocks_.clear();
-  // }
 }
 
 void marg_residual_t::add_remain_param(param_t *param) {
@@ -1655,6 +1650,12 @@ void marg_residual_t::schurs_complement(const matx_t &H,
     if (fabs(inv_check) > 1e-4) {
       LOG_WARN("Inverse identity check: %f", inv_check);
       LOG_WARN("This is bad ... Usually means marg_residual_t is bad!");
+
+      printf("nb_res_blocks: %ld\n", res_blocks_.size());
+      printf("nb_param_blocks: %ld\n", remain_param_ptrs_.size());
+      print_matrix("Hmm", Hmm);
+      print_matrix("Hmm_inv", Hmm_inv);
+
     }
   }
   // clang-format on

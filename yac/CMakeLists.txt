@@ -158,6 +158,9 @@ ADD_EXECUTABLE(test_solver tests/test_solver.cpp)
 TARGET_LINK_LIBRARIES(test_solver yac ${DEPS})
 
 # DEMO
+ADD_EXECUTABLE(calib_camera demo/calib_camera.cpp)
+TARGET_LINK_LIBRARIES(calib_camera yac ${DEPS})
+
 ADD_EXECUTABLE(calib_euroc demo/calib_euroc.cpp)
 TARGET_LINK_LIBRARIES(calib_euroc yac ${DEPS})
 

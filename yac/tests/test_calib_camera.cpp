@@ -534,7 +534,7 @@ void test_suite() {
   MU_ADD_TEST(test_calib_camera_add_camera);
   MU_ADD_TEST(test_calib_camera_add_pose);
   MU_ADD_TEST(test_calib_camera_add_and_remove_view);
-  // MU_ADD_TEST(test_calib_camera_add_nbv_view);
+  MU_ADD_TEST(test_calib_camera_add_nbv_view);
   MU_ADD_TEST(test_calib_camera_find_nbv);
   MU_ADD_TEST(test_calib_camera_filter_all_views);
   MU_ADD_TEST(test_calib_camera_remove_all_views);

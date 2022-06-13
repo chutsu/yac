@@ -71,7 +71,7 @@ struct calib_view_t {
                CamIdx2Extrinsics *cam_exts_,
                pose_t *T_C0F_,
                calib_loss_t *loss);
-  ~calib_view_t();
+  ~calib_view_t() = default;
 
   int nb_detections() const;
   std::vector<int> get_camera_indices() const;
@@ -133,7 +133,6 @@ struct calib_camera_t {
 
   // NBV
   real_t info_k = 0.0;
-
   std::map<timestamp_t, std::map<int, vecx_t>> cam_estimates;
   std::map<timestamp_t, std::map<int, mat4_t>> exts_estimates;
 
@@ -251,6 +250,7 @@ struct calib_camera_t {
   void _solve_batch(const bool verbose = false, const int max_iter = 50);
   void _solve_inc();
   void _solve_nbv();
+  void load_data(const std::string &data_path);
   void solve(const bool skip_init = false);
 
   void print_settings(FILE *out);

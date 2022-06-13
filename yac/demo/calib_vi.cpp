@@ -1,6 +1,7 @@
 #include "calib_vi.hpp"
 
 int main(int argc, char *argv[]) {
+  // Check arguments
   if (argc != 3) {
     printf("usage: %s <config_file> <dataset_path>\n", argv[0]);
     return -1;

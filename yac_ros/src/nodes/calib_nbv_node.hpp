@@ -552,7 +552,7 @@ struct calib_nbv_t {
     }
     calib->verbose = false;
     calib->enable_nbv = false;
-    calib->solve();
+    calib->_solve_batch();
 
     // Transition to NBV mode
     LOG_INFO("Transitioning to NBV mode!");
@@ -597,7 +597,7 @@ struct calib_nbv_t {
     calib->verbose = true;
     calib->enable_nbv = false;
     calib->enable_outlier_filter = false;
-    calib->_solve_batch(false, 5);
+    calib->solver->solve(5);
 
     // Create NBV poses based on current calibrations
     if (calib_nbv_poses(nbv_poses,
@@ -777,8 +777,8 @@ struct calib_nbv_t {
           fprintf(grid_files[cam_idx], "%d,", tag_cols);
           fprintf(grid_files[cam_idx], "%f,", tag_size);
           fprintf(grid_files[cam_idx], "%f,", tag_spacing);
-          fprintf(grid_files[cam_idx], "%.10f,", z.x());
-          fprintf(grid_files[cam_idx], "%.10f,", z.y());
+          fprintf(grid_files[cam_idx], "%f,", z.x());
+          fprintf(grid_files[cam_idx], "%f,", z.y());
           fprintf(grid_files[cam_idx], "%f,", p.x());
           fprintf(grid_files[cam_idx], "%f,", p.y());
           fprintf(grid_files[cam_idx], "%f,", p.z());
@@ -797,8 +797,16 @@ struct calib_nbv_t {
     // Final solve and save results
     LOG_INFO("Optimize over all NBVs");
     const std::string results_path = camera_data_path + "/calib-results.yaml";
-    calib->solve(true);
+    calib->solver->solve();
     calib->save_results(results_path);
+    calib->save_estimates(camera_data_path + "/camera_poses.csv");
+    calib->save_stats(camera_data_path + "/stats.csv");
+
+    real_t info;
+    calib->_calc_info(&info);
+    printf("nb_res_blocks: %ld\n", calib->solver->res_fns.size());
+    printf("nb_param_blocks: %ld\n", calib->solver->params.size());
+    printf("Final info: %f\n", info);
 
     // Save info
     const std::string info_path = camera_data_path + "/calib_info.csv";

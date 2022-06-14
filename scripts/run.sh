@@ -53,7 +53,7 @@ set -e
 # RUN_CMD="./test_calib_residuals --target test_marg_residual"
 
 # YAC - CAMERA CALIBRATION
-# RUN_CMD="./test_calib_camera"
+RUN_CMD="./test_calib_camera"
 # RUN_CMD="./test_calib_camera --target test_calib_view"
 # RUN_CMD="./test_calib_camera --target test_calib_camera_add_camera_data"
 # RUN_CMD="./test_calib_camera --target test_calib_camera_add_camera"
@@ -66,10 +66,10 @@ set -e
 # RUN_CMD="./test_calib_camera --target test_calib_camera_remove_outliers"
 # RUN_CMD="./test_calib_camera --target test_calib_camera_solve_batch"
 # RUN_CMD="./test_calib_camera --target test_calib_camera_solve_inc"
-# RUN_CMD="time ./test_calib_camera --target test_calib_camera_mono"
+# RUN_CMD="./test_calib_camera --target test_calib_camera_mono"
 # RUN_CMD="./test_calib_camera --target test_calib_camera_stereo"
 # RUN_CMD="./test_calib_camera --target test_marg_residual"
-# RUN_CMD="time ./calib_euroc"
+# RUN_CMD="./calib_euroc"
 # RUN_CMD="./calib_inspect '/tmp/calib-results.yaml' /data/euroc/cam_april"
 # RUN_CMD="./calib_inspect '/home/chutsu/projects/yac/yac/configs/calib-kalibr.yaml' /data/euroc/imu_april"
 # RUN_CMD="./calib_inspect '/home/chutsu/projects/yac/yac/configs/calib-yac.yaml' /data/euroc/cam_april"
@@ -88,7 +88,7 @@ set -e
 # RUN_CMD="./test_calib_nbv"
 # RUN_CMD="./test_calib_nbv --target test_calib_target_origin"
 # RUN_CMD="./test_calib_nbv --target test_calib_init_poses"
-RUN_CMD="./test_calib_nbv --target test_calib_nbv_poses"
+# RUN_CMD="./test_calib_nbv --target test_calib_nbv_poses"
 # RUN_CMD="./test_calib_nbv --target test_nbv_draw"
 # RUN_CMD="./test_calib_nbv --target test_nbv_test_grid"
 # RUN_CMD="./test_calib_nbv --target test_nbv_find"
@@ -114,18 +114,21 @@ RUN_CMD="./test_calib_nbv --target test_calib_nbv_poses"
 # tmux send-keys -t dev -R C-l C-m
 # tmux send-keys -t dev -R "\
 # cd ~/projects/yac \
-# && sudo make lib_relwithdeb \
+# && sudo make lib \
 # && cd build && ${RUN_CMD}
 # " C-m
 # exit
 
-# tmux send-keys -t dev -R C-l C-m
-# tmux send-keys -t dev -R "\
-# cd ~/projects/yac \
-# && sudo make lib_relwithdeb \
-# && cd build && ./calib_vi /tmp/calib_data/calib_camera/calib-results.yaml /tmp/calib_data/calib_imu
-# " C-m
-# exit
+tmux send-keys -t dev -R C-l C-m
+tmux send-keys -t dev -R "\
+cd ~/projects/yac \
+&& sudo make lib \
+&& cd build \
+&& ./calib_camera \
+  /tmp/calib_data/calib_camera/calib-results.yaml \
+  /tmp/calib_data/calib_camera
+" C-m
+exit
 
 # YAC - ROS NODES
 # RUN_CMD="roslaunch yac_ros record_camera.launch"
@@ -147,17 +150,20 @@ RUN_CMD="roslaunch yac_ros intel_d435i-calib_imucam.launch \
 # RUN_CMD="roslaunch yac_ros intel_d435i-calib_imucam.launch"
 
 
-# && rm -rf /tmp/calib_data \
+rm -rf /tmp/calib_data
+# rm -rf /tmp/calib_data/calib_imu
+# rm -rf /tmp/calib_data/calib_camera
+
 tmux send-keys -t dev -R C-l C-m
 tmux send-keys -t dev -R "\
 cd ~/projects/yac \
 && sudo make lib \
 && make release \
-&& rm -rf /tmp/calib_data/calib_imu \
 && cd ~/yac_ws \
 && source devel/setup.bash \
+&& rm -rf /tmp/calib_data/calib_imu \
 && ${RUN_CMD}
-" C-m
+" c-m
 exit
 
 # make

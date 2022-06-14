@@ -276,7 +276,7 @@ struct calib_nbv_t {
     calib->verbose = false;
     calib->enable_nbv = false;
     calib->enable_outlier_filter = false;
-    calib->solve(true);
+    calib->solver->solve(30);
   }
 
   /** Event Keyboard Handler */
@@ -798,6 +798,7 @@ struct calib_nbv_t {
     LOG_INFO("Optimize over all NBVs");
     const std::string results_path = camera_data_path + "/calib-results.yaml";
     calib->solver->solve();
+    calib->show_results();
     calib->save_results(results_path);
     calib->save_estimates(camera_data_path + "/camera_poses.csv");
     calib->save_stats(camera_data_path + "/stats.csv");

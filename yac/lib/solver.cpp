@@ -1019,6 +1019,19 @@ void ceres_solver_t::add_residual(calib_residual_t *res_fn) {
       problem->AddResidualBlock(res_fn, res_fn->loss_fn, param_blocks);
   // TODO: Fix the loss so it is in the residual not in the solver!
 
+  // size_t param_idx = 0;
+  // for (const auto ptr : param_blocks) {
+  //   if (params.count(ptr) == 0) {
+  //     FATAL("Param [%s: %p, fixed: %d], ptr: %p pointer not found! Probably "
+  //           "not added first?",
+  //           res_fn->param_blocks[param_idx]->type.c_str(),
+  //           res_fn->param_blocks[param_idx],
+  //           res_fn->param_blocks[param_idx]->fixed,
+  //           ptr);
+  //   }
+  //   param_idx++;
+  // }
+
   // printf("loss_fn: %s\n", res_fn->loss_fn->type.c_str());
   res2id[res_fn] = res_id;
 }

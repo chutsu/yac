@@ -249,6 +249,8 @@ struct calib_camera_t {
   void _solve_batch(const bool verbose = false, const int max_iter = 50);
   void _solve_inc();
   void _solve_nbv();
+  void _load_views(const std::string &data_path);
+  void _load_camera_poses(const std::string &data_path);
   void load_data(const std::string &data_path);
   void solve(const bool skip_init = false);
 

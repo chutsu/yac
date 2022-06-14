@@ -1718,8 +1718,8 @@ void calib_camera_t::_solve_nbv() {
   solver->solve(10, true, 1);
 }
 
-void calib_camera_t::load_data(const std::string &data_path) {
-  // Load aprilgrid data
+void calib_camera_t::_load_views(const std::string &data_path) {
+  // Get list of AprilGrid csv files
   std::map<timestamp_t, std::map<int, std::string>> grid_data;
   for (const auto cam_idx : get_camera_indices()) {
     const auto grid_path = data_path + "/grid0/cam" + std::to_string(cam_idx);
@@ -1751,8 +1751,9 @@ void calib_camera_t::load_data(const std::string &data_path) {
 
     add_view(view_data);
   }
+}
 
-  // Load camera poses
+void calib_camera_t::_load_camera_poses(const std::string &data_path) {
   const std::string csv_path = data_path + "/camera_poses.csv";
   if (file_exists(csv_path) == false) {
     return;
@@ -1793,6 +1794,11 @@ void calib_camera_t::load_data(const std::string &data_path) {
       poses[ts]->set_rot(q);
     }
   }
+}
+
+void calib_camera_t::load_data(const std::string &data_path) {
+  _load_views(data_path);
+  _load_camera_poses(data_path);
 }
 
 void calib_camera_t::solve(const bool skip_init) {

@@ -636,7 +636,7 @@ calib_camera_t::calib_camera_t(const std::string &config_path)
     // Extract and set camera extrinsics
     mat4_t T_C0Ci = zeros(4, 4);
     parse(config, key, T_C0Ci);
-    cam_exts[cam_idx]->param = tf_vec(T_C0Ci);
+    cam_exts[cam_idx]->set_tf(T_C0Ci);
   }
 
   // Load calibration data
@@ -1748,6 +1748,7 @@ void calib_camera_t::load_data(const std::string &data_path) {
       timestamps.insert(ts);
       calib_data[ts][cam_idx] = grid;
     }
+
     add_view(view_data);
   }
 
@@ -1785,10 +1786,12 @@ void calib_camera_t::load_data(const std::string &data_path) {
     }
 
     // Update poses
-    const vec3_t r{x, y, z};
-    const quat_t q{qw, qx, qy, qz};
-    poses[ts]->set_trans(r);
-    poses[ts]->set_rot(q);
+    if (poses.count(ts)) {
+      const vec3_t r{x, y, z};
+      const quat_t q{qw, qx, qy, qz};
+      poses[ts]->set_trans(r);
+      poses[ts]->set_rot(q);
+    }
   }
 }
 

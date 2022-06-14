@@ -170,7 +170,6 @@ struct calib_camera_t {
   calib_camera_t() = delete;
   calib_camera_t(const calib_target_t &calib_target_);
   calib_camera_t(const std::string &config_path);
-  calib_camera_t(const calib_camera_t *calib);
   ~calib_camera_t();
 
   int nb_cameras() const;

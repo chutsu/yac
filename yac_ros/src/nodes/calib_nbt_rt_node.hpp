@@ -156,7 +156,7 @@ struct calib_nbt_t {
   bool use_apriltags3 = true;
   int min_init_views = 10;
   double nbv_reproj_threshold = 50.0;
-  double nbv_hold_threshold = 1.0;
+  double hold_threshold = 1.0;
   const std::string finish_topic = "/yac_ros/nbt_finish";
 
   // ROS
@@ -189,7 +189,12 @@ struct calib_nbt_t {
   aprilgrid_t calib_origin;
   mat4_t T_FC0;
   double nbv_reproj_err = -1.0;
-  struct timespec nbv_hold_tic = (struct timespec){0, 0};
+  struct timespec hold_tic = (struct timespec){0, 0};
+
+  // NBT
+  struct timespec nbt_tic = (struct timespec){0, 0};
+  double nbt_threshold = 8.0;
+  bool nbt_in_action = false;
 
   // Data
   profiler_t prof;
@@ -204,7 +209,7 @@ struct calib_nbt_t {
 
   /* Constructor */
   calib_nbt_t(const std::string &node_name_) : node_name{node_name_} {
-    ROS_PARAM(ros_nh, node_name + "/config_file", config_file);
+    ROS_PARAM(ros_nh, node_name_ + "/config_file", config_file);
 
     // Get camera calibration file
     config_t config{config_file};
@@ -405,17 +410,17 @@ struct calib_nbt_t {
     bool reached = nbv_reached(calib_origin, grid, nbv_reproj_threshold, errs);
     nbv_reproj_err = mean(errs);
     if (reached == false) {
-      nbv_hold_tic = (struct timespec){0, 0}; // Reset hold timer
+      hold_tic = (struct timespec){0, 0}; // Reset hold timer
       return false;
     }
 
     // Start NBV hold timer
-    if (nbv_hold_tic.tv_sec == 0) {
-      nbv_hold_tic = tic();
+    if (hold_tic.tv_sec == 0) {
+      hold_tic = tic();
     }
 
     // If hold threshold not met
-    if (toc(&nbv_hold_tic) < nbv_hold_threshold) {
+    if (toc(&hold_tic) < hold_threshold) {
       return false;
     }
 
@@ -531,18 +536,59 @@ struct calib_nbt_t {
 
   /** NBT Mode **/
   void mode_nbt() {
-    // Visualize
-    visualize();
-
-    // Trigger NBT
-    if (calib->calib_info_ok == false) {
+    // Pre-check
+    const int cam_idx = 0;
+    if (calib->img_buf.count(cam_idx) == 0) {
       return;
     }
-    const bool rate_ok = (calib->calib_view_counter % (15 * 5) == 0);
-    if (rate_ok) {
-      LOG_INFO("FIND NBT!");
-      find_nbt();
+
+    // Convert image gray to rgb
+    const auto &img_gray = calib->img_buf[cam_idx].second;
+    auto viz = gray2rgb(img_gray);
+
+    // Draw "detected" if AprilGrid was observed
+    if (calib->grid_buf.count(cam_idx)) {
+      draw_detected(calib->grid_buf[cam_idx], viz);
     }
+
+    // NBT IN ACTION
+    if (nbt_in_action) {
+      // Check If NBT time threshold met?
+      if (toc(&nbt_tic) < nbt_threshold) {
+        if (toc(&nbt_tic) < 2.0) {
+          draw_hcentered_text("Finding NBT! Hold Position!", 1.5, 1, 150, viz);
+        }
+        goto show_viz;
+      }
+
+      // Check if back to calibration origin?
+      if (check_nbv_reached(calib->grid_buf[cam_idx]) == false) {
+        draw_hcentered_text("Go back to start!", 1.5, 1, 150, viz);
+        draw_nbv(cam_idx, viz);
+        goto show_viz;
+      }
+    }
+
+    // Find NBT
+    // -- Check if detected an AprilGrid
+    if (calib->grid_buf.count(cam_idx) == 0) {
+      goto show_viz;
+    }
+    // -- Calculate calib info
+    if (calib->recover_calib_info(calib->calib_info) == 0) {
+      calib->calib_info_ok = true;
+      nbt_tic = tic(); // Start NBT timer
+      nbt_in_action = true;
+      find_nbt();
+    } else {
+      calib->calib_info_ok = false;
+      nbt_in_action = false;
+    }
+
+  show_viz:
+    // Show
+    cv::imshow("Viz", viz);
+    event_handler(cv::waitKey(1));
   }
 
   /** Finish **/
@@ -559,17 +605,6 @@ struct calib_nbt_t {
       LOG_INFO("Unsubscribing from [%s]", mcam_topics[cam_idx].c_str());
       cam_sub.shutdown();
     }
-
-    // Save info
-    const std::string info_path = data_path + "/calib_info.csv";
-    FILE *info_csv = fopen(info_path.c_str(), "w");
-    fprintf(info_csv, "#ts,info_current,info_nbt_predict\n"); // Header
-    for (const auto &[ts, info] : calib_info) {
-      fprintf(info_csv, "%ld,", ts);
-      fprintf(info_csv, "%f,", info);
-      fprintf(info_csv, "%f\n", calib_info_predict[ts]);
-    }
-    fclose(info_csv);
 
     // Solve with full data and save results
     const auto results_path = data_path + "/calib-results.yaml";

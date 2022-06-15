@@ -192,18 +192,18 @@ void calib_vi_view_t::form_imu_residual(const imu_params_t &imu_params,
   // Pre-check IMU measurements
   const auto ts_i = pose.ts;
   const auto ts_j = pose_j->ts;
-  if (imu_buf.timestamps.front() > ts_i) {
-    LOG_ERROR("imu_buf.timestamps.front() > ts_i");
-    LOG_ERROR("imu_buf.timestamps.front(): %ld", imu_buf.timestamps.front());
-    LOG_ERROR("ts_i:                       %ld", ts_i);
-    FATAL("imu_data.timestamps.front() > ts_i!");
-  }
-  if (imu_buf.timestamps.back() < ts_j) {
-    LOG_ERROR("imu_buf.timestamps.back() < ts_j");
-    LOG_ERROR("imu_buf.timestamps.back(): %ld", imu_buf.timestamps.back());
-    LOG_ERROR("ts_j:                      %ld", ts_j);
-    FATAL("imu_buf.timestamps.back() < ts_j");
-  }
+  // if (imu_buf.timestamps.front() > ts_i) {
+  //   LOG_ERROR("imu_buf.timestamps.front() > ts_i");
+  //   LOG_ERROR("imu_buf.timestamps.front(): %ld", imu_buf.timestamps.front());
+  //   LOG_ERROR("ts_i:                       %ld", ts_i);
+  //   FATAL("imu_data.timestamps.front() > ts_i!");
+  // }
+  // if (imu_buf.timestamps.back() < ts_j) {
+  //   LOG_ERROR("imu_buf.timestamps.back() < ts_j");
+  //   LOG_ERROR("imu_buf.timestamps.back(): %ld", imu_buf.timestamps.back());
+  //   LOG_ERROR("ts_j:                      %ld", ts_j);
+  //   FATAL("imu_buf.timestamps.back() < ts_j");
+  // }
 
   // Form IMU residual
   imu_residual = std::make_shared<imu_residual_t>(imu_params,
@@ -856,14 +856,14 @@ void calib_vi_t::add_measurement(const timestamp_t imu_ts,
     // }
 
     // Calculate calib_info
-    const int rate = get_camera_rate() * 5;
-    if (calib_view_counter % rate == 0) {
-      if (recover_calib_info(calib_info) == 0) {
-        calib_info_ok = true;
-      } else {
-        calib_info_ok = false;
-      }
-    }
+    // const int rate = get_camera_rate() * 5;
+    // if (calib_view_counter % rate == 0) {
+    //   if (recover_calib_info(calib_info) == 0) {
+    //     calib_info_ok = true;
+    //   } else {
+    //     calib_info_ok = false;
+    //   }
+    // }
     // if (recover_calib_info(calib_info) == 0) {
     //   calib_info_ok = true;
     // } else {

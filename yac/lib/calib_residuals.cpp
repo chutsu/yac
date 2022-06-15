@@ -1023,20 +1023,19 @@ int imu_residual_t::redoPreintegration(const mat4_t & /*T_WS*/,
   // assert(imu_data_.timestamps.front() <= time);
   // if (!(imu_data_.timestamps.back() >= end))
   //   return -1; // nothing to do...
-  if (imu_data_.timestamps.front() > time) {
-    LOG_ERROR("imu_data_.timestamps.front() > time");
-    LOG_ERROR("imu_data_.timestamps.front(): %ld",
-              imu_data_.timestamps.front());
-    LOG_ERROR("time:                         %ld", time);
-    FATAL("imu_data.timestamps.front() > time!");
-  }
-  if (imu_data_.timestamps.back() < end) {
-    LOG_ERROR("imu_data_.timestamps.back() < end");
-    LOG_ERROR("imu_data_.timestamps.back(): %ld", imu_data_.timestamps.back());
-    LOG_ERROR("end:                         %ld", end);
-    FATAL("imu_data_.timestamps.back() < end");
-  }
-  printf("imu residual time span: %f\n", ts2sec(end - time));
+  // if (imu_data_.timestamps.front() > time) {
+  //   LOG_ERROR("imu_data_.timestamps.front() > time");
+  //   LOG_ERROR("imu_data_.timestamps.front(): %ld",
+  //             imu_data_.timestamps.front());
+  //   LOG_ERROR("time:                         %ld", time);
+  //   FATAL("imu_data.timestamps.front() > time!");
+  // }
+  // if (imu_data_.timestamps.back() < end) {
+  //   LOG_ERROR("imu_data_.timestamps.back() < end");
+  //   LOG_ERROR("imu_data_.timestamps.back(): %ld",
+  //   imu_data_.timestamps.back()); LOG_ERROR("end: %ld", end);
+  //   FATAL("imu_data_.timestamps.back() < end");
+  // }
 
   // Increments (initialise with identity)
   Delta_q_ = quat_t(1, 0, 0, 0);

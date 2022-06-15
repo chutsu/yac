@@ -1621,14 +1621,6 @@ void sim_imu_measurement(sim_imu_t &imu,
  *                               MEASUREMENTS
  *****************************************************************************/
 
-struct meas_t {
-  timestamp_t ts = 0;
-
-  meas_t() = default;
-  meas_t(const timestamp_t &ts_) : ts{ts_} {}
-  virtual ~meas_t() = default;
-};
-
 struct imu_meas_t {
   timestamp_t ts = 0;
   vec3_t accel{0.0, 0.0, 0.0};
@@ -1653,6 +1645,12 @@ struct imu_data_t {
     timestamps.push_back(ts);
     accel.push_back(acc);
     gyro.push_back(gyr);
+  }
+
+  real_t time_span() const {
+    const auto ts_first = timestamps.front();
+    const auto ts_last = timestamps.back();
+    return ts2sec(ts_last - ts_first);
   }
 
   size_t size() const { return timestamps.size(); }
@@ -1693,7 +1691,13 @@ struct imu_data_t {
     std::deque<vec3_t, Eigen::aligned_allocator<vec3_t>> accel_new;
     std::deque<vec3_t, Eigen::aligned_allocator<vec3_t>> gyro_new;
     for (size_t k = 0; k < timestamps.size(); k++) {
-      if (timestamps[k] > ts_end) {
+      if (timestamps[k] >= ts_end) {
+        if (k > 0 && timestamps_new.size() == 0) {
+          timestamps_new.push_back(timestamps[k - 1]);
+          accel_new.push_back(accel[k - 1]);
+          gyro_new.push_back(gyro[k - 1]);
+        }
+
         timestamps_new.push_back(timestamps[k]);
         accel_new.push_back(accel[k]);
         gyro_new.push_back(gyro[k]);

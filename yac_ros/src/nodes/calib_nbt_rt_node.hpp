@@ -302,14 +302,6 @@ struct calib_nbt_t {
       const std::string csv_path = cam_dir + "/data.csv";
       cam_files[cam_idx] = fopen(csv_path.c_str(), "w");
     }
-    // -- Copy config file to root of calib data directory
-    auto src = config_file;
-    auto dst = data_path + "/" + parse_fname(config_file);
-    if (file_copy(src, dst) != 0) {
-      FATAL("Failed to copy file from [%s] to [%s]!",
-            config_file.c_str(),
-            data_path.c_str());
-    }
 
     return 0;
   }

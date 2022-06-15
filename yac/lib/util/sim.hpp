@@ -29,15 +29,16 @@ struct sim_event_t {
               const timestamp_t &ts_,
               const vec2s_t &keypoints_,
               const std::vector<size_t> &feature_idxs_)
-    : type{CAMERA},
-      sensor_id{sensor_id_},
-      ts{ts_},
-      frame{ts_, keypoints_, feature_idxs_} {}
+      : type{CAMERA}, sensor_id{sensor_id_}, ts{ts_}, frame{ts_,
+                                                            keypoints_,
+                                                            feature_idxs_} {}
 
   // IMU event
-  sim_event_t(const int sensor_id_, const timestamp_t &ts_,
-              const vec3_t &accel_, const vec3_t &gyro_)
-    : type{IMU}, sensor_id{sensor_id_}, ts{ts_}, imu{ts_, accel_, gyro_} {}
+  sim_event_t(const int sensor_id_,
+              const timestamp_t &ts_,
+              const vec3_t &accel_,
+              const vec3_t &gyro_)
+      : type{IMU}, sensor_id{sensor_id_}, ts{ts_}, imu{ts_, accel_, gyro_} {}
 };
 
 struct vio_sim_data_t {

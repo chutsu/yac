@@ -1877,8 +1877,8 @@ void calib_camera_t::print_metrics(
   }
 
   // Print total reprojection errors
-  fprintf(out, "nb_views: %ld\n", calib_views.size());
   fprintf(out, "total_reproj_error:\n");
+  fprintf(out, "  nb_views: %ld\n", calib_views.size());
   fprintf(out, "  nb_corners: %ld\n", total_corners);
   fprintf(out, "  rmse:   %.4f # [px]\n", rmse(reproj_errors_all));
   fprintf(out, "  mean:   %.4f # [px]\n", mean(reproj_errors_all));

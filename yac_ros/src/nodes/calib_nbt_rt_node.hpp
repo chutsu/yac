@@ -340,7 +340,7 @@ struct calib_nbt_t {
     finish_sub = ros_nh.subscribe(finish_topic, 1, &calib_nbt_t::finish_callback, this);
     // -- IMU
     LOG_INFO("Subscribing to imu0 @ [%s]", imu0_topic.c_str());
-    imu0_sub = ros_nh.subscribe(imu0_topic, 1000, &calib_nbt_t::imu0_callback, this);
+    imu0_sub = ros_nh.subscribe(imu0_topic, 10000, &calib_nbt_t::imu0_callback, this);
     // -- Cameras
     for (const auto [cam_idx, topic] : mcam_topics) {
       LOG_INFO("Subscribing to cam%d @ [%s]", cam_idx, topic.c_str());

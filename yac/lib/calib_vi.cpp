@@ -189,6 +189,23 @@ void calib_vi_view_t::form_imu_residual(const imu_params_t &imu_params,
   assert(fltcmp(imu_params.sigma_aw_c, 0.0) != 0);
   assert(fltcmp(imu_params.sigma_gw_c, 0.0) != 0);
 
+  // Pre-check IMU measurements
+  const auto ts_i = pose.ts;
+  const auto ts_j = pose_j->ts;
+  if (imu_buf.timestamps.front() > ts_i) {
+    LOG_ERROR("imu_buf.timestamps.front() > ts_i");
+    LOG_ERROR("imu_buf.timestamps.front(): %ld", imu_buf.timestamps.front());
+    LOG_ERROR("ts_i:                       %ld", ts_i);
+    FATAL("imu_data.timestamps.front() > ts_i!");
+  }
+  if (imu_buf.timestamps.back() < ts_j) {
+    LOG_ERROR("imu_buf.timestamps.back() < ts_j");
+    LOG_ERROR("imu_buf.timestamps.back(): %ld", imu_buf.timestamps.back());
+    LOG_ERROR("ts_j:                      %ld", ts_j);
+    FATAL("imu_buf.timestamps.back() < ts_j");
+  }
+
+  // Form IMU residual
   imu_residual = std::make_shared<imu_residual_t>(imu_params,
                                                   imu_buf,
                                                   &pose,
@@ -787,6 +804,9 @@ void calib_vi_t::add_measurement(const timestamp_t imu_ts,
   // Add imu measuremrent
   imu_buf.add(imu_ts, a_m, w_m);
   imu_started = true;
+  if (imu_buf.time_span() > 1.0) {
+    LOG_WARN("IMU buffer time span > 1 second?!");
+  }
 
   // Check if AprilGrid buffer is filled
   if (static_cast<int>(grid_buf.size()) != nb_cams()) {
@@ -801,8 +821,18 @@ void calib_vi_t::add_measurement(const timestamp_t imu_ts,
   // Conditions:
   // - Aprilgrid was observed by cam0
   // - There are more than 2 IMU measurements
+  timestamp_t det_ts = 0;
+  auto detection_ok = [&](const CamIdx2Grids &data) {
+    for (const auto &[cam_idx, grid] : data) {
+      if (grid.detected) {
+        det_ts = grid.timestamp;
+        return true;
+      }
+    }
+    return false;
+  };
   if (initialized == false && imu_buf.size() > 2) {
-    if (grids.count(0) && grids.at(0).detected) {
+    if (detection_ok(grids)) {
       initialize(grids, imu_buf);
       return;
     }
@@ -834,6 +864,11 @@ void calib_vi_t::add_measurement(const timestamp_t imu_ts,
         calib_info_ok = false;
       }
     }
+    // if (recover_calib_info(calib_info) == 0) {
+    //   calib_info_ok = true;
+    // } else {
+    //   calib_info_ok = false;
+    // }
 
     // Marginalize oldest view
     prof.start("marginalize");
@@ -857,8 +892,45 @@ int calib_vi_t::recover_calib_covar(matx_t &calib_covar) const {
   if (covar_est.Compute(covar_blocks, problem.get()) == false) {
     LOG_ERROR("Failed to estimate covariance!");
     LOG_ERROR("Maybe Hessian is not full rank?");
+    LOG_ERROR("Num Views: %ld", calib_views.size());
+    LOG_ERROR("Num Residual Blocks: %d", problem->NumResidualBlocks());
+    LOG_ERROR("Num Parameter Blocks: %d", problem->NumParameterBlocks());
+    LOG_ERROR("");
+    for (const auto &view : calib_views) {
+      LOG_ERROR("VIEW [%ld]", view->ts);
+      for (const auto &cam_idx : view->get_camera_indices()) {
+        LOG_ERROR("  Num cam%d fiducial residuals: %ld",
+                  cam_idx,
+                  view->fiducial_residuals[cam_idx].size());
+      }
+      LOG_ERROR("  Has IMU residual?: %s",
+                (view->imu_residual != nullptr) ? "true" : "false");
+      if (view->imu_residual) {
+        LOG_ERROR("  Num IMU measurements: %ld",
+                  view->imu_residual->imu_data_.size());
+        std::cout << view->imu_residual->imu_data_ << std::endl;
+      }
+      LOG_ERROR("");
+    }
+
     return -1;
   }
+
+  // for (const auto &view : calib_views) {
+  //   LOG_INFO("VIEW [%ld]", view->ts);
+  //   for (const auto &cam_idx : view->get_camera_indices()) {
+  //     LOG_INFO("  Num cam%d fiducial residuals: %ld",
+  //              cam_idx,
+  //              view->fiducial_residuals[cam_idx].size());
+  //   }
+  //   if (view->imu_residual) {
+  //     LOG_INFO("  Num IMU measurements: %ld",
+  //              view->imu_residual->imu_data_.size());
+  //     std::cout << view->imu_residual->imu_data_ << std::endl;
+  //   }
+  //   LOG_INFO("");
+  // }
+
   // -- Extract covariances sub-blocks
   Eigen::Matrix<double, 6, 6, Eigen::RowMajor> T_BS_covar;
   covar_est.GetCovarianceBlockInTangentSpace(T_BS, T_BS, T_BS_covar.data());
@@ -939,12 +1011,7 @@ void calib_vi_t::reset() {
   imu_buf.clear();
 
   // Reset problem data
-  // for (auto view : calib_views) {
-  //   delete view;
-  // }
   calib_views.clear();
-
-  // delete marg_residual;
 }
 
 void calib_vi_t::eval_residuals(ParameterOrder &param_order,

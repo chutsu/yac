@@ -777,8 +777,12 @@ int imu_residual_t::propagation(const imu_data_t &imu_data,
   // printf("imu back:   [%ld]\n", imu_data.back().timeStamp.toNSec());
 
   // sanity check:
-  assert(imu_data.timestamps.front() <= t_start);
-  assert(imu_data.timestamps.back() >= t_end);
+  if (imu_data.timestamps.front() > t_start) {
+    FATAL("imu_data.timestamps.front() > t_start!");
+  }
+  if (imu_data.timestamps.back() < t_end) {
+    FATAL("imu_data.timestamps.back() < t_end!");
+  }
   // if (!(imu_data.back().timeStamp >= end))
   //   return -1; // nothing to do...
 
@@ -1016,9 +1020,23 @@ int imu_residual_t::redoPreintegration(const mat4_t & /*T_WS*/,
   std::lock_guard<std::mutex> lock(preintegrationMutex_);
 
   // Sanity check:
-  assert(imu_data_.timestamps.front() <= time);
-  if (!(imu_data_.timestamps.back() >= end))
-    return -1; // nothing to do...
+  // assert(imu_data_.timestamps.front() <= time);
+  // if (!(imu_data_.timestamps.back() >= end))
+  //   return -1; // nothing to do...
+  if (imu_data_.timestamps.front() > time) {
+    LOG_ERROR("imu_data_.timestamps.front() > time");
+    LOG_ERROR("imu_data_.timestamps.front(): %ld",
+              imu_data_.timestamps.front());
+    LOG_ERROR("time:                         %ld", time);
+    FATAL("imu_data.timestamps.front() > time!");
+  }
+  if (imu_data_.timestamps.back() < end) {
+    LOG_ERROR("imu_data_.timestamps.back() < end");
+    LOG_ERROR("imu_data_.timestamps.back(): %ld", imu_data_.timestamps.back());
+    LOG_ERROR("end:                         %ld", end);
+    FATAL("imu_data_.timestamps.back() < end");
+  }
+  printf("imu residual time span: %f\n", ts2sec(end - time));
 
   // Increments (initialise with identity)
   Delta_q_ = quat_t(1, 0, 0, 0);

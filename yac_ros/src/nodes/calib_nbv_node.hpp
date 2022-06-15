@@ -58,6 +58,7 @@ struct calib_nbv_t {
   std::map<int, std::string> cam_dirs;
   std::map<int, std::string> grid_dirs;
   calib_camera_t *calib;
+  std::vector<real_t> calib_info_buffer;
   std::map<timestamp_t, real_t> calib_info;
   std::map<timestamp_t, real_t> calib_info_predict;
 
@@ -405,6 +406,27 @@ struct calib_nbv_t {
     return true;
   }
 
+  /** Check information gain */
+  void check_info_gain() {
+    const auto N = calib_info_buffer.size();
+    if (N < 5) {
+      return;
+    }
+
+    const auto info_prev = calib_info_buffer[N - 5];
+    const auto info_curr = calib_info_buffer[N - 1];
+    const auto info_gain = 0.5 * (info_prev - info_curr);
+
+    if (info_gain < calib->info_gain_threshold) {
+      LOG_INFO("Information gain seems to have reached its limit!");
+      LOG_INFO("Information gain = 0.5 * (Info[N - 5] - Info[N - 1])");
+      LOG_INFO("                 = 0.5 * (%f - %f)", info_curr, info_prev);
+      LOG_INFO("                 = %f", info_gain);
+      LOG_INFO("Finishing!");
+      finish();
+    }
+  }
+
   /** Initialize Intrinsics + Extrinsics Mode */
   void mode_init_intrinsics() {
     // Pre-check
@@ -650,8 +672,10 @@ struct calib_nbv_t {
 
         // Track info
         const timestamp_t last_ts = calib->calib_views.rbegin()->first;
+        calib_info_buffer.push_back(info);
         calib_info[last_ts] = info;
         calib_info_predict[last_ts] = nbv_info;
+        check_info_gain();
 
       } else if (retval == -2) {
         LOG_INFO("NBV Threshold met!");
@@ -802,12 +826,6 @@ struct calib_nbv_t {
     calib->save_results(results_path);
     calib->save_estimates(camera_data_path + "/camera_poses.csv");
     calib->save_stats(camera_data_path + "/stats.csv");
-
-    real_t info;
-    calib->_calc_info(&info);
-    printf("nb_res_blocks: %ld\n", calib->solver->res_fns.size());
-    printf("nb_param_blocks: %ld\n", calib->solver->params.size());
-    printf("Final info: %f\n", info);
 
     // Save info
     const std::string info_path = camera_data_path + "/calib_info.csv";

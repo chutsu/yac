@@ -12,7 +12,6 @@ void publish_nbt(const lissajous_traj_t &traj, ros::Publisher &pub) {
   auto frame_id = "map";
 
   nav_msgs::Path path_msg;
-  path_msg.header.seq = 0;
   path_msg.header.stamp = ts;
   path_msg.header.frame_id = frame_id;
 
@@ -37,6 +36,8 @@ struct calib_nbt_eval_t {
   ros::Subscriber nbt_data_sub;
 
   // Setting
+  std::string config_file;
+  std::string data_path;
   real_t nbt_threshold = 0.5;
 
   // Data
@@ -48,6 +49,11 @@ struct calib_nbt_eval_t {
 
   /* Constructor */
   calib_nbt_eval_t(const std::string &node_name_) : node_name{node_name_} {
+    // Get camera calibration file
+    ROS_PARAM(ros_nh, node_name_ + "/config_file", config_file);
+    config_t config{config_file};
+    parse(config, "ros.data_path", data_path);
+
     // Publishers
     nbt_pub = ros_nh.advertise<nav_msgs::Path>("/yac_ros/nbt", 0);
     finish_pub = ros_nh.advertise<std_msgs::Bool>("/yac_ros/nbt_finish", 0);
@@ -69,6 +75,11 @@ struct calib_nbt_eval_t {
 
   /** Evaluation callback */
   void eval_callback(const yac_ros::CalibVI &msg) {
+    // Send empty path message to delete previous one
+    nav_msgs::Path path_msg;
+    path_msg.header.frame_id = "map";
+    nbt_pub.publish(path_msg);
+
     // NBT Data
     nbt_data_t nbt_data;
 
@@ -202,22 +213,34 @@ struct calib_nbt_eval_t {
     real_t info_k = 0.0;
     real_t info_kp1 = 0.0;
     const int idx = nbt_find(trajs, nbt_data, H, true, &info_k, &info_kp1);
-    if (idx >= 0) {
-      publish_nbt(trajs[idx], nbt_pub);
-    }
-
-    // Check if info gain is below threshold
-    const auto info_gain = 0.5 * (info_k - info_kp1);
-    if (info_gain < nbt_threshold) {
-      LOG_INFO("Info Gain Threshold Met!");
-      std_msgs::Bool msg;
-      msg.data = true;
-      finish_pub.publish(msg);
-    }
 
     // Track info
     calib_info[ts_now] = info_k;
     calib_info_predict[ts_now] = info_kp1;
+
+    // Check if info gain is below threshold
+    const auto info_gain = 0.5 * (info_k - info_kp1);
+    if (info_gain < nbt_threshold) {
+      // Publish finish message
+      LOG_INFO("Info Gain Threshold Met!");
+      std_msgs::Bool msg;
+      msg.data = true;
+      finish_pub.publish(msg);
+
+      // Save info
+      const std::string info_path = data_path + "/calib_imu/calib_info.csv";
+      FILE *info_csv = fopen(info_path.c_str(), "w");
+      fprintf(info_csv, "#ts,info_current,info_nbt_predict\n"); // Header
+      for (const auto &[ts, info] : calib_info) {
+        fprintf(info_csv, "%ld,", ts);
+        fprintf(info_csv, "%f,", info);
+        fprintf(info_csv, "%f\n", calib_info_predict[ts]);
+      }
+      fclose(info_csv);
+    } else if (idx >= 0) {
+      // Publish NBT
+      publish_nbt(trajs[idx], nbt_pub);
+    }
   }
 
   void loop() {

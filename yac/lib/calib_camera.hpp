@@ -213,7 +213,8 @@ struct calib_camera_t {
                   const bool fix_extrinsics = false);
   bool add_measurement(const timestamp_t ts,
                        const int cam_idx,
-                       const cv::Mat &cam_img);
+                       const cv::Mat &cam_img,
+                       const bool imshow = false);
   void add_pose(const timestamp_t ts,
                 const std::map<int, aprilgrid_t> &cam_grids,
                 const bool fixed = false);

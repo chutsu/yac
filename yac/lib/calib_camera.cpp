@@ -905,7 +905,8 @@ void calib_camera_t::add_camera(const int cam_idx,
 
 bool calib_camera_t::add_measurement(const timestamp_t ts,
                                      const int cam_idx,
-                                     const cv::Mat &cam_img) {
+                                     const cv::Mat &cam_img,
+                                     const bool imshow) {
   // Add image to image buffer
   img_buf[cam_idx] = {ts, cam_img};
 
@@ -924,6 +925,24 @@ bool calib_camera_t::add_measurement(const timestamp_t ts,
   // Detect AprilGrids
   grid_buf.clear();
   grid_buf = detector->detect(img_buf);
+
+  // Imshow
+  if (imshow) {
+    cv::Mat viz;
+    for (auto &[cam_idx, cam_data] : img_buf) {
+      const auto grid = grid_buf[cam_idx];
+      const auto cam_img = grid.draw(cam_data.second);
+
+      if (viz.empty()) {
+        viz = cam_img;
+      } else {
+        cv::hconcat(viz, cam_img, viz);
+      }
+    }
+
+    cv::imshow("viz", viz);
+    cv::waitKey(1);
+  }
 
   return true;
 }

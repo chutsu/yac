@@ -121,7 +121,6 @@ struct calib_vi_t {
 
   // Constructor / Destructor
   calib_vi_t(const calib_target_t &calib_target_);
-  // calib_vi_t(const calib_vi_t &calib);
   calib_vi_t(const std::string &config_path);
   ~calib_vi_t() = default;
 

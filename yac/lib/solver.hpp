@@ -144,13 +144,5 @@ struct ceres_solver_t : solver_t {
              const int verbose_level = 0) override;
 };
 
-// COVARIANCE ESTIMATOR //////////////////////////////////////////////////////
-
-struct covariance_estimator_t : public solver_t {
-  covariance_estimator_t() = delete;
-  covariance_estimator_t(const solver_t *solver);
-  ~covariance_estimator_t();
-};
-
 } // namespace yac
 #endif // YAC_SOLVER_HPP

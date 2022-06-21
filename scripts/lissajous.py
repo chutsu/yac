@@ -712,7 +712,7 @@ class LissajousTraj:
       writer.setup(fig, save_path, 100)
 
     # Draw camera poses
-    skip_every = int(len(self.t) * 0.1)
+    skip_every = int(len(self.t) * 0.2)
     for idx, t in enumerate(self.t):
       if save_anim is False and idx % skip_every != 0:
         continue
@@ -731,6 +731,37 @@ class LissajousTraj:
       plt.show()
 
 
+def generate_plots():
+  """ Generate plots """
+  r_WF = np.array([0.0, 0.0, 0.0])
+  C_WF = euler321(np.deg2rad(-90.0), 0.0, np.deg2rad(90.0))
+  T_WF = tf(C_WF, r_WF)
+
+  traj = LissajousTraj("hfig8", T_WF)
+  traj.plot_3d(save_path="traj-hfig8.mp4", save_anim=False, show_plot=False)
+  plt.savefig("traj-hfig8.png")
+
+  traj = LissajousTraj("vfig8", T_WF)
+  traj.plot_3d(save_path="traj-vfig8.mp4", save_anim=False, show_plot=False)
+  plt.savefig("traj-vfig8.png")
+
+  traj = LissajousTraj("vert-pan", T_WF)
+  traj.plot_3d(save_anim=False, show_plot=False)
+  plt.savefig("traj-vert-pan.png")
+
+  traj = LissajousTraj("horiz-pan", T_WF)
+  traj.plot_3d(save_anim=False, show_plot=False)
+  plt.savefig("traj-horiz-pan.png")
+
+  traj = LissajousTraj("diag0", T_WF)
+  traj.plot_3d(save_anim=False, show_plot=False, elev=45.0, azim=-180.0)
+  plt.savefig("traj-diag0.png")
+
+  traj = LissajousTraj("diag1", T_WF)
+  traj.plot_3d(save_anim=False, show_plot=False, elev=45.0, azim=-180.0)
+  plt.savefig("traj-diag1.png")
+
+
 def generate_animations():
   """ Generate animations """
   r_WF = np.array([0.0, 0.0, 0.0])
@@ -740,36 +771,47 @@ def generate_animations():
   # traj = LissajousTraj("random", T_WF)
   # traj.plot_3d(save_path="traj-random.mp4", save_anim=True, azim=-180.0)
 
-  # traj = LissajousTraj("hfig8", T_WF)
-  # traj.plot_3d(save_path="traj-hfig8.mp4", save_anim=True)
+  traj = LissajousTraj("hfig8", T_WF)
+  traj.plot_3d(save_path="traj-hfig8.mp4", save_anim=False, show_plot=False)
+  plt.savefig("traj-hfig8.png")
 
-  # traj = LissajousTraj("vfig8", T_WF)
-  # traj.plot_3d(save_path="traj-vfig8.mp4", save_anim=False)
+  traj = LissajousTraj("vfig8", T_WF)
+  traj.plot_3d(save_path="traj-vfig8.mp4", save_anim=False, show_plot=False)
+  plt.savefig("traj-vfig8.png")
+
   # traj.plot_3d(save_path="traj-vfig8.mp4", save_anim=True, elev=0.0, azim=-90.0)
   # traj.plot_3d(save_path="traj-vfig8-3.mp4",
   #              save_anim=False,
   #              elev=45.0,
   #              azim=-180.0)
 
-  traj = LissajousTraj("horiz-s", T_WF)
-  traj.plot_3d(save_path="traj-s-horiz.mp4", save_anim=True)
+  # traj = LissajousTraj("horiz-s", T_WF)
+  # traj.plot_3d(save_path="traj-s-horiz.mp4", save_anim=True)
 
-  traj = LissajousTraj("vert-s", T_WF)
-  traj.plot_3d(save_path="traj-s-vert.mp4", save_anim=True)
+  # traj = LissajousTraj("vert-s", T_WF)
+  # traj.plot_3d(save_path="traj-s-vert.mp4", save_anim=True)
 
-  # traj = LissajousTraj("vert-pan", T_WF)
+  traj = LissajousTraj("vert-pan", T_WF)
+  traj.plot_3d(save_anim=False, show_plot=False)
+  plt.savefig("traj-vert-pan.png")
   # traj.plot_3d(save_path="traj-vert.mp4", save_anim=True)
 
-  # traj = LissajousTraj("horiz-pan", T_WF)
+  traj = LissajousTraj("horiz-pan", T_WF)
+  traj.plot_3d(save_anim=False, show_plot=False)
+  plt.savefig("traj-horiz-pan.png")
   # traj.plot_3d(save_path="traj-horiz.mp4", save_anim=True)
 
-  # traj = LissajousTraj("diag0", T_WF)
+  traj = LissajousTraj("diag0", T_WF)
+  traj.plot_3d(save_anim=False, show_plot=False, elev=45.0, azim=-180.0)
+  plt.savefig("traj-diag0.png")
   # traj.plot_3d(save_path="traj-diag0.mp4",
   #              save_anim=True,
   #              elev=45.0,
   #              azim=-180.0)
 
-  # traj = LissajousTraj("diag1", T_WF)
+  traj = LissajousTraj("diag1", T_WF)
+  traj.plot_3d(save_anim=False, show_plot=False, elev=45.0, azim=-180.0)
+  plt.savefig("traj-diag1.png")
   # traj.plot_3d(save_path="traj-diag1.mp4",
   #              save_anim=True,
   #              elev=45.0,
@@ -1143,10 +1185,11 @@ def test_integration():
 # sympy_velocity(True)
 # sympy_acceleration(True)
 # sympy_q_OS(True)
-sympy_q_OS_dot(True, True)
+# sympy_q_OS_dot(True, True)
 
 # Tests
 # generate_animations()
+generate_plots()
 # test_velocity()
 # test_acceleration()
 # test_angular_velocity()

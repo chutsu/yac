@@ -34,6 +34,7 @@ struct calib_nbt_eval_t {
   ros::Publisher nbt_pub;
   ros::Publisher finish_pub;
   ros::Subscriber nbt_data_sub;
+  ros::Subscriber reset_sub;
 
   // Setting
   std::string config_file;
@@ -59,12 +60,19 @@ struct calib_nbt_eval_t {
     finish_pub = ros_nh.advertise<std_msgs::Bool>("/yac_ros/nbt_finish", 0);
 
     // Subscribers
+    // -- NBT data topic
     const std::string nbt_data_topic = "/yac_ros/nbt_data";
     LOG_INFO("Subscribing to nbt_data @ [%s]", nbt_data_topic.c_str());
     nbt_data_sub = ros_nh.subscribe(nbt_data_topic,
                                     1,
                                     &calib_nbt_eval_t::eval_callback,
                                     this);
+    // -- Reset topic
+    const std::string reset_topic = "/yac_ros/reset";
+    reset_sub = ros_nh.subscribe(reset_topic,
+                                 1,
+                                 &calib_nbt_eval_t::reset_callback,
+                                 this);
 
     // Loop
     loop();
@@ -241,6 +249,18 @@ struct calib_nbt_eval_t {
       // Publish NBT
       publish_nbt(trajs[idx], nbt_pub);
     }
+  }
+
+  /** Reset callback */
+  void reset_callback(const std_msgs::Bool &msg) {
+    // Pre-check
+    if (msg.data == false) {
+      return;
+    }
+
+    // Clear calibration info
+    calib_info.clear();
+    calib_info_predict.clear();
   }
 
   void loop() {

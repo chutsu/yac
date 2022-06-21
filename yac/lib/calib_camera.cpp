@@ -583,6 +583,7 @@ calib_camera_t::calib_camera_t(const std::string &config_path)
   parse(config, "settings.enable_shuffle_views", enable_shuffle_views, true);
   parse(config, "settings.enable_nbv_filter", enable_nbv_filter, true);
   parse(config, "settings.enable_outlier_filter", enable_outlier_filter, true);
+  parse(config, "settings.enable_early_stopping", enable_early_stopping, true);
   parse(config, "settings.enable_marginalization", enable_marginalization, true);
   parse(config, "settings.enable_loss_fn", enable_loss_fn, true);
   parse(config, "settings.loss_fn_type", loss_fn_type, true);
@@ -590,6 +591,7 @@ calib_camera_t::calib_camera_t(const std::string &config_path)
   parse(config, "settings.min_nbv_views", min_nbv_views, true);
   parse(config, "settings.outlier_threshold", outlier_threshold, true);
   parse(config, "settings.info_gain_threshold", info_gain_threshold, true);
+  parse(config, "settings.early_stop_threshold", early_stop_threshold, true);
   parse(config, "settings.sliding_window_size", sliding_window_size, true);
   // clang-format on
   // -- Parse calibration target
@@ -1040,7 +1042,7 @@ bool calib_camera_t::add_nbv_view(const std::map<int, aprilgrid_t> &cam_grids) {
   _cache_estimates();
 
   // Solve with new view
-  solver->solve(5);
+  solver->solve(30);
 
   // Calculate information gain
   const timestamp_t ts = calib_views.rbegin()->first;
@@ -1079,7 +1081,6 @@ void calib_camera_t::remove_view(const timestamp_t ts) {
       solver->remove_param(pose_ptr);
     }
     poses.erase(ts);
-    // delete pose_ptr;
   }
 
   // Remove view
@@ -1444,15 +1445,21 @@ void calib_camera_t::_cache_estimates() {
 void calib_camera_t::_restore_estimates() {
   for (const auto &[ts, pose] : poses) {
     if (poses_tmp.count(ts)) {
-      pose->param = poses_tmp[ts];
+      for (int i = 0; i < poses_tmp[ts].size(); i++) {
+        pose->param(i) = poses_tmp[ts](i);
+      }
     }
   }
   for (const auto cam_idx : get_camera_indices()) {
     if (cam_params_tmp.count(cam_idx)) {
-      cam_params[cam_idx]->param = cam_params_tmp[cam_idx];
+      for (int i = 0; i < cam_params_tmp[cam_idx].size(); i++) {
+        cam_params[cam_idx]->param(i) = cam_params_tmp[cam_idx](i);
+      }
     }
     if (cam_exts_tmp.count(cam_idx)) {
-      cam_exts[cam_idx]->param = cam_exts_tmp[cam_idx];
+      for (int i = 0; i < cam_exts_tmp[cam_idx].size(); i++) {
+        cam_exts[cam_idx]->param(i) = cam_exts_tmp[cam_idx](i);
+      }
     }
   }
 
@@ -1550,7 +1557,6 @@ int calib_camera_t::_remove_outliers(const bool filter_all) {
     // Get info with filtered view removed
     real_t info_after;
     if (_calc_info(&info_after) != 0) {
-      printf("Failed to evaluate info!");
       add_view(grids_cache);
       _restore_estimates();
       continue;
@@ -1699,6 +1705,7 @@ void calib_camera_t::_solve_nbv() {
 
   // NBV
   size_t ts_idx = 0;
+  int stale_counter = 0;
   for (const auto &ts : nbv_timestamps) {
     // Add view
     if (add_nbv_view(calib_data[ts])) {
@@ -1708,11 +1715,22 @@ void calib_camera_t::_solve_nbv() {
         filter_all = false;
       }
 
-      // // Marginalize oldest view
-      // if (enable_marginalization &&
-      //     (calib_views.size() > (size_t)sliding_window_size)) {
-      //   marginalize();
-      // }
+      // Marginalize oldest view
+      if (enable_marginalization &&
+          (calib_views.size() > (size_t)sliding_window_size)) {
+        marginalize();
+      }
+
+      // Reset stale counter
+      stale_counter = 0;
+    } else {
+      // Update stale counter
+      stale_counter++;
+    }
+
+    // Stop early?
+    if (stale_counter > early_stop_threshold) {
+      break;
     }
 
     // Print stats
@@ -1734,7 +1752,7 @@ void calib_camera_t::_solve_nbv() {
 
   // Final Solve
   // removed_outliers = _filter_all_views();
-  solver->solve(10, true, 1);
+  solver->solve(30, true, 1);
 }
 
 void calib_camera_t::_load_views(const std::string &data_path) {
@@ -1873,6 +1891,7 @@ void calib_camera_t::print_settings(FILE *out) {
   fprintf(out, "  enable_shuffle_views: %s\n", enable_shuffle_views ? "true" : "false");
   fprintf(out, "  enable_nbv_filter: %s\n", enable_nbv_filter ? "true" : "false");
   fprintf(out, "  enable_outlier_filter: %s\n", enable_outlier_filter ? "true" : "false");
+  fprintf(out, "  enable_early_stopping: %s\n", enable_early_stopping ? "true" : "false");
   fprintf(out, "  enable_marginalization: %s\n", enable_marginalization ? "true" : "false");
   fprintf(out, "  enable_loss_fn: %s\n", enable_loss_fn ? "true" : "false");
   fprintf(out, "  loss_fn_type: \"%s\"\n", loss_fn_type.c_str());
@@ -1880,6 +1899,7 @@ void calib_camera_t::print_settings(FILE *out) {
   fprintf(out, "  min_nbv_views: %d\n", min_nbv_views);
   fprintf(out, "  outlier_threshold: %f\n", outlier_threshold);
   fprintf(out, "  info_gain_threshold: %f\n", info_gain_threshold);
+  fprintf(out, "  early_stop_threshold: %d\n", early_stop_threshold);
   fprintf(out, "  sliding_window_size: %d\n", sliding_window_size);
   fprintf(out, "\n");
   // clang-format on

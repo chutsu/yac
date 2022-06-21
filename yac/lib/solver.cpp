@@ -1017,7 +1017,6 @@ void ceres_solver_t::add_residual(calib_residual_t *res_fn) {
   auto param_blocks = res_fn->param_block_ptrs();
   auto res_id =
       problem->AddResidualBlock(res_fn, res_fn->loss_fn, param_blocks);
-  // TODO: Fix the loss so it is in the residual not in the solver!
 
   // size_t param_idx = 0;
   // for (const auto ptr : param_blocks) {
@@ -1222,13 +1221,5 @@ void ceres_solver_t::solve(const int max_iter,
     }
   }
 }
-
-// COVARIANCE ESTIMATOR //////////////////////////////////////////////////////
-
-covariance_estimator_t::covariance_estimator_t(const solver_t *solver) {
-  UNUSED(solver);
-}
-
-covariance_estimator_t::~covariance_estimator_t() {}
 
 } // namespace yac

@@ -1,6 +1,9 @@
 <launch>
   <arg name="config_file"/>
 
+  <!-- Record rosbag -->
+  <node pkg="rosbag" type="record" name="record" output="screen" args="/rs/ir0/image /rs/imu0/data -O /tmp/calib_vi.bag"/>
+
   <!-- Intel realsense D435i-->
   <node pkg="rs4se"
       type="intel_d435i"
@@ -55,5 +58,6 @@
 
   <!-- NBT Eval Node -->
   <node pkg="yac_ros" type="calib_nbt_eval_node" name="yac_nbt_eval_node" required="true" output="screen">
+    <param name="config_file" value="$(arg config_file)" />
   </node>
 </launch>

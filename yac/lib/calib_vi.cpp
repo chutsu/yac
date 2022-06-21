@@ -190,8 +190,8 @@ void calib_vi_view_t::form_imu_residual(const imu_params_t &imu_params,
   assert(fltcmp(imu_params.sigma_gw_c, 0.0) != 0);
 
   // Pre-check IMU measurements
-  const auto ts_i = pose.ts;
-  const auto ts_j = pose_j->ts;
+  // const auto ts_i = pose.ts;
+  // const auto ts_j = pose_j->ts;
   // if (imu_buf.timestamps.front() > ts_i) {
   //   LOG_ERROR("imu_buf.timestamps.front() > ts_i");
   //   LOG_ERROR("imu_buf.timestamps.front(): %ld", imu_buf.timestamps.front());

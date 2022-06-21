@@ -179,11 +179,11 @@ struct calib_nbt_t {
   ros::Publisher nbt_pub;
   // -- NBT Data publisher
   ros::Publisher nbt_data_pub;
+  // -- Reset publisher
+  ros::Publisher reset_pub;
 
   // Calibration
   std::unique_ptr<calib_vi_t> calib;
-  std::map<timestamp_t, real_t> calib_info;
-  std::map<timestamp_t, real_t> calib_info_predict;
 
   // Initialization
   aprilgrid_t calib_origin;
@@ -328,6 +328,7 @@ struct calib_nbt_t {
     rviz_pub = ros_nh.advertise<visualization_msgs::Marker>("/yac_ros/rviz", 0);
     nbt_pub = ros_nh.advertise<nav_msgs::Path>("/yac_ros/nbt", 0);
     nbt_data_pub = ros_nh.advertise<yac_ros::CalibVI>("/yac_ros/nbt_data", 0);
+    reset_pub = ros_nh.advertise<std_msgs::Bool>("/yac_ros/reset", 0);
     // clang-format on
 
     // Subscribers
@@ -459,9 +460,10 @@ struct calib_nbt_t {
     calib = std::make_unique<calib_vi_t>(calib_file);
     calib->max_iter = 30;
 
-    // Clear calibration info
-    calib_info.clear();
-    calib_info_predict.clear();
+    // Rest calib_infos
+    std_msgs::Bool reset_msg;
+    reset_msg.data = true;
+    reset_pub.publish(reset_msg);
 
     // Remove calibration directory
     const std::string dir_path = data_path;

@@ -39,8 +39,7 @@ void publish_fiducial_tf(const ros::Time &ts,
 void publish_tf(const ros::Time &ts,
                 const std::string &pose_name,
                 const mat4_t &pose,
-                tf2_ros::TransformBroadcaster &tf_br,
-                bool remove = false);
+                tf2_ros::TransformBroadcaster &tf_br);
 
 /* ROS Calibration Configuration */
 struct ros_config_t {

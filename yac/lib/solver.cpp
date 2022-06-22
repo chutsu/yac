@@ -1188,7 +1188,7 @@ void ceres_solver_t::solve(const int max_iter,
                            const int verbose_level) {
   // Solve
   ceres::Solver::Options options;
-  options.minimizer_progress_to_stdout = verbose;
+  options.minimizer_progress_to_stdout = false;
   options.max_num_iterations = max_iter;
   options.num_threads = max_num_threads;
 

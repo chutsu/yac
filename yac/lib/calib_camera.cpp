@@ -1019,6 +1019,7 @@ bool calib_camera_t::add_view(const std::map<int, aprilgrid_t> &cam_grids) {
   }
 
   // Add calibration view
+  calib_view_timestamps.push_back(ts);
   calib_views[ts] = new calib_view_t{ts,
                                      cam_grids,
                                      corners.get(),
@@ -1045,20 +1046,16 @@ bool calib_camera_t::add_nbv_view(const std::map<int, aprilgrid_t> &cam_grids) {
   solver->solve(30);
 
   // Calculate information gain
-  const timestamp_t ts = calib_views.rbegin()->first;
+  const timestamp_t ts = calib_view_timestamps.back();
   real_t info_kp1 = 0.0;
   if (_calc_info(&info_kp1) != 0) {
     _restore_estimates();
     remove_view(ts);
     return false;
   }
-  const real_t info_gain = 0.5 * (info_k - info_kp1);
-  // printf("info_gain: %f, info_k: %f, info_kp1: %f\n",
-  //        info_gain,
-  //        info_k,
-  //        info_kp1);
 
   // Remove view?
+  const real_t info_gain = 0.5 * (info_k - info_kp1);
   if (info_gain < info_gain_threshold) {
     _restore_estimates();
     remove_view(ts);
@@ -1088,6 +1085,11 @@ void calib_camera_t::remove_view(const timestamp_t ts) {
     auto view_it = calib_views.find(ts);
     delete view_it->second;
     calib_views.erase(view_it);
+
+    auto ts_it = std::find(calib_view_timestamps.begin(),
+                           calib_view_timestamps.end(),
+                           ts);
+    calib_view_timestamps.erase(ts_it);
   }
 }
 
@@ -1716,8 +1718,7 @@ void calib_camera_t::_solve_nbv() {
       }
 
       // Marginalize oldest view
-      if (enable_marginalization &&
-          (calib_views.size() > (size_t)sliding_window_size)) {
+      if (enable_marginalization && (nb_views() > sliding_window_size)) {
         marginalize();
       }
 
@@ -1729,7 +1730,7 @@ void calib_camera_t::_solve_nbv() {
     }
 
     // Stop early?
-    if (stale_counter > early_stop_threshold) {
+    if (enable_early_stopping && stale_counter > early_stop_threshold) {
       break;
     }
 
@@ -1740,18 +1741,18 @@ void calib_camera_t::_solve_nbv() {
   }
 
   // Final outlier rejection, then batch solve
-  if (enable_outlier_filter) {
-    if (verbose) {
-      printf("Performing Final Outlier Rejection\n");
-    }
-    removed_outliers += _remove_outliers(true);
-    if (verbose) {
-      printf("Removed %d outliers\n", removed_outliers);
-    }
-  }
+  // if (enable_outlier_filter) {
+  //   if (verbose) {
+  //     printf("Performing Final Outlier Rejection\n");
+  //   }
+  //   removed_outliers += _remove_outliers(true);
+  //   if (verbose) {
+  //     printf("Removed %d outliers\n", removed_outliers);
+  //   }
+  // }
 
   // Final Solve
-  // removed_outliers = _filter_all_views();
+  removed_outliers = _filter_all_views();
   solver->solve(30, true, 1);
 }
 

@@ -164,6 +164,7 @@ int test_calib_camera_add_and_remove_view() {
 
     calib.add_view(calib.calib_data[ts]);
     view_ts = ts;
+
     if (calib.nb_views() >= 5) {
       break;
     }

@@ -108,15 +108,15 @@ struct calib_camera_t {
   bool enable_shuffle_views = true;
   bool enable_nbv_filter = true;
   bool enable_outlier_filter = true;
-  bool enable_early_stopping = true;
+  bool enable_early_stopping = false;
   bool enable_marginalization = false;
   bool enable_loss_fn = true;
   // std::string loss_fn_type = "BLAKE-ZISSERMAN";
   // double loss_fn_param = 2;
   std::string loss_fn_type = "CAUCHY";
-  double loss_fn_param = 1.0;
+  double loss_fn_param = 1.5;
   int min_nbv_views = 40;
-  real_t outlier_threshold = 4.0;
+  real_t outlier_threshold = 3.0;
   real_t info_gain_threshold = 0.2;
   int early_stop_threshold = 30;
   int sliding_window_size = 10;
@@ -162,6 +162,7 @@ struct calib_camera_t {
   StampedPoses poses;
 
   // Sliding window
+  timestamps_t calib_view_timestamps;
   std::set<timestamp_t> filtered_timestamps;
   std::map<timestamp_t, calib_view_t *> calib_views;
 

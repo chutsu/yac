@@ -1330,8 +1330,23 @@ int calib_vi_t::save_results(const std::string &save_path) const {
     return -1;
   }
 
+  // Print settings
+  // clang-format off
+  fprintf(outfile, "settings:\n");
+  fprintf(outfile, "  max_num_threads: %d\n", max_num_threads);
+  fprintf(outfile, "  max_iter: %d\n", max_iter);
+  fprintf(outfile, "  enable_outlier_rejection: %s\n", enable_outlier_rejection ? "true": "false");
+  fprintf(outfile, "  enable_marginalization: %s\n", enable_marginalization ? "true": "false");
+  fprintf(outfile, "  outlier_threshold: %f\n", outlier_threshold);
+  fprintf(outfile, "  window_size: %d\n", window_size);
+  fprintf(outfile, "  img_scale: %d\n", img_scale);
+  fprintf(outfile, "\n");
+  // clang-format on
+
   // Calibration metrics
   fprintf(outfile, "total_reproj_error:\n");
+  fprintf(outfile, "  nb_views: %d\n", nb_views());
+  fprintf(outfile, "  nb_corners: %ld\n", reproj_errors_all.size());
   fprintf(outfile, "  rmse:   %.4f # [px]\n", rmse(reproj_errors_all));
   fprintf(outfile, "  mean:   %.4f # [px]\n", mean(reproj_errors_all));
   fprintf(outfile, "  median: %.4f # [px]\n", median(reproj_errors_all));
@@ -1340,6 +1355,7 @@ int calib_vi_t::save_results(const std::string &save_path) const {
   for (const auto &[cam_idx, errors] : get_reproj_errors()) {
     const auto cam_str = "cam" + std::to_string(cam_idx);
     fprintf(outfile, "%s_reproj_error:\n", cam_str.c_str());
+    fprintf(outfile, "  nb_corners: %ld\n", errors.size());
     fprintf(outfile, "  rmse:   %.4f # [px]\n", rmse(errors));
     fprintf(outfile, "  mean:   %.4f # [px]\n", mean(errors));
     fprintf(outfile, "  median: %.4f # [px]\n", median(errors));
@@ -1380,12 +1396,12 @@ int calib_vi_t::save_results(const std::string &save_path) const {
   const vec3_t mu_bg = mean(bias_gyr);
   fprintf(outfile, "imu0:\n");
   fprintf(outfile, "  rate: %f\n", imu_params.rate);
-  fprintf(outfile, "  sigma_a_c: %f\n", imu_params.sigma_a_c);
-  fprintf(outfile, "  sigma_g_c: %f\n", imu_params.sigma_g_c);
-  fprintf(outfile, "  sigma_aw_c: %f\n", imu_params.sigma_aw_c);
-  fprintf(outfile, "  sigma_gw_c: %f\n", imu_params.sigma_gw_c);
-  fprintf(outfile, "  sigma_ba: %f\n", imu_params.sigma_ba);
-  fprintf(outfile, "  sigma_bg: %f\n", imu_params.sigma_bg);
+  fprintf(outfile, "  sigma_a_c: %e\n", imu_params.sigma_a_c);
+  fprintf(outfile, "  sigma_g_c: %e\n", imu_params.sigma_g_c);
+  fprintf(outfile, "  sigma_aw_c: %e\n", imu_params.sigma_aw_c);
+  fprintf(outfile, "  sigma_gw_c: %e\n", imu_params.sigma_gw_c);
+  fprintf(outfile, "  sigma_ba: %e\n", imu_params.sigma_ba);
+  fprintf(outfile, "  sigma_bg: %e\n", imu_params.sigma_bg);
   fprintf(outfile, "  g: %f\n", imu_params.g);
   fprintf(outfile, "  ba: [%f, %f, %f]\n", mu_ba.x(), mu_ba.y(), mu_ba.z());
   fprintf(outfile, "  bg: [%f, %f, %f]\n", mu_bg.x(), mu_bg.y(), mu_bg.z());

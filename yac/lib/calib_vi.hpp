@@ -76,7 +76,7 @@ struct calib_vi_t {
   bool verbose = true;
   int max_num_threads = 4;
   int max_iter = 30;
-  bool enable_outlier_rejection = false;
+  bool enable_outlier_rejection = true;
   bool enable_marginalization = false;
   double outlier_threshold = 4.0;
   int window_size = 4;

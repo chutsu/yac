@@ -160,6 +160,8 @@ int calib_vi_view_t::filter_view(const real_t outlier_threshold) {
 
       vec2_t r;
       if (fiducial_residual->get_residual(r) != 0) {
+        ++res_it;
+        ++id_it;
         continue;
       }
 
@@ -1227,9 +1229,14 @@ void calib_vi_t::solve() {
   if (enable_outlier_rejection) {
     LOG_INFO("Filter outliers");
     int nb_outliers = 0;
+    int view_idx = 0;
     for (auto &view : calib_views) {
-      printf("filtering view: %ld\n", view->ts);
-      nb_outliers += view->filter_view(outlier_threshold);
+      const auto view_outliers = view->filter_view(outlier_threshold);
+      printf("filtering view[%d]: %ld [removed %d outliers]\n",
+             view_idx++,
+             view->ts,
+             view_outliers);
+      nb_outliers += view_outliers;
     }
     LOG_INFO("Removed %d outliers!", nb_outliers);
 
@@ -1339,7 +1346,7 @@ int calib_vi_t::save_results(const std::string &save_path) const {
   fprintf(outfile, "  enable_marginalization: %s\n", enable_marginalization ? "true": "false");
   fprintf(outfile, "  outlier_threshold: %f\n", outlier_threshold);
   fprintf(outfile, "  window_size: %d\n", window_size);
-  fprintf(outfile, "  img_scale: %d\n", img_scale);
+  fprintf(outfile, "  img_scale: %f\n", img_scale);
   fprintf(outfile, "\n");
   // clang-format on
 

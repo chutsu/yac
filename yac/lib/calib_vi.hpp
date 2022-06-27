@@ -80,16 +80,16 @@ struct calib_vi_t {
   // Settings
   bool verbose = true;
   int max_num_threads = 4;
-  int max_iter = 100;
-  bool enable_outlier_rejection = false;
+  int max_iter = 50;
+  bool enable_outlier_rejection = true;
   bool enable_marginalization = false;
   bool enable_vision_loss_fn = true;
   std::string vision_loss_fn_type = "CAUCHY";
-  double vision_loss_fn_param = 0.5;
-  bool enable_imu_loss_fn = true;
+  double vision_loss_fn_param = 1.0;
+  bool enable_imu_loss_fn = false;
   std::string imu_loss_fn_type = "HUBER";
-  double imu_loss_fn_param = 2.0;
-  double outlier_threshold = 3.0;
+  double imu_loss_fn_param = 1.0;
+  double outlier_threshold = 4.0;
   int window_size = 4;
   const real_t img_scale = 0.4;
 

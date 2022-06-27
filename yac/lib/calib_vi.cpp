@@ -758,6 +758,11 @@ bool calib_vi_t::add_measurement(const timestamp_t ts,
                                  const cv::Mat &cam_image) {
   std::lock_guard<std::mutex> guard(mtx);
 
+  // Do not add vision data before first imu measurement
+  if (imu_started == false) {
+    return false;
+  }
+
   // Add image to image buffer
   img_buf[cam_idx] = {ts, cam_image};
 
@@ -1297,10 +1302,10 @@ void calib_vi_t::print_settings(FILE *os) const {
   fprintf(os, "  enable_outlier_rejection: %s\n", enable_outlier_rejection ? "true": "false");
   fprintf(os, "  enable_marginalization: %s\n", enable_marginalization ? "true": "false");
   fprintf(os, "  enable_vision_loss_fn: %s\n", enable_vision_loss_fn ? "true" : "false");
-  fprintf(os, "  vision_loss_fn_type: %s\n", vision_loss_fn_type.c_str());
+  fprintf(os, "  vision_loss_fn_type: \"%s\"\n", vision_loss_fn_type.c_str());
   fprintf(os, "  vision_loss_fn_param: %f\n", vision_loss_fn_param);
   fprintf(os, "  enable_imu_loss_fn: %s\n", enable_imu_loss_fn ? "true" : "false");
-  fprintf(os, "  imu_loss_fn_type: %s\n", imu_loss_fn_type.c_str());
+  fprintf(os, "  imu_loss_fn_type: \"%s\"\n", imu_loss_fn_type.c_str());
   fprintf(os, "  imu_loss_fn_param: %f\n", imu_loss_fn_param);
   fprintf(os, "  outlier_threshold: %f\n", outlier_threshold);
   fprintf(os, "  window_size: %d\n", window_size);
@@ -1395,7 +1400,6 @@ void calib_vi_t::print_cameras(FILE *os) const {
     fprintf(os, "  dist_params: %s\n", dist_params.c_str());
     fprintf(os, "\n");
   }
-  fprintf(os, "\n");
 }
 
 void calib_vi_t::print_extrinsics(FILE *os) const {

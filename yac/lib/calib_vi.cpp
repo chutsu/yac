@@ -39,14 +39,6 @@ calib_vi_view_t::calib_vi_view_t(const timestamp_t ts_,
     vec3s_t pts;
     grid.get_measurements(tag_ids, corner_idxs, kps, pts);
 
-    // Show warning on low number of measurements
-    // if (tag_ids.size() < (4 * 3)) {
-    //   LOG_WARN("Warning [cam%d @ ts: %ld] only has %ld measurements!",
-    //            cam_idx,
-    //            ts,
-    //            corner_idxs.size());
-    // }
-
     // Add residuals to problem
     for (size_t i = 0; i < tag_ids.size(); i++) {
       const int tag_id = tag_ids[i];

@@ -376,7 +376,7 @@ void calib_view_t::marginalize(marg_residual_t *marg_residual) {
 
 // CALIB CAMERA ////////////////////////////////////////////////////////////////
 
-void print_calib_target(FILE *out, calib_target_t &calib_target) {
+void print_calib_target(FILE *out, const calib_target_t &calib_target) {
   fprintf(out, "calib_target:\n");
   fprintf(out, "  target_type: \"%s\"\n", calib_target.target_type.c_str());
   fprintf(out, "  tag_rows: %d\n", calib_target.tag_rows);
@@ -406,8 +406,8 @@ void print_camera_params(FILE *out,
 }
 
 void print_estimates(FILE *out,
-                     CamIdx2Parameters &cam_params,
-                     CamIdx2Extrinsics &cam_exts) {
+                     const CamIdx2Parameters &cam_params,
+                     const CamIdx2Extrinsics &cam_exts) {
   const bool max_digits = (out == stdout) ? false : true;
 
   // Camera parameters
@@ -419,7 +419,7 @@ void print_estimates(FILE *out,
   }
 
   // Camera-Camera extrinsics
-  const mat4_t T_BC0 = cam_exts[0]->tf();
+  const mat4_t T_BC0 = cam_exts.at(0)->tf();
   const mat4_t T_C0B = tf_inv(T_BC0);
   for (auto &kv : cam_exts) {
     const auto cam_idx = kv.first;
@@ -736,7 +736,7 @@ mat4_t calib_camera_t::get_camera_extrinsics(const int cam_idx) const {
   return cam_exts.at(cam_idx)->tf();
 }
 
-std::vector<real_t> calib_camera_t::get_all_reproj_errors() {
+std::vector<real_t> calib_camera_t::get_all_reproj_errors() const {
   std::vector<real_t> reproj_errors_all;
   for (auto &[ts, view] : calib_views) {
     extend(reproj_errors_all, view->get_reproj_errors());
@@ -744,7 +744,7 @@ std::vector<real_t> calib_camera_t::get_all_reproj_errors() {
   return reproj_errors_all;
 }
 
-std::map<int, std::vector<real_t>> calib_camera_t::get_reproj_errors() {
+std::map<int, std::vector<real_t>> calib_camera_t::get_reproj_errors() const {
   std::map<int, std::vector<real_t>> reproj_errors;
 
   for (auto &[ts, view] : calib_views) {
@@ -758,7 +758,7 @@ std::map<int, std::vector<real_t>> calib_camera_t::get_reproj_errors() {
   return reproj_errors;
 }
 
-std::map<int, vec2s_t> calib_camera_t::get_residuals() {
+std::map<int, vec2s_t> calib_camera_t::get_residuals() const {
   std::map<int, vec2s_t> residuals;
 
   for (auto &[ts, view] : calib_views) {
@@ -1882,7 +1882,7 @@ void calib_camera_t::solve(const bool skip_init) {
   }
 }
 
-void calib_camera_t::print_settings(FILE *out) {
+void calib_camera_t::print_settings(FILE *out) const {
   // clang-format off
   fprintf(out, "settings:\n");
   fprintf(out, "  verbose: %s\n", verbose ? "true" : "false");
@@ -1909,7 +1909,7 @@ void calib_camera_t::print_settings(FILE *out) {
 void calib_camera_t::print_metrics(
     FILE *out,
     const std::map<int, std::vector<real_t>> &reproj_errors,
-    const std::vector<real_t> &reproj_errors_all) {
+    const std::vector<real_t> &reproj_errors_all) const {
   // Get total amoung of corners in the calibration problem
   size_t total_corners = 0;
   for (const auto &[cam_idx, cam_errors] : reproj_errors) {
@@ -1939,12 +1939,13 @@ void calib_camera_t::print_metrics(
   }
 }
 
-void calib_camera_t::show_results() {
+void calib_camera_t::show_results() const {
   const auto reproj_errors = get_reproj_errors();
   const auto reproj_errors_all = get_all_reproj_errors();
   printf("Optimization results:\n");
   printf("---------------------\n");
   print_settings(stdout);
+  print_calib_target(stdout, calib_target);
   print_metrics(stdout, reproj_errors, reproj_errors_all);
   print_estimates(stdout, cam_params, cam_exts);
 }
@@ -1962,8 +1963,8 @@ int calib_camera_t::save_results(const std::string &save_path) {
   const auto reproj_errors = get_reproj_errors();
   const auto reproj_errors_all = get_all_reproj_errors();
   print_settings(outfile);
-  print_metrics(outfile, reproj_errors, reproj_errors_all);
   print_calib_target(outfile, calib_target);
+  print_metrics(outfile, reproj_errors, reproj_errors_all);
   print_estimates(outfile, cam_params, cam_exts);
   fclose(outfile);
 

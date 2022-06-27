@@ -86,13 +86,13 @@ struct calib_view_t {
 
 // CALIBRATOR //////////////////////////////////////////////////////////////////
 
-void print_calib_target(FILE *out, calib_target_t &calib_target);
+void print_calib_target(FILE *out, const calib_target_t &calib_target);
 void print_camera_params(FILE *out,
                          const int cam_idx,
                          const camera_params_t *cam);
 void print_estimates(FILE *out,
-                     CamIdx2Parameters &cam_params,
-                     CamIdx2Extrinsics &cam_exts);
+                     const CamIdx2Parameters &cam_params,
+                     const CamIdx2Extrinsics &cam_exts);
 
 /** Camera Calibrator **/
 struct calib_camera_t {
@@ -184,9 +184,9 @@ struct calib_camera_t {
   std::string get_camera_projection_model(const int cam_idx) const;
   std::string get_camera_distortion_model(const int cam_idx) const;
   mat4_t get_camera_extrinsics(const int cam_idx) const;
-  std::vector<real_t> get_all_reproj_errors();
-  std::map<int, std::vector<real_t>> get_reproj_errors();
-  std::map<int, vec2s_t> get_residuals();
+  std::vector<real_t> get_all_reproj_errors() const;
+  std::map<int, std::vector<real_t>> get_reproj_errors() const;
+  std::map<int, vec2s_t> get_residuals() const;
 
   void add_camera_data(const int cam_idx,
                        const aprilgrids_t &grids,
@@ -258,11 +258,11 @@ struct calib_camera_t {
   void load_data(const std::string &data_path);
   void solve(const bool skip_init = false);
 
-  void print_settings(FILE *out);
+  void print_settings(FILE *out) const;
   void print_metrics(FILE *out,
                      const std::map<int, std::vector<real_t>> &reproj_errors,
-                     const std::vector<real_t> &reproj_errors_all);
-  void show_results();
+                     const std::vector<real_t> &reproj_errors_all) const;
+  void show_results() const;
 
   int save_results(const std::string &save_path);
   int save_estimates(const std::string &save_path);

@@ -4,6 +4,7 @@
 #include <ceres/ceres.h>
 
 #include "calib_residuals.hpp"
+#include "calib_loss.hpp"
 #include "solver.hpp"
 
 namespace yac {
@@ -30,9 +31,11 @@ struct calib_vi_view_t {
   // Problem
   std::shared_ptr<ceres::Problem> problem;
   // -- Fiducial errors
+  std::shared_ptr<calib_loss_t> vision_loss;
   CamIdx2FiducialResidualIds fiducial_residual_ids;
   CamIdx2FiducialResiduals fiducial_residuals;
   // -- Imu residual
+  std::shared_ptr<calib_loss_t> imu_loss;
   ceres::ResidualBlockId imu_residual_id;
   std::shared_ptr<imu_residual_t> imu_residual;
 
@@ -47,6 +50,8 @@ struct calib_vi_view_t {
                   std::shared_ptr<extrinsics_t> imu_exts_,
                   std::shared_ptr<fiducial_t> fiducial_,
                   std::shared_ptr<ceres::Problem> problem_,
+                  std::shared_ptr<calib_loss_t> vision_loss,
+                  std::shared_ptr<calib_loss_t> imu_loss,
                   PoseLocalParameterization *pose_plus);
   ~calib_vi_view_t();
 
@@ -75,10 +80,16 @@ struct calib_vi_t {
   // Settings
   bool verbose = true;
   int max_num_threads = 4;
-  int max_iter = 30;
-  bool enable_outlier_rejection = true;
+  int max_iter = 100;
+  bool enable_outlier_rejection = false;
   bool enable_marginalization = false;
-  double outlier_threshold = 4.0;
+  bool enable_vision_loss_fn = true;
+  std::string vision_loss_fn_type = "CAUCHY";
+  double vision_loss_fn_param = 0.5;
+  bool enable_imu_loss_fn = true;
+  std::string imu_loss_fn_type = "HUBER";
+  double imu_loss_fn_param = 2.0;
+  double outlier_threshold = 3.0;
   int window_size = 4;
   const real_t img_scale = 0.4;
 
@@ -106,6 +117,8 @@ struct calib_vi_t {
   std::deque<std::shared_ptr<calib_vi_view_t>> calib_views;
   ceres::ResidualBlockId marg_residual_id;
   std::shared_ptr<marg_residual_t> marg_residual;
+  std::shared_ptr<calib_loss_t> vision_loss;
+  std::shared_ptr<calib_loss_t> imu_loss;
 
   // Calibration Information
   bool calib_info_ok = false;
@@ -166,6 +179,8 @@ struct calib_vi_t {
   void add_measurement(const timestamp_t imu_ts,
                        const vec3_t &a_m,
                        const vec3_t &w_m);
+  std::shared_ptr<calib_loss_t> _create_loss_fn(const std::string &loss_fn_type,
+                                                const real_t loss_param) const;
   int recover_calib_covar(matx_t &calib_covar) const;
   int recover_calib_info(matx_t &H) const;
   void marginalize();
@@ -179,7 +194,13 @@ struct calib_vi_t {
 
   void load_data(const std::string &data_path);
   void solve();
-  void show_results();
+  void print_settings(FILE *os) const;
+  void print_calib_target(FILE *os) const;
+  void print_stats(FILE *os) const;
+  void print_imu(FILE *os) const;
+  void print_cameras(FILE *os) const;
+  void print_extrinsics(FILE *os) const;
+  void show_results() const;
   int save_results(const std::string &save_path) const;
   void save_estimates(const std::string &dir_path) const;
 };

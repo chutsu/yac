@@ -14,10 +14,13 @@ calib_vi_view_t::calib_vi_view_t(const timestamp_t ts_,
                                  std::shared_ptr<extrinsics_t> imu_exts_,
                                  std::shared_ptr<fiducial_t> fiducial_,
                                  std::shared_ptr<ceres::Problem> problem_,
+                                 std::shared_ptr<calib_loss_t> vision_loss_,
+                                 std::shared_ptr<calib_loss_t> imu_loss_,
                                  PoseLocalParameterization *pose_plus)
     : ts{ts_}, grids{grids_}, pose{ts_, T_WS_}, sb{ts_, sb_},
       cam_geoms{cam_geoms_}, cam_params{cam_params_}, cam_exts{cam_exts_},
-      imu_exts{imu_exts_}, fiducial{fiducial_}, problem{problem_} {
+      imu_exts{imu_exts_}, fiducial{fiducial_}, problem{problem_},
+      vision_loss{vision_loss_}, imu_loss{imu_loss_} {
   // Add pose to problem
   problem->AddParameterBlock(pose.param.data(), 7);
   problem->SetParameterization(pose.param.data(), pose_plus);
@@ -37,12 +40,12 @@ calib_vi_view_t::calib_vi_view_t(const timestamp_t ts_,
     grid.get_measurements(tag_ids, corner_idxs, kps, pts);
 
     // Show warning on low number of measurements
-    if (tag_ids.size() < (4 * 3)) {
-      LOG_WARN("Warning [cam%d @ ts: %ld] only has %ld measurements!",
-               cam_idx,
-               ts,
-               corner_idxs.size());
-    }
+    // if (tag_ids.size() < (4 * 3)) {
+    //   LOG_WARN("Warning [cam%d @ ts: %ld] only has %ld measurements!",
+    //            cam_idx,
+    //            ts,
+    //            corner_idxs.size());
+    // }
 
     // Add residuals to problem
     for (size_t i = 0; i < tag_ids.size(); i++) {
@@ -70,7 +73,7 @@ calib_vi_view_t::calib_vi_view_t(const timestamp_t ts_,
       // Add to problem
       auto res_id =
           problem->AddResidualBlock(fiducial_residuals[cam_idx].back().get(),
-                                    NULL,
+                                    vision_loss.get(),
                                     fiducial->param.data(),
                                     pose.param.data(),
                                     imu_exts->param.data(),
@@ -215,7 +218,7 @@ void calib_vi_view_t::form_imu_residual(const imu_params_t &imu_params,
                                                   pose_j,
                                                   sb_j);
   imu_residual_id = problem->AddResidualBlock(imu_residual.get(),
-                                              NULL,
+                                              imu_loss.get(),
                                               pose.param.data(),
                                               sb.param.data(),
                                               pose_j->param.data(),
@@ -255,6 +258,14 @@ calib_vi_t::calib_vi_t(const calib_target_t &calib_target_)
   prob_options.enable_fast_removal = true;
   problem = std::make_shared<ceres::Problem>(prob_options);
 
+  // Create loss functions
+  if (enable_vision_loss_fn) {
+    vision_loss = _create_loss_fn(vision_loss_fn_type, vision_loss_fn_param);
+  }
+  if (enable_imu_loss_fn) {
+    imu_loss = _create_loss_fn(imu_loss_fn_type, imu_loss_fn_param);
+  }
+
   // AprilGrid detector
   detector = std::make_unique<aprilgrid_detector_t>(calib_target.tag_rows,
                                                     calib_target.tag_cols,
@@ -279,6 +290,12 @@ calib_vi_t::calib_vi_t(const std::string &config_path) {
   parse(config, "settings.max_iter", max_iter, true);
   parse(config, "settings.enable_outlier_rejection", enable_outlier_rejection, true);
   parse(config, "settings.enable_marginalization", enable_marginalization, true);
+  parse(config, "settings.enable_vision_loss_fn", enable_vision_loss_fn, true);
+  parse(config, "settings.vision_loss_fn_type", vision_loss_fn_type, true);
+  parse(config, "settings.vision_loss_fn_param", vision_loss_fn_param, true);
+  parse(config, "settings.enable_imu_loss_fn", enable_imu_loss_fn, true);
+  parse(config, "settings.imu_loss_fn_type", imu_loss_fn_type, true);
+  parse(config, "settings.imu_loss_fn_param", imu_loss_fn_param, true);
   parse(config, "settings.outlier_threshold", outlier_threshold, true);
   parse(config, "settings.window_size", window_size, true);
   // clang-format on
@@ -332,6 +349,14 @@ calib_vi_t::calib_vi_t(const std::string &config_path) {
   }
   if (cam_params.size() == 0) {
     FATAL("Failed to parse any camera parameters...");
+  }
+
+  // Create loss functions
+  if (enable_vision_loss_fn) {
+    vision_loss = _create_loss_fn(vision_loss_fn_type, vision_loss_fn_param);
+  }
+  if (enable_imu_loss_fn) {
+    imu_loss = _create_loss_fn(imu_loss_fn_type, imu_loss_fn_param);
   }
 
   // AprilGrid detector
@@ -656,6 +681,8 @@ void calib_vi_t::initialize(const CamIdx2Grids &grids, imu_data_t &imu_buf) {
                                                           imu_exts,
                                                           fiducial,
                                                           problem,
+                                                          vision_loss,
+                                                          imu_loss,
                                                           &pose_plus));
 
   initialized = true;
@@ -719,6 +746,8 @@ void calib_vi_t::add_view(const CamIdx2Grids &grids) {
                                                           imu_exts,
                                                           fiducial,
                                                           problem,
+                                                          vision_loss,
+                                                          imu_loss,
                                                           &pose_plus));
 
   // Form imu factor between view km1 and k
@@ -806,9 +835,9 @@ void calib_vi_t::add_measurement(const timestamp_t imu_ts,
   // Add imu measuremrent
   imu_buf.add(imu_ts, a_m, w_m);
   imu_started = true;
-  if (imu_buf.time_span() > 1.0) {
-    LOG_WARN("IMU buffer time span > 1 second?!");
-  }
+  // if (imu_buf.time_span() > 1.0) {
+  //   LOG_WARN("IMU buffer time span > 1 second?!");
+  // }
 
   // Check if AprilGrid buffer is filled
   if (static_cast<int>(grid_buf.size()) != nb_cams()) {
@@ -880,6 +909,19 @@ void calib_vi_t::add_measurement(const timestamp_t imu_ts,
   }
 
   imu_started = true;
+}
+
+std::shared_ptr<calib_loss_t> calib_vi_t::_create_loss_fn(
+    const std::string &loss_fn_type, const real_t loss_param) const {
+  if (loss_fn_type == "BLAKE-ZISSERMAN") {
+    return std::make_shared<BlakeZissermanLoss>((int)loss_param);
+  } else if (loss_fn_type == "CAUCHY") {
+    return std::make_shared<CauchyLoss>(loss_param);
+  } else if (loss_fn_type == "HUBER") {
+    return std::make_shared<HuberLoss>(loss_param);
+  }
+
+  FATAL("Unsupported loss function type [%s]!", loss_fn_type.c_str());
 }
 
 int calib_vi_t::recover_calib_covar(matx_t &calib_covar) const {
@@ -1216,12 +1258,9 @@ void calib_vi_t::solve() {
 
   // Optimize problem - first pass
   {
-    // LOG_INFO("Optimize problem - first pass");
     ceres::Solve(options, problem.get(), &summary);
     if (verbose) {
-      // std::cout << summary.BriefReport() << std::endl << std::endl;
-      std::cout << summary.FullReport() << std::endl << std::endl;
-      show_results();
+      std::cout << summary.BriefReport() << std::endl << std::endl;
     }
   }
 
@@ -1229,13 +1268,13 @@ void calib_vi_t::solve() {
   if (enable_outlier_rejection) {
     LOG_INFO("Filter outliers");
     int nb_outliers = 0;
-    int view_idx = 0;
+    // int view_idx = 0;
     for (auto &view : calib_views) {
       const auto view_outliers = view->filter_view(outlier_threshold);
-      printf("filtering view[%d]: %ld [removed %d outliers]\n",
-             view_idx++,
-             view->ts,
-             view_outliers);
+      // printf("filtering view[%d]: %ld [removed %d outliers]\n",
+      //        view_idx++,
+      //        view->ts,
+      //        view_outliers);
       nb_outliers += view_outliers;
     }
     LOG_INFO("Removed %d outliers!", nb_outliers);
@@ -1248,149 +1287,76 @@ void calib_vi_t::solve() {
       ceres::Solve(options, problem.get(), &summary);
       if (verbose) {
         std::cout << summary.BriefReport() << std::endl << std::endl;
-        show_results();
       }
     }
   }
-}
 
-void calib_vi_t::show_results() {
   // Show results
-  printf("Optimization results:\n");
-  printf("---------------------\n");
-  printf("nb_views: %ld\n", calib_views.size());
-  printf("nb_residuals: %d\n", problem->NumResidualBlocks());
-  printf("nb_parameters: %d\n", problem->NumParameterBlocks());
-  printf("\n");
-
-  // Stats - Reprojection Errors
-  const auto reproj_errors = get_reproj_errors();
-  std::vector<real_t> reproj_errors_all;
-  for (const auto &[cam_idx, cam_errors] : reproj_errors) {
-    extend(reproj_errors_all, cam_errors);
+  if (verbose) {
+    show_results();
   }
-  printf("Total reprojection error:\n");
-  printf("  rmse:   %.4f # px\n", rmse(reproj_errors_all));
-  printf("  mean:   %.4f # px\n", mean(reproj_errors_all));
-  printf("  median: %.4f # px\n", median(reproj_errors_all));
-  printf("  stddev: %.4f # px\n", stddev(reproj_errors_all));
-  printf("\n");
-
-  for (const auto &[cam_idx, cam_errors] : reproj_errors) {
-    printf("cam[%d] reprojection error:\n", cam_idx);
-    printf("  rmse:   %.4f # px\n", rmse(cam_errors));
-    printf("  mean:   %.4f # px\n", mean(cam_errors));
-    printf("  median: %.4f # px\n", median(cam_errors));
-    printf("  stddev: %.4f # px\n", stddev(cam_errors));
-    printf("\n");
-  }
-  printf("\n");
-
-  // Calibration target
-  printf("calib_target:\n");
-  printf("  tag_rows: %d\n", calib_target.tag_rows);
-  printf("  tag_cols: %d\n", calib_target.tag_cols);
-  printf("  tag_size: %f\n", calib_target.tag_size);
-  printf("  tag_spacing: %f\n", calib_target.tag_spacing);
-  printf("\n");
-
-  // Cameras
-  for (int cam_idx = 0; cam_idx < nb_cams(); cam_idx++) {
-    printf("cam%d:\n", cam_idx);
-    printf("  proj_model: %s\n", cam_params[cam_idx]->proj_model.c_str());
-    printf("  dist_model: %s\n", cam_params[cam_idx]->dist_model.c_str());
-    print_vector("  proj_params", cam_params[cam_idx]->proj_params());
-    print_vector("  dist_params", cam_params[cam_idx]->dist_params());
-    printf("\n");
-  }
-
-  // Time-delay
-  if (time_delay) {
-    print_vector("time delay (ts_cam = ts_imu + td): ", time_delay->param);
-    printf("\n");
-  }
-
-  // Camera Extrinsics
-  for (int cam_idx = 1; cam_idx < nb_cams(); cam_idx++) {
-    const auto key = "T_cam0_cam" + std::to_string(cam_idx);
-    const mat4_t T_C0Ci = get_camera_extrinsics(cam_idx);
-    print_matrix(key, T_C0Ci, "  ");
-  }
-
-  // Imu extrinsics
-  print_matrix("T_cam0_imu0", get_imu_extrinsics(), "  ");
 }
 
-int calib_vi_t::save_results(const std::string &save_path) const {
-  LOG_INFO(KGRN "Saved results to [%s]" KNRM, save_path.c_str());
+void calib_vi_t::print_settings(FILE *os) const {
+  // clang-format off
+  fprintf(os, "settings:\n");
+  fprintf(os, "  max_num_threads: %d\n", max_num_threads);
+  fprintf(os, "  max_iter: %d\n", max_iter);
+  fprintf(os, "  enable_outlier_rejection: %s\n", enable_outlier_rejection ? "true": "false");
+  fprintf(os, "  enable_marginalization: %s\n", enable_marginalization ? "true": "false");
+  fprintf(os, "  enable_vision_loss_fn: %s\n", enable_vision_loss_fn ? "true" : "false");
+  fprintf(os, "  vision_loss_fn_type: %s\n", vision_loss_fn_type.c_str());
+  fprintf(os, "  vision_loss_fn_param: %f\n", vision_loss_fn_param);
+  fprintf(os, "  enable_imu_loss_fn: %s\n", enable_imu_loss_fn ? "true" : "false");
+  fprintf(os, "  imu_loss_fn_type: %s\n", imu_loss_fn_type.c_str());
+  fprintf(os, "  imu_loss_fn_param: %f\n", imu_loss_fn_param);
+  fprintf(os, "  outlier_threshold: %f\n", outlier_threshold);
+  fprintf(os, "  window_size: %d\n", window_size);
+  fprintf(os, "  img_scale: %f\n", img_scale);
+  fprintf(os, "\n");
+  // clang-format on
+}
 
+void calib_vi_t::print_calib_target(FILE *os) const {
+  fprintf(os, "calib_target:\n");
+  fprintf(os, "  tag_rows: %d\n", calib_target.tag_rows);
+  fprintf(os, "  tag_cols: %d\n", calib_target.tag_cols);
+  fprintf(os, "  tag_size: %f\n", calib_target.tag_size);
+  fprintf(os, "  tag_spacing: %f\n", calib_target.tag_spacing);
+  fprintf(os, "\n");
+}
+
+void calib_vi_t::print_stats(FILE *os) const {
   // Stats - Reprojection Errors
   const auto reproj_errors = get_reproj_errors();
   std::vector<real_t> reproj_errors_all;
   for (const auto &[cam_idx, cam_errors] : reproj_errors) {
     extend(reproj_errors_all, cam_errors);
   }
-
-  // Open results file
-  FILE *outfile = fopen(save_path.c_str(), "w");
-  if (outfile == NULL) {
-    return -1;
-  }
-
-  // Print settings
-  // clang-format off
-  fprintf(outfile, "settings:\n");
-  fprintf(outfile, "  max_num_threads: %d\n", max_num_threads);
-  fprintf(outfile, "  max_iter: %d\n", max_iter);
-  fprintf(outfile, "  enable_outlier_rejection: %s\n", enable_outlier_rejection ? "true": "false");
-  fprintf(outfile, "  enable_marginalization: %s\n", enable_marginalization ? "true": "false");
-  fprintf(outfile, "  outlier_threshold: %f\n", outlier_threshold);
-  fprintf(outfile, "  window_size: %d\n", window_size);
-  fprintf(outfile, "  img_scale: %f\n", img_scale);
-  fprintf(outfile, "\n");
-  // clang-format on
 
   // Calibration metrics
-  fprintf(outfile, "total_reproj_error:\n");
-  fprintf(outfile, "  nb_views: %d\n", nb_views());
-  fprintf(outfile, "  nb_corners: %ld\n", reproj_errors_all.size());
-  fprintf(outfile, "  rmse:   %.4f # [px]\n", rmse(reproj_errors_all));
-  fprintf(outfile, "  mean:   %.4f # [px]\n", mean(reproj_errors_all));
-  fprintf(outfile, "  median: %.4f # [px]\n", median(reproj_errors_all));
-  fprintf(outfile, "  stddev: %.4f # [px]\n", stddev(reproj_errors_all));
-  fprintf(outfile, "\n");
+  fprintf(os, "total_reproj_error:\n");
+  fprintf(os, "  nb_views: %d\n", nb_views());
+  fprintf(os, "  nb_corners: %ld\n", reproj_errors_all.size());
+  fprintf(os, "  rmse:   %.4f # [px]\n", rmse(reproj_errors_all));
+  fprintf(os, "  mean:   %.4f # [px]\n", mean(reproj_errors_all));
+  fprintf(os, "  median: %.4f # [px]\n", median(reproj_errors_all));
+  fprintf(os, "  stddev: %.4f # [px]\n", stddev(reproj_errors_all));
+  fprintf(os, "\n");
+
   for (const auto &[cam_idx, errors] : get_reproj_errors()) {
     const auto cam_str = "cam" + std::to_string(cam_idx);
-    fprintf(outfile, "%s_reproj_error:\n", cam_str.c_str());
-    fprintf(outfile, "  nb_corners: %ld\n", errors.size());
-    fprintf(outfile, "  rmse:   %.4f # [px]\n", rmse(errors));
-    fprintf(outfile, "  mean:   %.4f # [px]\n", mean(errors));
-    fprintf(outfile, "  median: %.4f # [px]\n", median(errors));
-    fprintf(outfile, "  stddev: %.4f # [px]\n", stddev(errors));
-    fprintf(outfile, "\n");
+    fprintf(os, "%s_reproj_error:\n", cam_str.c_str());
+    fprintf(os, "  nb_corners: %ld\n", errors.size());
+    fprintf(os, "  rmse:   %.4f # [px]\n", rmse(errors));
+    fprintf(os, "  mean:   %.4f # [px]\n", mean(errors));
+    fprintf(os, "  median: %.4f # [px]\n", median(errors));
+    fprintf(os, "  stddev: %.4f # [px]\n", stddev(errors));
+    fprintf(os, "\n");
   }
-  fprintf(outfile, "\n");
+}
 
-  // Camera parameters
-  for (auto &kv : cam_params) {
-    const auto cam_idx = kv.first;
-    const auto cam = cam_params.at(cam_idx);
-    const int *cam_res = cam->resolution;
-    const char *proj_model = cam->proj_model.c_str();
-    const char *dist_model = cam->dist_model.c_str();
-    const std::string proj_params = vec2str(cam->proj_params(), true, true);
-    const std::string dist_params = vec2str(cam->dist_params(), true, true);
-
-    fprintf(outfile, "cam%d:\n", cam_idx);
-    fprintf(outfile, "  resolution: [%d, %d]\n", cam_res[0], cam_res[1]);
-    fprintf(outfile, "  proj_model: \"%s\"\n", proj_model);
-    fprintf(outfile, "  dist_model: \"%s\"\n", dist_model);
-    fprintf(outfile, "  proj_params: %s\n", proj_params.c_str());
-    fprintf(outfile, "  dist_params: %s\n", dist_params.c_str());
-    fprintf(outfile, "\n");
-  }
-  fprintf(outfile, "\n");
-
+void calib_vi_t::print_imu(FILE *os) const {
   // IMU parameters
   vec3s_t bias_acc;
   vec3s_t bias_gyr;
@@ -1401,19 +1367,48 @@ int calib_vi_t::save_results(const std::string &save_path) const {
   }
   const vec3_t mu_ba = mean(bias_acc);
   const vec3_t mu_bg = mean(bias_gyr);
-  fprintf(outfile, "imu0:\n");
-  fprintf(outfile, "  rate: %f\n", imu_params.rate);
-  fprintf(outfile, "  sigma_a_c: %e\n", imu_params.sigma_a_c);
-  fprintf(outfile, "  sigma_g_c: %e\n", imu_params.sigma_g_c);
-  fprintf(outfile, "  sigma_aw_c: %e\n", imu_params.sigma_aw_c);
-  fprintf(outfile, "  sigma_gw_c: %e\n", imu_params.sigma_gw_c);
-  fprintf(outfile, "  sigma_ba: %e\n", imu_params.sigma_ba);
-  fprintf(outfile, "  sigma_bg: %e\n", imu_params.sigma_bg);
-  fprintf(outfile, "  g: %f\n", imu_params.g);
-  fprintf(outfile, "  ba: [%f, %f, %f]\n", mu_ba.x(), mu_ba.y(), mu_ba.z());
-  fprintf(outfile, "  bg: [%f, %f, %f]\n", mu_bg.x(), mu_bg.y(), mu_bg.z());
-  fprintf(outfile, "\n");
-  fprintf(outfile, "\n");
+  fprintf(os, "imu0:\n");
+  fprintf(os, "  rate: %f\n", imu_params.rate);
+  fprintf(os, "  sigma_a_c: %e\n", imu_params.sigma_a_c);
+  fprintf(os, "  sigma_g_c: %e\n", imu_params.sigma_g_c);
+  fprintf(os, "  sigma_aw_c: %e\n", imu_params.sigma_aw_c);
+  fprintf(os, "  sigma_gw_c: %e\n", imu_params.sigma_gw_c);
+  fprintf(os, "  sigma_ba: %e\n", imu_params.sigma_ba);
+  fprintf(os, "  sigma_bg: %e\n", imu_params.sigma_bg);
+  fprintf(os, "  g: %f\n", imu_params.g);
+  fprintf(os, "  ba: [%f, %f, %f]\n", mu_ba.x(), mu_ba.y(), mu_ba.z());
+  fprintf(os, "  bg: [%f, %f, %f]\n", mu_bg.x(), mu_bg.y(), mu_bg.z());
+  fprintf(os, "\n");
+}
+
+void calib_vi_t::print_cameras(FILE *os) const {
+  // Setup
+  bool max_prec = (os == stdout) ? false : true;
+
+  // Camera parameters
+  for (auto &kv : cam_params) {
+    const auto cam_idx = kv.first;
+    const auto cam = cam_params.at(cam_idx);
+    const int *cam_res = cam->resolution;
+    const char *proj_model = cam->proj_model.c_str();
+    const char *dist_model = cam->dist_model.c_str();
+    const std::string proj_params = vec2str(cam->proj_params(), true, max_prec);
+    const std::string dist_params = vec2str(cam->dist_params(), true, max_prec);
+
+    fprintf(os, "cam%d:\n", cam_idx);
+    fprintf(os, "  resolution: [%d, %d]\n", cam_res[0], cam_res[1]);
+    fprintf(os, "  proj_model: \"%s\"\n", proj_model);
+    fprintf(os, "  dist_model: \"%s\"\n", dist_model);
+    fprintf(os, "  proj_params: %s\n", proj_params.c_str());
+    fprintf(os, "  dist_params: %s\n", dist_params.c_str());
+    fprintf(os, "\n");
+  }
+  fprintf(os, "\n");
+}
+
+void calib_vi_t::print_extrinsics(FILE *os) const {
+  // Setup
+  bool max_prec = (os == stdout) ? false : true;
 
   // Camera-Camera extrinsics
   const mat4_t T_BC0 = get_camera_extrinsics(0);
@@ -1422,13 +1417,13 @@ int calib_vi_t::save_results(const std::string &save_path) const {
     for (int i = 1; i < nb_cams(); i++) {
       const mat4_t T_BCi = get_camera_extrinsics(i);
       const mat4_t T_C0Ci = T_C0B * T_BCi;
-      fprintf(outfile, "T_cam0_cam%d:\n", i);
-      fprintf(outfile, "  rows: 4\n");
-      fprintf(outfile, "  cols: 4\n");
-      fprintf(outfile, "  data: [\n");
-      fprintf(outfile, "%s\n", mat2str(T_C0Ci, "    ", true).c_str());
-      fprintf(outfile, "  ]\n");
-      fprintf(outfile, "\n");
+      fprintf(os, "T_cam0_cam%d:\n", i);
+      fprintf(os, "  rows: 4\n");
+      fprintf(os, "  cols: 4\n");
+      fprintf(os, "  data: [\n");
+      fprintf(os, "%s\n", mat2str(T_C0Ci, "    ", max_prec).c_str());
+      fprintf(os, "  ]\n");
+      fprintf(os, "\n");
     }
   }
 
@@ -1437,15 +1432,38 @@ int calib_vi_t::save_results(const std::string &save_path) const {
   const mat4_t T_SB = T_BS.inverse();
   const mat4_t T_BCi = get_camera_extrinsics(0);
   const mat4_t T_SCi = T_SB * T_BCi;
-  fprintf(outfile, "T_imu0_cam%d:\n", 0);
-  fprintf(outfile, "  rows: 4\n");
-  fprintf(outfile, "  cols: 4\n");
-  fprintf(outfile, "  data: [\n");
-  fprintf(outfile, "%s\n", mat2str(T_SCi, "    ", true).c_str());
-  fprintf(outfile, "  ]\n");
-  fprintf(outfile, "\n");
+  fprintf(os, "T_imu0_cam%d:\n", 0);
+  fprintf(os, "  rows: 4\n");
+  fprintf(os, "  cols: 4\n");
+  fprintf(os, "  data: [\n");
+  fprintf(os, "%s\n", mat2str(T_SCi, "    ", max_prec).c_str());
+  fprintf(os, "  ]\n");
+  fprintf(os, "\n");
+}
 
-  // Finsh up
+void calib_vi_t::show_results() const {
+  print_settings(stdout);
+  print_stats(stdout);
+  print_calib_target(stdout);
+  print_imu(stdout);
+  print_cameras(stdout);
+  print_extrinsics(stdout);
+}
+
+int calib_vi_t::save_results(const std::string &save_path) const {
+  LOG_INFO(KGRN "Saved results to [%s]" KNRM, save_path.c_str());
+
+  // Open results file
+  FILE *outfile = fopen(save_path.c_str(), "w");
+  if (outfile == NULL) {
+    return -1;
+  }
+  print_settings(outfile);
+  print_stats(outfile);
+  print_calib_target(outfile);
+  print_imu(outfile);
+  print_cameras(outfile);
+  print_extrinsics(outfile);
   fclose(outfile);
 
   return 0;

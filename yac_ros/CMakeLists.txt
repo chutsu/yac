@@ -71,9 +71,9 @@ FIND_PACKAGE(
     message_runtime
     image_transport
     cv_bridge
-		tf2
-		tf2_ros
-		tf2_geometry_msgs
+    tf2
+    tf2_ros
+    tf2_geometry_msgs
 )
 INCLUDE_DIRECTORIES(${catkin_INCLUDE_DIRS})
 
@@ -102,9 +102,9 @@ CATKIN_PACKAGE(
     message_runtime
     image_transport
     cv_bridge
-		tf2
-		tf2_ros
-		tf2_geometry_msgs
+    tf2
+    tf2_ros
+    tf2_geometry_msgs
   LIBRARIES
     yac_ros
 )
@@ -117,10 +117,10 @@ SET(YAC_DEPS
   apriltag3
   apriltag
   ${OpenCV_LIBS}
-	${CHOLMOD_LIBRARY}
-	${SUITESPARSEQR_LIBRARY}
-	${SUITESPARSE_CONFIG_LIBRARY}
-	${TBB_LIBRARY}
+  ${CHOLMOD_LIBRARY}
+  ${SUITESPARSEQR_LIBRARY}
+  ${SUITESPARSE_CONFIG_LIBRARY}
+  ${TBB_LIBRARY}
 )
 SET(DEPS yac_ros yac ${catkin_LIBRARIES} ${YAC_DEPS})
 

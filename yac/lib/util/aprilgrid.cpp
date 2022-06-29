@@ -1017,17 +1017,13 @@ aprilgrid_t aprilgrid_detector_t::detect(const timestamp_t ts,
         const auto dy = p_before.y - p_after.y;
         const auto dist = sqrt(dx * dx + dy * dy);
         if (dist > max_subpix_disp) {
-          bad_tag = true;
+          // bad_tag = true;
+          continue;
         }
         tag.p[i].first = p_after.x;
         tag.p[i].second = p_after.y;
-      }
-      if (bad_tag) {
-        continue;
-      }
 
-      // Add to results
-      for (int i = 0; i < 4; i++) {
+        // Add to results
         tag_ids.push_back(tag.id);
         corner_indicies.push_back(i);
         keypoints.emplace_back(tag.p[i].first, tag.p[i].second);

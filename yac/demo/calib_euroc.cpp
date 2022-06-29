@@ -3,14 +3,14 @@
 
 #define CAMERA_DATA "/data/euroc/cam_april"
 #define IMU_DATA "/data/euroc/imu_april"
-// #define CAMERA_RESULTS_PATH "/tmp/calib_cameras-results.yaml"
-// #define IMU_RESULTS_PATH "/tmp/calib_imu-results.yaml"
+#define CAMERA_RESULTS_PATH "/tmp/calib_cameras-results.yaml"
+#define IMU_RESULTS_PATH "/tmp/calib_imu-results.yaml"
 
-#define CAMERA_RESULTS_PATH                                                    \
-  "/data/euroc_results/configs/yac/calib_cameras-yac-cauchy.yaml"
+// #define CAMERA_RESULTS_PATH                                                    \
+//   "/data/euroc_results/configs/yac/calib_cameras-yac-cauchy.yaml"
 
-#define IMU_RESULTS_PATH                                                       \
-  "/data/euroc_results/configs/yac/calib_imu-yac-cauchy-2.yaml"
+// #define IMU_RESULTS_PATH                                                       \
+//   "/data/euroc_results/configs/yac/calib_imu-yac-cauchy-2.yaml"
 
 // CALIBRATE CAMERAS /////////////////////////////////////////////////////////
 
@@ -214,7 +214,7 @@ void calibrate_imu(const std::string &data_path,
 }
 
 int main() {
-  // calibrate_cameras(CAMERA_DATA, IMU_DATA, CAMERA_RESULTS_PATH);
+  calibrate_cameras(CAMERA_DATA, IMU_DATA, CAMERA_RESULTS_PATH);
   calibrate_imu(IMU_DATA, CAMERA_RESULTS_PATH, IMU_RESULTS_PATH);
   return 0;
 }

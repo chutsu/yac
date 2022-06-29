@@ -70,6 +70,7 @@ set -e
 # RUN_CMD="./test_calib_camera --target test_calib_camera_stereo"
 # RUN_CMD="./test_calib_camera --target test_marg_residual"
 RUN_CMD="./calib_euroc"
+# RUN_CMD="./calib_preprocess 6 6 0.088 0.3 /data/euroc/cam_april/mav0/cam0/data /tmp/grid0/cam0"
 # RUN_CMD="./calib_inspect '/tmp/calib-results.yaml' /data/euroc/cam_april"
 # RUN_CMD="./calib_inspect '/home/chutsu/projects/yac/yac/configs/calib-kalibr.yaml' /data/euroc/imu_april"
 # RUN_CMD="./calib_inspect '/home/chutsu/projects/yac/yac/configs/calib-yac.yaml' /data/euroc/cam_april"

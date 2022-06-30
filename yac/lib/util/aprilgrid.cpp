@@ -754,7 +754,8 @@ aprilgrid_detector_t::aprilgrid_detector_t(const int tag_rows_,
                                            const double tag_size_,
                                            const double tag_spacing_)
     : tag_rows{tag_rows_}, tag_cols{tag_cols_}, tag_size{tag_size_},
-      tag_spacing{tag_spacing_} {
+      tag_spacing{tag_spacing_}, min_tags_threshold{
+                                     std::max(tag_rows_, tag_cols_) + 1} {
   apriltag_detector_add_family(det_v3, tf);
   det_v3->quad_decimate = 1.0;
   det_v3->quad_sigma = 0.0; // Blur
@@ -816,7 +817,7 @@ aprilgrid_t aprilgrid_detector_t::detect(const timestamp_t ts,
     // Use AprilTags by Michael Kaess
     std::vector<AprilTags::TagDetection> tags = det.extractTags(image);
     // -- Check if too few measurements
-    if (tags.size() < 4) {
+    if (tags.size() < min_tags_threshold) {
       return grid;
     }
     // -- Sort Tags by ID
@@ -885,7 +886,7 @@ aprilgrid_t aprilgrid_detector_t::detect(const timestamp_t ts,
       }
     }
     // -- Check if too few measurements
-    if (tag_ids.size() < (4 * 4)) {
+    if (tag_ids.size() < (4 * min_tags_threshold)) {
       return grid;
     }
     // -- Add filtered tags to grid

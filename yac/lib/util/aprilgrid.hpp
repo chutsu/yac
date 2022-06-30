@@ -155,6 +155,7 @@ struct aprilgrid_detector_t {
   int tag_cols = 0;
   double tag_size = 0.0;
   double tag_spacing = 0.0;
+  int min_tags_threshold = 0;
 
   // AprilTags by Michael Kaess
   AprilTags::AprilGridDetector det;

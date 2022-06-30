@@ -169,14 +169,6 @@ struct aprilgrid_detector_t {
                        const double tag_spacing_);
   ~aprilgrid_detector_t();
 
-  void filter_tags(const cv::Mat &image,
-                   std::vector<AprilTags::TagDetection> &tags,
-                   const bool verbose = false) const;
-  void filter_measurements(const cv::Mat &image,
-                           std::vector<int> &tag_ids,
-                           std::vector<int> &corner_indicies,
-                           vec2s_t &keypoints) const;
-
   aprilgrid_t detect(const timestamp_t ts,
                      const cv::Mat &image,
                      const bool use_v3 = false) const;

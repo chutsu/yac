@@ -89,12 +89,12 @@ void load_imu_data(const std::string &csv_path,
     int retval = fscanf(fp,
                         "%" SCNu64 ",%lf,%lf,%lf,%lf,%lf,%lf",
                         &ts,
-                        &ax,
-                        &ay,
-                        &az,
                         &wx,
                         &wy,
-                        &wz);
+                        &wz,
+                        &ax,
+                        &ay,
+                        &az);
     if (retval != 7) {
       LOG_ERROR("Invalid line: %d", i);
       FATAL("Failed to parse line in [%s]", csv_path.c_str());

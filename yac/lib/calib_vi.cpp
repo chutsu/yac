@@ -106,9 +106,11 @@ calib_vi_view_t::get_reproj_errors(const int cam_idx) const {
 
   for (const auto &res_fn : fiducial_residuals.at(cam_idx)) {
     real_t e;
-    if (res_fn->get_reproj_error(e) == 0) {
-      cam_errors.push_back(e);
-    }
+    // if (res_fn->get_reproj_error(e) == 0) {
+    //   cam_errors.push_back(e);
+    // }
+    res_fn->get_reproj_error(e);
+    cam_errors.push_back(e);
   }
 
   return cam_errors;
@@ -120,9 +122,11 @@ std::map<int, std::vector<real_t>> calib_vi_view_t::get_reproj_errors() const {
   for (const auto &[cam_idx, res_fns] : fiducial_residuals) {
     for (const auto &res : res_fns) {
       real_t e;
-      if (res->get_reproj_error(e) == 0) {
-        cam_errors[cam_idx].push_back(e);
-      }
+      // if (res->get_reproj_error(e) == 0) {
+      //   cam_errors[cam_idx].push_back(e);
+      // }
+      res->get_reproj_error(e);
+      cam_errors[cam_idx].push_back(e);
     }
   }
 
@@ -154,11 +158,12 @@ int calib_vi_view_t::filter_view(const real_t outlier_threshold) {
       auto &fiducial_id = *id_it;
 
       vec2_t r;
-      if (fiducial_residual->get_residual(r) != 0) {
-        ++res_it;
-        ++id_it;
-        continue;
-      }
+      fiducial_residual->get_residual(r);
+      // if (fiducial_residual->get_residual(r) != 0) {
+      //   ++res_it;
+      //   ++id_it;
+      //   continue;
+      // }
 
       if (r.x() > threshold || r.y() > threshold) {
         problem->RemoveResidualBlock(fiducial_id);
@@ -265,7 +270,8 @@ calib_vi_t::calib_vi_t(const calib_target_t &calib_target_)
                                                     calib_target.tag_spacing);
 }
 
-calib_vi_t::calib_vi_t(const std::string &config_path) {
+calib_vi_t::calib_vi_t(const std::string &config_file_)
+    : config_file{config_file_} {
   // Ceres-Problem
   prob_options.local_parameterization_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
   prob_options.cost_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
@@ -274,7 +280,7 @@ calib_vi_t::calib_vi_t(const std::string &config_path) {
   problem = std::make_shared<ceres::Problem>(prob_options);
 
   // Load configuration
-  config_t config{config_path};
+  config_t config{config_file};
   // -- Parse settings
   // clang-format off
   parse(config, "settings.verbose", verbose, true);
@@ -292,10 +298,11 @@ calib_vi_t::calib_vi_t(const std::string &config_path) {
   parse(config, "settings.window_size", window_size, true);
   // clang-format on
   // -- Parse calibration target
-  if (calib_target.load(config_path, "calib_target") != 0) {
-    FATAL("Failed to parse calib_target in [%s]!", config_path.c_str());
+  if (calib_target.load(config_file, "calib_target") != 0) {
+    FATAL("Failed to parse calib_target in [%s]!", config_file.c_str());
   }
   // -- Parse imu settings
+  mat4_t T_BS = I(4);
   parse(config, "imu0.rate", imu_params.rate);
   parse(config, "imu0.sigma_g_c", imu_params.sigma_g_c);
   parse(config, "imu0.sigma_a_c", imu_params.sigma_a_c);
@@ -304,7 +311,12 @@ calib_vi_t::calib_vi_t(const std::string &config_path) {
   parse(config, "imu0.sigma_bg", imu_params.sigma_bg, true);
   parse(config, "imu0.sigma_ba", imu_params.sigma_ba, true);
   parse(config, "imu0.g", imu_params.g);
-  add_imu(imu_params, I(4), 0.0, false, false);
+  if (yaml_has_key(config, "T_imu0_cam0")) {
+    mat4_t T_SC0;
+    parse(config, "T_imu0_cam0", T_SC0);
+    T_BS = T_SC0.inverse();
+  }
+  add_imu(imu_params, T_BS, 0.0, false, false);
 
   // -- Parse camera settings
   for (int cam_idx = 0; cam_idx < 100; cam_idx++) {
@@ -341,6 +353,18 @@ calib_vi_t::calib_vi_t(const std::string &config_path) {
   }
   if (cam_params.size() == 0) {
     FATAL("Failed to parse any camera parameters...");
+  }
+
+  // -- Parse fiducial pose
+  if (yaml_has_key(config, "T_WF")) {
+    mat4_t T_WF;
+    parse(config, "T_WF", T_WF);
+
+    fiducial = std::make_shared<fiducial_t>(T_WF);
+    problem->AddParameterBlock(fiducial->param.data(), FIDUCIAL_PARAMS_SIZE);
+    if (fiducial->param.size() == 7) {
+      problem->SetParameterization(fiducial->param.data(), &pose_plus);
+    }
   }
 
   // Create loss functions
@@ -612,52 +636,57 @@ void calib_vi_t::initialize(const CamIdx2Grids &grids, imu_data_t &imu_buf) {
   }
 
   // Estimate initial IMU attitude
-  const mat3_t C_WS = imu_buf.initial_attitude();
-
-  // Sensor pose - T_WS
-  mat4_t T_WS = tf(C_WS, zeros(3, 1));
-
-  // Fiducial pose - T_WF
-  const mat4_t T_BC0 = get_camera_extrinsics(0);
-  const mat4_t T_BS = get_imu_extrinsics();
-  const mat4_t T_SC0 = T_BS.inverse() * T_BC0;
-  mat4_t T_WF = T_WS * T_SC0 * T_C0F;
-
-  // Set:
-  // 1. Fiducial target as origin (with r_WF (0, 0, 0))
-  // 2. Calculate the sensor pose offset relative to target origin
-  const vec3_t offset = -1.0 * tf_trans(T_WF);
-  const mat3_t C_WF = tf_rot(T_WF);
-  const vec3_t r_WF{0.0, 0.0, 0.0};
-  T_WF = tf(C_WF, r_WF);
-  T_WS = tf(C_WS, offset);
-
-  // Set fiducial
+  mat4_t T_WS;
   if (fiducial == nullptr) {
+    const mat3_t C_WS = imu_buf.initial_attitude();
+
+    // Sensor pose - T_WS
+    T_WS = tf(C_WS, zeros(3, 1));
+
+    // Fiducial pose - T_WF
+    const mat4_t T_BC0 = get_camera_extrinsics(0);
+    const mat4_t T_BS = get_imu_extrinsics();
+    const mat4_t T_SC0 = T_BS.inverse() * T_BC0;
+    mat4_t T_WF = T_WS * T_SC0 * T_C0F;
+
+    // Set:
+    // 1. Fiducial target as origin (with r_WF (0, 0, 0))
+    // 2. Calculate the sensor pose offset relative to target origin
+    const vec3_t offset = -1.0 * tf_trans(T_WF);
+    const mat3_t C_WF = tf_rot(T_WF);
+    const vec3_t r_WF{0.0, 0.0, 0.0};
+    T_WF = tf(C_WF, r_WF);
+    T_WS = tf(C_WS, offset);
+
+    // Set fiducial
     fiducial = std::make_shared<fiducial_t>(T_WF);
     problem->AddParameterBlock(fiducial->param.data(), FIDUCIAL_PARAMS_SIZE);
     if (fiducial->param.size() == 7) {
       problem->SetParameterization(fiducial->param.data(), &pose_plus);
     }
   } else {
-#if FIDUCIAL_PARAMS_SIZE == 2
-    const vec3_t rpy = quat2euler(tf_quat(T_WF));
-    fiducial->param = vec2_t{rpy.x(), rpy.y()};
-    fiducial->T_WF = T_WF;
-#elif FIDUCIAL_PARAMS_SIZE == 3
-    fiducial->param = quat2euler(tf_quat(T_WF));
-    fiducial->T_WF = T_WF;
-#elif FIDUCIAL_PARAMS_SIZE == 7
-    fiducial->set_tf(T_WF);
-#endif
+    const mat4_t T_C0S = get_imu_extrinsics();
+    const mat4_t T_WF = get_fiducial_pose();
+    T_WS = T_WF * T_C0F.inverse() * T_C0S;
+
+    // #if FIDUCIAL_PARAMS_SIZE == 2
+    //     const vec3_t rpy = quat2euler(tf_quat(T_WF));
+    //     fiducial->param = vec2_t{rpy.x(), rpy.y()};
+    //     fiducial->T_WF = T_WF;
+    // #elif FIDUCIAL_PARAMS_SIZE == 3
+    //     fiducial->param = quat2euler(tf_quat(T_WF));
+    //     fiducial->T_WF = T_WF;
+    // #elif FIDUCIAL_PARAMS_SIZE == 7
+    //     fiducial->set_tf(T_WF);
+    // #endif
   }
 
   // Print to screen
   if (verbose) {
     printf("Initial estimates\n");
-    print_matrix("T_WF", T_WF);
-    print_matrix("T_WS", T_WS);
-    print_matrix("T_BS", T_BS);
+    print_cameras(stdout);
+    print_extrinsics(stdout);
+    print_fiducial_pose(stdout);
   }
 
   // First calibration view
@@ -1243,6 +1272,71 @@ void calib_vi_t::load_data(const std::string &data_path) {
       }
     }
   }
+
+  // Load estimated imu poses and speed and biases
+  if (config_file.empty()) {
+    return;
+  }
+  // -- Load imu poses if exists
+  config_t config{config_file};
+  if (yaml_has_key(config, "imu_poses")) {
+    matx_t imu_poses;
+    parse(config, "imu_poses", imu_poses);
+
+    std::map<timestamp_t, mat4_t> imu_pose_data;
+    for (int i = 0; i < imu_poses.rows(); i++) {
+      const timestamp_t ts = imu_poses(i, 0);
+      const auto rx = imu_poses(i, 1);
+      const auto ry = imu_poses(i, 2);
+      const auto rz = imu_poses(i, 3);
+      const auto qx = imu_poses(i, 4);
+      const auto qy = imu_poses(i, 5);
+      const auto qz = imu_poses(i, 6);
+      const auto qw = imu_poses(i, 7);
+      const vec3_t r_WS{rx, ry, rz};
+      const quat_t q_WS{qw, qx, qy, qz};
+      const mat4_t T_WS = tf(q_WS, r_WS);
+      imu_pose_data[ts] = T_WS;
+    }
+
+    for (auto &view : calib_views) {
+      if (imu_pose_data.count(view->ts) == 0) {
+        FATAL("Implementation Error!");
+      }
+      view->pose.set_tf(imu_pose_data[view->ts]);
+    }
+  }
+  // -- Load speed-biases if exists
+  if (yaml_has_key(config, "speed_biases")) {
+    matx_t speed_biases;
+    parse(config, "speed_biases", speed_biases);
+
+    std::map<timestamp_t, vecx_t> sb_data;
+    for (int i = 0; i < speed_biases.rows(); i++) {
+      const timestamp_t ts = speed_biases(i, 0);
+      const auto vx = speed_biases(i, 1);
+      const auto vy = speed_biases(i, 2);
+      const auto vz = speed_biases(i, 3);
+      const auto ba_x = speed_biases(i, 4);
+      const auto ba_y = speed_biases(i, 5);
+      const auto ba_z = speed_biases(i, 6);
+      const auto bg_x = speed_biases(i, 7);
+      const auto bg_y = speed_biases(i, 8);
+      const auto bg_z = speed_biases(i, 9);
+
+      vecx_t sb;
+      sb.resize(9);
+      sb << vx, vy, vz, ba_x, ba_y, ba_z, bg_x, bg_y, bg_z;
+      sb_data[ts] = sb;
+    }
+
+    for (auto &view : calib_views) {
+      if (sb_data.count(view->ts) == 0) {
+        FATAL("Implementation Error!");
+      }
+      view->sb.set_param(sb_data[view->ts]);
+    }
+  }
 }
 
 void calib_vi_t::solve() {
@@ -1316,6 +1410,7 @@ void calib_vi_t::print_settings(FILE *os) const {
 
 void calib_vi_t::print_calib_target(FILE *os) const {
   fprintf(os, "calib_target:\n");
+  fprintf(os, "  target_type: \"%s\"\n", calib_target.target_type.c_str());
   fprintf(os, "  tag_rows: %d\n", calib_target.tag_rows);
   fprintf(os, "  tag_cols: %d\n", calib_target.tag_cols);
   fprintf(os, "  tag_size: %f\n", calib_target.tag_size);
@@ -1437,6 +1532,57 @@ void calib_vi_t::print_extrinsics(FILE *os) const {
   fprintf(os, "\n");
 }
 
+void calib_vi_t::print_fiducial_pose(FILE *os) const {
+  const bool max_prec = (os == stdout) ? false : true;
+  fprintf(os, "T_WF:\n");
+  fprintf(os, "  rows: 4\n");
+  fprintf(os, "  cols: 4\n");
+  fprintf(os, "  data: [\n");
+  fprintf(os, "%s\n", mat2str(get_fiducial_pose(), "    ", max_prec).c_str());
+  fprintf(os, "  ]\n");
+  fprintf(os, "\n");
+}
+
+void calib_vi_t::print_imu_poses(FILE *os) const {
+  fprintf(os, "# ts, rx, ry, rz, qx, qy, qz, qw\n");
+  fprintf(os, "imu_poses:\n");
+  fprintf(os, "  rows: %ld\n", calib_views.size());
+  fprintf(os, "  cols: 8\n");
+  fprintf(os, "  data: [\n");
+  for (const auto &view : calib_views) {
+    const auto ts = view->ts;
+    const vec3_t r = view->pose.trans();
+    const quat_t q = view->pose.rot();
+    fprintf(os, "    ");
+    fprintf(os, "%ld,", ts);
+    fprintf(os, "%f,%f,%f,", r.x(), r.y(), r.z());
+    fprintf(os, "%f,%f,%f,%f,\n", q.x(), q.y(), q.z(), q.w());
+  }
+  fprintf(os, "  ]\n");
+  fprintf(os, "\n");
+}
+
+void calib_vi_t::print_speed_biases(FILE *os) const {
+  fprintf(os, "# ts, vx, vy, vz, ba_x, ba_y, ba_z, bg_x, bg_y, bg_z\n");
+  fprintf(os, "speed_biases:\n");
+  fprintf(os, "  rows: %ld\n", calib_views.size());
+  fprintf(os, "  cols: 10\n");
+  fprintf(os, "  data: [\n");
+  for (const auto &view : calib_views) {
+    const auto ts = view->ts;
+    const vec3_t v = view->sb.vel();
+    const vec3_t ba = view->sb.ba();
+    const vec3_t bg = view->sb.bg();
+    fprintf(os, "    ");
+    fprintf(os, "%ld,", ts);
+    fprintf(os, "%f,%f,%f,", v.x(), v.y(), v.z());
+    fprintf(os, "%f,%f,%f,", ba.x(), ba.y(), ba.z());
+    fprintf(os, "%f,%f,%f,\n", bg.x(), bg.y(), bg.z());
+  }
+  fprintf(os, "  ]\n");
+  fprintf(os, "\n");
+}
+
 void calib_vi_t::show_results() const {
   print_settings(stdout);
   print_stats(stdout);
@@ -1444,6 +1590,7 @@ void calib_vi_t::show_results() const {
   print_imu(stdout);
   print_cameras(stdout);
   print_extrinsics(stdout);
+  print_fiducial_pose(stdout);
 }
 
 int calib_vi_t::save_results(const std::string &save_path) const {
@@ -1460,6 +1607,9 @@ int calib_vi_t::save_results(const std::string &save_path) const {
   print_imu(outfile);
   print_cameras(outfile);
   print_extrinsics(outfile);
+  print_fiducial_pose(outfile);
+  print_imu_poses(outfile);
+  print_speed_biases(outfile);
   fclose(outfile);
 
   return 0;

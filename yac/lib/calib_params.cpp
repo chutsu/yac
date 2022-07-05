@@ -18,6 +18,12 @@ param_t::param_t(const std::string &type_,
                  const bool fixed_)
     : param_t{type_, 0, local_size_, global_size_, fixed_} {}
 
+void param_t::set_param(const vecx_t &param_) {
+  for (size_t i = 0; i < param.size(); i++) {
+    param(i) = param_(i);
+  }
+}
+
 double *param_t::data() { return param.data(); }
 
 void param_t::mark_marginalize() {
@@ -474,6 +480,12 @@ sb_params_t::sb_params_t(const timestamp_t &ts_,
     : param_t{"sb_params_t", ts_, 9, 9, fixed_} {
   param = sb_;
 }
+
+vec3_t sb_params_t::vel() const { return param.head(3); }
+
+vec3_t sb_params_t::ba() const { return param.segment<3>(3); }
+
+vec3_t sb_params_t::bg() const { return param.tail(3); }
 
 /***************************** time_delay_t ***********************************/
 

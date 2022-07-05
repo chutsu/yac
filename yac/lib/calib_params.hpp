@@ -33,6 +33,7 @@ struct param_t {
           const bool fixed_ = false);
   virtual ~param_t() = default;
 
+  void set_param(const vecx_t &param);
   double *data();
   void mark_marginalize();
   virtual void plus(const vecx_t &);
@@ -197,6 +198,10 @@ struct sb_params_t : param_t {
   sb_params_t(const timestamp_t &ts_,
               const vec_t<9> &sb_,
               const bool fixed_ = false);
+
+  vec3_t vel() const;
+  vec3_t ba() const;
+  vec3_t bg() const;
 };
 
 /****************************** time_delay_t **********************************/

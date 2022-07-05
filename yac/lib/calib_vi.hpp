@@ -81,9 +81,9 @@ struct calib_vi_t {
   bool verbose = true;
   int max_num_threads = 4;
   int max_iter = 50;
-  bool enable_outlier_rejection = true;
+  bool enable_outlier_rejection = false;
   bool enable_marginalization = false;
-  bool enable_vision_loss_fn = true;
+  bool enable_vision_loss_fn = false;
   std::string vision_loss_fn_type = "CAUCHY";
   double vision_loss_fn_param = 1.0;
   bool enable_imu_loss_fn = false;
@@ -102,6 +102,7 @@ struct calib_vi_t {
   std::shared_ptr<time_delay_t> time_delay;
 
   // Data
+  std::string config_file;
   // -- Vision data
   std::map<int, std::pair<timestamp_t, cv::Mat>> img_buf;
   std::map<int, aprilgrid_t> grid_buf;
@@ -200,6 +201,9 @@ struct calib_vi_t {
   void print_imu(FILE *os) const;
   void print_cameras(FILE *os) const;
   void print_extrinsics(FILE *os) const;
+  void print_fiducial_pose(FILE *os) const;
+  void print_imu_poses(FILE *os) const;
+  void print_speed_biases(FILE *os) const;
   void show_results() const;
   int save_results(const std::string &save_path) const;
   void save_estimates(const std::string &dir_path) const;

@@ -97,7 +97,7 @@ void print_estimates(FILE *out,
 /** Camera Calibrator **/
 struct calib_camera_t {
   // Flags
-  bool filter_all = false;
+  bool filter_all = true;
 
   // Settings
   // -- General
@@ -116,7 +116,7 @@ struct calib_camera_t {
   std::string loss_fn_type = "CAUCHY";
   double loss_fn_param = 1.5;
   int min_nbv_views = 40;
-  real_t outlier_threshold = 3.0;
+  real_t outlier_threshold = 4.0;
   real_t info_gain_threshold = 0.2;
   int early_stop_threshold = 30;
   int sliding_window_size = 10;
@@ -260,8 +260,10 @@ struct calib_camera_t {
 
   void print_settings(FILE *out) const;
   void print_metrics(FILE *out,
+                     const int nb_views,
                      const std::map<int, std::vector<real_t>> &reproj_errors,
                      const std::vector<real_t> &reproj_errors_all) const;
+  void print_poses(FILE *out) const;
   void show_results() const;
 
   int save_results(const std::string &save_path);

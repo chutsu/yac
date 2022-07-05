@@ -1753,7 +1753,7 @@ void calib_camera_t::_solve_nbv() {
 
   // Final Solve
   removed_outliers = _filter_all_views();
-  solver->solve(30, true, 1);
+  solver->solve(50, true, 1);
 }
 
 void calib_camera_t::_load_views(const std::string &data_path) {
@@ -1908,6 +1908,7 @@ void calib_camera_t::print_settings(FILE *out) const {
 
 void calib_camera_t::print_metrics(
     FILE *out,
+    const int nb_views,
     const std::map<int, std::vector<real_t>> &reproj_errors,
     const std::vector<real_t> &reproj_errors_all) const {
   // Get total amoung of corners in the calibration problem
@@ -1918,7 +1919,7 @@ void calib_camera_t::print_metrics(
 
   // Print total reprojection errors
   fprintf(out, "total_reproj_error:\n");
-  fprintf(out, "  nb_views: %ld\n", calib_views.size());
+  fprintf(out, "  nb_views: %d\n", nb_views);
   fprintf(out, "  nb_corners: %ld\n", total_corners);
   fprintf(out, "  rmse:   %.4f # [px]\n", rmse(reproj_errors_all));
   fprintf(out, "  mean:   %.4f # [px]\n", mean(reproj_errors_all));
@@ -1939,6 +1940,25 @@ void calib_camera_t::print_metrics(
   }
 }
 
+void calib_camera_t::print_poses(FILE *out) const {
+  fprintf(out, "# ts, rx, ry, rz, qx, qy, qz, qw\n");
+  fprintf(out, "poses:\n");
+  fprintf(out, "  rows: %ld\n", calib_views.size());
+  fprintf(out, "  cols: 8\n");
+  fprintf(out, "  data: [\n");
+  for (const auto &[ts, pose] : poses) {
+    const mat4_t T_C0F = pose->tf();
+    const vec3_t r = tf_trans(T_C0F);
+    const quat_t q = tf_quat(T_C0F);
+    fprintf(out, "    ");
+    fprintf(out, "%ld,", ts);
+    fprintf(out, "%f,%f,%f,", r.x(), r.y(), r.z());
+    fprintf(out, "%f,%f,%f,%f,\n", q.x(), q.y(), q.z(), q.w());
+  }
+  fprintf(out, "  ]\n");
+  fprintf(out, "\n");
+}
+
 void calib_camera_t::show_results() const {
   const auto reproj_errors = get_reproj_errors();
   const auto reproj_errors_all = get_all_reproj_errors();
@@ -1946,7 +1966,7 @@ void calib_camera_t::show_results() const {
   printf("---------------------\n");
   print_settings(stdout);
   print_calib_target(stdout, calib_target);
-  print_metrics(stdout, reproj_errors, reproj_errors_all);
+  print_metrics(stdout, calib_views.size(), reproj_errors, reproj_errors_all);
   print_estimates(stdout, cam_params, cam_exts);
 }
 
@@ -1964,7 +1984,7 @@ int calib_camera_t::save_results(const std::string &save_path) {
   const auto reproj_errors_all = get_all_reproj_errors();
   print_settings(outfile);
   print_calib_target(outfile, calib_target);
-  print_metrics(outfile, reproj_errors, reproj_errors_all);
+  print_metrics(outfile, calib_views.size(), reproj_errors, reproj_errors_all);
   print_estimates(outfile, cam_params, cam_exts);
   fclose(outfile);
 
@@ -2155,6 +2175,7 @@ real_t calib_camera_t::inspect(const std::map<int, aprilgrids_t> &valid_data) {
   // Calculate reprojection error
   std::vector<real_t> reproj_errors_all;
   std::map<int, std::vector<real_t>> reproj_errors_cams;
+  std::set<timestamp_t> view_timestamps;
   for (const auto cam_idx : get_camera_indices()) {
     const auto cam_geom = cam_geoms[cam_idx];
     const auto cam_param = cam_params[cam_idx];
@@ -2193,6 +2214,7 @@ real_t calib_camera_t::inspect(const std::map<int, aprilgrids_t> &valid_data) {
         }
         reproj_errors_cams[cam_idx].push_back((z - z_hat).norm());
         reproj_errors_all.push_back((z - z_hat).norm());
+        view_timestamps.insert(ts);
       }
     }
   }
@@ -2201,7 +2223,10 @@ real_t calib_camera_t::inspect(const std::map<int, aprilgrids_t> &valid_data) {
   if (verbose) {
     printf("\nValidation Statistics:\n");
     printf("----------------------\n");
-    print_metrics(stdout, reproj_errors_cams, reproj_errors_all);
+    print_metrics(stdout,
+                  view_timestamps.size(),
+                  reproj_errors_cams,
+                  reproj_errors_all);
   }
 
   return rmse(reproj_errors_all);

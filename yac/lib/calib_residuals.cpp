@@ -484,6 +484,7 @@ int fiducial_residual_t::get_residual(vec2_t &r) const {
   const vec3_t r_CiFi = tf_point(T_CiB * T_BS * T_SW * T_WF, r_FFi_);
   vec2_t z_hat;
   if (cam_geom_->project(res, params, r_CiFi, z_hat) != 0) {
+    r = z_ - z_hat;
     return -1;
   }
 
@@ -496,6 +497,7 @@ int fiducial_residual_t::get_residual(vec2_t &r) const {
 int fiducial_residual_t::get_reproj_error(real_t &error) const {
   vec2_t r;
   if (get_residual(r) != 0) {
+    error = r.norm();
     return -1;
   }
   error = r.norm();

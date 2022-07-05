@@ -69,17 +69,14 @@ set -e
 # RUN_CMD="./test_calib_camera --target test_calib_camera_mono"
 # RUN_CMD="./test_calib_camera --target test_calib_camera_stereo"
 # RUN_CMD="./test_calib_camera --target test_marg_residual"
-RUN_CMD="./calib_euroc"
+# RUN_CMD="./calib_euroc"
 # RUN_CMD="./calib_preprocess 6 6 0.088 0.3 /data/euroc/cam_april/mav0/cam0/data /tmp/grid0/cam0"
-# RUN_CMD="./calib_inspect '/tmp/calib_cameras-results.yaml' /data/euroc/cam_april"
-# RUN_CMD="./calib_inspect '/tmp/calib_cameras-results.yaml' /data/euroc/imu_april"
-# RUN_CMD="./calib_inspect '/tmp/calib_imu-results.yaml' /data/euroc/imu_april/mav0"
-# RUN_CMD="./calib_inspect '/data/euroc_results/configs/euroc/euroc.yaml' /data/euroc/cam_april"
-# RUN_CMD="./calib_inspect '/data/euroc_results/configs/euroc/euroc.yaml' /data/euroc/imu_april"
-# RUN_CMD="./calib_inspect '/data/euroc_results/configs/kalibr/kalibr.yaml' /data/euroc/cam_april"
-# RUN_CMD="./calib_inspect '/data/euroc_results/configs/kalibr/kalibr.yaml' /data/euroc/imu_april/mav0"
-# RUN_CMD="./calib_inspect '/home/chutsu/projects/yac/yac/configs/calib-kalibr.yaml' /data/euroc/imu_april"
-# RUN_CMD="./calib_inspect '/home/chutsu/projects/yac/yac/configs/calib-yac.yaml' /data/euroc/cam_april"
+
+# RUN_CMD="./calib_inspect 'camera' '/data/euroc_results/configs/yac/calib_camera-results.yaml' /data/euroc/cam_april"
+# RUN_CMD="./calib_inspect 'camera' '/data/euroc_results/configs/kalibr/kalibr.yaml' /data/euroc/cam_april"
+
+# RUN_CMD="./calib_inspect 'camera-imu' '/data/euroc_results/configs/kalibr/kalibr.yaml' /data/euroc/imu_april/mav0"
+# RUN_CMD="./calib_inspect 'camera-imu' '/data/euroc_results/configs/yac/calib_imu-results.yaml' /data/euroc/imu_april/mav0"
 
 # YAC - MOCAP CALIBRATION
 # RUN_CMD="test_calib_mocap"
@@ -125,6 +122,8 @@ cd ~/projects/yac \
 && $RUN_CMD
 " C-m
 exit
+
+# && ./calib_inspect '/tmp/calib_imu-results.yaml' /data/euroc/imu_april/mav0
 
 # tmux send-keys -t dev -R C-l C-m
 # tmux send-keys -t dev -R "\

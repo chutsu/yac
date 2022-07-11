@@ -177,7 +177,7 @@ struct calib_vi_t {
                        const int cam_idx,
                        const cv::Mat &cam_image);
   void add_measurement(const int cam_idx, const aprilgrid_t &grid);
-  void add_measurement(const timestamp_t imu_ts,
+  bool add_measurement(const timestamp_t imu_ts,
                        const vec3_t &a_m,
                        const vec3_t &w_m);
   std::shared_ptr<calib_loss_t> _create_loss_fn(const std::string &loss_fn_type,
@@ -206,7 +206,6 @@ struct calib_vi_t {
   void print_speed_biases(FILE *os) const;
   void show_results() const;
   int save_results(const std::string &save_path) const;
-  void save_estimates(const std::string &dir_path) const;
 };
 
 } //  namespace yac

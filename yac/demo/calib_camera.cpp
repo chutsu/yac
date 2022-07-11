@@ -12,13 +12,8 @@ int main(int argc, char *argv[]) {
   const std::string data_path = argv[2];
   yac::calib_camera_t calib{config_file};
   calib.load_data(data_path);
-  calib.show_results();
-
-  real_t info;
-  calib._calc_info(&info);
-  printf("nb_res_blocks: %ld\n", calib.solver->res_fns.size());
-  printf("nb_param_blocks: %ld\n", calib.solver->params.size());
-  printf("info: %f\n", info);
+  calib.solve();
+  calib.save_results("/tmp/calib_camera-results.yaml");
 
   return 0;
 }

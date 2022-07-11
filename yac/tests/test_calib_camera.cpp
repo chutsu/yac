@@ -382,7 +382,7 @@ int test_calib_camera_remove_outliers() {
     }
   }
   calib.solver->solve(100, true, 1);
-  MU_CHECK(calib._calc_info(&calib.info_k) == 0);
+  MU_CHECK(calib._calc_info(&calib.info_k, &calib.entropy_k) == 0);
   calib._remove_outliers(false);
 
   return 0;
@@ -451,7 +451,6 @@ int test_calib_camera_stereo() {
   calib.add_camera_data(test_data);
   calib.solve();
   calib.save_results("/tmp/calib-results.yaml");
-  calib.save_estimates("/tmp/calib-estimates.yaml");
   calib.inspect(valid_data);
 
   return 0;

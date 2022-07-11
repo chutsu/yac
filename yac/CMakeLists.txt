@@ -164,11 +164,11 @@ TARGET_LINK_LIBRARIES(calib_camera yac ${DEPS})
 ADD_EXECUTABLE(calib_euroc demo/calib_euroc.cpp)
 TARGET_LINK_LIBRARIES(calib_euroc yac ${DEPS})
 
+ADD_EXECUTABLE(calib_info demo/calib_info.cpp)
+TARGET_LINK_LIBRARIES(calib_info yac ${DEPS})
+
 ADD_EXECUTABLE(calib_inspect demo/calib_inspect.cpp)
 TARGET_LINK_LIBRARIES(calib_inspect yac ${DEPS})
-
-ADD_EXECUTABLE(calib_preprocess demo/calib_preprocess.cpp)
-TARGET_LINK_LIBRARIES(calib_preprocess yac ${DEPS})
 
 ADD_EXECUTABLE(calib_vi demo/calib_vi.cpp)
 TARGET_LINK_LIBRARIES(calib_vi yac ${DEPS})

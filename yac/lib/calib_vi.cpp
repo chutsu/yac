@@ -853,7 +853,7 @@ void calib_vi_t::add_measurement(const int cam_idx, const aprilgrid_t &grid) {
   vision_started = true;
 }
 
-void calib_vi_t::add_measurement(const timestamp_t imu_ts,
+bool calib_vi_t::add_measurement(const timestamp_t imu_ts,
                                  const vec3_t &a_m,
                                  const vec3_t &w_m) {
   std::lock_guard<std::mutex> guard(mtx);
@@ -867,7 +867,7 @@ void calib_vi_t::add_measurement(const timestamp_t imu_ts,
 
   // Check if AprilGrid buffer is filled
   if (static_cast<int>(grid_buf.size()) != nb_cams()) {
-    return;
+    return false;
   }
 
   // Copy AprilGrid buffer data
@@ -891,7 +891,7 @@ void calib_vi_t::add_measurement(const timestamp_t imu_ts,
   if (initialized == false && imu_buf.size() > 2) {
     if (detection_ok(grids)) {
       initialize(grids, imu_buf);
-      return;
+      return false;
     }
   }
 
@@ -935,6 +935,7 @@ void calib_vi_t::add_measurement(const timestamp_t imu_ts,
   }
 
   imu_started = true;
+  return true;
 }
 
 std::shared_ptr<calib_loss_t> calib_vi_t::_create_loss_fn(
@@ -960,28 +961,28 @@ int calib_vi_t::recover_calib_covar(matx_t &calib_covar) const {
   ::ceres::Covariance::Options options;
   ::ceres::Covariance covar_est(options);
   if (covar_est.Compute(covar_blocks, problem.get()) == false) {
-    LOG_ERROR("Failed to estimate covariance!");
-    LOG_ERROR("Maybe Hessian is not full rank?");
-    LOG_ERROR("Num Views: %ld", calib_views.size());
-    LOG_ERROR("Num Residual Blocks: %d", problem->NumResidualBlocks());
-    LOG_ERROR("Num Parameter Blocks: %d", problem->NumParameterBlocks());
-    LOG_ERROR("");
-    for (const auto &view : calib_views) {
-      LOG_ERROR("VIEW [%ld]", view->ts);
-      for (const auto &cam_idx : view->get_camera_indices()) {
-        LOG_ERROR("  Num cam%d fiducial residuals: %ld",
-                  cam_idx,
-                  view->fiducial_residuals[cam_idx].size());
-      }
-      LOG_ERROR("  Has IMU residual?: %s",
-                (view->imu_residual != nullptr) ? "true" : "false");
-      if (view->imu_residual) {
-        LOG_ERROR("  Num IMU measurements: %ld",
-                  view->imu_residual->imu_data_.size());
-        std::cout << view->imu_residual->imu_data_ << std::endl;
-      }
-      LOG_ERROR("");
-    }
+    // LOG_ERROR("Failed to estimate covariance!");
+    // LOG_ERROR("Maybe Hessian is not full rank?");
+    // LOG_ERROR("Num Views: %ld", calib_views.size());
+    // LOG_ERROR("Num Residual Blocks: %d", problem->NumResidualBlocks());
+    // LOG_ERROR("Num Parameter Blocks: %d", problem->NumParameterBlocks());
+    // LOG_ERROR("");
+    // for (const auto &view : calib_views) {
+    //   LOG_ERROR("VIEW [%ld]", view->ts);
+    //   for (const auto &cam_idx : view->get_camera_indices()) {
+    //     LOG_ERROR("  Num cam%d fiducial residuals: %ld",
+    //               cam_idx,
+    //               view->fiducial_residuals[cam_idx].size());
+    //   }
+    //   LOG_ERROR("  Has IMU residual?: %s",
+    //             (view->imu_residual != nullptr) ? "true" : "false");
+    //   if (view->imu_residual) {
+    //     LOG_ERROR("  Num IMU measurements: %ld",
+    //               view->imu_residual->imu_data_.size());
+    //     std::cout << view->imu_residual->imu_data_ << std::endl;
+    //   }
+    //   LOG_ERROR("");
+    // }
 
     return -1;
   }
@@ -1544,10 +1545,11 @@ void calib_vi_t::print_fiducial_pose(FILE *os) const {
 }
 
 void calib_vi_t::print_imu_poses(FILE *os) const {
-  fprintf(os, "# ts, rx, ry, rz, qx, qy, qz, qw\n");
   fprintf(os, "imu_poses:\n");
   fprintf(os, "  rows: %ld\n", calib_views.size());
   fprintf(os, "  cols: 8\n");
+  fprintf(os, "\n");
+  fprintf(os, "  # ts, rx, ry, rz, qx, qy, qz, qw\n");
   fprintf(os, "  data: [\n");
   for (const auto &view : calib_views) {
     const auto ts = view->ts;
@@ -1563,10 +1565,11 @@ void calib_vi_t::print_imu_poses(FILE *os) const {
 }
 
 void calib_vi_t::print_speed_biases(FILE *os) const {
-  fprintf(os, "# ts, vx, vy, vz, ba_x, ba_y, ba_z, bg_x, bg_y, bg_z\n");
   fprintf(os, "speed_biases:\n");
   fprintf(os, "  rows: %ld\n", calib_views.size());
   fprintf(os, "  cols: 10\n");
+  fprintf(os, "\n");
+  fprintf(os, "  # ts, vx, vy, vz, ba_x, ba_y, ba_z, bg_x, bg_y, bg_z\n");
   fprintf(os, "  data: [\n");
   for (const auto &view : calib_views) {
     const auto ts = view->ts;
@@ -1613,46 +1616,6 @@ int calib_vi_t::save_results(const std::string &save_path) const {
   fclose(outfile);
 
   return 0;
-}
-
-void calib_vi_t::save_estimates(const std::string &dir_path) const {
-  // Paths
-  const auto poses_path = dir_path + "/poses_est.csv";
-  const auto sb_path = dir_path + "/speed_biases_est.csv";
-
-  // Setup csv files
-  FILE *poses_csv = fopen(poses_path.c_str(), "w");
-  FILE *sb_csv = fopen(sb_path.c_str(), "w");
-
-  // Headers
-  fprintf(poses_csv, "#ts,rx,ry,rz,qx,qy,qz,qw\n");
-  fprintf(sb_csv, "#ts,vx,vy,vz,ba_x,ba_y,ba_z,bg_x,bg_y,bg_z\n");
-
-  // Write poses and speed and biases
-  for (const auto &view : calib_views) {
-    // Poses
-    const auto pose = view->pose;
-    const auto ts = pose.ts;
-    const vec3_t r = pose.trans();
-    const quat_t q = pose.rot();
-    fprintf(poses_csv, "%ld,", ts);
-    fprintf(poses_csv, "%f,%f,%f,", r.x(), r.y(), r.z());
-    fprintf(poses_csv, "%f,%f,%f,%f\n", q.x(), q.y(), q.z(), q.w());
-
-    // Speed and biases
-    const auto sb = view->sb;
-    const vec3_t v = sb.param.segment<3>(0);
-    const vec3_t ba = sb.param.segment<3>(3);
-    const vec3_t bg = sb.param.segment<3>(6);
-    fprintf(sb_csv, "%ld,", ts);
-    fprintf(sb_csv, "%f,%f,%f,", v.x(), v.y(), v.z());
-    fprintf(sb_csv, "%f,%f,%f,", ba.x(), ba.y(), ba.z());
-    fprintf(sb_csv, "%f,%f,%f\n", bg.x(), bg.y(), bg.z());
-  }
-
-  // Close csv files
-  fclose(poses_csv);
-  fclose(sb_csv);
 }
 
 } // namespace yac

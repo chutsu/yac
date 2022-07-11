@@ -1048,7 +1048,8 @@ bool calib_camera_t::add_nbv_view(const std::map<int, aprilgrid_t> &cam_grids) {
   // Calculate information gain
   const timestamp_t ts = calib_view_timestamps.back();
   real_t info_kp1 = 0.0;
-  if (_calc_info(&info_kp1) != 0) {
+  real_t entropy_kp1 = 0.0;
+  if (_calc_info(&info_kp1, &entropy_kp1) != 0) {
     _restore_estimates();
     remove_view(ts);
     return false;
@@ -1059,13 +1060,12 @@ bool calib_camera_t::add_nbv_view(const std::map<int, aprilgrid_t> &cam_grids) {
   if (info_gain < info_gain_threshold) {
     _restore_estimates();
     remove_view(ts);
-    _track_estimates(ts, false);
     return false;
   }
 
   // Update
   info_k = info_kp1;
-  _track_estimates(ts, true);
+  entropy_k = entropy_kp1;
 
   return true;
 }
@@ -1159,7 +1159,8 @@ int calib_camera_t::find_nbv(const std::map<int, mat4s_t> &nbv_poses,
 
   // Current info
   info = 0.0;
-  if (_calc_info(&info) != 0) {
+  real_t entropy = 0.0;
+  if (_calc_info(&info, &entropy) != 0) {
     return -1;
   }
 
@@ -1202,7 +1203,8 @@ int calib_camera_t::find_nbv(const std::map<int, mat4s_t> &nbv_poses,
 
       // Evaluate NBV
       real_t info_kp1;
-      if (_calc_info(&info_kp1) == 0 && info_kp1 < best_info) {
+      real_t entropy_kp1;
+      if (_calc_info(&info_kp1, &entropy_kp1) == 0 && info_kp1 < best_info) {
         best_cam = nbv_cam_idx;
         best_idx = i;
         best_info = info_kp1;
@@ -1244,7 +1246,8 @@ int calib_camera_t::find_nbv_fast(const std::map<int, mat4s_t> &nbv_poses,
 
   // Current info
   info = 0.0;
-  if (_calc_info(&info) != 0) {
+  real_t entropy = 0.0;
+  if (_calc_info(&info, &entropy) != 0) {
     return -1;
   }
 
@@ -1470,29 +1473,36 @@ void calib_camera_t::_restore_estimates() {
   cam_exts_tmp.clear();
 }
 
-int calib_camera_t::_calc_info(real_t *info) {
+int calib_camera_t::_calc_info(real_t *info, real_t *entropy) {
   // Form parameter vector
   std::vector<param_t *> params;
+  real_t local_param_size = 0;
   for (const auto &[cam_idx, cam_param] : cam_params) {
     if (cam_param->fixed == false) {
       params.push_back(cam_param.get());
+      local_param_size += cam_param->local_size;
     }
   }
   for (const auto &[cam_idx, cam_ext] : cam_exts) {
     if (cam_ext->fixed == false) {
       params.push_back(cam_ext.get());
+      local_param_size += cam_ext->local_size;
     }
   }
 
   // Estimate the determinant of the marginal covariance matrix
-  real_t covar_det = 0.0;
-  if (solver->estimate_log_det_covar(params, covar_det) != 0) {
+  real_t log_det_covar = 0.0;
+  if (solver->estimate_log_det_covar(params, log_det_covar) != 0) {
     return -1;
   }
-  if (std::isnan(std::abs(covar_det))) {
+  if (std::isnan(std::abs(log_det_covar))) {
     return -1;
   }
-  *info = covar_det / log(2.0);
+  *info = log_det_covar / log(2.0);
+
+  // Estimate shannon entropy
+  const auto k = pow(2 * M_PI * exp(1), local_param_size);
+  *entropy = 0.5 * log(k * exp(log_det_covar));
 
   return 0;
 }
@@ -1546,7 +1556,8 @@ int calib_camera_t::_remove_outliers(const bool filter_all) {
 
     // Get info with filtered view
     real_t info_before;
-    if (_calc_info(&info_before) != 0) {
+    real_t entropy_before;
+    if (_calc_info(&info_before, &entropy_before) != 0) {
       printf("Failed to evaluate info!");
       continue;
     }
@@ -1558,7 +1569,8 @@ int calib_camera_t::_remove_outliers(const bool filter_all) {
 
     // Get info with filtered view removed
     real_t info_after;
-    if (_calc_info(&info_after) != 0) {
+    real_t entropy_after;
+    if (_calc_info(&info_after, &entropy_after) != 0) {
       add_view(grids_cache);
       _restore_estimates();
       continue;
@@ -1588,7 +1600,7 @@ int calib_camera_t::_remove_outliers(const bool filter_all) {
   }
 
   // Update info_k
-  if (view_timestamps.size() && _calc_info(&info_k) != 0) {
+  if (view_timestamps.size() && _calc_info(&info_k, &entropy_k) != 0) {
     return nb_outliers;
   }
 
@@ -1597,21 +1609,14 @@ int calib_camera_t::_remove_outliers(const bool filter_all) {
 
 void calib_camera_t::_track_estimates(const timestamp_t ts,
                                       const bool view_accepted) {
-  if (nbv_timestamps.count(ts)) {
-    return;
-  }
-
+  calib_timestamps.push_back(ts);
   for (auto cam_idx : get_camera_indices()) {
     cam_estimates[ts][cam_idx] = get_camera_params(cam_idx);
     exts_estimates[ts][cam_idx] = get_camera_extrinsics(cam_idx);
   }
-
-  const auto cost_init = solver->initial_cost;
-  const auto cost_final = solver->final_cost;
-  const auto num_iter = solver->num_iterations;
-  nbv_timestamps.insert(ts);
-  nbv_costs[ts] = {cost_init, cost_final, num_iter};
-  nbv_reproj_errors[ts] = get_reproj_errors();
+  calib_info_hist[ts] = info_k;
+  calib_entropy_hist[ts] = entropy_k;
+  calib_errs_hist[ts] = get_all_reproj_errors();
   nbv_accepted[ts] = view_accepted;
 }
 
@@ -1710,7 +1715,8 @@ void calib_camera_t::_solve_nbv() {
   int stale_counter = 0;
   for (const auto &ts : nbv_timestamps) {
     // Add view
-    if (add_nbv_view(calib_data[ts])) {
+    const bool view_accepted = add_nbv_view(calib_data[ts]);
+    if (view_accepted) {
       // Remove outliers
       if (enable_nbv_filter && nb_views() >= min_nbv_views) {
         _remove_outliers(filter_all);
@@ -1728,6 +1734,9 @@ void calib_camera_t::_solve_nbv() {
       // Update stale counter
       stale_counter++;
     }
+
+    // Track estimates
+    _track_estimates(ts, view_accepted);
 
     // Stop early?
     if (enable_early_stopping && stale_counter > early_stop_threshold) {
@@ -1941,19 +1950,218 @@ void calib_camera_t::print_metrics(
 }
 
 void calib_camera_t::print_poses(FILE *out) const {
-  fprintf(out, "# ts, rx, ry, rz, qx, qy, qz, qw\n");
   fprintf(out, "poses:\n");
   fprintf(out, "  rows: %ld\n", calib_views.size());
   fprintf(out, "  cols: 8\n");
+  fprintf(out, "\n");
+  fprintf(out, "  # ts, rx, ry, rz, qx, qy, qz, qw\n");
   fprintf(out, "  data: [\n");
-  for (const auto &[ts, pose] : poses) {
+
+  auto iter = poses.begin();
+  while (iter != poses.end()) {
+    const auto ts = iter->first;
+    const auto pose = iter->second;
     const mat4_t T_C0F = pose->tf();
     const vec3_t r = tf_trans(T_C0F);
     const quat_t q = tf_quat(T_C0F);
     fprintf(out, "    ");
     fprintf(out, "%ld,", ts);
     fprintf(out, "%f,%f,%f,", r.x(), r.y(), r.z());
-    fprintf(out, "%f,%f,%f,%f,\n", q.x(), q.y(), q.z(), q.w());
+    fprintf(out, "%f,%f,%f,%f", q.x(), q.y(), q.z(), q.w());
+
+    iter++;
+    if (iter != poses.end()) {
+      fprintf(out, ",\n");
+    } else {
+      fprintf(out, "\n");
+    }
+  }
+
+  fprintf(out, "  ]\n");
+  fprintf(out, "\n");
+}
+
+void calib_camera_t::print_camera_convergence(FILE *out) const {
+  for (const auto cam_idx : get_camera_indices()) {
+    const std::string cam_str = "cam" + std::to_string(cam_idx);
+    const auto first_ts = *calib_timestamps.begin();
+    const auto cols = cam_estimates.at(first_ts).at(cam_idx).size() + 2;
+
+    fprintf(out, "%s_convergence:\n", cam_str.c_str());
+    fprintf(out, "  rows: %ld\n", calib_timestamps.size());
+    fprintf(out, "  cols: %ld\n", cols + 1);
+    fprintf(out, "\n");
+    fprintf(out, "  # ts, view_accepted, camera_params\n");
+    fprintf(out, "  data: [\n");
+    auto iter = calib_timestamps.begin();
+    while (iter != calib_timestamps.end()) {
+      const auto ts = *iter;
+      const auto param_str = vec2str(cam_estimates.at(ts).at(cam_idx), false);
+      fprintf(out, "    ");
+      fprintf(out, "%ld,", ts);
+      fprintf(out, "%d,", nbv_accepted.at(ts));
+      fprintf(out, "%s", param_str.c_str());
+
+      iter++;
+      if (iter != calib_timestamps.end()) {
+        fprintf(out, ",\n");
+      } else {
+        fprintf(out, "\n");
+      }
+    }
+    fprintf(out, "  ]\n");
+    fprintf(out, "\n");
+  }
+}
+
+void calib_camera_t::print_extrinsics_convergence(FILE *out) const {
+  for (const auto cam_idx : get_camera_indices()) {
+    if (cam_idx == 0) {
+      continue;
+    }
+
+    const std::string cam_str = "cam" + std::to_string(cam_idx);
+    fprintf(out, "%s_extrinsics_convergence:\n", cam_str.c_str());
+    fprintf(out, "  rows: %ld\n", calib_timestamps.size());
+    fprintf(out, "  cols: %d\n", 9);
+    fprintf(out, "\n");
+    fprintf(out, "  # ts, view_accepted, x, y, z, qx, qy, qz, qw\n");
+    fprintf(out, "  data: [\n");
+
+    auto iter = calib_timestamps.begin();
+    while (iter != calib_timestamps.end()) {
+      const auto ts = *iter;
+      const vec3_t r = tf_trans(exts_estimates.at(ts).at(cam_idx));
+      const quat_t q = tf_quat(exts_estimates.at(ts).at(cam_idx));
+      fprintf(out, "    ");
+      fprintf(out, "%ld,", ts);
+      fprintf(out, "%d,", nbv_accepted.at(ts));
+      fprintf(out, "%f,%f,%f,", r.x(), r.y(), r.z());
+      fprintf(out, "%f,%f,%f,%f", q.x(), q.y(), q.z(), q.w());
+
+      iter++;
+      if (iter != calib_timestamps.end()) {
+        fprintf(out, ",\n");
+      } else {
+        fprintf(out, "\n");
+      }
+    }
+
+    fprintf(out, "  ]\n");
+    fprintf(out, "\n");
+  }
+}
+
+void calib_camera_t::print_convergence(FILE *out) const {
+  fprintf(out, "convergence:\n");
+  fprintf(out, "  rows: %ld\n", calib_timestamps.size());
+  fprintf(out, "  cols: %d\n", 9);
+  fprintf(out, "\n");
+  fprintf(out, "  # ");
+  fprintf(out, "view_idx,");
+  fprintf(out, "ts,");
+  fprintf(out, "calib_info,");
+  fprintf(out, "shannon_entropy,");
+  fprintf(out, "reproj_err_rmse,");
+  fprintf(out, "reproj_err_mean,");
+  fprintf(out, "reproj_err_median,");
+  fprintf(out, "reproj_err_std,");
+  fprintf(out, "view_accepted\n");
+  fprintf(out, "  data: [\n");
+
+  int view_idx = 0;
+  auto iter = calib_timestamps.begin();
+  while (iter != calib_timestamps.end()) {
+    const auto ts = *iter;
+    const auto info = calib_info_hist.at(ts);
+    const auto entropy = calib_entropy_hist.at(ts);
+    const auto reproj_errors = calib_errs_hist.at(ts);
+    const auto accepted = nbv_accepted.at(ts);
+
+    fprintf(out, "    ");
+    fprintf(out, "%d,", view_idx++);
+    fprintf(out, "%ld,", ts);
+    fprintf(out, "%f,", info);
+    fprintf(out, "%f,", entropy);
+    if (reproj_errors.size()) {
+      fprintf(out, "%f,", rmse(reproj_errors));
+      fprintf(out, "%f,", mean(reproj_errors));
+      fprintf(out, "%f,", median(reproj_errors));
+      fprintf(out, "%f,", stddev(reproj_errors));
+    } else {
+      fprintf(out, "-1.0,");
+      fprintf(out, "-1.0,");
+      fprintf(out, "-1.0,");
+      fprintf(out, "-1.0,");
+    }
+    fprintf(out, "%d", accepted);
+
+    iter++;
+    if (iter != calib_timestamps.end()) {
+      fprintf(out, ",\n");
+    } else {
+      fprintf(out, "\n");
+    }
+  }
+  fprintf(out, "  ]\n");
+  fprintf(out, "\n");
+}
+
+void calib_camera_t::print_reproj_errors(FILE *out) const {
+  // Header
+  const auto reproj_errors = get_all_reproj_errors();
+  fprintf(out, "reproj_errors:\n");
+  fprintf(out, "  rows: %ld\n", reproj_errors.size());
+  fprintf(out, "  cols: %d\n", 11);
+  fprintf(out, "\n");
+  fprintf(out, "  # ");
+  fprintf(out, "cam_idx,");
+  fprintf(out, "ts,");
+  fprintf(out, "view_accepted,");
+  fprintf(out, "tag_id,");
+  fprintf(out, "corner_idx,");
+  fprintf(out, "z_x,");
+  fprintf(out, "z_y,");
+  fprintf(out, "z_hat_x,");
+  fprintf(out, "z_hat_y,");
+  fprintf(out, "rx,");
+  fprintf(out, "ry\n");
+  fprintf(out, "  data: [\n");
+
+  // Calib views
+  for (const auto &[ts, cam_view] : calib_views) {
+    for (const auto &[cam_idx, res_fns] : cam_view->res_fns) {
+
+      auto iter = res_fns.begin();
+      while (iter != res_fns.end()) {
+        const auto res_fn = *iter;
+        const auto corner = res_fn->p_FFi;
+        const vec2_t z = res_fn->z;
+        const int tag_id = corner->tag_id;
+        const int corner_idx = corner->corner_idx;
+
+        vec2_t z_hat{-1.0, -1.0};
+        vec2_t r{-1.0, -1.0};
+        res_fn->get_residual(z_hat, r);
+
+        fprintf(out, "    ");
+        fprintf(out, "%d, ", cam_idx);
+        fprintf(out, "%ld, ", ts);
+        fprintf(out, "%d,", nbv_accepted.at(ts));
+        fprintf(out, "%d, ", tag_id);
+        fprintf(out, "%d, ", corner_idx);
+        fprintf(out, "%f, %f, ", z.x(), z.y());
+        fprintf(out, "%f, %f, ", z_hat.x(), z_hat.y());
+        fprintf(out, "%f, %f", r.x(), r.y());
+
+        iter++;
+        if (iter != res_fns.end()) {
+          fprintf(out, ",\n");
+        } else {
+          fprintf(out, "\n");
+        }
+      }
+    }
   }
   fprintf(out, "  ]\n");
   fprintf(out, "\n");
@@ -1986,147 +2194,11 @@ int calib_camera_t::save_results(const std::string &save_path) {
   print_calib_target(outfile, calib_target);
   print_metrics(outfile, calib_views.size(), reproj_errors, reproj_errors_all);
   print_estimates(outfile, cam_params, cam_exts);
+  print_camera_convergence(outfile);
+  print_extrinsics_convergence(outfile);
+  print_convergence(outfile);
+  print_reproj_errors(outfile);
   fclose(outfile);
-
-  // // Write estimates to file
-  // FILE *cam0 = fopen("/tmp/cam0.csv", "w");
-  // FILE *cam1 = fopen("/tmp/cam1.csv", "w");
-  // FILE *exts = fopen("/tmp/exts.csv", "w");
-  // for (const auto ts : nbv_timestamps) {
-  //   auto cam0_param = vec2str(cam_estimates[ts][0], false);
-  //   auto cam1_param = vec2str(cam_estimates[ts][1], false);
-  //   auto exts_param = vec2str(tf_vec(exts_estimates[ts][1]), false);
-  //   fprintf(cam0, "%ld,%s\n", ts, cam0_param.c_str());
-  //   fprintf(cam1, "%ld,%s\n", ts, cam1_param.c_str());
-  //   fprintf(exts, "%ld,%s\n", ts, exts_param.c_str());
-  // }
-  // fclose(cam0);
-  // fclose(cam1);
-  // fclose(exts);
-
-  // // Write convergence to file
-  // FILE *progress = fopen("/tmp/calib-progress.csv", "w");
-  // fprintf(progress, "ts,num_iter,cost_start,cost_end,");
-  // fprintf(progress, "cam0_rmse,cam0_mean,cam0_median,cam0_std,");
-  // fprintf(progress, "cam1_rmse,cam1_mean,cam1_median,cam1_std,");
-  // fprintf(progress, "accepted\n");
-  // for (const auto ts : nbv_timestamps) {
-  //   const auto cost_init = std::get<0>(nbv_costs[ts]);
-  //   const auto cost_final = std::get<1>(nbv_costs[ts]);
-  //   const auto cost_iter = std::get<2>(nbv_costs[ts]);
-  //   const auto reproj_errors = nbv_reproj_errors[ts];
-  //   const auto accepted = nbv_accepted[ts];
-
-  //   fprintf(progress, "%ld,", ts);
-  //   fprintf(progress, "%d,", cost_iter);
-  //   fprintf(progress, "%f,", cost_init);
-  //   fprintf(progress, "%f,", cost_final);
-
-  //   if (reproj_errors.count(0)) {
-  //     fprintf(progress, "%f,", rmse(reproj_errors.at(0)));
-  //     fprintf(progress, "%f,", mean(reproj_errors.at(0)));
-  //     fprintf(progress, "%f,", median(reproj_errors.at(0)));
-  //     fprintf(progress, "%f,", stddev(reproj_errors.at(0)));
-  //   } else {
-  //     fprintf(progress, "-1.0,");
-  //     fprintf(progress, "-1.0,");
-  //     fprintf(progress, "-1.0,");
-  //     fprintf(progress, "-1.0,");
-  //   }
-
-  //   if (reproj_errors.count(1)) {
-  //     fprintf(progress, "%f,", rmse(reproj_errors.at(1)));
-  //     fprintf(progress, "%f,", mean(reproj_errors.at(1)));
-  //     fprintf(progress, "%f,", median(reproj_errors.at(1)));
-  //     fprintf(progress, "%f,", stddev(reproj_errors.at(1)));
-  //   } else {
-  //     fprintf(progress, "-1.0,");
-  //     fprintf(progress, "-1.0,");
-  //     fprintf(progress, "-1.0,");
-  //     fprintf(progress, "-1.0,");
-  //   }
-
-  //   fprintf(progress, "%d\n", accepted);
-  // }
-  // fclose(progress);
-
-  return 0;
-}
-
-int calib_camera_t::save_estimates(const std::string &save_path) {
-  LOG_INFO(KGRN "Saved estimates to [%s]" KNRM, save_path.c_str());
-
-  // Open results file
-  FILE *outfile = fopen(save_path.c_str(), "w");
-  if (outfile == NULL) {
-    return -1;
-  }
-
-  fprintf(outfile, "#ts,rx,ry,rz,qx,qy,qz,qw\n");
-  for (const auto &[ts, pose] : poses) {
-    const mat4_t T_C0F = pose->tf();
-    const vec3_t r = tf_trans(T_C0F);
-    const quat_t q = tf_quat(T_C0F);
-    fprintf(outfile, "%ld,", ts);
-    fprintf(outfile, "%f,", r.x());
-    fprintf(outfile, "%f,", r.y());
-    fprintf(outfile, "%f,", r.z());
-    fprintf(outfile, "%f,", q.x());
-    fprintf(outfile, "%f,", q.y());
-    fprintf(outfile, "%f,", q.z());
-    fprintf(outfile, "%f\n", q.w());
-  }
-
-  return 0;
-}
-
-int calib_camera_t::save_stats(const std::string &save_path) {
-  LOG_INFO(KGRN "Saved results to [%s]" KNRM, save_path.c_str());
-
-  // Open results file
-  FILE *outfile = fopen(save_path.c_str(), "w");
-  if (outfile == NULL) {
-    return -1;
-  }
-
-  // Header
-  fprintf(outfile, "cam_idx,");
-  fprintf(outfile, "ts,");
-  fprintf(outfile, "tag_id,");
-  fprintf(outfile, "corner_idx,");
-  fprintf(outfile, "z_x,");
-  fprintf(outfile, "z_y,");
-  fprintf(outfile, "z_hat_x,");
-  fprintf(outfile, "z_hat_y,");
-  fprintf(outfile, "rx,");
-  fprintf(outfile, "ry\n");
-
-  // Calib views
-  for (const auto &[ts, cam_view] : calib_views) {
-    for (const auto &[cam_idx, res_fns] : cam_view->res_fns) {
-      for (const auto &res_fn : res_fns) {
-        const auto corner = res_fn->p_FFi;
-        const vec2_t z = res_fn->z;
-        const int tag_id = corner->tag_id;
-        const int corner_idx = corner->corner_idx;
-
-        vec2_t z_hat = zeros(2, 1);
-        vec2_t r = zeros(2, 1);
-        if (res_fn->get_residual(z_hat, r) != 0) {
-          continue;
-        }
-
-        fprintf(outfile, "%d, ", cam_idx);
-        fprintf(outfile, "%ld, ", ts);
-        fprintf(outfile, "%d, ", tag_id);
-        fprintf(outfile, "%d, ", corner_idx);
-        fprintf(outfile, "%f, %f, ", z.x(), z.y());
-        fprintf(outfile, "%f, %f, ", z_hat.x(), z_hat.y());
-        fprintf(outfile, "%f, %f", r.x(), r.y());
-        fprintf(outfile, "\n");
-      }
-    }
-  }
 
   return 0;
 }

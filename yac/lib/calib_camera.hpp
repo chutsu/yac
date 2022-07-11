@@ -135,12 +135,15 @@ struct calib_camera_t {
 
   // NBV
   real_t info_k = 0.0;
+  real_t entropy_k = 0.0;
+
+  // History
+  timestamps_t calib_timestamps;
   std::map<timestamp_t, std::map<int, vecx_t>> cam_estimates;
   std::map<timestamp_t, std::map<int, mat4_t>> exts_estimates;
-
-  std::set<timestamp_t> nbv_timestamps;
-  std::map<timestamp_t, std::tuple<real_t, real_t, int>> nbv_costs;
-  std::map<timestamp_t, std::map<int, std::vector<real_t>>> nbv_reproj_errors;
+  std::map<timestamp_t, real_t> calib_info_hist;
+  std::map<timestamp_t, real_t> calib_entropy_hist;
+  std::map<timestamp_t, std::vector<real_t>> calib_errs_hist;
   std::map<timestamp_t, bool> nbv_accepted;
 
   // Temporary storage
@@ -246,7 +249,7 @@ struct calib_camera_t {
   int _filter_all_views();
   void _cache_estimates();
   void _restore_estimates();
-  int _calc_info(real_t *info);
+  int _calc_info(real_t *info, real_t *entropy);
   int _remove_outliers(const bool filter_all);
   void _track_estimates(const timestamp_t ts, const bool view_accepted);
   void _print_stats(const size_t ts_idx, const size_t nb_timestamps);
@@ -264,11 +267,12 @@ struct calib_camera_t {
                      const std::map<int, std::vector<real_t>> &reproj_errors,
                      const std::vector<real_t> &reproj_errors_all) const;
   void print_poses(FILE *out) const;
+  void print_camera_convergence(FILE *out) const;
+  void print_extrinsics_convergence(FILE *out) const;
+  void print_convergence(FILE *out) const;
+  void print_reproj_errors(FILE *out) const;
   void show_results() const;
-
   int save_results(const std::string &save_path);
-  int save_estimates(const std::string &save_path);
-  int save_stats(const std::string &save_path);
 
   real_t inspect(const std::map<int, aprilgrids_t> &cam_data);
 };

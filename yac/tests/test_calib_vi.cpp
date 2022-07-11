@@ -170,7 +170,6 @@ int test_calib_vi(const std::string &mode, const int max_views = -1) {
   }
   calib.solve();
   calib.save_results("/tmp/calib-vi.yaml");
-  calib.save_estimates("/tmp");
 
   return 0;
 }

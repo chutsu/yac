@@ -2059,42 +2059,42 @@ void calib_camera_t::print_convergence(FILE *out) const {
   fprintf(out, "\n");
   fprintf(out, "  # ");
   fprintf(out, "view_idx,");
-  fprintf(out, "ts,");
+  fprintf(out, "view_ts,");
+  fprintf(out, "view_accepted,");
   fprintf(out, "calib_info,");
   fprintf(out, "shannon_entropy,");
   fprintf(out, "reproj_err_rmse,");
   fprintf(out, "reproj_err_mean,");
   fprintf(out, "reproj_err_median,");
-  fprintf(out, "reproj_err_std,");
-  fprintf(out, "view_accepted\n");
+  fprintf(out, "reproj_err_std\n");
   fprintf(out, "  data: [\n");
 
   int view_idx = 0;
   auto iter = calib_timestamps.begin();
   while (iter != calib_timestamps.end()) {
-    const auto ts = *iter;
-    const auto info = calib_info_hist.at(ts);
-    const auto entropy = calib_entropy_hist.at(ts);
-    const auto reproj_errors = calib_errs_hist.at(ts);
-    const auto accepted = nbv_accepted.at(ts);
+    const auto view_ts = *iter;
+    const auto view_accepted = nbv_accepted.at(view_ts);
+    const auto info = calib_info_hist.at(view_ts);
+    const auto entropy = calib_entropy_hist.at(view_ts);
+    const auto reproj_errors = calib_errs_hist.at(view_ts);
 
     fprintf(out, "    ");
     fprintf(out, "%d,", view_idx++);
-    fprintf(out, "%ld,", ts);
+    fprintf(out, "%ld,", view_ts);
+    fprintf(out, "%d,", view_accepted);
     fprintf(out, "%f,", info);
     fprintf(out, "%f,", entropy);
     if (reproj_errors.size()) {
       fprintf(out, "%f,", rmse(reproj_errors));
       fprintf(out, "%f,", mean(reproj_errors));
       fprintf(out, "%f,", median(reproj_errors));
-      fprintf(out, "%f,", stddev(reproj_errors));
+      fprintf(out, "%f", stddev(reproj_errors));
     } else {
       fprintf(out, "-1.0,");
       fprintf(out, "-1.0,");
       fprintf(out, "-1.0,");
-      fprintf(out, "-1.0,");
+      fprintf(out, "-1.0");
     }
-    fprintf(out, "%d", accepted);
 
     iter++;
     if (iter != calib_timestamps.end()) {

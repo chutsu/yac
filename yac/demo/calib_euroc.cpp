@@ -24,7 +24,7 @@ void calibrate_cameras(const std::string &train_path,
 
   // Setup
   const auto train_data = load_data(train_path);
-  const auto valid_data = load_data(valid_path);
+  // const auto valid_data = load_data(valid_path);
   const yac::calib_target_t calib_target{"aprilgrid", 6, 6, 0.088, 0.3};
   const int cam_res[2] = {752, 480};
   const std::string proj_model = "pinhole";
@@ -37,8 +37,8 @@ void calibrate_cameras(const std::string &train_path,
   calib.add_camera(1, cam_res, proj_model, dist_model);
   calib.solve();
   calib.save_results(results_path);
-  calib.inspect(train_data);
-  calib.inspect(valid_data);
+  // calib.inspect(train_data);
+  // calib.inspect(valid_data);
 }
 
 // CALIBRATE IMU /////////////////////////////////////////////////////////////
@@ -209,6 +209,6 @@ void calibrate_imu(const std::string &data_path,
 
 int main() {
   calibrate_cameras(CAMERA_DATA, IMU_DATA, CAMERA_RESULTS_PATH);
-  // calibrate_imu(IMU_DATA, CAMERA_RESULTS_PATH, IMU_RESULTS_PATH);
+  calibrate_imu(IMU_DATA, CAMERA_RESULTS_PATH, IMU_RESULTS_PATH);
   return 0;
 }

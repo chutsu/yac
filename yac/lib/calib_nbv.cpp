@@ -225,14 +225,14 @@ int calib_nbv_poses(mat4s_t &nbv_poses,
     const mat4_t T_FCi = lookat(cam_pos, target_center);
     nbv_poses.push_back(T_FCi);
 
-    // Randomly perturb the pose a little
+    // // Randomly perturb the pose a little
     // const auto roll = deg2rad(randf(-5.0, 5.0));
     // const auto pitch = deg2rad(randf(-5.0, 5.0));
     // const auto yaw = deg2rad(randf(-5.0, 5.0));
     // const vec3_t rpy{roll, pitch, yaw};
     // const mat3_t dC = euler321(rpy);
     // const mat4_t dT = tf(dC, zeros(3, 1));
-    // poses.push_back(T_FCi * dT);
+    // nbv_poses.push_back(T_FCi * dT);
   }
 
   return 0;

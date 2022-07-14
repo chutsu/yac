@@ -68,7 +68,6 @@ int main(int argc, char *argv[]) {
   process_rosbag(config_file, calib);
   calib.solve();
   calib.save_results("/tmp/calib-results.yaml");
-  calib.save_stats("/tmp/calib-stats.csv");
 
   return 0;
 }

@@ -5,7 +5,7 @@ ros:
   imu0_topic: "/rs/imu0/data"
 
 settings:
-  info_gain_threshold: 0.5
+  info_gain_threshold: 0.2
 
 calib_target:
   target_type: 'aprilgrid'  # Target type

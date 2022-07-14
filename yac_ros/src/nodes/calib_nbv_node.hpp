@@ -30,8 +30,8 @@ struct calib_nbv_t {
   bool enable_auto_init = true;
   int min_intrinsics_views = 5;
   real_t min_intrinsics_view_diff = 10.0;
-  double nbv_reproj_threshold = 30.0;
-  double nbv_hold_threshold = 1.0;
+  double nbv_reproj_threshold = 40.0;
+  double nbv_hold_threshold = 0.5;
 
   // ROS
   const std::string node_name;
@@ -54,6 +54,7 @@ struct calib_nbv_t {
   int missing_cam_idx = -1;
 
   // Calibration
+  int views_added = 0;
   std::string config_file;
   std::map<int, std::string> cam_dirs;
   std::map<int, std::string> grid_dirs;
@@ -263,11 +264,15 @@ struct calib_nbv_t {
     }
 
     // Add view
-    // calib->add_view(view_data);
     if (calib->add_nbv_view(view_data)) {
-      LOG_INFO("Add View!");
+      LOG_INFO("Add View! [Number of Views: %d]", views_added++);
       if (calib->nb_views() >= calib->min_nbv_views) {
         calib->_remove_outliers(false);
+      }
+
+      // Marginalize oldest view
+      if (calib->nb_views() > calib->sliding_window_size) {
+        calib->marginalize();
       }
     } else {
       LOG_INFO("Reject View!");
@@ -334,13 +339,14 @@ struct calib_nbv_t {
     draw_nbv_reproj_error(nbv_reproj_err, img);
 
     // Show NBV status
-    if (nbv_reproj_err > 0.0 && nbv_reproj_err < (nbv_reproj_threshold * 1.5)) {
-      std::string text = "Nearly There!";
-      if (nbv_reproj_err <= nbv_reproj_threshold) {
-        text = "HOLD IT!";
-      }
-      draw_status_text(text, img);
-    }
+    // if (nbv_reproj_err > 0.0 && nbv_reproj_err < (nbv_reproj_threshold
+    // * 1.5)) {
+    //   std::string text = "Nearly There!";
+    //   if (nbv_reproj_err <= nbv_reproj_threshold) {
+    //     text = "HOLD IT!";
+    //   }
+    //   draw_status_text(text, img);
+    // }
   }
 
   /* Check if extrinsics can be initialized */
@@ -824,8 +830,6 @@ struct calib_nbv_t {
     calib->solver->solve();
     calib->show_results();
     calib->save_results(results_path);
-    calib->save_estimates(camera_data_path + "/camera_poses.csv");
-    calib->save_stats(camera_data_path + "/stats.csv");
 
     // Save info
     const std::string info_path = camera_data_path + "/calib_info.csv";

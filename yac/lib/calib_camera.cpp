@@ -2053,6 +2053,12 @@ void calib_camera_t::print_extrinsics_convergence(FILE *out) const {
 }
 
 void calib_camera_t::print_convergence(FILE *out) const {
+  // Pre-check
+  if (calib_timestamps.size() == 0) {
+    return;
+  }
+
+  // Setup
   fprintf(out, "convergence:\n");
   fprintf(out, "  rows: %ld\n", calib_timestamps.size());
   fprintf(out, "  cols: %d\n", 9);
@@ -2069,6 +2075,7 @@ void calib_camera_t::print_convergence(FILE *out) const {
   fprintf(out, "reproj_err_std\n");
   fprintf(out, "  data: [\n");
 
+  // Record convergence
   int view_idx = 0;
   auto iter = calib_timestamps.begin();
   while (iter != calib_timestamps.end()) {
@@ -2194,10 +2201,10 @@ int calib_camera_t::save_results(const std::string &save_path) {
   print_calib_target(outfile, calib_target);
   print_metrics(outfile, calib_views.size(), reproj_errors, reproj_errors_all);
   print_estimates(outfile, cam_params, cam_exts);
-  print_camera_convergence(outfile);
-  print_extrinsics_convergence(outfile);
-  print_convergence(outfile);
-  print_reproj_errors(outfile);
+  // print_camera_convergence(outfile);
+  // print_extrinsics_convergence(outfile);
+  // print_convergence(outfile);
+  // print_reproj_errors(outfile);
   fclose(outfile);
 
   return 0;

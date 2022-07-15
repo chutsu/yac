@@ -332,9 +332,6 @@ void pose_message_handler(const rosbag::MessageInstance &msg,
                           std::ofstream &pose_data) {
   const auto pose_msg = msg.instantiate<geometry_msgs::PoseStamped>();
   const auto ts = ros::Time(pose_msg->header.stamp);
-  const auto ts_str = std::to_string(ts.toNSec());
-
-  // Save pose to data.csv
   pose_data << ts.toNSec() << ",";
   pose_data << pose_msg->pose.position.x << ",";
   pose_data << pose_msg->pose.position.y << ",";
@@ -343,6 +340,20 @@ void pose_message_handler(const rosbag::MessageInstance &msg,
   pose_data << pose_msg->pose.orientation.y << ",";
   pose_data << pose_msg->pose.orientation.z << ",";
   pose_data << pose_msg->pose.orientation.w << std::endl;
+}
+
+void tf_message_handler(const rosbag::MessageInstance &msg,
+                        std::ofstream &pose_data) {
+  const auto pose_msg = msg.instantiate<geometry_msgs::TransformStamped>();
+  const auto ts = ros::Time(pose_msg->header.stamp);
+  pose_data << ts.toNSec() << ",";
+  pose_data << pose_msg->transform.translation.x << ",";
+  pose_data << pose_msg->transform.translation.y << ",";
+  pose_data << pose_msg->transform.translation.z << ",";
+  pose_data << pose_msg->transform.rotation.x << ",";
+  pose_data << pose_msg->transform.rotation.y << ",";
+  pose_data << pose_msg->transform.rotation.z << ",";
+  pose_data << pose_msg->transform.rotation.w << std::endl;
 }
 
 void image_message_handler(const rosbag::MessageInstance &msg,

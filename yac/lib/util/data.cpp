@@ -38,6 +38,12 @@ char *malloc_string(const char *s) {
   return retval;
 }
 
+std::string replace(const std::string &in,
+                    const std::string &from,
+                    const std::string &to) {
+  return std::regex_replace(in, std::regex(from), to);
+}
+
 int csv_rows(const char *fp) {
   // Load file
   FILE *infile = fopen(fp, "r");

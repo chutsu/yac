@@ -721,6 +721,184 @@ bool fiducial_residual_t::EvaluateWithMinimalJacobians(
   return true;
 }
 
+// MOCAP MARKER - CAMERA RESIDUAL //////////////////////////////////////////////
+
+mocap_residual_t::mocap_residual_t(const timestamp_t ts_,
+                                   camera_geometry_t *cam_geom_,
+                                   camera_params_t *cam_params_,
+                                   pose_t *fiducial_pose_,
+                                   pose_t *mocap_pose_,
+                                   extrinsics_t *mocap_camera_extrinsics_,
+                                   const int tag_id_,
+                                   const int corner_idx_,
+                                   const vec3_t &r_FFi_,
+                                   const vec2_t &z_,
+                                   const mat2_t &covar_,
+                                   calib_loss_t *loss_fn_)
+    : calib_residual_t{"mocap_residual_t", loss_fn_}, ts{ts_},
+      cam_geom{cam_geom_}, cam_params{cam_params_},
+      fiducial_pose{fiducial_pose_}, mocap_pose{mocap_pose_},
+      mocap_camera_extrinsics{mocap_camera_extrinsics_}, tag_id{tag_id_},
+      corner_idx{corner_idx_}, r_FFi{r_FFi_}, z{z_}, covar{covar_},
+      info{covar.inverse()}, sqrt_info{info.llt().matrixU()} {
+  // Data
+  residuals.resize(2);
+  param_blocks.push_back(fiducial_pose);
+  param_blocks.push_back(mocap_pose);
+  param_blocks.push_back(mocap_camera_extrinsics);
+  param_blocks.push_back(cam_params);
+  jacobian_blocks.push_back(zeros(2, 7));
+  jacobian_blocks.push_back(zeros(2, 7));
+  jacobian_blocks.push_back(zeros(2, 7));
+  jacobian_blocks.push_back(zeros(2, 8));
+  min_jacobian_blocks.push_back(zeros(2, 6));
+  min_jacobian_blocks.push_back(zeros(2, 6));
+  min_jacobian_blocks.push_back(zeros(2, 6));
+  min_jacobian_blocks.push_back(zeros(2, 8));
+
+  // Ceres-Solver
+  set_num_residuals(2);
+  auto block_sizes = mutable_parameter_block_sizes();
+  block_sizes->push_back(7); // Fiducial pose
+  block_sizes->push_back(7); // Mocap pose
+  block_sizes->push_back(7); // Mocap-camera extrinsics
+  block_sizes->push_back(8); // Camera parameters
+}
+
+int mocap_residual_t::get_residual(vec2_t &r) const {
+  // Map parameters
+  const mat4_t T_WF = fiducial_pose->tf();
+  const mat4_t T_WM = mocap_pose->tf();
+  const mat4_t T_MC0 = mocap_camera_extrinsics->tf();
+  Eigen::Map<const vecx_t> params(cam_params->param.data(), 8);
+
+  // Transform and project point to image plane
+  auto cam_res = cam_params->resolution;
+  const mat4_t T_MW = T_WM.inverse();
+  const mat4_t T_C0M = T_MC0.inverse();
+  const vec3_t r_C0Fi = tf_point(T_C0M * T_MW * T_WF, r_FFi);
+  vec2_t z_hat;
+  if (cam_geom->project(cam_res, params, r_C0Fi, z_hat) != 0) {
+    r = z - z_hat;
+    return -1;
+  }
+
+  r = z - z_hat;
+  return 0;
+}
+
+int mocap_residual_t::get_reproj_error(real_t &error) const {
+  vec2_t r;
+  if (get_residual(r) != 0) {
+    error = r.norm();
+    return -1;
+  }
+  error = r.norm();
+  return 0;
+}
+
+bool mocap_residual_t::EvaluateWithMinimalJacobians(double const *const *params,
+                                                    double *res,
+                                                    double **jacs,
+                                                    double **min_jacs) const {
+  // Map optimization variables to Eigen
+  const mat4_t T_WF = tf(params[0]);
+  const mat4_t T_WM = tf(params[1]);
+  const mat4_t T_MC0 = tf(params[2]);
+  Eigen::Map<const vecx_t> param(params[3], 8);
+
+  // Transform and project point to image plane
+  auto cam_res = cam_params->resolution;
+  const mat4_t T_MW = T_WM.inverse();
+  const mat4_t T_C0M = T_MC0.inverse();
+  const vec3_t r_MFi = tf_point(T_MW * T_WF, r_FFi);
+  const vec3_t r_C0Fi = tf_point(T_C0M * T_MW * T_WF, r_FFi);
+  const vec2_t p{r_C0Fi(0) / r_C0Fi(2), r_C0Fi(1) / r_C0Fi(2)};
+  vec2_t z_hat;
+  bool valid = true;
+  if (cam_geom->project(cam_res, param, r_C0Fi, z_hat) != 0) {
+    valid = false;
+  }
+
+  // Residual
+  Eigen::Map<vec2_t> r(res);
+  r = sqrt_info * (z - z_hat);
+
+  // Jacobians
+  const matx_t J_cam_params = cam_geom->params_jacobian(param, r_C0Fi);
+  const matx_t Jh = cam_geom->project_jacobian(param, r_C0Fi);
+  const matx_t Jh_weighted = sqrt_info * Jh;
+  const mat3_t C_C0W = tf_rot(T_C0M * T_MW);
+  const mat3_t C_MC0 = tf_rot(T_MC0);
+  const mat3_t C_C0M = C_MC0.transpose();
+  if (jacs == nullptr) {
+    return true;
+  }
+
+  // Jacobians w.r.t T_WF
+  if (jacs[0]) {
+    const mat3_t C_WF = tf_rot(T_WF);
+    matx_t J_min = zeros(2, 6);
+    J_min.block(0, 0, 2, 3) = -1 * Jh_weighted * C_C0W * I(3);
+    J_min.block(0, 3, 2, 3) = -1 * Jh_weighted * C_C0W * -skew(C_WF * r_FFi);
+
+    Eigen::Map<mat_t<2, 7, row_major_t>> J(jacs[0]);
+    J = J_min * lift_pose_jacobian(T_WF);
+    J = (valid) ? J : zeros(2, 7);
+    if (min_jacs && min_jacs[0]) {
+      Eigen::Map<mat_t<2, 6, row_major_t>> min_J(min_jacs[0]);
+      min_J = (valid) ? J_min : zeros(2, 6);
+    }
+  }
+
+  // Jacobians w.r.t T_WM
+  if (jacs[1]) {
+    const mat3_t C_WM = tf_rot(T_WM);
+    matx_t J_min = zeros(2, 6);
+    J_min.block(0, 0, 2, 3) = -1 * Jh_weighted * -C_C0W * I(3);
+    J_min.block(0, 3, 2, 3) = -1 * Jh_weighted * -C_C0W * -skew(C_WM * r_MFi);
+
+    Eigen::Map<mat_t<2, 7, row_major_t>> J(jacs[1]);
+    J = J_min * lift_pose_jacobian(T_WM);
+    J = (valid) ? J : zeros(2, 7);
+    if (min_jacs && min_jacs[1]) {
+      Eigen::Map<mat_t<2, 6, row_major_t>> min_J(min_jacs[1]);
+      min_J = (valid) ? J_min : zeros(2, 6);
+    }
+  }
+
+  // Jacobians w.r.t T_MC0
+  if (jacs[2]) {
+    matx_t J_min = zeros(2, 6);
+    J_min.block(0, 0, 2, 3) = -1 * Jh_weighted * -C_C0M * I(3);
+    J_min.block(0, 3, 2, 3) = -1 * Jh_weighted * -C_C0M * -skew(C_MC0 * r_C0Fi);
+
+    Eigen::Map<mat_t<2, 7, row_major_t>> J(jacs[2]);
+    J = J_min * lift_pose_jacobian(T_MC0);
+    J = (valid) ? J : zeros(2, 7);
+    if (min_jacs && min_jacs[2]) {
+      Eigen::Map<mat_t<2, 6, row_major_t>> min_J(min_jacs[2]);
+      min_J = (valid) ? J_min : zeros(2, 6);
+    }
+  }
+
+  // Jacobians w.r.t camera params
+  if (jacs[3]) {
+    const matx_t J_cam = cam_geom->params_jacobian(param, r_C0Fi);
+    const matx_t J_min = -1 * sqrt_info * J_cam;
+
+    Eigen::Map<mat_t<2, 8, row_major_t>> J(jacs[3]);
+    J = J_min;
+    J = (valid) ? J : zeros(2, 8);
+    if (min_jacs && min_jacs[3]) {
+      Eigen::Map<mat_t<2, 8, row_major_t>> min_J(min_jacs[3]);
+      min_J = (valid) ? J_min : zeros(2, 8);
+    }
+  }
+
+  return true;
+}
+
 // INERTIAL ERROR //////////////////////////////////////////////////////////////
 
 imu_residual_t::imu_residual_t(const imu_params_t &imu_params,

@@ -1,0 +1,24 @@
+ros:
+  rosbag: "/data/calibration_d455_ros_20220713/calibration_d455_ros_20220713_183241.bag"
+  cam0_topic: "/D455/rgb0/image"
+  body0_topic: "/vicon/d455_ros/d455_ros"
+  target0_topic: "/vicon/aprilgrid_tv/aprilgrid_tv"
+
+settings:
+  fix_intrinsics: true
+  fix_mocap_poses: true
+  fix_fiducial_pose: false
+  imshow: true
+
+calib_target:
+  target_type: 'aprilgrid'  # Target type
+  tag_rows: 6               # Number of rows
+  tag_cols: 6               # Number of cols
+  tag_size: 0.08            # Size of apriltag, edge to edge [m]
+  tag_spacing: 0.3          # Ratio of space between tags to tagSize
+                            # Example: tagSize=2m, spacing=0.5m --> tagSpacing=0.25[-]
+
+cam0:
+  resolution: [640, 480]
+  proj_model: "pinhole"
+  dist_model: "radtan4"

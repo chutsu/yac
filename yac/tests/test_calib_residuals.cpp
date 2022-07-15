@@ -296,6 +296,92 @@ int test_fiducial_residual() {
   return 0;
 }
 
+int test_mocap_residual() {
+  // Fiducial pose in world frame
+  // clang-format off
+  mat4_t T_WF;
+  T_WF << 0.0, 0.0, 1.0, -1.0,
+          1.0, 0.0, 0.0, -0.4,
+          0.0, 1.0, 0.0, -0.5,
+          0.0, 0.0, 0.0, 1.0;
+  T_WF = tf_perturb_rot(T_WF, 0.01, 0);
+  pose_t fiducial_pose{0, T_WF};
+  // clang-format on
+
+  // Imu pose in world frame
+  // clang-format off
+  mat4_t T_WM;
+  T_WM << -1.0, 0.0, 0.0, 0.1,
+          0.0, -1.0, 0.0, 0.0,
+          0.0, 0.0, 1.0, 0.0,
+          0.0, 0.0, 0.0, 1.0;
+  T_WM = tf_perturb_rot(T_WM, 0.01, 1);
+  pose_t mocap_pose{0, T_WM};
+  // ^ Note: Due to numerical stability issues the translation component
+  // cannot be 0 for checking jacobians
+  // clang-format on
+
+  // Camera extrinsics
+  // clang-format off
+  mat4_t T_MC0;
+  T_MC0 << 0.0, 0.0, 1.0, 0.001,
+           -1.0, 0.0, 0.0, 0.001,
+           0.0, -1.0, 0.0, 0.001,
+           0.0, 0.0, 0.0, 1.0;
+  T_MC0 = tf_perturb_rot(T_MC0, 0.01, 2);
+  extrinsics_t mocap_camera_exts{T_MC0};
+  // clang-format on
+
+  // Get AprilGrid data
+  aprilgrid_t grid{0, 6, 6, 0.088, 0.3};
+  const int tag_id = 0;
+  const int corner_idx = 2;
+  const vec3_t r_FFi = grid.object_point(tag_id, corner_idx);
+
+  // Camera parameters
+  pinhole_radtan4_t cam_geom;
+  const int cam_idx = 0;
+  const int cam_res[2] = {752, 480};
+  const std::string proj_model = "pinhole";
+  const std::string dist_model = "radtan4";
+  const vec4_t proj_params{458.654, 457.296, 367.215, 248.375};
+  const vec4_t dist_params{-0.28340811, 0.07395907, 0.00019359, 1.76187114e-05};
+  camera_params_t cam_params{cam_idx,
+                             cam_res,
+                             proj_model,
+                             dist_model,
+                             proj_params,
+                             dist_params};
+
+  // Project image point
+  const mat2_t covar = I(2);
+  const mat4_t T_MW = T_WM.inverse();
+  const mat4_t T_C0M = T_MC0.inverse();
+  const vec3_t r_C0Fi = tf_point(T_C0M * T_MW * T_WF, r_FFi);
+  vec2_t z = zeros(2, 1);
+  cam_geom.project(cam_res, cam_params.param, r_C0Fi, z);
+
+  // Form fiducial residual
+  mocap_residual_t r(0,
+                     &cam_geom,
+                     &cam_params,
+                     &fiducial_pose,
+                     &mocap_pose,
+                     &mocap_camera_exts,
+                     tag_id,
+                     corner_idx,
+                     r_FFi,
+                     z,
+                     covar);
+
+  MU_CHECK(r.check_jacs(0, "J_fiducial_pose"));
+  MU_CHECK(r.check_jacs(1, "J_mocap_pose"));
+  MU_CHECK(r.check_jacs(2, "J_mocap_camera_extrinsics"));
+  MU_CHECK(r.check_jacs(3, "J_camera"));
+
+  return 0;
+}
+
 int test_marg_residual() {
   // Fiducial corners
   const calib_target_t calib_target;
@@ -381,6 +467,7 @@ void test_suite() {
   MU_ADD_TEST(test_pose_prior);
   MU_ADD_TEST(test_reproj_residual);
   MU_ADD_TEST(test_fiducial_residual);
+  MU_ADD_TEST(test_mocap_residual);
   MU_ADD_TEST(test_marg_residual);
 }
 

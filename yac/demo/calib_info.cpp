@@ -148,6 +148,8 @@ void save_results(const std::string &save_path,
     fprintf(csv, "%f\n", calib_entropy[ts]);
   }
   fclose(csv);
+
+  LOG_INFO("Done!");
 }
 
 int main(int argc, char *argv[]) {

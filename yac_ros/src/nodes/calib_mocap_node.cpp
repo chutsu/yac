@@ -28,7 +28,6 @@ std::string basename(const std::string &path) {
 }
 
 void process_rosbag(const std::string &rosbag_path,
-                    const std::string &out_path,
                     const std::string &cam0_topic,
                     const std::string &body0_topic,
                     const std::string &target0_topic) {
@@ -38,10 +37,11 @@ void process_rosbag(const std::string &rosbag_path,
   target_topics.push_back(body0_topic);
   target_topics.push_back(target0_topic);
   if (check_ros_topics(rosbag_path, target_topics) == false) {
-    FATAL("Failed to create dir [%s]", out_path.c_str());
+    FATAL("Missing necessary ros topic!");
   }
 
   // Check output dir
+  const std::string out_path = replace(rosbag_path, ".bag", "");
   if (dir_exists(out_path) == false) {
     if (dir_create(out_path) != 0) {
       FATAL("Failed to create dir [%s]", out_path.c_str());
@@ -67,7 +67,6 @@ void process_rosbag(const std::string &rosbag_path,
   for (const auto &msg : bag_view) {
     // Print progress
     print_progress((double)msg_idx / bag_view.size());
-    msg_idx++;
 
     // Process camera data
     if (msg.getTopic() == cam0_topic) {
@@ -76,13 +75,16 @@ void process_rosbag(const std::string &rosbag_path,
 
     // Process body data
     if (msg.getTopic() == body0_topic) {
-      pose_message_handler(msg, body0_output_path + "/data/", body0_csv);
+      tf_message_handler(msg, body0_csv);
     }
 
     // Process target data
     if (msg.getTopic() == target0_topic) {
-      pose_message_handler(msg, target0_output_path + "/data/", target0_csv);
+      tf_message_handler(msg, target0_csv);
     }
+
+    // Update
+    msg_idx++;
   }
 
   // Clean up rosbag
@@ -304,13 +306,11 @@ int main(int argc, char *argv[]) {
 
   // Parse calibration target params
   calib_target_t calib_target;
-  if (calib_target_load(calib_target, config_file, "calib_target") != 0) {
+  if (calib_target.load(config_file, "calib_target") != 0) {
     FATAL("Failed to parse calib file [%s]!", config_file.c_str());
   }
 
   // Parse config file
-  std::string data_path;
-  std::string calib_results_path;
   std::string rosbag_path;
   std::string test_bag_path;
   std::string cam0_topic;
@@ -322,19 +322,16 @@ int main(int argc, char *argv[]) {
   parse(config, "ros.cam0_topic", cam0_topic);
   parse(config, "ros.body0_topic", body0_topic);
   parse(config, "ros.target0_topic", target0_topic);
-  parse(config, "settings.data_path", data_path);
 
   // Process rosbag
-  process_rosbag(rosbag_path,
-                 data_path,
-                 cam0_topic,
-                 body0_topic,
-                 target0_topic);
+  process_rosbag(rosbag_path, cam0_topic, body0_topic, target0_topic);
 
-  // // Calibrate mocap marker to camera extrinsics
-  // if (calib_mocap_solve(config_file) != 0) {
-  //   FATAL("Failed to calibrate camera!");
-  // }
+  // Calibrate mocap marker to camera extrinsics
+  const auto data_path = replace(rosbag_path, ".bag", "");
+  const auto results_path = data_path + "/calib_mocap-results.yaml";
+  calib_mocap_t calib{config_file, data_path};
+  calib.solve();
+  calib.save_results(results_path);
 
   // // Process test ROS bag
   // process_rosbag(test_bag_path,

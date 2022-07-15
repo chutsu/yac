@@ -204,6 +204,54 @@ struct fiducial_residual_t : public calib_residual_t {
                                     double **min_jacs) const;
 };
 
+// MOCAP MARKER RESIDUAL ///////////////////////////////////////////////////////
+
+struct mocap_residual_t : public calib_residual_t {
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
+  camera_geometry_t *cam_geom = nullptr;
+  camera_params_t *cam_params = nullptr;
+  pose_t *fiducial_pose = nullptr;
+  pose_t *mocap_pose = nullptr;
+  extrinsics_t *mocap_camera_extrinsics = nullptr;
+
+  timestamp_t ts;
+  int tag_id;
+  int corner_idx;
+  vec3_t r_FFi{0.0, 0.0, 0.0};
+  vec2_t z{0.0, 0.0};
+
+  const mat2_t covar;
+  const mat2_t info;
+  const mat2_t sqrt_info;
+
+  mocap_residual_t(const timestamp_t ts_,
+                   camera_geometry_t *cam_geom_,
+                   camera_params_t *cam_params_,
+                   pose_t *fiducial_pose_,
+                   pose_t *mocap_pose_,
+                   extrinsics_t *mocap_camera_extrinsics_,
+                   const int tag_id_,
+                   const int corner_idx_,
+                   const vec3_t &r_FFi_,
+                   const vec2_t &z_,
+                   const mat2_t &covar_,
+                   calib_loss_t *loss_fn_ = nullptr);
+  ~mocap_residual_t() = default;
+
+  /** Get residual */
+  int get_residual(vec2_t &r) const;
+
+  /** Get reprojection error */
+  int get_reproj_error(real_t &error) const;
+
+  /* Evaluate */
+  bool EvaluateWithMinimalJacobians(double const *const *params,
+                                    double *res,
+                                    double **jacs,
+                                    double **min_jacs) const;
+};
+
 // INERTIAL RESIDUAL //////////////////////////////////////////////////////////
 
 #define EST_TIMEDELAY 0

@@ -101,6 +101,8 @@ std::ofstream gyro_init_output_file(const std::string &output_path);
 
 void pose_message_handler(const rosbag::MessageInstance &msg,
                           std::ofstream &pose_data);
+void tf_message_handler(const rosbag::MessageInstance &msg,
+                        std::ofstream &pose_data);
 void image_message_handler(const rosbag::MessageInstance &msg,
                            const std::string &output_path,
                            std::ofstream &camera_data);

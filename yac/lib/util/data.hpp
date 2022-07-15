@@ -1,6 +1,8 @@
 #ifndef YAC_DATA_HPP
 #define YAC_DATA_HPP
 
+#include <regex>
+
 #include "core.hpp"
 #include "fs.hpp"
 
@@ -44,6 +46,13 @@ uint32_t uint32(const uint8_t *data, const size_t offset);
  * Allocate memory for a C-style string
  */
 char *malloc_string(const char *s);
+
+/**
+ * Search and replace substring
+ */
+std::string replace(const std::string &in,
+                    const std::string &from,
+                    const std::string &to);
 
 /**
  * Get number of rows in CSV file.

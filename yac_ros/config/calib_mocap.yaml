@@ -10,9 +10,7 @@ settings:
   fix_intrinsics: true
   fix_mocap_poses: true
   fix_fiducial_pose: false
-  data_path: "/data/aabm/calib_mocap"
-  sigma_vision: 0.5
-  imshow: true
+  outlier_threshold: 4.0
 
 calib_target:
   target_type: 'aprilgrid'  # Target type

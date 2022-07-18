@@ -2,11 +2,134 @@
 
 namespace yac {
 
+// MOCAP VIEW ////////////////////////////////////////////////////////////////
+
+mocap_view_t::mocap_view_t(const aprilgrid_t &grid_,
+                           solver_t *solver_,
+                           calib_loss_t *loss_,
+                           camera_geometry_t *cam_geom_,
+                           camera_params_t *cam_params_,
+                           pose_t *fiducial_pose_,
+                           pose_t *mocap_pose_,
+                           extrinsics_t *mocap_camera_extrinsics_)
+    : ts{grid_.timestamp}, grid{grid_}, solver{solver_}, loss{loss_},
+      cam_geom{cam_geom_}, cam_params{cam_params_},
+      fiducial_pose{fiducial_pose_}, mocap_pose{mocap_pose_},
+      mocap_camera_extrinsics{mocap_camera_extrinsics_} {
+  if (grid.detected == false) {
+    return;
+  }
+
+  // Get AprilGrid measurements
+  std::vector<int> tag_ids;
+  std::vector<int> corner_idxs;
+  vec2s_t kps;
+  vec3s_t pts;
+  grid.get_measurements(tag_ids, corner_idxs, kps, pts);
+
+  // Add mocap residual
+  const mat2_t covar = I(2);
+  for (size_t i = 0; i < tag_ids.size(); i++) {
+    const int tag_id = tag_ids[i];
+    const int corner_idx = corner_idxs[i];
+    const vec2_t z = kps[i];
+    const vec3_t r_FFi = pts[i];
+
+    auto res_fn = std::make_shared<mocap_residual_t>(grid.timestamp,
+                                                     cam_geom,
+                                                     cam_params,
+                                                     fiducial_pose,
+                                                     mocap_pose,
+                                                     mocap_camera_extrinsics,
+                                                     tag_id,
+                                                     corner_idx,
+                                                     r_FFi,
+                                                     z,
+                                                     covar);
+    solver->add_residual(res_fn.get());
+    res_fns.push_back(res_fn);
+  }
+}
+
+int mocap_view_t::nb_detections() const { return grid.nb_detections; }
+
+vec2s_t mocap_view_t::get_residuals() const {
+  vec2s_t residuals;
+
+  for (auto &res_fn : res_fns) {
+    vec2_t r;
+    if (res_fn->get_residual(r) == 0) {
+      residuals.push_back(r);
+    }
+  }
+
+  return residuals;
+}
+
+std::vector<real_t> mocap_view_t::get_reproj_errors() const {
+  std::vector<real_t> reproj_errors;
+
+  for (auto res_fn : res_fns) {
+    real_t e;
+    if (res_fn->get_reproj_error(e) == 0) {
+      reproj_errors.push_back(e);
+    }
+  }
+
+  return reproj_errors;
+}
+
+int mocap_view_t::filter_view(const vec2_t &threshold) {
+  // Filter
+  const real_t th_x = threshold.x();
+  const real_t th_y = threshold.y();
+  int nb_inliers = 0;
+  int nb_outliers = 0;
+
+  auto res_fns_it = res_fns.begin();
+  while (res_fns_it != res_fns.end()) {
+    auto res = *res_fns_it;
+
+    vec2_t r{0.0, 0.0};
+    if (res->get_residual(r) == 0 && (r.x() > th_x || r.y() > th_y)) {
+      // Remove grid measurement
+      auto before = grid.nb_detections;
+      auto tag_id = res->tag_id;
+      auto corner_idx = res->corner_idx;
+      grid.remove(tag_id, corner_idx);
+      auto after = grid.nb_detections;
+      if (grid.has(tag_id, corner_idx)) {
+        FATAL("tag_id: %d and corner_idx: %d should not exist!",
+              tag_id,
+              corner_idx);
+      }
+      if (before == after) {
+        FATAL("before == after!");
+      }
+
+      // Remove residual block from ceres::Problem
+      solver->remove_residual(res.get());
+
+      res_fns_it = res_fns.erase(res_fns_it);
+      nb_outliers++;
+    } else {
+      res_fns_it++;
+      nb_inliers++;
+    }
+  }
+
+  return nb_outliers;
+}
+
+//////////////////////////////////////////////////////////////////////////////
+
+// CALIB MOCAP  //////////////////////////////////////////////////////////////
+
 calib_mocap_t::calib_mocap_t(const std::string &config_file_,
                              const std::string &data_path_)
     : config_file{config_file_}, data_path{data_path_} {
   // Load calib config file
-  std::vector<int> resolution;
+  std::vector<int> cam_res;
   std::string proj_model;
   std::string dist_model;
   vecx_t proj_params;
@@ -15,8 +138,8 @@ calib_mocap_t::calib_mocap_t(const std::string &config_file_,
   parse(config, "settings.fix_intrinsics", fix_intrinsics);
   parse(config, "settings.fix_mocap_poses", fix_mocap_poses);
   parse(config, "settings.fix_fiducial_pose", fix_fiducial_pose);
-  parse(config, "settings.imshow", imshow);
-  parse(config, "cam0.resolution", resolution);
+  parse(config, "settings.outlier_threshold", outlier_threshold);
+  parse(config, "cam0.resolution", cam_res);
   parse(config, "cam0.proj_model", proj_model);
   parse(config, "cam0.dist_model", dist_model);
   parse(config, "cam0.proj_params", proj_params, true);
@@ -32,6 +155,9 @@ calib_mocap_t::calib_mocap_t(const std::string &config_file_,
   if (calib_target.load(config_file, "calib_target") != 0) {
     FATAL("Failed to load calib target in [%s]!", config_file.c_str());
   }
+
+  // Setup Solver
+  solver = std::make_unique<ceres_solver_t>();
 
   // Setup camera geometry
   if (proj_model == "pinhole" && dist_model == "radtan4") {
@@ -49,24 +175,22 @@ calib_mocap_t::calib_mocap_t(const std::string &config_file_,
     const auto cam_grids = _preprocess(calib_target, cam0_path, grid0_path);
     calib_camera_t calib{calib_target};
     calib.add_camera_data(0, cam_grids);
-    calib.add_camera(0, resolution.data(), proj_model, dist_model);
+    calib.add_camera(0, cam_res.data(), proj_model, dist_model);
     calib.solve();
-    camera =
-        camera_params_t::init(0, resolution.data(), proj_model, dist_model);
-    camera.param = calib.get_camera_params(0);
-  } else {
-    camera = camera_params_t{0,
-                             resolution.data(),
-                             proj_model,
-                             dist_model,
-                             proj_params,
-                             dist_params};
+    proj_params = calib.get_camera_params(0).head(4);
+    dist_params = calib.get_camera_params(0).tail(4);
   }
+  _add_camera(cam_res,
+              proj_model,
+              dist_model,
+              proj_params,
+              dist_params,
+              fix_intrinsics);
 
   // Load dataset
   // -- Fiducial target pose
   const mat4_t T_WF = load_pose(target0_csv_path);
-  fiducial_pose = pose_t{0, T_WF};
+  _add_fiducial_pose(0, T_WF, fix_fiducial_pose);
   // -- Mocap poses
   timestamps_t body_timestamps;
   mat4s_t body_poses;
@@ -76,8 +200,7 @@ calib_mocap_t::calib_mocap_t(const std::string &config_file_,
   const aprilgrids_t grids_raw = load_aprilgrids(grid0_path);
   lerp_body_poses(grids_raw, body_timestamps, body_poses, grids, T_WM);
   for (size_t k = 0; k < grids.size(); k++) {
-    const auto ts = grids[k].timestamp;
-    mocap_poses[ts] = pose_t{ts, T_WM[k]};
+    _add_mocap_pose(grids[k].timestamp, T_WM[k], fix_mocap_poses);
   }
   // -- Mocap marker to camera transform
   mat4_t T_MC0;
@@ -95,19 +218,31 @@ calib_mocap_t::calib_mocap_t(const std::string &config_file_,
     T_MC0 = T_MW * T_WF * T_C0F.inverse();
     break;
   }
-  mocap_camera_extrinsics = extrinsics_t{T_MC0};
+  _add_mocap_camera_extrinsics(T_MC0);
 }
 
 int calib_mocap_t::get_num_views() const { return mocap_poses.size(); }
 
 std::vector<real_t> calib_mocap_t::get_reproj_errors() const {
   std::vector<real_t> reproj_errors;
-  for (const auto &res_fn : residuals) {
-    real_t error;
-    res_fn->get_reproj_error(error);
-    reproj_errors.push_back(error);
+  for (const auto &view : calib_views) {
+    for (const auto e : view.get_reproj_errors()) {
+      reproj_errors.push_back(e);
+    }
   }
   return reproj_errors;
+}
+
+vec2s_t calib_mocap_t::get_residuals() const {
+  vec2s_t residuals;
+
+  for (auto &view : calib_views) {
+    for (const auto &r : view.get_residuals()) {
+      residuals.push_back(r);
+    }
+  }
+
+  return residuals;
 }
 
 mat4_t calib_mocap_t::get_fiducial_pose() const { return fiducial_pose.tf(); }
@@ -155,50 +290,50 @@ aprilgrids_t calib_mocap_t::_preprocess(const calib_target_t &calib_target,
   return grids;
 }
 
+void calib_mocap_t::_add_camera(const std::vector<int> &cam_res,
+                                const std::string &proj_model,
+                                const std::string &dist_model,
+                                const vecx_t &proj_params,
+                                const vecx_t &dist_params,
+                                const bool fix) {
+  camera = camera_params_t{0,
+                           cam_res.data(),
+                           proj_model,
+                           dist_model,
+                           proj_params,
+                           dist_params,
+                           fix};
+  solver->add_param(&camera);
+}
+
+void calib_mocap_t::_add_fiducial_pose(const timestamp_t ts,
+                                       const mat4_t &T_WF,
+                                       const bool fix) {
+  fiducial_pose = pose_t{ts, T_WF, fix};
+  solver->add_param(&fiducial_pose);
+}
+
+void calib_mocap_t::_add_mocap_pose(const timestamp_t ts,
+                                    const mat4_t &T_WM,
+                                    const bool fix) {
+  mocap_poses[ts] = pose_t{ts, T_WM, fix};
+  solver->add_param(&mocap_poses[ts]);
+}
+
+void calib_mocap_t::_add_mocap_camera_extrinsics(const mat4_t &T_MC0) {
+  mocap_camera_extrinsics = extrinsics_t{T_MC0};
+  solver->add_param(&mocap_camera_extrinsics);
+}
+
 void calib_mocap_t::_add_view(const aprilgrid_t &grid) {
-  // Add mocap pose to problem
-  const auto ts = grid.timestamp;
-  problem->AddParameterBlock(mocap_poses[ts].param.data(), 7);
-  problem->SetParameterization(mocap_poses[ts].param.data(), &pose_plus);
-  if (fix_mocap_poses) {
-    mocap_poses[ts].fixed = true;
-    problem->SetParameterBlockConstant(mocap_poses[ts].param.data());
-  }
-
-  // Add reprojection error to problem
-  std::vector<int> tag_ids;
-  std::vector<int> corner_indicies;
-  vec2s_t keypoints;
-  vec3s_t object_points;
-  grid.get_measurements(tag_ids, corner_indicies, keypoints, object_points);
-
-  const mat2_t covar = I(2);
-  for (size_t i = 0; i < tag_ids.size(); i++) {
-    const int tag_id = tag_ids[i];
-    const int corner_idx = corner_indicies[i];
-    const vec2_t z = keypoints[i];
-    const vec3_t r_FFi = object_points[i];
-
-    auto res_fn = std::make_shared<mocap_residual_t>(grid.timestamp,
-                                                     camera_geometry.get(),
-                                                     &camera,
-                                                     &fiducial_pose,
-                                                     &mocap_poses[ts],
-                                                     &mocap_camera_extrinsics,
-                                                     tag_id,
-                                                     corner_idx,
-                                                     r_FFi,
-                                                     z,
-                                                     covar);
-    residuals.push_back(res_fn);
-
-    problem->AddResidualBlock(res_fn.get(),
-                              NULL,
-                              fiducial_pose.param.data(),
-                              mocap_poses[ts].param.data(),
-                              mocap_camera_extrinsics.param.data(),
-                              camera.param.data());
-  }
+  calib_views.emplace_back(grid,
+                           solver.get(),
+                           nullptr,
+                           camera_geometry.get(),
+                           &camera,
+                           &fiducial_pose,
+                           &mocap_poses[grid.timestamp],
+                           &mocap_camera_extrinsics);
 }
 
 int calib_mocap_t::solve() {
@@ -206,52 +341,28 @@ int calib_mocap_t::solve() {
   assert(T_WM.size() > 0);
   assert(T_WM.size() == grids.size());
 
-  // Setup optimization problem
-  ceres::Problem::Options options;
-  options.local_parameterization_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
-  // options.cost_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
-  options.loss_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
-  options.enable_fast_removal = true;
-  problem = std::make_unique<ceres::Problem>(options);
-
-  // Set ficuial and marker-cam pose parameterization
-  problem->AddParameterBlock(camera.param.data(), camera.global_size);
-  problem->AddParameterBlock(fiducial_pose.param.data(), 7);
-  problem->AddParameterBlock(mocap_camera_extrinsics.param.data(), 7);
-  problem->SetParameterization(fiducial_pose.param.data(), &pose_plus);
-  problem->SetParameterization(mocap_camera_extrinsics.param.data(),
-                               &pose_plus);
-
-  // Fix camera parameters
-  if (fix_intrinsics) {
-    camera.fixed = true;
-    problem->SetParameterBlockConstant(camera.param.data());
-  }
-
-  // Fix fiducial pose - assumes camera intrincs and PnP is good
-  if (fix_fiducial_pose) {
-    fiducial_pose.fixed = true;
-    problem->SetParameterBlockConstant(fiducial_pose.param.data());
-  }
-
   // Build problem
   for (const auto grid : grids) {
     _add_view(grid);
   }
 
-  // Set solver options
-  ceres::Solver::Options solver_options;
-  solver_options.minimizer_progress_to_stdout = show_progress;
-  solver_options.max_num_iterations = max_iter;
-  // solver_options.check_gradients = true;
-
   // Solve
   LOG_INFO("Calibrating mocap-marker to camera extrinsics ...");
-  ceres::Solver::Summary summary;
-  ceres::Solve(solver_options, problem.get(), &summary);
-  // std::cout << summary.BriefReport() << std::endl;
-  std::cout << summary.FullReport() << std::endl;
-  std::cout << std::endl;
+  solver->solve(max_iter, true, 0);
+
+  // Filter all views
+  const vec2s_t residuals = get_residuals();
+  const vec2_t residual_stddev = stddev(residuals);
+  const vec2_t thresholds = outlier_threshold * residual_stddev;
+  int removed = 0;
+  for (auto &view : calib_views) {
+    removed += view.filter_view(thresholds);
+  }
+  LOG_INFO("Removed [%d] outliers!", removed);
+
+  // Final solve
+  LOG_INFO("Solving again!");
+  solver->solve(max_iter, true, 0);
 
   // Show results
   show_results();
@@ -265,7 +376,7 @@ void calib_mocap_t::print_settings(FILE *out) const {
   fprintf(out, "  fix_intrinsics: %s\n", fix_intrinsics ? "true" : "false");
   fprintf(out, "  fix_mocap_poses: %s\n", fix_mocap_poses ? "true" : "false");
   fprintf(out, "  fix_fiducial_pose: %s\n", fix_fiducial_pose ? "true" : "false");
-  fprintf(out, "  imshow: %s\n", imshow ? "true" : "false");
+  fprintf(out, "  outlier_threshold: %f\n", outlier_threshold);
   fprintf(out, "  show_progress: %s\n", show_progress ? "true" : "false");
   fprintf(out, "  max_iter: %d\n", max_iter);
   fprintf(out, "\n");
@@ -403,5 +514,7 @@ int calib_mocap_t::save_results(const std::string &save_path) const {
 
   return 0;
 }
+
+//////////////////////////////////////////////////////////////////////////////
 
 } //  namespace yac

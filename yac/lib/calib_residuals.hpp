@@ -209,13 +209,14 @@ struct fiducial_residual_t : public calib_residual_t {
 struct mocap_residual_t : public calib_residual_t {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
+  timestamp_t ts;
+
   camera_geometry_t *cam_geom = nullptr;
   camera_params_t *cam_params = nullptr;
   pose_t *fiducial_pose = nullptr;
   pose_t *mocap_pose = nullptr;
   extrinsics_t *mocap_camera_extrinsics = nullptr;
 
-  timestamp_t ts;
   int tag_id;
   int corner_idx;
   vec3_t r_FFi{0.0, 0.0, 0.0};

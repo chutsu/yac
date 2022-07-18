@@ -817,7 +817,7 @@ aprilgrid_t aprilgrid_detector_t::detect(const timestamp_t ts,
     // Use AprilTags by Michael Kaess
     std::vector<AprilTags::TagDetection> tags = det.extractTags(image);
     // -- Check if too few measurements
-    if (tags.size() < min_tags_threshold) {
+    if (tags.size() < (size_t)min_tags_threshold) {
       return grid;
     }
     // -- Sort Tags by ID
@@ -886,7 +886,7 @@ aprilgrid_t aprilgrid_detector_t::detect(const timestamp_t ts,
       }
     }
     // -- Check if too few measurements
-    if (tag_ids.size() < (4 * min_tags_threshold)) {
+    if (tag_ids.size() < (size_t)(4 * min_tags_threshold)) {
       return grid;
     }
     // -- Add filtered tags to grid

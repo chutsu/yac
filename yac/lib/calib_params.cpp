@@ -19,7 +19,7 @@ param_t::param_t(const std::string &type_,
     : param_t{type_, 0, local_size_, global_size_, fixed_} {}
 
 void param_t::set_param(const vecx_t &param_) {
-  for (size_t i = 0; i < param.size(); i++) {
+  for (long int i = 0; i < param.size(); i++) {
     param(i) = param_(i);
   }
 }

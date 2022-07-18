@@ -50,7 +50,7 @@ set -e
 # RUN_CMD="./test_calib_residuals --target test_pose_prior"
 # RUN_CMD="./test_calib_residuals --target test_reproj_residual"
 # RUN_CMD="./test_calib_residuals --target test_fiducial_residual"
-RUN_CMD="./test_calib_residuals --target test_mocap_residual"
+# RUN_CMD="./test_calib_residuals --target test_mocap_residual"
 # RUN_CMD="./test_calib_residuals --target test_marg_residual"
 
 # YAC - CAMERA CALIBRATION
@@ -71,6 +71,7 @@ RUN_CMD="./test_calib_residuals --target test_mocap_residual"
 # RUN_CMD="./test_calib_camera --target test_calib_camera_stereo"
 # RUN_CMD="./test_calib_camera --target test_marg_residual"
 # RUN_CMD="time ./calib_euroc"
+RUN_CMD="./calib_mocap /data/calibration_s550_jetson_20220718/"
 # RUN_CMD="./calib_info 'camera' /tmp/calib_camera-results.yaml /data/euroc/cam_april/mav0 /tmp/calib_info-camera.csv"
 # RUN_CMD="./calib_info 'camera-imu' /tmp/calib_imu-results.yaml /data/euroc/imu_april/mav0 /tmp/calib_info-camera_imu.csv"
 # RUN_CMD="./calib_preprocess 6 6 0.088 0.3 /data/euroc/cam_april/mav0/cam0/data /tmp/grid0/cam0"
@@ -117,14 +118,14 @@ RUN_CMD="./test_calib_residuals --target test_mocap_residual"
 # RUN_CMD="./test_solver"
 # gdb -ex run -ex bt
 
-# tmux send-keys -t dev -R C-l C-m
-# tmux send-keys -t dev -R "\
-# cd ~/projects/yac \
-# && sudo make lib \
-# && cd build \
-# && $RUN_CMD
-# " C-m
-# exit
+tmux send-keys -t dev -R C-l C-m
+tmux send-keys -t dev -R "\
+cd ~/projects/yac \
+&& sudo make lib \
+&& cd build \
+&& $RUN_CMD
+" C-m
+exit
 
 # && ./calib_inspect '/tmp/calib_imu-results.yaml' /data/euroc/imu_april/mav0
 
@@ -160,17 +161,17 @@ RUN_CMD="roslaunch yac_ros calib_mocap.launch \
 # rm -rf /tmp/calib_data/calib_imu
 # rm -rf /tmp/calib_data/calib_camera
 
-tmux send-keys -t dev -R C-l C-m
-tmux send-keys -t dev -R "\
-cd ~/projects/yac \
-&& sudo make lib_relwithdeb \
-&& make release \
-&& cd ~/yac_ws \
-&& source devel/setup.bash \
-&& rm -rf /tmp/calib_data \
-&& ${RUN_CMD}
-" c-m
-exit
+# tmux send-keys -t dev -R C-l C-m
+# tmux send-keys -t dev -R "\
+# cd ~/projects/yac \
+# && sudo make lib_relwithdeb \
+# && make release \
+# && cd ~/yac_ws \
+# && source devel/setup.bash \
+# && rm -rf /tmp/calib_data \
+# && ${RUN_CMD}
+# " c-m
+# exit
 
 # make
 # make lib_debug

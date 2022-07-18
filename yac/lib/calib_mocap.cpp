@@ -179,7 +179,8 @@ void calib_mocap_t::_add_view(const aprilgrid_t &grid) {
     const vec2_t z = keypoints[i];
     const vec3_t r_FFi = object_points[i];
 
-    auto res_fn = std::make_shared<mocap_residual_t>(camera_geometry.get(),
+    auto res_fn = std::make_shared<mocap_residual_t>(grid.timestamp,
+                                                     camera_geometry.get(),
                                                      &camera,
                                                      &fiducial_pose,
                                                      &mocap_poses[ts],

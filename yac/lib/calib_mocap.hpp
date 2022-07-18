@@ -13,6 +13,8 @@ namespace yac {
 // MOCAP VIEW ////////////////////////////////////////////////////////////////
 
 struct mocap_view_t {
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
+
   // Data
   timestamp_t ts = 0;
   aprilgrid_t grid;
@@ -47,12 +49,64 @@ struct mocap_view_t {
 
 // CALIB MOCAP  //////////////////////////////////////////////////////////////
 
+struct calib_mocap_cache_t {
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
+
+  vecx_t cam_params;
+  vecx_t fiducial_pose;
+  std::map<timestamp_t, vecx_t> mocap_poses;
+  vecx_t mocap_camera_extrinsics;
+
+  calib_mocap_cache_t() = default;
+
+  calib_mocap_cache_t(const camera_params_t &camera_,
+                      const pose_t &fiducial_pose_,
+                      const std::map<timestamp_t, pose_t> &mocap_poses_,
+                      const extrinsics_t &mocap_camera_extrinsics_) {
+    cam_params = camera_.param;
+    fiducial_pose = fiducial_pose_.param;
+    for (const auto &[ts, mocap_pose] : mocap_poses_) {
+      mocap_poses[ts] = mocap_pose.param;
+    }
+    mocap_camera_extrinsics = mocap_camera_extrinsics_.param;
+  }
+
+  ~calib_mocap_cache_t() = default;
+
+  void restore(camera_params_t &camera_,
+               pose_t &fiducial_pose_,
+               std::map<timestamp_t, pose_t> &mocap_poses_,
+               extrinsics_t &mocap_camera_extrinsics_) {
+    for (int i = 0; i < 7; i++) {
+      camera_.param(i) = cam_params(i);
+    }
+
+    for (int i = 0; i < 7; i++) {
+      fiducial_pose_.param(i) = fiducial_pose(i);
+    }
+
+    for (auto &[ts, mocap_pose] : mocap_poses) {
+      for (int i = 0; i < 7; i++) {
+        mocap_poses_[ts].param(i) = mocap_pose(i);
+      }
+    }
+
+    for (int i = 0; i < 7; i++) {
+      mocap_camera_extrinsics_.param(i) = mocap_camera_extrinsics(i);
+    }
+  }
+};
+
 struct calib_mocap_t {
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
+
   // Settings
   bool fix_intrinsics = false;
   bool fix_mocap_poses = false;
   bool fix_fiducial_pose = false;
   real_t outlier_threshold = 3.0;
+  real_t info_gain_threshold = 0.2;
+  bool enable_shuffle_views = true;
   bool show_progress = true;
   int max_iter = 50;
 
@@ -60,11 +114,18 @@ struct calib_mocap_t {
   std::string config_file;
   std::string data_path;
 
+  // NBV
+  real_t info_k = 0.0;
+  real_t entropy_k = 0.0;
+
   // Calibration data
   calib_target_t calib_target;
-  aprilgrids_t grids;
-  std::vector<mocap_view_t> calib_views;
+  std::default_random_engine calib_rng;
+  std::map<timestamp_t, aprilgrid_t> calib_grids;
+  timestamps_t calib_view_timestamps;
+  std::map<timestamp_t, mocap_view_t *> calib_views;
   std::unique_ptr<solver_t> solver;
+  calib_mocap_cache_t cache;
 
   // Calibration parameters
   std::shared_ptr<camera_geometry_t> camera_geometry;
@@ -99,8 +160,16 @@ struct calib_mocap_t {
                        const bool fix = false);
   void _add_mocap_camera_extrinsics(const mat4_t &T_MC0);
   void _add_view(const aprilgrid_t &grid);
+  void _remove_view(const timestamp_t ts);
+  int _calc_info(real_t *info, real_t *entropy);
+  void _cache_estimates();
+  void _restore_estimates();
+  void _print_stats(const size_t ts_idx, const size_t nb_timestamps);
+  int _filter_last_view();
+  int _filter_all_views();
 
   int solve();
+  int solve_nbv();
   void print_settings(FILE *out) const;
   void print_calib_target(FILE *out) const;
   void print_metrics(FILE *out) const;

@@ -127,7 +127,8 @@ int mocap_view_t::filter_view(const vec2_t &threshold) {
 
 calib_mocap_t::calib_mocap_t(const std::string &config_file_,
                              const std::string &data_path_)
-    : config_file{config_file_}, data_path{data_path_} {
+    : config_file{config_file_}, data_path{data_path_},
+      calib_rng(std::chrono::system_clock::now().time_since_epoch().count()) {
   // Load calib config file
   std::vector<int> cam_res;
   std::string proj_model;
@@ -198,13 +199,14 @@ calib_mocap_t::calib_mocap_t(const std::string &config_file_,
   // -- Synchronize aprilgrids and body poses
   mat4s_t T_WM;
   const aprilgrids_t grids_raw = load_aprilgrids(grid0_path);
-  lerp_body_poses(grids_raw, body_timestamps, body_poses, grids, T_WM);
-  for (size_t k = 0; k < grids.size(); k++) {
-    _add_mocap_pose(grids[k].timestamp, T_WM[k], fix_mocap_poses);
+  aprilgrids_t grids_lerped;
+  lerp_body_poses(grids_raw, body_timestamps, body_poses, grids_lerped, T_WM);
+  for (size_t k = 0; k < grids_lerped.size(); k++) {
+    _add_mocap_pose(grids_lerped[k].timestamp, T_WM[k], fix_mocap_poses);
   }
   // -- Mocap marker to camera transform
   mat4_t T_MC0;
-  for (const auto &grid : grids) {
+  for (const auto &grid : grids_lerped) {
     const auto ts = grid.timestamp;
     const mat4_t T_MW = mocap_poses[ts].tf().inverse();
 
@@ -216,17 +218,17 @@ calib_mocap_t::calib_mocap_t(const std::string &config_file_,
     }
 
     T_MC0 = T_MW * T_WF * T_C0F.inverse();
-    break;
+    calib_grids[ts] = grid;
   }
   _add_mocap_camera_extrinsics(T_MC0);
 }
 
-int calib_mocap_t::get_num_views() const { return mocap_poses.size(); }
+int calib_mocap_t::get_num_views() const { return calib_views.size(); }
 
 std::vector<real_t> calib_mocap_t::get_reproj_errors() const {
   std::vector<real_t> reproj_errors;
-  for (const auto &view : calib_views) {
-    for (const auto e : view.get_reproj_errors()) {
+  for (const auto &[ts, view] : calib_views) {
+    for (const auto e : view->get_reproj_errors()) {
       reproj_errors.push_back(e);
     }
   }
@@ -236,8 +238,8 @@ std::vector<real_t> calib_mocap_t::get_reproj_errors() const {
 vec2s_t calib_mocap_t::get_residuals() const {
   vec2s_t residuals;
 
-  for (auto &view : calib_views) {
-    for (const auto &r : view.get_residuals()) {
+  for (auto &[ts, view] : calib_views) {
+    for (const auto &r : view->get_residuals()) {
       residuals.push_back(r);
     }
   }
@@ -277,9 +279,25 @@ aprilgrids_t calib_mocap_t::_preprocess(const calib_target_t &calib_target,
   for (auto &image_path : image_paths) {
     image_path = paths_join(cam_path, image_path);
     const auto ts = std::stoull(parse_fname(image_path));
-    const auto image = cv::imread(image_path, cv::IMREAD_GRAYSCALE);
-    const auto grid = detector.detect(ts, image);
-    grid.save(grid_path + "/" + std::to_string(ts) + ".csv");
+    const auto ts_str = std::to_string(ts);
+    const auto grid_csv_path = grid_path + "/" + ts_str + ".csv";
+
+    aprilgrid_t grid;
+    if (file_exists(grid_csv_path)) {
+      grid.load(grid_csv_path);
+      if (grid.detected == false) {
+        grid.timestamp = ts;
+        grid.tag_rows = detector.tag_rows;
+        grid.tag_cols = detector.tag_cols;
+        grid.tag_size = detector.tag_size;
+        grid.tag_spacing = detector.tag_spacing;
+      }
+
+    } else {
+      const auto image = cv::imread(image_path, cv::IMREAD_GRAYSCALE);
+      const auto grid = detector.detect(ts, image);
+      grid.save(grid_csv_path);
+    }
     grids.push_back(grid);
 
     printf(".");
@@ -326,23 +344,132 @@ void calib_mocap_t::_add_mocap_camera_extrinsics(const mat4_t &T_MC0) {
 }
 
 void calib_mocap_t::_add_view(const aprilgrid_t &grid) {
-  calib_views.emplace_back(grid,
-                           solver.get(),
-                           nullptr,
-                           camera_geometry.get(),
-                           &camera,
-                           &fiducial_pose,
-                           &mocap_poses[grid.timestamp],
-                           &mocap_camera_extrinsics);
+  calib_view_timestamps.push_back(grid.timestamp);
+  calib_views[grid.timestamp] = new mocap_view_t(grid,
+                                                 solver.get(),
+                                                 nullptr,
+                                                 camera_geometry.get(),
+                                                 &camera,
+                                                 &fiducial_pose,
+                                                 &mocap_poses[grid.timestamp],
+                                                 &mocap_camera_extrinsics);
+}
+
+void calib_mocap_t::_remove_view(const timestamp_t ts) {
+  // Remove pose
+  if (mocap_poses.count(ts)) {
+    if (solver->has_param(&mocap_poses[ts])) {
+      solver->remove_param(&mocap_poses[ts]);
+    }
+    mocap_poses.erase(ts);
+  }
+
+  // Remove view
+  if (calib_views.count(ts)) {
+    auto view_it = calib_views.find(ts);
+    delete view_it->second;
+    calib_views.erase(view_it);
+
+    auto ts_it = std::find(calib_view_timestamps.begin(),
+                           calib_view_timestamps.end(),
+                           ts);
+    calib_view_timestamps.erase(ts_it);
+  }
+}
+
+int calib_mocap_t::_calc_info(real_t *info, real_t *entropy) {
+  // Form parameter vector
+  std::vector<param_t *> params;
+  real_t local_param_size = 6;
+  params.push_back(&mocap_camera_extrinsics);
+
+  // Estimate the determinant of the marginal covariance matrix
+  real_t log_det_covar = 0.0;
+  if (solver->estimate_log_det_covar(params, log_det_covar) != 0) {
+    return -1;
+  }
+  if (std::isnan(std::abs(log_det_covar))) {
+    return -1;
+  }
+  *info = log_det_covar / log(2.0);
+
+  // Estimate shannon entropy
+  const auto k = pow(2 * M_PI * exp(1), local_param_size);
+  *entropy = 0.5 * log(k * exp(log_det_covar));
+
+  return 0;
+}
+
+void calib_mocap_t::_cache_estimates() {
+  cache = calib_mocap_cache_t(camera,
+                              fiducial_pose,
+                              mocap_poses,
+                              mocap_camera_extrinsics);
+}
+
+void calib_mocap_t::_restore_estimates() {
+  cache.restore(camera, fiducial_pose, mocap_poses, mocap_camera_extrinsics);
+}
+
+void calib_mocap_t::_print_stats(const size_t ts_idx,
+                                 const size_t nb_timestamps) {
+  // Show general stats
+  const real_t progress = ((real_t)ts_idx / nb_timestamps) * 100.0;
+  const auto reproj_errors = get_reproj_errors();
+  printf("[%.2f%%] ", progress);
+  printf("nb_views: %d  ", get_num_views());
+  printf("reproj_error: %.4f  ", mean(reproj_errors));
+  printf("info_k: %.4f  ", info_k);
+  printf("\n");
+  // printf("\n");
+
+  // // Show current calibration estimates
+  // if ((ts_idx % 10) == 0) {
+  //   printf("\n");
+  //   const mat4_t T_BC0 = get_camera_extrinsics(0);
+  //   const mat4_t T_C0B = tf_inv(T_BC0);
+  //   for (const auto cam_idx : get_camera_indices()) {
+  //     const auto param = cam_params[cam_idx]->param;
+  //     printf("cam%d_params: %s\n", cam_idx, vec2str(param).c_str());
+  //   }
+  //   for (const auto cam_idx : get_camera_indices()) {
+  //     if (cam_idx == 0) {
+  //       continue;
+  //     }
+  //     const mat4_t T_BCi = cam_exts[cam_idx]->tf();
+  //     const mat4_t T_C0Ci = T_C0B * T_BCi;
+  //     printf("cam%d_exts: %s\n", cam_idx, vec2str(tf_vec(T_C0Ci)).c_str());
+  //   }
+  //   printf("\n");
+  // }
+}
+
+int calib_mocap_t::_filter_last_view() {
+  const auto ts = calib_view_timestamps.back();
+  const vec2s_t residuals = get_residuals();
+  const vec2_t residual_stddev = stddev(residuals);
+  const vec2_t thresholds = outlier_threshold * residual_stddev;
+  return calib_views[ts]->filter_view(thresholds);
+}
+
+int calib_mocap_t::_filter_all_views() {
+  const vec2s_t residuals = get_residuals();
+  const vec2_t residual_stddev = stddev(residuals);
+  const vec2_t thresholds = outlier_threshold * residual_stddev;
+  int removed = 0;
+  for (auto &[ts, view] : calib_views) {
+    removed += view->filter_view(thresholds);
+  }
+  return removed;
 }
 
 int calib_mocap_t::solve() {
-  assert(grids.size() > 0);
+  assert(calib_grids.size() > 0);
   assert(T_WM.size() > 0);
   assert(T_WM.size() == grids.size());
 
   // Build problem
-  for (const auto grid : grids) {
+  for (const auto &[ts, grid] : calib_grids) {
     _add_view(grid);
   }
 
@@ -351,20 +478,77 @@ int calib_mocap_t::solve() {
   solver->solve(max_iter, true, 0);
 
   // Filter all views
-  const vec2s_t residuals = get_residuals();
-  const vec2_t residual_stddev = stddev(residuals);
-  const vec2_t thresholds = outlier_threshold * residual_stddev;
-  int removed = 0;
-  for (auto &view : calib_views) {
-    removed += view.filter_view(thresholds);
-  }
-  LOG_INFO("Removed [%d] outliers!", removed);
+  _filter_all_views();
 
   // Final solve
   LOG_INFO("Solving again!");
   solver->solve(max_iter, true, 0);
 
   // Show results
+  show_results();
+
+  return 0;
+}
+
+int calib_mocap_t::solve_nbv() {
+  // Pre-process timestamps
+  timestamps_t nbv_timestamps;
+  for (const auto &[ts, grid] : calib_grids) {
+    if (grid.detected) {
+      nbv_timestamps.push_back(ts);
+    }
+  }
+  if (nbv_timestamps.size() == 0) {
+    FATAL("Implementation Error: No views to process?");
+  }
+
+  // Shuffle timestamps
+  if (enable_shuffle_views) {
+    std::shuffle(nbv_timestamps.begin(), nbv_timestamps.end(), calib_rng);
+  }
+
+  int ts_idx = 0;
+  int nb_timestamps = nbv_timestamps.size();
+  for (const auto &ts : nbv_timestamps) {
+    // Add view
+    _add_view(calib_grids[ts]);
+    _filter_all_views();
+
+    // Keep track of initial values - incase view is rejected
+    _cache_estimates();
+
+    // Solve with new view
+    solver->solve(30);
+    // if (get_num_views() < 5) {
+    //   ts_idx++;
+    //   continue;
+    // }
+
+    // Calculate information gain
+    real_t info_kp1 = 0.0;
+    real_t entropy_kp1 = 0.0;
+    if (_calc_info(&info_kp1, &entropy_kp1) != 0) {
+      _restore_estimates();
+      ts_idx++;
+      continue;
+    }
+
+    // Remove view?
+    const real_t info_gain = 0.5 * (info_k - info_kp1);
+    if (info_gain < info_gain_threshold) {
+      _restore_estimates();
+      _remove_view(ts);
+    } else {
+      info_k = info_kp1;
+      entropy_k = entropy_kp1;
+    }
+
+    // Print stats
+    _print_stats(ts_idx++, nb_timestamps);
+  }
+
+  // Final refinement
+  solver->solve(max_iter, true, 0);
   show_results();
 
   return 0;

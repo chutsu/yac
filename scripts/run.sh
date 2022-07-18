@@ -163,7 +163,7 @@ RUN_CMD="roslaunch yac_ros calib_mocap.launch \
 tmux send-keys -t dev -R C-l C-m
 tmux send-keys -t dev -R "\
 cd ~/projects/yac \
-&& sudo make lib \
+&& sudo make lib_relwithdeb \
 && make release \
 && cd ~/yac_ws \
 && source devel/setup.bash \

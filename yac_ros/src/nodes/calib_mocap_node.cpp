@@ -330,7 +330,8 @@ int main(int argc, char *argv[]) {
   const auto data_path = replace(rosbag_path, ".bag", "");
   const auto results_path = data_path + "/calib_mocap-results.yaml";
   calib_mocap_t calib{config_file, data_path};
-  calib.solve();
+  // calib.solve();
+  calib.solve_nbv();
   calib.save_results(results_path);
 
   // // Process test ROS bag

@@ -1,8 +1,26 @@
+# ros:
+#   rosbag: "/data/calibration_d455_ros_20220713/calibration_d455_ros_20220713_183241.bag"
+#   cam0_topic: "/D455/rgb0/image"
+#   body0_topic: "/vicon/d455_ros/d455_ros"
+#   target0_topic: "/vicon/aprilgrid_tv/aprilgrid_tv"
+
+# ros:
+#   rosbag: "/data/calibration_s550_jetson_20220714/calibration_s550_jetson_20220714_192445.bag"
+#   cam0_topic: "/D455/rgb0/image"
+#   body0_topic: "/vicon/s550_jetson/s550_jetson"
+#   target0_topic: "/vicon/AprilGridTV/AprilGridTV"
+
+# ros:
+#   rosbag: "/data/calibration_s550_jetson_20220714/calibration_s550_jetson_20220714_192600.bag"
+#   cam0_topic: "/D455/rgb0/image"
+#   body0_topic: "/vicon/s550_jetson/s550_jetson"
+#   target0_topic: "/vicon/AprilGridTV/AprilGridTV"
+
 ros:
-  rosbag: "/data/calibration_d455_ros_20220713/calibration_d455_ros_20220713_183241.bag"
+  rosbag: "/data/calibration_s550_jetson_20220718/calibration_s550_jetson_pc_wifi_20220718_160413.bag"
   cam0_topic: "/D455/rgb0/image"
-  body0_topic: "/vicon/d455_ros/d455_ros"
-  target0_topic: "/vicon/aprilgrid_tv/aprilgrid_tv"
+  body0_topic: "/vicon/s550_jetson/s550_jetson"
+  target0_topic: "/vicon/AprilGridTV/AprilGridTV"
 
 settings:
   fix_intrinsics: true

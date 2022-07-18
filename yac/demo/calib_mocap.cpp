@@ -28,23 +28,23 @@
  * format:
  *
  *     data_path/
- *       body0/
+ *       body0/       # Object-Mocap Frame T_WM
  *         data.csv
  *
- *       cam0/
+ *       cam0/        # Camera images
  *         data/
  *           1658156653981475879.png
  *           1658156654189449268.png
  *           1658156654397423877.png
  *           ...
- *         data.csv
+ *           # Note image files are Unix-timestamps in nano-seconds
  *
- *       target0/
+ *       target0/     # Calibration Target frame T_WM
  *         data.csv
  *
  * where each `data.csv` file has contains pose data:
  *
- *     timestamp [ns],x,y,z,qx,qy,qz,qw
+ *     #timestamp [ns], x, y, z, qx, qy, qz, qw
  *
  */
 int main(int argc, char *argv[]) {

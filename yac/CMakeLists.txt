@@ -81,7 +81,6 @@ ADD_LIBRARY(
   lib/util/data.cpp
   lib/util/fs.cpp
   lib/util/net.cpp
-  lib/util/sim.cpp
   lib/util/timeline.cpp
   lib/calib_camera.cpp
   lib/calib_data.cpp
@@ -106,7 +105,6 @@ INSTALL(DIRECTORY ${CMAKE_SOURCE_DIR}/lib/
 # TESTS
 SET(TEST_BIN_PATH ${CMAKE_CURRENT_BINARY_DIR})
 FILE(COPY tests/test_data DESTINATION ${TEST_BIN_PATH})
-FILE(COPY tests/test_data/mocap_data DESTINATION /tmp)
 ADD_DEFINITIONS(-DTEST_PATH="${TEST_BIN_PATH}")
 
 ADD_EXECUTABLE(test_util_aprilgrid tests/util/test_aprilgrid.cpp)

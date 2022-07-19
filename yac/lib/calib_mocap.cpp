@@ -404,14 +404,15 @@ void calib_mocap_t::_add_mocap_camera_extrinsics(const mat4_t &T_MC0) {
 
 void calib_mocap_t::_add_view(const aprilgrid_t &grid) {
   calib_view_timestamps.push_back(grid.timestamp);
-  calib_views[grid.timestamp] = new mocap_view_t(grid,
-                                                 solver.get(),
-                                                 loss_fn.get(),
-                                                 camera_geometry.get(),
-                                                 &camera,
-                                                 &fiducial_pose,
-                                                 &mocap_poses[grid.timestamp],
-                                                 &mocap_camera_extrinsics);
+  calib_views[grid.timestamp] =
+      std::make_shared<mocap_view_t>(grid,
+                                     solver.get(),
+                                     loss_fn.get(),
+                                     camera_geometry.get(),
+                                     &camera,
+                                     &fiducial_pose,
+                                     &mocap_poses[grid.timestamp],
+                                     &mocap_camera_extrinsics);
 }
 
 void calib_mocap_t::_remove_view(const timestamp_t ts) {
@@ -426,7 +427,6 @@ void calib_mocap_t::_remove_view(const timestamp_t ts) {
   // Remove view
   if (calib_views.count(ts)) {
     auto view_it = calib_views.find(ts);
-    delete view_it->second;
     calib_views.erase(view_it);
 
     auto ts_it = std::find(calib_view_timestamps.begin(),

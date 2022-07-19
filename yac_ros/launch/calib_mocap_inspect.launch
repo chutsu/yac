@@ -1,0 +1,12 @@
+<launch>
+  <arg name="calib_file" />
+  <arg name="camera_topic" />
+  <arg name="mocap_topic" />
+
+  <node pkg="yac_ros" type="calib_mocap_inspect_node" name="calib_mocap_inspect_node" 
+    required="true" output="screen">
+    <param name="calib_file" value="$(arg calib_file)" />
+    <param name="camera_topic" value="$(arg camera_topic)" />
+    <param name="mocap_topic" value="$(arg mocap_topic)" />
+  </node>
+</launch>

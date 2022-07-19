@@ -103,7 +103,7 @@ struct calib_mocap_t {
   std::default_random_engine calib_rng;
   std::map<timestamp_t, aprilgrid_t> calib_grids;
   timestamps_t calib_view_timestamps;
-  std::map<timestamp_t, mocap_view_t *> calib_views;
+  std::map<timestamp_t, std::shared_ptr<mocap_view_t>> calib_views;
   std::unique_ptr<solver_t> solver;
   std::unique_ptr<calib_loss_t> loss_fn;
   calib_mocap_cache_t cache;

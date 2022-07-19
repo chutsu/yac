@@ -118,14 +118,14 @@ RUN_CMD="./test_calib_mocap"
 # RUN_CMD="./test_solver"
 # gdb -ex run -ex bt
 
-tmux send-keys -t dev -R C-l C-m
-tmux send-keys -t dev -R "\
-cd ~/projects/yac \
-&& sudo make lib \
-&& cd build \
-&& $RUN_CMD
-" C-m
-exit
+# tmux send-keys -t dev -R C-l C-m
+# tmux send-keys -t dev -R "\
+# cd ~/projects/yac \
+# && sudo make lib \
+# && cd build \
+# && $RUN_CMD
+# " C-m
+# exit
 
 # && ./calib_inspect '/tmp/calib_imu-results.yaml' /data/euroc/imu_april/mav0
 
@@ -151,27 +151,32 @@ exit
 # RUN_CMD="roslaunch yac_ros calib_imucam.launch \
 #   config_file:=/home/chutsu/projects/yac/yac_ros/config/euroc-calib_imucam.yaml"
 
-RUN_CMD="roslaunch yac_ros intel_d435i-calib_imucam.launch \
-  config_file:=/home/chutsu/projects/yac/yac_ros/config/intel_d435i.yaml" \
+# RUN_CMD="roslaunch yac_ros intel_d435i-calib_imucam.launch \
+#   config_file:=/home/chutsu/projects/yac/yac_ros/config/intel_d435i.yaml" \
 
 # RUN_CMD="roslaunch yac_ros calib_mocap.launch \
 #   config_file:=/home/chutsu/projects/yac/yac_ros/config/calib_mocap-sotiris.yaml" \
+
+RUN_CMD="roslaunch yac_ros calib_mocap_inspect.launch \
+  calib_file:=/data/calibration_s550_jetson_20220718/s550_jetson_pc_eth_target_20220718_164258/calib_mocap-results.yaml \
+  camera_topic:=/rs4se/rgb0/image \
+  mocap_topic:=/test "
 
 # rm -rf /tmp/calib_data
 # rm -rf /tmp/calib_data/calib_imu
 # rm -rf /tmp/calib_data/calib_camera
 
-# tmux send-keys -t dev -R C-l C-m
-# tmux send-keys -t dev -R "\
-# cd ~/projects/yac \
-# && sudo make lib_relwithdeb \
-# && make release \
-# && cd ~/yac_ws \
-# && source devel/setup.bash \
-# && rm -rf /tmp/calib_data \
-# && ${RUN_CMD}
-# " c-m
-# exit
+tmux send-keys -t dev -R C-l C-m
+tmux send-keys -t dev -R "\
+cd ~/projects/yac \
+&& sudo make lib \
+&& make release \
+&& cd ~/yac_ws \
+&& source devel/setup.bash \
+&& rm -rf /tmp/calib_data \
+&& ${RUN_CMD}
+" c-m
+exit
 
 # make
 # make lib_debug

@@ -3,45 +3,6 @@
 
 namespace yac {
 
-static std::vector<camera_params_t> setup_cameras() {
-  const int img_w = 640;
-  const int img_h = 480;
-  const int cam_res[2] = {img_w, img_h};
-  const std::string proj_model = "pinhole";
-  const std::string dist_model = "radtan4";
-
-  const double fx = pinhole_focal(img_w, 69.4);
-  const double fy = pinhole_focal(img_h, 42.5);
-  const double cx = 640.0 / 2.0;
-  const double cy = 480.0 / 2.0;
-  const vec4_t proj_params{fx, fy, cx, cy};
-  const vec4_t dist_params{0.01, 0.001, 0.001, 0.001};
-
-  // clang-format off
-  camera_params_t cam0{0, cam_res, proj_model, dist_model, proj_params, dist_params};
-  camera_params_t cam1{1, cam_res, proj_model, dist_model, proj_params, dist_params};
-  // clang-format on
-
-  return {cam0, cam1};
-}
-
-static void setup_calib_target(const camera_params_t &cam,
-                               calib_target_t &target,
-                               mat4_t &T_FO,
-                               mat4_t *T_WF = nullptr) {
-  // Create calibration origin
-  pinhole_radtan4_t cam_geom;
-  target = calib_target_t{"aprilgrid", 6, 6, 0.088, 0.3};
-  calib_target_origin(T_FO, target, &cam_geom, &cam);
-
-  // Calibration target pose
-  if (T_WF) {
-    const vec3_t rpy = deg2rad(vec3_t{90.0, 0.0, -90.0});
-    const mat3_t C_WF = euler321(rpy);
-    *T_WF = tf(C_WF, zeros(3, 1));
-  }
-}
-
 int test_calib_target_origin() {
   const calib_target_t target{"aprilgrid", 6, 6, 0.088, 0.3};
 

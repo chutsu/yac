@@ -354,7 +354,7 @@ aprilgrids_t calib_mocap_t::_preprocess(const calib_target_t &calib_target,
 
     } else {
       const auto image = cv::imread(image_path, cv::IMREAD_GRAYSCALE);
-      const auto grid = detector.detect(ts, image);
+      grid = detector.detect(ts, image);
       grid.save(grid_csv_path);
     }
     grids.push_back(grid);
@@ -363,6 +363,7 @@ aprilgrids_t calib_mocap_t::_preprocess(const calib_target_t &calib_target,
     fflush(stdout);
   }
   printf("\n");
+  LOG_INFO("Preprocessed [%d] AprilGrids!", grids.size());
 
   return grids;
 }

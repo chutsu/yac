@@ -71,7 +71,7 @@ set -e
 # RUN_CMD="./test_calib_camera --target test_calib_camera_stereo"
 # RUN_CMD="./test_calib_camera --target test_marg_residual"
 # RUN_CMD="time ./calib_euroc"
-RUN_CMD="./calib_mocap /data/calibration_s550_jetson_20220718/"
+# RUN_CMD="./calib_mocap /data/calibration_s550_jetson_20220718/"
 # RUN_CMD="./calib_info 'camera' /tmp/calib_camera-results.yaml /data/euroc/cam_april/mav0 /tmp/calib_info-camera.csv"
 # RUN_CMD="./calib_info 'camera-imu' /tmp/calib_imu-results.yaml /data/euroc/imu_april/mav0 /tmp/calib_info-camera_imu.csv"
 # RUN_CMD="./calib_preprocess 6 6 0.088 0.3 /data/euroc/cam_april/mav0/cam0/data /tmp/grid0/cam0"
@@ -83,7 +83,7 @@ RUN_CMD="./calib_mocap /data/calibration_s550_jetson_20220718/"
 # RUN_CMD="./calib_inspect 'camera-imu' '/data/euroc_results/configs/yac/calib_imu-results.yaml' /data/euroc/imu_april/mav0"
 
 # YAC - MOCAP CALIBRATION
-# RUN_CMD="test_calib_mocap"
+RUN_CMD="./test_calib_mocap"
 
 # YAC - VISUAL-INERTIAL CALIBRATION
 # RUN_CMD="./test_calib_vi"
@@ -151,11 +151,11 @@ exit
 # RUN_CMD="roslaunch yac_ros calib_imucam.launch \
 #   config_file:=/home/chutsu/projects/yac/yac_ros/config/euroc-calib_imucam.yaml"
 
-# RUN_CMD="roslaunch yac_ros intel_d435i-calib_imucam.launch \
-#   config_file:=/home/chutsu/projects/yac/yac_ros/config/intel_d435i.yaml" \
+RUN_CMD="roslaunch yac_ros intel_d435i-calib_imucam.launch \
+  config_file:=/home/chutsu/projects/yac/yac_ros/config/intel_d435i.yaml" \
 
-RUN_CMD="roslaunch yac_ros calib_mocap.launch \
-  config_file:=/home/chutsu/projects/yac/yac_ros/config/calib_mocap-sotiris.yaml" \
+# RUN_CMD="roslaunch yac_ros calib_mocap.launch \
+#   config_file:=/home/chutsu/projects/yac/yac_ros/config/calib_mocap-sotiris.yaml" \
 
 # rm -rf /tmp/calib_data
 # rm -rf /tmp/calib_data/calib_imu

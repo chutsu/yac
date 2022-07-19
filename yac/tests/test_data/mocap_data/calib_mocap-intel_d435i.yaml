@@ -1,10 +1,8 @@
 settings:
-  data_path: "/tmp/mocap_data"
   fix_intrinsics: true
   fix_mocap_poses: true
   fix_fiducial_pose: false
-  sigma_vision: 0.5
-  imshow: true
+  outlier_threshold: 4.0
 
 calib_target:
   target_type: 'aprilgrid'  # Target type
@@ -18,4 +16,3 @@ cam0:
   resolution: [640, 480]
   proj_model: "pinhole"
   dist_model: "radtan4"
-  rate: 30.0

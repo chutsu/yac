@@ -10,7 +10,6 @@
 #include "euroc.hpp"
 #include "fs.hpp"
 #include "net.hpp"
-#include "sim.hpp"
 #include "timeline.hpp"
 
 #endif

@@ -47,7 +47,7 @@ struct mocap_view_t {
 
 //////////////////////////////////////////////////////////////////////////////
 
-// CALIB MOCAP  //////////////////////////////////////////////////////////////
+// CALIB MOCAP CACHE /////////////////////////////////////////////////////////
 
 struct calib_mocap_cache_t {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
@@ -58,44 +58,21 @@ struct calib_mocap_cache_t {
   vecx_t mocap_camera_extrinsics;
 
   calib_mocap_cache_t() = default;
-
   calib_mocap_cache_t(const camera_params_t &camera_,
                       const pose_t &fiducial_pose_,
                       const std::map<timestamp_t, pose_t> &mocap_poses_,
-                      const extrinsics_t &mocap_camera_extrinsics_) {
-    cam_params = camera_.param;
-    fiducial_pose = fiducial_pose_.param;
-    for (const auto &[ts, mocap_pose] : mocap_poses_) {
-      mocap_poses[ts] = mocap_pose.param;
-    }
-    mocap_camera_extrinsics = mocap_camera_extrinsics_.param;
-  }
-
+                      const extrinsics_t &mocap_camera_extrinsics_);
   ~calib_mocap_cache_t() = default;
 
   void restore(camera_params_t &camera_,
                pose_t &fiducial_pose_,
                std::map<timestamp_t, pose_t> &mocap_poses_,
-               extrinsics_t &mocap_camera_extrinsics_) {
-    for (int i = 0; i < 7; i++) {
-      camera_.param(i) = cam_params(i);
-    }
-
-    for (int i = 0; i < 7; i++) {
-      fiducial_pose_.param(i) = fiducial_pose(i);
-    }
-
-    for (auto &[ts, mocap_pose] : mocap_poses) {
-      for (int i = 0; i < 7; i++) {
-        mocap_poses_[ts].param(i) = mocap_pose(i);
-      }
-    }
-
-    for (int i = 0; i < 7; i++) {
-      mocap_camera_extrinsics_.param(i) = mocap_camera_extrinsics(i);
-    }
-  }
+               extrinsics_t &mocap_camera_extrinsics_);
 };
+
+//////////////////////////////////////////////////////////////////////////////
+
+// CALIB MOCAP  //////////////////////////////////////////////////////////////
 
 struct calib_mocap_t {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
@@ -106,6 +83,9 @@ struct calib_mocap_t {
   bool fix_fiducial_pose = false;
   real_t outlier_threshold = 3.0;
   real_t info_gain_threshold = 0.2;
+  bool enable_loss_fn = true;
+  std::string loss_fn_type = "CAUCHY";
+  double loss_fn_param = 1.0;
   bool enable_shuffle_views = true;
   bool show_progress = true;
   int max_iter = 50;
@@ -125,6 +105,7 @@ struct calib_mocap_t {
   timestamps_t calib_view_timestamps;
   std::map<timestamp_t, mocap_view_t *> calib_views;
   std::unique_ptr<solver_t> solver;
+  std::unique_ptr<calib_loss_t> loss_fn;
   calib_mocap_cache_t cache;
 
   // Calibration parameters

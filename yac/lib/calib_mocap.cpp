@@ -45,7 +45,8 @@ mocap_view_t::mocap_view_t(const aprilgrid_t &grid_,
                                                      corner_idx,
                                                      r_FFi,
                                                      z,
-                                                     covar);
+                                                     covar,
+                                                     loss_);
     solver->add_residual(res_fn.get());
     res_fns.push_back(res_fn);
   }
@@ -123,6 +124,46 @@ int mocap_view_t::filter_view(const vec2_t &threshold) {
 
 //////////////////////////////////////////////////////////////////////////////
 
+// CALIB MOCAP CACHE /////////////////////////////////////////////////////////
+
+calib_mocap_cache_t::calib_mocap_cache_t(
+    const camera_params_t &camera_,
+    const pose_t &fiducial_pose_,
+    const std::map<timestamp_t, pose_t> &mocap_poses_,
+    const extrinsics_t &mocap_camera_extrinsics_) {
+  cam_params = camera_.param;
+  fiducial_pose = fiducial_pose_.param;
+  for (const auto &[ts, mocap_pose] : mocap_poses_) {
+    mocap_poses[ts] = mocap_pose.param;
+  }
+  mocap_camera_extrinsics = mocap_camera_extrinsics_.param;
+}
+
+void calib_mocap_cache_t::restore(camera_params_t &camera_,
+                                  pose_t &fiducial_pose_,
+                                  std::map<timestamp_t, pose_t> &mocap_poses_,
+                                  extrinsics_t &mocap_camera_extrinsics_) {
+  for (int i = 0; i < 7; i++) {
+    camera_.param(i) = cam_params(i);
+  }
+
+  for (int i = 0; i < 7; i++) {
+    fiducial_pose_.param(i) = fiducial_pose(i);
+  }
+
+  for (auto &[ts, mocap_pose] : mocap_poses) {
+    for (int i = 0; i < 7; i++) {
+      mocap_poses_[ts].param(i) = mocap_pose(i);
+    }
+  }
+
+  for (int i = 0; i < 7; i++) {
+    mocap_camera_extrinsics_.param(i) = mocap_camera_extrinsics(i);
+  }
+}
+
+//////////////////////////////////////////////////////////////////////////////
+
 // CALIB MOCAP  //////////////////////////////////////////////////////////////
 
 calib_mocap_t::calib_mocap_t(const std::string &config_file_,
@@ -141,6 +182,9 @@ calib_mocap_t::calib_mocap_t(const std::string &config_file_,
   parse(config, "settings.fix_fiducial_pose", fix_fiducial_pose, true);
   parse(config, "settings.outlier_threshold", outlier_threshold, true);
   parse(config, "settings.info_gain_threshold", info_gain_threshold, true);
+  parse(config, "settings.enable_loss_fn", enable_loss_fn, true);
+  parse(config, "settings.loss_fn_type", loss_fn_type, true);
+  parse(config, "settings.loss_fn_param", loss_fn_param, true);
   parse(config, "settings.enable_shuffle_views", enable_shuffle_views, true);
   parse(config, "settings.show_progress", show_progress, true);
   parse(config, "settings.max_iter", max_iter, true);
@@ -161,8 +205,19 @@ calib_mocap_t::calib_mocap_t(const std::string &config_file_,
     FATAL("Failed to load calib target in [%s]!", config_file.c_str());
   }
 
-  // Setup Solver
+  // Setup solver
   solver = std::make_unique<ceres_solver_t>();
+
+  // Setup loss function
+  if (enable_loss_fn && loss_fn == nullptr) {
+    if (loss_fn_type == "BLAKE-ZISSERMAN") {
+      loss_fn = std::make_unique<BlakeZissermanLoss>((int)loss_fn_param);
+    } else if (loss_fn_type == "CAUCHY") {
+      loss_fn = std::make_unique<CauchyLoss>(loss_fn_param);
+    } else {
+      FATAL("Unsupported loss function type [%s]!", loss_fn_type.c_str());
+    }
+  }
 
   // Setup camera geometry
   if (proj_model == "pinhole" && dist_model == "radtan4") {
@@ -351,7 +406,7 @@ void calib_mocap_t::_add_view(const aprilgrid_t &grid) {
   calib_view_timestamps.push_back(grid.timestamp);
   calib_views[grid.timestamp] = new mocap_view_t(grid,
                                                  solver.get(),
-                                                 nullptr,
+                                                 loss_fn.get(),
                                                  camera_geometry.get(),
                                                  &camera,
                                                  &fiducial_pose,
@@ -425,27 +480,6 @@ void calib_mocap_t::_print_stats(const size_t ts_idx,
   printf("reproj_error: %.4f  ", mean(reproj_errors));
   printf("info_k: %.4f  ", info_k);
   printf("\n");
-  // printf("\n");
-
-  // // Show current calibration estimates
-  // if ((ts_idx % 10) == 0) {
-  //   printf("\n");
-  //   const mat4_t T_BC0 = get_camera_extrinsics(0);
-  //   const mat4_t T_C0B = tf_inv(T_BC0);
-  //   for (const auto cam_idx : get_camera_indices()) {
-  //     const auto param = cam_params[cam_idx]->param;
-  //     printf("cam%d_params: %s\n", cam_idx, vec2str(param).c_str());
-  //   }
-  //   for (const auto cam_idx : get_camera_indices()) {
-  //     if (cam_idx == 0) {
-  //       continue;
-  //     }
-  //     const mat4_t T_BCi = cam_exts[cam_idx]->tf();
-  //     const mat4_t T_C0Ci = T_C0B * T_BCi;
-  //     printf("cam%d_exts: %s\n", cam_idx, vec2str(tf_vec(T_C0Ci)).c_str());
-  //   }
-  //   printf("\n");
-  // }
 }
 
 int calib_mocap_t::_filter_last_view() {
@@ -482,7 +516,9 @@ int calib_mocap_t::solve() {
   solver->solve(max_iter, true, 0);
 
   // Filter all views
-  _filter_all_views();
+  LOG_INFO("Filtering all views!");
+  const int removed = _filter_all_views();
+  LOG_INFO("Removed [%d] outliers!\n", removed);
 
   // Final solve
   LOG_INFO("Solving again!");
@@ -566,6 +602,9 @@ void calib_mocap_t::print_settings(FILE *out) const {
   fprintf(out, "  fix_fiducial_pose: %s\n", fix_fiducial_pose ? "true" : "false");
   fprintf(out, "  outlier_threshold: %f\n", outlier_threshold);
   fprintf(out, "  info_gain_threshold: %f\n", info_gain_threshold);
+  fprintf(out, "  enable_loss_fn: %s\n", enable_loss_fn ? "true" : "false");
+  fprintf(out, "  loss_fn_type: %s\n", loss_fn_type.c_str());
+  fprintf(out, "  loss_fn_param: %f\n", loss_fn_param);
   fprintf(out, "  enable_shuffle_views: %s\n", enable_shuffle_views ? "true" : "false");
   fprintf(out, "  show_progress: %s\n", show_progress ? "true" : "false");
   fprintf(out, "  max_iter: %d\n", max_iter);

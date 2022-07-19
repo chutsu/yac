@@ -136,10 +136,14 @@ calib_mocap_t::calib_mocap_t(const std::string &config_file_,
   vecx_t proj_params;
   vecx_t dist_params;
   config_t config{config_file};
-  parse(config, "settings.fix_intrinsics", fix_intrinsics);
-  parse(config, "settings.fix_mocap_poses", fix_mocap_poses);
-  parse(config, "settings.fix_fiducial_pose", fix_fiducial_pose);
-  parse(config, "settings.outlier_threshold", outlier_threshold);
+  parse(config, "settings.fix_intrinsics", fix_intrinsics, true);
+  parse(config, "settings.fix_mocap_poses", fix_mocap_poses, true);
+  parse(config, "settings.fix_fiducial_pose", fix_fiducial_pose, true);
+  parse(config, "settings.outlier_threshold", outlier_threshold, true);
+  parse(config, "settings.info_gain_threshold", info_gain_threshold, true);
+  parse(config, "settings.enable_shuffle_views", enable_shuffle_views, true);
+  parse(config, "settings.show_progress", show_progress, true);
+  parse(config, "settings.max_iter", max_iter, true);
   parse(config, "cam0.resolution", cam_res);
   parse(config, "cam0.proj_model", proj_model);
   parse(config, "cam0.dist_model", dist_model);
@@ -561,6 +565,8 @@ void calib_mocap_t::print_settings(FILE *out) const {
   fprintf(out, "  fix_mocap_poses: %s\n", fix_mocap_poses ? "true" : "false");
   fprintf(out, "  fix_fiducial_pose: %s\n", fix_fiducial_pose ? "true" : "false");
   fprintf(out, "  outlier_threshold: %f\n", outlier_threshold);
+  fprintf(out, "  info_gain_threshold: %f\n", info_gain_threshold);
+  fprintf(out, "  enable_shuffle_views: %s\n", enable_shuffle_views ? "true" : "false");
   fprintf(out, "  show_progress: %s\n", show_progress ? "true" : "false");
   fprintf(out, "  max_iter: %d\n", max_iter);
   fprintf(out, "\n");

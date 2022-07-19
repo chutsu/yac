@@ -603,7 +603,7 @@ void calib_mocap_t::print_settings(FILE *out) const {
   fprintf(out, "  outlier_threshold: %f\n", outlier_threshold);
   fprintf(out, "  info_gain_threshold: %f\n", info_gain_threshold);
   fprintf(out, "  enable_loss_fn: %s\n", enable_loss_fn ? "true" : "false");
-  fprintf(out, "  loss_fn_type: %s\n", loss_fn_type.c_str());
+  fprintf(out, "  loss_fn_type: \"%s\"\n", loss_fn_type.c_str());
   fprintf(out, "  loss_fn_param: %f\n", loss_fn_param);
   fprintf(out, "  enable_shuffle_views: %s\n", enable_shuffle_views ? "true" : "false");
   fprintf(out, "  show_progress: %s\n", show_progress ? "true" : "false");

@@ -1,0 +1,47 @@
+<launch>
+  <arg name="calib_file" />
+  <arg name="camera_topic" />
+  <arg name="mocap_topic" />
+
+  <node pkg="yac_ros" type="calib_mocap_inspect_node" name="calib_mocap_inspect_node"
+    required="true" output="screen">
+    <param name="calib_file" value="$(arg calib_file)" />
+    <param name="camera_topic" value="$(arg camera_topic)" />
+    <param name="mocap_topic" value="$(arg mocap_topic)" />
+  </node>
+
+  <!-- Intel realsense D435i-->
+  <node pkg="rs4se"
+      type="intel_d435i"
+      name="rs"
+      required="true"
+      output="screen">
+    <param name="global_time" type="bool" value="true" />
+
+    <!-- RGBD -->
+    <param name="correct_ts" type="bool" value="false" />
+    <param name="enable_ir" type="bool" value="true" />
+    <param name="enable_rgb" type="bool" value="false" />
+    <param name="enable_depth" type="bool" value="false" />
+    <param name="enable_emitter" type="bool" value="false" />
+    <param name="rgb_width" value="640"/>
+    <param name="rgb_height" value="480"/>
+    <param name="rgb_frame_rate" value="15"/>
+    <param name="rgb_format" type="str" value="RGB8" />
+    <param name="rgb_exposure" type="double" value="100" />
+    <param name="ir_width" type="int" value="640" />
+    <param name="ir_height" type="int" value="480" />
+    <param name="ir_format" type="str" value="Y8" />
+    <param name="ir_frame_rate" type="int" value="15" />
+    <param name="ir_exposure" type="double" value="10000" />
+    <param name="depth_width" type="int" value="640" />
+    <param name="depth_height" type="int" value="480" />
+    <param name="depth_format" type="str" value="Z16" />
+    <param name="depth_frame_rate" type="int" value="15" />
+
+    <!-- IMU -->
+    <param name="enable_motion" type="bool" value="true" />
+    <param name="gyro_hz" type="double" value="400" />
+    <param name="accel_hz" type="double" value="250" />
+  </node>
+</launch>

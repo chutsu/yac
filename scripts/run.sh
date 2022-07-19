@@ -157,10 +157,13 @@ RUN_CMD="./test_calib_mocap"
 # RUN_CMD="roslaunch yac_ros calib_mocap.launch \
 #   config_file:=/home/chutsu/projects/yac/yac_ros/config/calib_mocap-sotiris.yaml" \
 
-RUN_CMD="roslaunch yac_ros calib_mocap_inspect.launch \
-  calib_file:=/data/calibration_s550_jetson_20220718/s550_jetson_pc_eth_target_20220718_164258/calib_mocap-results.yaml \
-  camera_topic:=/rs4se/rgb0/image \
-  mocap_topic:=/test "
+# RUN_CMD="roslaunch yac_ros calib_mocap.launch \
+#   config_file:=/home/chutsu/projects/yac/yac_ros/config/calib_mocap-intel_d435i.yaml"
+
+RUN_CMD="roslaunch yac_ros calib_mocap_inspect-intel_realsense.launch \
+  calib_file:=/data/mocap/mocap0/calib_mocap-results.yaml \
+  camera_topic:=/rs/ir0/image \
+  mocap_topic:=/vicon/chris_d435i/chris_d435i"
 
 # rm -rf /tmp/calib_data
 # rm -rf /tmp/calib_data/calib_imu

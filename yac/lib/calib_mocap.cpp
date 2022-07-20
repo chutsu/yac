@@ -363,7 +363,7 @@ aprilgrids_t calib_mocap_t::_preprocess(const calib_target_t &calib_target,
     fflush(stdout);
   }
   printf("\n");
-  LOG_INFO("Preprocessed [%d] AprilGrids!", grids.size());
+  LOG_INFO("Preprocessed [%ld] AprilGrids!", grids.size());
 
   return grids;
 }

@@ -560,10 +560,10 @@ int calib_mocap_t::solve_nbv() {
 
     // Solve with new view
     solver->solve(30);
-    // if (get_num_views() < 5) {
-    //   ts_idx++;
-    //   continue;
-    // }
+    if (get_num_views() < 5) {
+      ts_idx++;
+      continue;
+    }
 
     // Calculate information gain
     real_t info_kp1 = 0.0;

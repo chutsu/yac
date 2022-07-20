@@ -39,7 +39,7 @@ struct calib_nbt_eval_t {
   // Setting
   std::string config_file;
   std::string data_path;
-  real_t nbt_threshold = 0.5;
+  real_t nbt_threshold = 0.2;
 
   // Data
   std::map<timestamp_t, real_t> calib_info;

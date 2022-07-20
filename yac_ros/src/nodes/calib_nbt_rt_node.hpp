@@ -250,6 +250,7 @@ struct calib_nbt_t {
 
     // Loop
     LOG_INFO("Move to calibration origin!");
+    prof.start("nbt-data_collection");
     loop();
   }
 
@@ -597,6 +598,8 @@ struct calib_nbt_t {
   void finish() {
     // Change state
     state = FINISH;
+    cv::destroyAllWindows();
+    prof.stop("nbt-data_collection");
 
     // Unsubscribe imu0
     LOG_INFO("Unsubscribing from [%s]", imu0_topic.c_str());
@@ -609,12 +612,28 @@ struct calib_nbt_t {
     }
 
     // Solve with full data and save results
+    prof.start("nbt-final_solve");
     const auto results_path = data_path + "/calib-results.yaml";
     calib_vi_t final_calib(calib_file);
     final_calib.load_data(data_path);
     final_calib.solve();
     final_calib.show_results();
     final_calib.save_results(results_path);
+    prof.stop("nbt-final_solve");
+
+    // Append timings to results file
+    // clang-format off
+    const auto time_data_collection = prof.record["nbt-data_collection"].back();
+    const auto time_final_solve = prof.record["nbt-final_solve"].back();
+    const auto time_total = time_data_collection + time_final_solve;
+    FILE *results_yaml = fopen(results_path.c_str(), "a");
+    fprintf(results_yaml, "profiling:\n");
+    fprintf(results_yaml, "  data_collection: %.2f  # [s]\n", time_data_collection);
+    fprintf(results_yaml, "  final_solve:     %.2f  # [s]\n", time_final_solve);
+    fprintf(results_yaml, "  total_time:      %.2f  # [s]\n", time_total);
+    fprintf(results_yaml, "\n");
+    fclose(results_yaml);
+    // clang-format on
 
     // Kill loop
     keep_running = false;
@@ -667,8 +686,8 @@ struct calib_nbt_t {
 
     // Write imu measurement to file
     fprintf(imu_file, "%ld,", ts);
-    fprintf(imu_file, "%f,%f,%f,", acc.x, acc.y, acc.z);
-    fprintf(imu_file, "%f,%f,%f\n", gyr.x, gyr.y, gyr.z);
+    fprintf(imu_file, "%f,%f,%f,", gyr.x, gyr.y, gyr.z);
+    fprintf(imu_file, "%f,%f,%f\n", acc.x, acc.y, acc.z);
     fflush(imu_file);
   }
 

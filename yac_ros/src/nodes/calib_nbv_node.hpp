@@ -131,6 +131,7 @@ struct calib_nbv_t {
 
     // Loop
     LOG_INFO("Point the camera at the calibration target to initialize...");
+    prof.start("nbv-data_collection");
     loop();
   }
 
@@ -747,14 +748,21 @@ struct calib_nbv_t {
   /** finish */
   void finish() {
     LOG_INFO("Saving calibration data to [%s]", camera_data_path.c_str());
+    cv::destroyAllWindows();
+    prof.stop("nbv-data_collection");
 
     // Save images and image index
+    std::map<int, std::string> cam_data_dirs;
     for (const auto &[cam_idx, data] : cam_images) {
       LOG_INFO("Saving cam%d images to %s", cam_idx, cam_dirs[cam_idx].c_str());
+
+      // Data directory
+      cam_data_dirs[cam_idx] = cam_dirs[cam_idx] + "/data";
+
       // Images
       for (const auto &[ts, cam_img] : data) {
         const auto img_fname = std::to_string(ts) + ".png";
-        const auto img_path = cam_dirs[cam_idx] + "/data/" + img_fname;
+        const auto img_path = cam_data_dirs[cam_idx] + "/" + img_fname;
         cv::imwrite(img_path, cam_img);
       }
 
@@ -768,68 +776,38 @@ struct calib_nbv_t {
       fclose(img_idx);
     }
 
-    // Save grid data
-    const auto tag_rows = calib->calib_target.tag_rows;
-    const auto tag_cols = calib->calib_target.tag_cols;
-    const auto tag_size = calib->calib_target.tag_size;
-    const auto tag_spacing = calib->calib_target.tag_spacing;
-
-    for (const auto &[ts, view] : calib->calib_views) {
-      const auto ts_str = std::to_string(ts);
-      std::map<int, FILE *> grid_files;
-
-      // Create grid files
-      for (const auto &[cam_idx, grid_dir] : grid_dirs) {
-        const auto grid_path = grid_dir + "/" + ts_str + ".csv";
-        grid_files[cam_idx] = fopen(grid_path.c_str(), "w");
-        fprintf(grid_files[cam_idx], "#");
-        fprintf(grid_files[cam_idx], "ts,");
-        fprintf(grid_files[cam_idx], "tag_rows,");
-        fprintf(grid_files[cam_idx], "tag_cols,");
-        fprintf(grid_files[cam_idx], "tag_size,");
-        fprintf(grid_files[cam_idx], "tag_spacing,");
-        fprintf(grid_files[cam_idx], "kp_x,kp_y,");
-        fprintf(grid_files[cam_idx], "p_x,p_y,p_z,");
-        fprintf(grid_files[cam_idx], "tag_id,corner_idx");
-        fprintf(grid_files[cam_idx], "\n");
-      }
-
-      // Output AprilGrid corners
-      for (const auto &[cam_idx, res_fns] : view->res_fns) {
-        for (const auto res_fn : res_fns) {
-          const auto tag_id = res_fn->p_FFi->tag_id;
-          const auto corner_idx = res_fn->p_FFi->corner_idx;
-          const vec3_t &p = res_fn->p_FFi->param;
-          const vec2_t &z = res_fn->z;
-
-          fprintf(grid_files[cam_idx], "%ld,", ts);
-          fprintf(grid_files[cam_idx], "%d,", tag_rows);
-          fprintf(grid_files[cam_idx], "%d,", tag_cols);
-          fprintf(grid_files[cam_idx], "%f,", tag_size);
-          fprintf(grid_files[cam_idx], "%f,", tag_spacing);
-          fprintf(grid_files[cam_idx], "%f,", z.x());
-          fprintf(grid_files[cam_idx], "%f,", z.y());
-          fprintf(grid_files[cam_idx], "%f,", p.x());
-          fprintf(grid_files[cam_idx], "%f,", p.y());
-          fprintf(grid_files[cam_idx], "%f,", p.z());
-          fprintf(grid_files[cam_idx], "%d,", tag_id);
-          fprintf(grid_files[cam_idx], "%d", corner_idx);
-          fprintf(grid_files[cam_idx], "\n");
-        }
-      }
-
-      // Close grid files
-      for (auto &[cam_idx, grid_file] : grid_files) {
-        fclose(grid_file);
-      }
-    }
+    // Preprocess image data
+    const auto grids_path = camera_data_path + "/grid0";
+    const std::map<int, aprilgrids_t> cam_grids =
+        calib_data_preprocess(calib->calib_target,
+                              cam_data_dirs,
+                              grids_path,
+                              false);
 
     // Final solve and save results
+    prof.start("nbv-final_solve");
     LOG_INFO("Optimize over all NBVs");
     const std::string results_path = camera_data_path + "/calib-results.yaml";
-    calib->solver->solve();
-    calib->show_results();
-    calib->save_results(results_path);
+    calib_camera_t final_calib{config_file};
+    final_calib.enable_nbv = false;
+    final_calib.add_camera_data(cam_grids);
+    final_calib.solve();
+    final_calib.save_results(results_path);
+    prof.stop("nbv-final_solve");
+
+    // Append timings to results file
+    // clang-format off
+    const auto time_data_collection = prof.record["nbv-data_collection"].back();
+    const auto time_final_solve = prof.record["nbv-final_solve"].back();
+    const auto time_total = time_data_collection + time_final_solve;
+    FILE *results_yaml = fopen(results_path.c_str(), "a");
+    fprintf(results_yaml, "profiling:\n");
+    fprintf(results_yaml, "  data_collection: %.2f  # [s]\n", time_data_collection);
+    fprintf(results_yaml, "  final_solve:     %.2f  # [s]\n", time_final_solve);
+    fprintf(results_yaml, "  total_time:      %.2f  # [s]\n", time_total);
+    fprintf(results_yaml, "\n");
+    fclose(results_yaml);
+    // clang-format on
 
     // Save info
     const std::string info_path = camera_data_path + "/calib_info.csv";

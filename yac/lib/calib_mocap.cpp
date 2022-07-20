@@ -363,7 +363,7 @@ aprilgrids_t calib_mocap_t::_preprocess(const calib_target_t &calib_target,
     fflush(stdout);
   }
   printf("\n");
-  LOG_INFO("Preprocessed [%d] AprilGrids!", grids.size());
+  LOG_INFO("Preprocessed [%ld] AprilGrids!", grids.size());
 
   return grids;
 }
@@ -560,10 +560,10 @@ int calib_mocap_t::solve_nbv() {
 
     // Solve with new view
     solver->solve(30);
-    // if (get_num_views() < 5) {
-    //   ts_idx++;
-    //   continue;
-    // }
+    if (get_num_views() < 5) {
+      ts_idx++;
+      continue;
+    }
 
     // Calculate information gain
     real_t info_kp1 = 0.0;

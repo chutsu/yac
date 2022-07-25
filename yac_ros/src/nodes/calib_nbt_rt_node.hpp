@@ -193,7 +193,7 @@ struct calib_nbt_t {
 
   // NBT
   struct timespec nbt_tic = (struct timespec){0, 0};
-  double nbt_threshold = 8.0;
+  double nbt_pause_threshold = 3.0;
   bool nbt_in_action = false;
 
   // Data
@@ -557,19 +557,19 @@ struct calib_nbt_t {
     // NBT IN ACTION
     if (nbt_in_action) {
       // Check If NBT time threshold met?
-      if (toc(&nbt_tic) < nbt_threshold) {
-        if (toc(&nbt_tic) < 2.0) {
-          draw_hcentered_text("Finding NBT! Hold Position!", 1.5, 1, 150, viz);
-        }
+      // if (toc(&nbt_tic) < 2.0) {
+      //   draw_hcentered_text("Finding NBT! Hold Position!", 1.5, 1, 150, viz);
+      // }
+      if (toc(&nbt_tic) < nbt_pause_threshold) {
         goto show_viz;
       }
 
-      // Check if back to calibration origin?
-      if (check_nbv_reached(calib->grid_buf[cam_idx]) == false) {
-        draw_hcentered_text("Go back to start!", 1.5, 1, 150, viz);
-        draw_nbv(cam_idx, viz);
-        goto show_viz;
-      }
+      // // Check if back to calibration origin?
+      // if (check_nbv_reached(calib->grid_buf[cam_idx]) == false) {
+      //   draw_hcentered_text("Go back to start!", 1.5, 1, 150, viz);
+      //   draw_nbv(cam_idx, viz);
+      //   goto show_viz;
+      // }
     }
 
     // Find NBT

@@ -254,27 +254,32 @@ struct calib_nbv_t {
     // Convert grid_buffer to view_data
     std::map<int, aprilgrid_t> view_data;
     for (const auto &[cam_idx, data] : grid_buffer) {
-      const auto &grid = data.first;
-      const auto ts = grid.timestamp;
-      const auto &img = data.second;
       view_data[cam_idx] = data.first;
-
-      // Keep track of all aprilgrids and images
-      cam_images[cam_idx][ts] = img;
-      cam_grids[cam_idx][ts] = grid;
     }
 
     // Add view
     if (calib->add_nbv_view(view_data)) {
-      LOG_INFO("Add View! [Number of Views: %d]", views_added++);
+      LOG_INFO("Add View! [Number of NBVs: %d]", views_added++);
       if (calib->nb_views() >= calib->min_nbv_views) {
         calib->_remove_outliers(false);
+      }
+
+      // Keep track of aprilgrids and images
+      for (const auto &[cam_idx, data] : grid_buffer) {
+        const auto ts = data.first.timestamp;
+        const auto &img = data.second;
+        const auto &grid = calib->calib_views[ts]->grids[cam_idx];
+
+        // Keep track of all aprilgrids and images
+        cam_images[cam_idx][ts] = img;
+        cam_grids[cam_idx][ts] = grid;
       }
 
       // Marginalize oldest view
       if (calib->nb_views() > calib->sliding_window_size) {
         calib->marginalize();
       }
+
     } else {
       LOG_INFO("Reject View!");
     }
@@ -776,13 +781,25 @@ struct calib_nbv_t {
       fclose(img_idx);
     }
 
-    // Preprocess image data
-    const auto grids_path = camera_data_path + "/grid0";
-    const std::map<int, aprilgrids_t> cam_grids =
-        calib_data_preprocess(calib->calib_target,
-                              cam_data_dirs,
-                              grids_path,
-                              false);
+    // Save aprilgrid data
+    const auto grids_dir = camera_data_path + "/grid0";
+    for (const auto &[cam_idx, cam_data] : cam_grids) {
+      const auto cam_str = "cam" + std::to_string(cam_idx);
+
+      for (const auto &[ts, cam_grid] : cam_data) {
+        const auto ts_str = std::to_string(ts);
+        const auto grid_path = grids_dir + "/" + ts_str + ".csv";
+        cam_grid.save(grid_path);
+      }
+    }
+
+    // // Preprocess image data
+    // const auto grids_path = camera_data_path + "/grid0";
+    // const std::map<int, aprilgrids_t> cam_grids =
+    //     calib_data_preprocess(calib->calib_target,
+    //                           cam_data_dirs,
+    //                           grids_path,
+    //                           false);
 
     // Final solve and save results
     prof.start("nbv-final_solve");

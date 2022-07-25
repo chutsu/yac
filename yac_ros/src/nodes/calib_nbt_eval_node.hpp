@@ -83,10 +83,10 @@ struct calib_nbt_eval_t {
 
   /** Evaluation callback */
   void eval_callback(const yac_ros::CalibVI &msg) {
-    // Send empty path message to delete previous one
-    nav_msgs::Path path_msg;
-    path_msg.header.frame_id = "map";
-    nbt_pub.publish(path_msg);
+    // // Send empty path message to delete previous one
+    // nav_msgs::Path path_msg;
+    // path_msg.header.frame_id = "map";
+    // nbt_pub.publish(path_msg);
 
     // NBT Data
     nbt_data_t nbt_data;

@@ -221,6 +221,22 @@ struct calib_nbv_t {
     has_imu = true;
   }
 
+  /** Get NBV Target */
+  aprilgrid_t get_nbv_target(const int cam_idx) const {
+    const auto cam_geom = calib->cam_geoms[cam_idx].get();
+    const auto cam_params = calib->cam_params[cam_idx].get();
+    const mat4_t T_FC0 = nbv_poses.at(0).at(nbv_idx);
+    const mat4_t T_C0Ci = calib->cam_exts[cam_idx]->tf();
+    const mat4_t T_FCi = T_FC0 * T_C0Ci;
+
+    // Show NBV Reproj Error
+    return nbv_target_grid(calib->calib_target,
+                           calib->cam_geoms[cam_idx].get(),
+                           calib->cam_params[cam_idx].get(),
+                           0,
+                           T_FCi);
+  }
+
   /**
    * Update image buffer
    * @param[in] cam_idx Camera index

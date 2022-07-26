@@ -772,6 +772,11 @@ std::map<int, vec2s_t> calib_camera_t::get_residuals() const {
   return residuals;
 }
 
+calib_view_t *calib_camera_t::get_last_view() {
+  const auto last_ts = calib_view_timestamps.back();
+  return calib_views[last_ts];
+}
+
 void calib_camera_t::add_camera_data(const int cam_idx,
                                      const aprilgrids_t &grids,
                                      const bool init_intrinsics) {

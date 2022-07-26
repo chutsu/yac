@@ -151,8 +151,10 @@ RUN_CMD="./test_calib_mocap"
 # RUN_CMD="roslaunch yac_ros calib_imucam.launch \
 #   config_file:=/home/chutsu/projects/yac/yac_ros/config/euroc-calib_imucam.yaml"
 
-# RUN_CMD="roslaunch yac_ros intel_d435i-calib_imucam.launch \
-#   config_file:=/home/chutsu/projects/yac/yac_ros/config/intel_d435i.yaml" \
+RUN_CMD="roslaunch yac_ros intel_d435i-calib_imucam.launch \
+  config_file:=/home/chutsu/projects/yac/yac_ros/config/intel_d435i.yaml" \
+
+# RUN_CMD="roslaunch yac_ros intel_d435i.launch"
 
 # RUN_CMD="roslaunch yac_ros calib_mocap.launch \
 #   config_file:=/home/chutsu/projects/yac/yac_ros/config/calib_mocap-sotiris.yaml" \
@@ -160,12 +162,12 @@ RUN_CMD="./test_calib_mocap"
 # RUN_CMD="roslaunch yac_ros calib_mocap.launch \
 #   config_file:=/home/chutsu/projects/yac/yac_ros/config/calib_mocap-intel_d435i.yaml"
 
-RUN_CMD="roslaunch yac_ros calib_mocap_inspect-intel_realsense.launch \
-  calib_file:=/data/mocap/mocap0/calib_mocap-results.yaml \
-  camera_topic:=/rs/ir0/image \
-  mocap_topic:=/vicon/chris_d435i/chris_d435i"
+# RUN_CMD="roslaunch yac_ros calib_mocap_inspect-intel_realsense.launch \
+#   calib_file:=/data/mocap/mocap1/calib_mocap-results.yaml \
+#   camera_topic:=/rs/ir0/image \
+#   mocap_topic:=/vicon/chris_d435i/chris_d435i"
 
-# rm -rf /tmp/calib_data
+rm -rf /tmp/calib_data
 # rm -rf /tmp/calib_data/calib_imu
 # rm -rf /tmp/calib_data/calib_camera
 
@@ -176,7 +178,6 @@ cd ~/projects/yac \
 && make release \
 && cd ~/yac_ws \
 && source devel/setup.bash \
-&& rm -rf /tmp/calib_data \
 && ${RUN_CMD}
 " c-m
 exit

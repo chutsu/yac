@@ -34,7 +34,7 @@ struct calib_nbv_t {
   bool enable_nbv_mode = false;
   double nbv_reproj_threshold = 15.0;
   double nbv_hold_threshold = 0.5;
-  double pause_threshold = 0.5;
+  double pause_threshold = 0.2;
 
   // ROS
   const std::string node_name;
@@ -86,7 +86,6 @@ struct calib_nbv_t {
   real_t nbv_info = 0.0;
   real_t info = 0.0;
   real_t info_gain = 0.0;
-  aprilgrid_t nbv_target;
   double nbv_reproj_err = -1.0;
   struct timespec nbv_hold_tic = (struct timespec){0, 0};
 
@@ -223,8 +222,6 @@ struct calib_nbv_t {
 
   /** Get NBV Target */
   aprilgrid_t get_nbv_target(const int cam_idx) const {
-    const auto cam_geom = calib->cam_geoms[cam_idx].get();
-    const auto cam_params = calib->cam_params[cam_idx].get();
     const mat4_t T_FC0 = nbv_poses.at(0).at(nbv_idx);
     const mat4_t T_C0Ci = calib->cam_exts[cam_idx]->tf();
     const mat4_t T_FCi = T_FC0 * T_C0Ci;
@@ -417,17 +414,64 @@ struct calib_nbv_t {
     nbv_draw(calib->calib_target, cam_geom, cam_params, T_FCi, img);
 
     // Show NBV Reproj Error
-    draw_nbv_reproj_error(nbv_reproj_err, img);
+    const auto nbv_target = nbv_target_grid(calib->calib_target,
+                                            calib->cam_geoms[cam_idx].get(),
+                                            calib->cam_params[cam_idx].get(),
+                                            0,
+                                            T_FCi);
 
-    // Show NBV status
-    // if (nbv_reproj_err > 0.0 && nbv_reproj_err < (nbv_reproj_threshold
-    // * 1.5)) {
-    //   std::string text = "Nearly There!";
-    //   if (nbv_reproj_err <= nbv_reproj_threshold) {
-    //     text = "HOLD IT!";
-    //   }
-    //   draw_status_text(text, img);
-    // }
+    std::vector<double> reproj_errors;
+    nbv_reached(nbv_target,
+                grid_buffer[cam_idx].first,
+                nbv_reproj_threshold,
+                reproj_errors);
+    draw_nbv_reproj_error(mean(reproj_errors), img);
+  }
+
+  /** Draw Coverage */
+  cv::Mat draw_coverage(const int cam_idx,
+                        const cv::Mat &cam_img,
+                        const std::map<timestamp_t, aprilgrid_t> &cam_grids) {
+    // Draw detected keypoints
+    const cv::Scalar green(0, 255, 0);
+    const int marker_size = 2;
+    cv::Size img_dim{cam_img.cols, cam_img.rows};
+    cv::Mat coverage = cv::Mat{img_dim, CV_8UC3, cv::Scalar{0}};
+    for (const auto &[ts, grid] : cam_grids) {
+      for (const auto &kp : grid.keypoints()) {
+        cv::Point2d p(kp.x(), kp.y());
+        cv::circle(coverage, p, marker_size, green, -1);
+      }
+    }
+
+    // Calculate occuppied
+    const float nb_pixels = (coverage.rows * coverage.cols);
+    float occuppied = 0;
+    for (int i = 0; i < coverage.rows; i++) {
+      for (int j = 0; j < coverage.cols; j++) {
+        if (coverage.at<float>(i, j) > 0.0) {
+          occuppied += 1.0;
+        }
+      }
+    }
+    occuppied = (occuppied / nb_pixels) * 100.0;
+
+    // Occupied String
+    std::ostringstream occuppied_ss;
+    occuppied_ss.precision(1);
+    occuppied_ss << std::fixed << occuppied;
+
+    // Draw camera index in top-left
+    std::string text = "cam" + std::to_string(cam_idx) + " coverage";
+    text += " - [" + occuppied_ss.str() + "%]";
+    const int font = cv::FONT_HERSHEY_PLAIN;
+    const float scale = 2.0;
+    const cv::Scalar red(0, 0, 255);
+    const int thickness = 2;
+    const cv::Point pos{10, 30}; // Bottom left of text string
+    cv::putText(coverage, text, pos, font, scale, red, thickness, cv::LINE_AA);
+
+    return coverage;
   }
 
   /* Check if extrinsics can be initialized */
@@ -467,7 +511,7 @@ struct calib_nbv_t {
 
     // Check if NBV reached
     std::vector<double> reproj_errors;
-    const bool reached = nbv_reached(nbv_target,
+    const bool reached = nbv_reached(get_nbv_target(nbv_cam_idx),
                                      grid_buffer[nbv_cam_idx].first,
                                      nbv_reproj_threshold,
                                      reproj_errors);
@@ -514,6 +558,44 @@ struct calib_nbv_t {
     }
   }
 
+  /** Visualize */
+  void visualize() {
+    // Setup visualization image
+    cv::Mat viz;
+    for (const auto [cam_idx, cam_data] : img_buffer) {
+      cv::Mat cam_viz = gray2rgb(cam_data.second);
+      draw_camera_index(cam_idx, cam_viz);
+
+      // Draw detected
+      if (grid_buffer.count(cam_idx)) {
+        draw_detected(grid_buffer[cam_idx].first, cam_viz);
+      }
+
+      // Draw NBV pose
+      if (nbv_pose_set) {
+        draw_nbv(cam_viz, cam_idx);
+      }
+
+      // Draw coverage
+      if (state == SAMPLE) {
+        auto coverage = draw_coverage(cam_idx, cam_viz, cam_grids[cam_idx]);
+        cv::vconcat(cam_viz, coverage, cam_viz);
+      }
+
+      // Stitch images
+      if (viz.empty()) {
+        viz = cam_viz;
+      } else {
+        cv::hconcat(viz, cam_viz, viz);
+      }
+    }
+    cv::resize(viz, viz, cv::Size(), 0.6, 0.6);
+
+    // Show viz
+    cv::imshow("Viz", viz);
+    event_handler(cv::waitKey(1));
+  }
+
   /** Publish Transforms */
   void publish_tfs(const bool publish_camera_pose = true,
                    const bool publish_nbv = false) {
@@ -525,7 +607,7 @@ struct calib_nbv_t {
     publish_fiducial_tf(ros_ts, calib->calib_target, T_WF, tf_br, rviz_pub);
 
     // Publish NBV and camera pose
-    if (grid_buffer.count(0)) {
+    if (grid_buffer.count(0) && grid_buffer[0].first.detected) {
       const auto &grid = grid_buffer[0].first;
       const auto cam_geom = calib->cam_geoms[0].get();
       const auto cam_res = calib->cam_params[0]->resolution;
@@ -536,7 +618,7 @@ struct calib_nbv_t {
       if (publish_camera_pose) {
         mat4_t T_CiF;
         if (grid.estimate(cam_geom, cam_res, cam_param, T_CiF) != 0) {
-          FATAL("Failed to estimate relative pose!");
+          LOG_ERROR("Failed to estimate relative pose!");
         }
         publish_tf(ros_ts, "Camera", T_WF * T_CiF.inverse(), tf_br);
       }
@@ -651,28 +733,7 @@ struct calib_nbv_t {
     }
 
   viz_init_intrinsics:
-    // Visualize Initialization mode
-    cv::Mat viz;
-
-    for (auto [cam_idx, data] : img_buffer) {
-      // Check if camera intrinsics already initialized
-      if (cam_params_init.count(cam_idx)) {
-        continue;
-      }
-
-      // Draw
-      viz = gray2rgb(data.second);
-      draw_camera_index(cam_idx, viz);
-      if (grid_buffer.count(cam_idx)) {
-        draw_detected(grid_buffer[cam_idx].first, viz);
-      }
-      break;
-    }
-
-    if (viz.empty() == false) {
-      cv::imshow("Viz", viz);
-      event_handler(cv::waitKey(1));
-    }
+    visualize();
   }
 
   /** Initialize Extrinsics */
@@ -711,25 +772,7 @@ struct calib_nbv_t {
     }
 
   viz_init_extrinsics:
-    // Visualize Initialization mode
-    // -- Draw cam0
-    cv::Mat cam0_img = gray2rgb(img_buffer[0].second);
-    draw_camera_index(0, cam0_img);
-    if (grid_buffer.count(0)) {
-      draw_detected(grid_buffer[0].first, cam0_img);
-    }
-    // -- Draw cam-i
-    cv::Mat cami_img = gray2rgb(img_buffer[missing_cam_idx].second);
-    draw_camera_index(missing_cam_idx, cami_img);
-    if (grid_buffer.count(missing_cam_idx)) {
-      draw_detected(grid_buffer[missing_cam_idx].first, cami_img);
-    }
-    // -- Concatenate images horizontally
-    cv::Mat viz;
-    cv::hconcat(cam0_img, cami_img, viz);
-    // -- Visualize
-    cv::imshow("Viz", viz);
-    event_handler(cv::waitKey(1));
+    visualize();
   }
 
   bool find_nbv() {
@@ -779,11 +822,12 @@ struct calib_nbv_t {
         const mat4_t T_FC0 = nbv_poses.at(nbv_cam_idx).at(nbv_idx);
         const mat4_t T_C0Ci = calib->cam_exts[nbv_cam_idx]->tf();
         const mat4_t T_FCi = T_FC0 * T_C0Ci;
-        nbv_target = nbv_target_grid(calib->calib_target,
-                                     calib->cam_geoms[nbv_cam_idx].get(),
-                                     calib->cam_params[nbv_cam_idx].get(),
-                                     0,
-                                     T_FCi);
+        const auto nbv_target =
+            nbv_target_grid(calib->calib_target,
+                            calib->cam_geoms[nbv_cam_idx].get(),
+                            calib->cam_params[nbv_cam_idx].get(),
+                            0,
+                            T_FCi);
 
         // Reset NBV data
         nbv_reproj_err = -1.0;
@@ -867,6 +911,7 @@ struct calib_nbv_t {
       if (grid_buffer.size() && grid_buffer.count(nbv_cam_idx)) {
         // Check if NBV reached
         std::vector<double> reproj_errors;
+        const auto nbv_target = get_nbv_target(nbv_cam_idx);
         const bool reached = nbv_reached(nbv_target,
                                          grid_buffer[nbv_cam_idx].first,
                                          nbv_reproj_threshold,
@@ -931,15 +976,16 @@ struct calib_nbv_t {
                                           info,
                                           info_gain);
         if (retval == 0) {
-          // Form target grid
-          const mat4_t T_FC0 = nbv_poses.at(nbv_cam_idx).at(nbv_idx);
-          const mat4_t T_C0Ci = calib->cam_exts[nbv_cam_idx]->tf();
-          const mat4_t T_FCi = T_FC0 * T_C0Ci;
-          nbv_target = nbv_target_grid(calib->calib_target,
-                                       calib->cam_geoms[nbv_cam_idx].get(),
-                                       calib->cam_params[nbv_cam_idx].get(),
-                                       0,
-                                       T_FCi);
+          // // Form target grid
+          // const mat4_t T_FC0 = nbv_poses.at(0).at(nbv_idx);
+          // const mat4_t T_C0Ci = calib->cam_exts[nbv_cam_idx]->tf();
+          // const mat4_t T_FCi = T_FC0 * T_C0Ci;
+          // nbv_target = nbv_target_grid(calib->calib_target,
+          //                              calib->cam_geoms[nbv_cam_idx].get(),
+          //                              calib->cam_params[nbv_cam_idx].get(),
+          //                              0,
+          //                              T_FCi);
+          // const auto nbv_target = get_nbv_target(nbv_cam_idx);
 
           // Reset NBV data
           nbv_reproj_err = -1.0;
@@ -962,51 +1008,11 @@ struct calib_nbv_t {
       }
     }
 
-    // Setup visualization image
-    cv::Mat viz;
-    for (const auto [cam_idx, cam_data] : img_buffer) {
-      cv::Mat cam_viz = gray2rgb(cam_data.second);
-      draw_camera_index(cam_idx, cam_viz);
-
-      // Draw detected
-      if (grid_buffer.count(cam_idx)) {
-        draw_detected(grid_buffer[cam_idx].first, cam_viz);
-      }
-
-      // Draw NBV pose
-      if (nbv_pose_set) {
-        draw_nbv(cam_viz, cam_idx);
-      }
-
-      // Draw coverage
-      const cv::Scalar color(0, 255, 0);
-      const int marker_size = 2;
-      cv::Size img_dim{cam_viz.cols, cam_viz.rows};
-      cv::Mat coverage = cv::Mat{img_dim, CV_8UC3, cv::Scalar{0}};
-      for (const auto &[ts, grid] : cam_grids[cam_idx]) {
-        for (const auto &kp : grid.keypoints()) {
-          cv::Point2d p(kp.x(), kp.y());
-          cv::circle(coverage, p, marker_size, color, -1);
-        }
-      }
-
-      // Stitch images
-      cv::vconcat(cam_viz, coverage, cam_viz);
-      if (viz.empty()) {
-        viz = cam_viz;
-      } else {
-        cv::hconcat(viz, cam_viz, viz);
-      }
-    }
-
-    // Show viz
-    cv::imshow("Viz", viz);
-
     // Publish transforms
-    publish_tfs(true, false);
+    publish_tfs(true, nbv_pose_set);
 
-    // Event handler
-    event_handler(cv::waitKey(1));
+    // Setup visualization image
+    visualize();
   }
 
   /** Quit */
@@ -1194,7 +1200,6 @@ struct calib_nbv_t {
     nbv_info = 0.0;
     info = 0.0;
     info_gain = 0.0;
-    nbv_target = aprilgrid_t();
     nbv_reproj_err = -1.0;
     nbv_hold_tic = (struct timespec){0, 0};
   }

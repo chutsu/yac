@@ -354,7 +354,7 @@ struct calib_nbv_t {
       // Estimate info
       if (estimate_info) {
         calib->_calc_info(&calib->info_k, &calib->entropy_k);
-        LOG_INFO("Add View! [Number of NBVs: %d, info_gain: %f]",
+        LOG_INFO("Add View! [Number of NBVs: %d, info: %f]",
                  views_added++,
                  calib->info_k);
         calib_info[view_ts] = calib->info_k;

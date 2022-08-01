@@ -258,6 +258,12 @@ struct calib_nbt_eval_t {
       return;
     }
 
+    // Send empty path message to delete previous one
+    LOG_INFO("Resetting NBT eval node ...");
+    nav_msgs::Path path_msg;
+    path_msg.header.frame_id = "map";
+    nbt_pub.publish(path_msg);
+
     // Clear calibration info
     calib_info.clear();
     calib_info_predict.clear();

@@ -153,6 +153,7 @@ struct calib_nbt_t {
   std::string data_path;
   std::string imu_dir;
   std::map<int, std::string> cam_dirs;
+  std::map<int, std::string> grid_dirs;
   bool use_apriltags3 = true;
   int min_init_views = 10;
   double nbv_reproj_threshold = 50.0;
@@ -187,7 +188,9 @@ struct calib_nbt_t {
 
   // Initialization
   aprilgrid_t calib_origin;
+  mat4_t T_BS_init;
   mat4_t T_FC0;
+  double T_BS_deviation_threshold = 0.3;
   double nbv_reproj_err = -1.0;
   struct timespec hold_tic = (struct timespec){0, 0};
 
@@ -303,6 +306,13 @@ struct calib_nbt_t {
       if (system(("mkdir -p " + cam_dir + "/data").c_str()) != 0) {
         FATAL("Failed to create dir [%s]", cam_dir.c_str());
       }
+
+      // Create grid directory
+      grid_dirs[cam_idx] = data_path + "/grid0/cam" + std::to_string(cam_idx);
+      if (system(("mkdir -p " + grid_dirs[cam_idx]).c_str()) != 0) {
+        FATAL("Failed to create dir [%s]", grid_dirs[cam_idx].c_str());
+      }
+      LOG_INFO("Creating dir [%s]", grid_dirs[cam_idx].c_str());
 
       // Create camera index file
       const std::string csv_path = cam_dir + "/data.csv";
@@ -429,6 +439,21 @@ struct calib_nbt_t {
     return true;
   }
 
+  /** Check cam-imu extrinsics */
+  bool check_cam_imu_extrinsics() {
+    const auto r_BS_init = tf_trans(T_BS_init);
+    const auto r_BS_est = tf_trans(calib->get_imu_extrinsics());
+    const auto diff = (r_BS_init - r_BS_est).norm();
+    if (diff > T_BS_deviation_threshold) {
+      LOG_ERROR("Sudden large change in cam0-imu extrinsics (T_cam0_imu0)!");
+      LOG_ERROR("This can't be good! Restarting calibration!");
+      reset();
+      return false;
+    }
+
+    return true;
+  }
+
   /** Visualize */
   void visualize() {
     // Pre-check
@@ -532,6 +557,9 @@ struct calib_nbt_t {
     calib->window_size = 4;
     calib->reset();
 
+    // Keep track of initial cam-imu extrinsics
+    T_BS_init = calib->get_imu_extrinsics();
+
     // Transition to NBT mode
     LOG_INFO("Transition to NBT mode");
     state = NBT;
@@ -544,6 +572,11 @@ struct calib_nbt_t {
     if (calib->img_buf.count(cam_idx) == 0) {
       return;
     }
+
+    // // Check cam0-imu extrinsics estimate
+    // if (check_cam_imu_extrinsics() == false) {
+    //   return;
+    // }
 
     // Convert image gray to rgb
     const auto &img_gray = calib->img_buf[cam_idx].second;
@@ -702,6 +735,10 @@ struct calib_nbt_t {
     std::lock_guard<std::mutex> guard(mtx);
     const timestamp_t ts = msg->header.stamp.toNSec();
     const cv::Mat cam_img = msg_convert(msg);
+    // const aprilgrid_detector_t detector{calib->calib_target.tag_rows,
+    //                                     calib->calib_target.tag_cols,
+    //                                     calib->calib_target.tag_size,
+    //                                     calib->calib_target.tag_spacing};
 
     // Record
     if (state != SETUP) {
@@ -714,6 +751,13 @@ struct calib_nbt_t {
       cv::imwrite(img_path.c_str(), cam_img);
       fprintf(cam_files[cam_idx], "%ld,%ld.png\n", ts, ts);
       fflush(cam_files[cam_idx]);
+
+      // std::thread th([&]() {
+      //   const auto &grid = detector.detect(ts, cam_img);
+      //   const auto ts_str = std::to_string(ts);
+      //   grid.save(grid_dirs[cam_idx] + "/" + ts_str + ".csv");
+      // });
+      // th.detach();
 
       if (ready == false) {
         return;

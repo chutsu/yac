@@ -185,6 +185,7 @@ struct calib_nbt_t {
 
   // Calibration
   std::unique_ptr<calib_vi_t> calib;
+  std::unique_ptr<aprilgrid_detector_t> detector;
 
   // Initialization
   aprilgrid_t calib_origin;
@@ -222,6 +223,11 @@ struct calib_nbt_t {
     // Setup calibrator
     calib = std::make_unique<calib_vi_t>(calib_file);
     calib->max_iter = 30;
+    detector =
+        std::make_unique<aprilgrid_detector_t>(calib->calib_target.tag_rows,
+                                               calib->calib_target.tag_cols,
+                                               calib->calib_target.tag_size,
+                                               calib->calib_target.tag_spacing);
 
     // Setup output directories
     if (prep_output() != 0) {
@@ -735,29 +741,39 @@ struct calib_nbt_t {
     std::lock_guard<std::mutex> guard(mtx);
     const timestamp_t ts = msg->header.stamp.toNSec();
     const cv::Mat cam_img = msg_convert(msg);
-    // const aprilgrid_detector_t detector{calib->calib_target.tag_rows,
-    //                                     calib->calib_target.tag_cols,
-    //                                     calib->calib_target.tag_size,
-    //                                     calib->calib_target.tag_spacing};
 
     // Record
     if (state != SETUP) {
       // Add camera image to calibrator
       const bool ready = calib->add_measurement(ts, cam_idx, cam_img);
 
-      // Write image measurements to disk
-      const std::string img_fname = std::to_string(ts) + ".png";
-      const std::string img_path = cam_dirs[cam_idx] + "/data/" + img_fname;
-      cv::imwrite(img_path.c_str(), cam_img);
-      fprintf(cam_files[cam_idx], "%ld,%ld.png\n", ts, ts);
-      fflush(cam_files[cam_idx]);
+      // Write image and aprilgrid detection to file in the background
+      auto th_lambda = [](const aprilgrid_detector_t *detector,
+                          const std::string cam_path,
+                          FILE *cam_file,
+                          const std::string grid_path,
+                          const timestamp_t ts,
+                          const cv::Mat cam_img) {
+        // Write image measurements to disk
+        const std::string img_fname = std::to_string(ts) + ".png";
+        const std::string img_path = cam_path + "/data/" + img_fname;
+        cv::imwrite(img_path.c_str(), cam_img);
+        fprintf(cam_file, "%ld,%ld.png\n", ts, ts);
+        fflush(cam_file);
 
-      // std::thread th([&]() {
-      //   const auto &grid = detector.detect(ts, cam_img);
-      //   const auto ts_str = std::to_string(ts);
-      //   grid.save(grid_dirs[cam_idx] + "/" + ts_str + ".csv");
-      // });
-      // th.detach();
+        // Write full image aprilgrid detection
+        const auto &grid = detector->detect(ts, cam_img);
+        const auto ts_str = std::to_string(ts);
+        grid.save(grid_path + "/" + ts_str + ".csv");
+      };
+      std::thread th(th_lambda,
+                     detector.get(),
+                     cam_dirs[cam_idx],
+                     cam_files[cam_idx],
+                     grid_dirs[cam_idx],
+                     ts,
+                     cam_img.clone());
+      th.detach(); // Do not wait
 
       if (ready == false) {
         return;

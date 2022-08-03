@@ -4,7 +4,8 @@ namespace yac {
 
 // VISUAL INERTIAL CALIBRATION VIEW ////////////////////////////////////////////
 
-calib_vi_view_t::calib_vi_view_t(const timestamp_t ts_,
+calib_vi_view_t::calib_vi_view_t(const bool live_mode_,
+                                 const timestamp_t ts_,
                                  const CamIdx2Grids &grids_,
                                  const mat4_t &T_WS_,
                                  const vec_t<9> &sb_,
@@ -17,10 +18,10 @@ calib_vi_view_t::calib_vi_view_t(const timestamp_t ts_,
                                  std::shared_ptr<calib_loss_t> vision_loss_,
                                  std::shared_ptr<calib_loss_t> imu_loss_,
                                  PoseLocalParameterization *pose_plus)
-    : ts{ts_}, grids{grids_}, pose{ts_, T_WS_}, sb{ts_, sb_},
-      cam_geoms{cam_geoms_}, cam_params{cam_params_}, cam_exts{cam_exts_},
-      imu_exts{imu_exts_}, fiducial{fiducial_}, problem{problem_},
-      vision_loss{vision_loss_}, imu_loss{imu_loss_} {
+    : live_mode{live_mode_}, ts{ts_}, grids{grids_}, pose{ts_, T_WS_},
+      sb{ts_, sb_}, cam_geoms{cam_geoms_}, cam_params{cam_params_},
+      cam_exts{cam_exts_}, imu_exts{imu_exts_}, fiducial{fiducial_},
+      problem{problem_}, vision_loss{vision_loss_}, imu_loss{imu_loss_} {
   // Add pose to problem
   problem->AddParameterBlock(pose.param.data(), 7);
   problem->SetParameterization(pose.param.data(), pose_plus);
@@ -37,7 +38,11 @@ calib_vi_view_t::calib_vi_view_t(const timestamp_t ts_,
     std::vector<int> corner_idxs;
     vec2s_t kps;
     vec3s_t pts;
-    grid.get_measurements(tag_ids, corner_idxs, kps, pts);
+    if (live_mode) {
+      grid.sample(max_corners, tag_ids, corner_idxs, kps, pts);
+    } else {
+      grid.get_measurements(tag_ids, corner_idxs, kps, pts);
+    }
 
     // Add residuals to problem
     for (size_t i = 0; i < tag_ids.size(); i++) {
@@ -692,19 +697,21 @@ void calib_vi_t::initialize(const CamIdx2Grids &grids, imu_data_t &imu_buf) {
   // First calibration view
   const timestamp_t ts = grids.at(0).timestamp;
   const vec_t<9> sb = zeros(9, 1);
-  calib_views.push_back(std::make_shared<calib_vi_view_t>(ts,
-                                                          grids,
-                                                          T_WS,
-                                                          sb,
-                                                          cam_geoms,
-                                                          cam_params,
-                                                          cam_exts,
-                                                          imu_exts,
-                                                          fiducial,
-                                                          problem,
-                                                          vision_loss,
-                                                          imu_loss,
-                                                          &pose_plus));
+  calib_views.push_back(
+      std::make_shared<calib_vi_view_t>(enable_marginalization,
+                                        ts,
+                                        grids,
+                                        T_WS,
+                                        sb,
+                                        cam_geoms,
+                                        cam_params,
+                                        cam_exts,
+                                        imu_exts,
+                                        fiducial,
+                                        problem,
+                                        vision_loss,
+                                        imu_loss,
+                                        &pose_plus));
 
   initialized = true;
   prev_grids = grids;
@@ -757,19 +764,21 @@ void calib_vi_t::add_view(const CamIdx2Grids &grids) {
   // measurements, we are estimating `T_WS_k` via vision. This is because
   // vision estimate is better in this case.
   calib_view_counter++;
-  calib_views.push_back(std::make_shared<calib_vi_view_t>(ts_k,
-                                                          grids,
-                                                          T_WS_k,
-                                                          sb_k,
-                                                          cam_geoms,
-                                                          cam_params,
-                                                          cam_exts,
-                                                          imu_exts,
-                                                          fiducial,
-                                                          problem,
-                                                          vision_loss,
-                                                          imu_loss,
-                                                          &pose_plus));
+  calib_views.push_back(
+      std::make_shared<calib_vi_view_t>(enable_marginalization,
+                                        ts_k,
+                                        grids,
+                                        T_WS_k,
+                                        sb_k,
+                                        cam_geoms,
+                                        cam_params,
+                                        cam_exts,
+                                        imu_exts,
+                                        fiducial,
+                                        problem,
+                                        vision_loss,
+                                        imu_loss,
+                                        &pose_plus));
 
   // Form imu factor between view km1 and k
   if (imu_buf.size() < 5) {

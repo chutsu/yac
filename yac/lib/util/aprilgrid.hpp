@@ -97,7 +97,7 @@ struct aprilgrid_t {
               std::vector<int> &sample_tag_ids,
               std::vector<int> &sample_corner_indicies,
               vec2s_t &sample_keypoints,
-              vec3s_t &sample_object_points);
+              vec3s_t &sample_object_points) const;
 
   static void common_measurements(const aprilgrid_t &grid_i,
                                   const aprilgrid_t &grid_j,

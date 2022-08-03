@@ -12,6 +12,10 @@ namespace yac {
 // VISUAL INERTIAL CALIBRATION VIEW ////////////////////////////////////////////
 
 struct calib_vi_view_t {
+  // Settings
+  bool live_mode = false;
+  int max_corners = 20;
+
   // Data
   timestamp_t ts;
   CamIdx2Grids grids;
@@ -40,7 +44,8 @@ struct calib_vi_view_t {
   std::shared_ptr<imu_residual_t> imu_residual;
 
   calib_vi_view_t() = default;
-  calib_vi_view_t(const timestamp_t ts_,
+  calib_vi_view_t(const bool live_mode_,
+                  const timestamp_t ts_,
                   const CamIdx2Grids &grids_,
                   const mat4_t &T_WS,
                   const vec_t<9> &sb,

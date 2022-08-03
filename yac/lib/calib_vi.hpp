@@ -79,7 +79,7 @@ struct calib_vi_t {
 
   // Settings
   bool verbose = true;
-  int max_num_threads = 4;
+  int max_num_threads = 1;
   int max_iter = 50;
   bool enable_outlier_rejection = false;
   bool enable_marginalization = false;
@@ -90,8 +90,8 @@ struct calib_vi_t {
   std::string imu_loss_fn_type = "HUBER";
   double imu_loss_fn_param = 1.0;
   double outlier_threshold = 4.0;
-  int window_size = 4;
-  const real_t img_scale = 0.4;
+  int window_size = 3;
+  const real_t img_scale = 0.5;
 
   // State-Variables
   CamIdx2Geometry cam_geoms;

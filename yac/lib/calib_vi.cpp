@@ -903,7 +903,8 @@ bool calib_vi_t::add_measurement(const timestamp_t imu_ts,
     // Solve then marginalize
     prof.start("solve");
     ceres::Solver::Options options;
-    options.max_num_iterations = max_iter;
+    // options.max_num_iterations = max_iter;
+    options.max_num_iterations = 3;
     options.num_threads = max_num_threads;
     ceres::Solver::Summary summary;
     ceres::Solve(options, problem.get(), &summary);

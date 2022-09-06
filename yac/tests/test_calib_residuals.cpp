@@ -382,6 +382,8 @@ int test_mocap_residual() {
   return 0;
 }
 
+int test_imu_residual() { return 0; }
+
 int test_marg_residual() {
   // Fiducial corners
   const calib_target_t calib_target;
@@ -468,6 +470,7 @@ void test_suite() {
   MU_ADD_TEST(test_reproj_residual);
   MU_ADD_TEST(test_fiducial_residual);
   MU_ADD_TEST(test_mocap_residual);
+  MU_ADD_TEST(test_imu_residual);
   MU_ADD_TEST(test_marg_residual);
 }
 

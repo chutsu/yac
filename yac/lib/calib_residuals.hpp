@@ -273,11 +273,13 @@ public:
   sb_params_t *sb_i_ = nullptr;
   pose_t *pose_j_ = nullptr;
   sb_params_t *sb_j_ = nullptr;
+  time_delay_t *td_ = nullptr;
 
   mutable mat4_t T_WS_0_last_;
   mutable mat4_t T_WS_1_last_;
   mutable vec_t<9> sb0_last_;
   mutable vec_t<9> sb1_last_;
+  mutable vecx_t r_ = zeros(15, 1);
 
   // Constructor
   imu_residual_t() = delete;
@@ -286,7 +288,8 @@ public:
                  pose_t *pose_i,
                  sb_params_t *sb_i,
                  pose_t *pose_j,
-                 sb_params_t *sb_j);
+                 sb_params_t *sb_j,
+                 time_delay_t *td);
 
   // Destructor
   virtual ~imu_residual_t() = default;

@@ -108,7 +108,7 @@ RUN_CMD="./test_calib_mocap"
 # YAC - NBT
 # RUN_CMD="./test_calib_nbt"
 # RUN_CMD="./test_calib_nbt --target test_lissajous_trajs"
-# RUN_CMD="./test_calib_nbt --target test_nbt_lissajous_trajs"
+RUN_CMD="./test_calib_nbt --target test_nbt_lissajous_trajs"
 # RUN_CMD="./test_calib_nbt --target test_simulate_cameras"
 # RUN_CMD="./test_calib_nbt --target test_simulate_imu"
 # RUN_CMD="./test_calib_nbt --target test_nbt_eval"
@@ -167,13 +167,14 @@ RUN_CMD="roslaunch yac_ros intel_d435i-calib_imucam.launch \
 #   camera_topic:=/rs/ir0/image \
 #   mocap_topic:=/vicon/chris_d435i/chris_d435i"
 
-rm -rf /tmp/calib_data
+# rm -rf /tmp/calib_data
 # rm -rf /tmp/calib_data/calib_imu
 # rm -rf /tmp/calib_data/calib_camera
 
 tmux send-keys -t dev -R C-l C-m
 tmux send-keys -t dev -R "\
-cd ~/projects/yac \
+rm -rf /tmp/calib_data \
+&& cd ~/projects/yac \
 && sudo make lib \
 && make release \
 && cd ~/yac_ws \

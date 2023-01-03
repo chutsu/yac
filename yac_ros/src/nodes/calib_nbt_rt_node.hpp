@@ -761,10 +761,10 @@ struct calib_nbt_t {
         fprintf(cam_file, "%ld,%ld.png\n", ts, ts);
         fflush(cam_file);
 
-        // Write full image aprilgrid detection
-        const auto &grid = detector->detect(ts, cam_img);
-        const auto ts_str = std::to_string(ts);
-        grid.save(grid_path + "/" + ts_str + ".csv");
+        // // Write full image aprilgrid detection
+        // const auto &grid = detector->detect(ts, cam_img);
+        // const auto ts_str = std::to_string(ts);
+        // grid.save(grid_path + "/" + ts_str + ".csv");
       };
       std::thread th(th_lambda,
                      detector.get(),

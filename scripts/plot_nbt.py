@@ -113,8 +113,8 @@ def plot_state(traj_idx):
   # plt.subplots_adjust(hspace=0.95, left=0.1, right=0.95, top=0.95)
 
 
-# plot_poses()
-plot_state(0)
-plot_state(1)
-plot_state(2)
+plot_poses()
+# plot_state(0)
+# plot_state(1)
+# plot_state(2)
 plt.show()

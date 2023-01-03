@@ -12,6 +12,10 @@ namespace yac {
 // VISUAL INERTIAL CALIBRATION VIEW ////////////////////////////////////////////
 
 struct calib_vi_view_t {
+  // Settings
+  bool live_mode = false;
+  int max_corners = 20;
+
   // Data
   timestamp_t ts;
   CamIdx2Grids grids;
@@ -26,6 +30,7 @@ struct calib_vi_view_t {
   CamIdx2Extrinsics &cam_exts;
   std::shared_ptr<extrinsics_t> imu_exts;
   std::shared_ptr<fiducial_t> fiducial;
+  std::shared_ptr<time_delay_t> time_delay;
   PoseLocalParameterization *pose_plus;
 
   // Problem
@@ -40,7 +45,8 @@ struct calib_vi_view_t {
   std::shared_ptr<imu_residual_t> imu_residual;
 
   calib_vi_view_t() = default;
-  calib_vi_view_t(const timestamp_t ts_,
+  calib_vi_view_t(const bool live_mode_,
+                  const timestamp_t ts_,
                   const CamIdx2Grids &grids_,
                   const mat4_t &T_WS,
                   const vec_t<9> &sb,
@@ -49,6 +55,7 @@ struct calib_vi_view_t {
                   CamIdx2Extrinsics &cam_exts_,
                   std::shared_ptr<extrinsics_t> imu_exts_,
                   std::shared_ptr<fiducial_t> fiducial_,
+                  std::shared_ptr<time_delay_t> time_delay_,
                   std::shared_ptr<ceres::Problem> problem_,
                   std::shared_ptr<calib_loss_t> vision_loss,
                   std::shared_ptr<calib_loss_t> imu_loss,
@@ -79,7 +86,7 @@ struct calib_vi_t {
 
   // Settings
   bool verbose = true;
-  int max_num_threads = 4;
+  int max_num_threads = 1;
   int max_iter = 50;
   bool enable_outlier_rejection = false;
   bool enable_marginalization = false;
@@ -90,8 +97,8 @@ struct calib_vi_t {
   std::string imu_loss_fn_type = "HUBER";
   double imu_loss_fn_param = 1.0;
   double outlier_threshold = 4.0;
-  int window_size = 4;
-  const real_t img_scale = 0.4;
+  int window_size = 3;
+  const real_t img_scale = 0.5;
 
   // State-Variables
   CamIdx2Geometry cam_geoms;
@@ -204,6 +211,7 @@ struct calib_vi_t {
   void print_fiducial_pose(FILE *os) const;
   void print_imu_poses(FILE *os) const;
   void print_speed_biases(FILE *os) const;
+  void print_time_delay(FILE *os) const;
   void show_results() const;
   int save_results(const std::string &save_path) const;
 };

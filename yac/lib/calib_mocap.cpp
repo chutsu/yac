@@ -228,11 +228,13 @@ calib_mocap_t::calib_mocap_t(const std::string &config_file_,
     FATAL("Unsupported [%s]-[%s]!", proj_model.c_str(), dist_model.c_str());
   }
 
+  // Preprocess camera data
+  const auto cam_grids = _preprocess(calib_target, cam0_path, grid0_path);
+
   // Initialize / load camera parameters
   if (yaml_has_key(config, "cam0.proj_params") == false) {
     LOG_INFO("Camera parameters unknown!");
     LOG_INFO("Calibrating camera intrinsics!");
-    const auto cam_grids = _preprocess(calib_target, cam0_path, grid0_path);
     calib_camera_t calib{calib_target};
     calib.add_camera_data(0, cam_grids);
     calib.add_camera(0, cam_res.data(), proj_model, dist_model);

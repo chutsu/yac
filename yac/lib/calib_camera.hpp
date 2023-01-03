@@ -190,6 +190,7 @@ struct calib_camera_t {
   std::vector<real_t> get_all_reproj_errors() const;
   std::map<int, std::vector<real_t>> get_reproj_errors() const;
   std::map<int, vec2s_t> get_residuals() const;
+  calib_view_t *get_last_view();
 
   void add_camera_data(const int cam_idx,
                        const aprilgrids_t &grids,

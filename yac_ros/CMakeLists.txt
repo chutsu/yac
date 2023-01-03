@@ -82,10 +82,13 @@ ADD_MESSAGE_FILES(
   DIRECTORY msgs
   FILES
   CalibTarget.msg
+  CalibTargetMeasurement.msg
+  CalibTargetMeasurementSet.msg
   CalibVI.msg
   CameraParams.msg
   Extrinsics.msg
   ImuParams.msg
+  KeyPoint.msg
 )
 GENERATE_MESSAGES(DEPENDENCIES std_msgs geometry_msgs)
 

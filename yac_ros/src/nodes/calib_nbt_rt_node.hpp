@@ -153,6 +153,7 @@ struct calib_nbt_t {
   std::string data_path;
   std::string imu_dir;
   std::map<int, std::string> cam_dirs;
+  std::map<int, std::string> grid_dirs;
   bool use_apriltags3 = true;
   int min_init_views = 10;
   double nbv_reproj_threshold = 50.0;
@@ -184,16 +185,19 @@ struct calib_nbt_t {
 
   // Calibration
   std::unique_ptr<calib_vi_t> calib;
+  std::unique_ptr<aprilgrid_detector_t> detector;
 
   // Initialization
   aprilgrid_t calib_origin;
+  mat4_t T_BS_init;
   mat4_t T_FC0;
+  double T_BS_deviation_threshold = 0.3;
   double nbv_reproj_err = -1.0;
   struct timespec hold_tic = (struct timespec){0, 0};
 
   // NBT
   struct timespec nbt_tic = (struct timespec){0, 0};
-  double nbt_threshold = 8.0;
+  double nbt_pause_threshold = 3.0;
   bool nbt_in_action = false;
 
   // Data
@@ -219,6 +223,11 @@ struct calib_nbt_t {
     // Setup calibrator
     calib = std::make_unique<calib_vi_t>(calib_file);
     calib->max_iter = 30;
+    detector =
+        std::make_unique<aprilgrid_detector_t>(calib->calib_target.tag_rows,
+                                               calib->calib_target.tag_cols,
+                                               calib->calib_target.tag_size,
+                                               calib->calib_target.tag_spacing);
 
     // Setup output directories
     if (prep_output() != 0) {
@@ -250,6 +259,7 @@ struct calib_nbt_t {
 
     // Loop
     LOG_INFO("Move to calibration origin!");
+    prof.start("nbt-data_collection");
     loop();
   }
 
@@ -302,6 +312,13 @@ struct calib_nbt_t {
       if (system(("mkdir -p " + cam_dir + "/data").c_str()) != 0) {
         FATAL("Failed to create dir [%s]", cam_dir.c_str());
       }
+
+      // Create grid directory
+      grid_dirs[cam_idx] = data_path + "/grid0/cam" + std::to_string(cam_idx);
+      if (system(("mkdir -p " + grid_dirs[cam_idx]).c_str()) != 0) {
+        FATAL("Failed to create dir [%s]", grid_dirs[cam_idx].c_str());
+      }
+      LOG_INFO("Creating dir [%s]", grid_dirs[cam_idx].c_str());
 
       // Create camera index file
       const std::string csv_path = cam_dir + "/data.csv";
@@ -428,6 +445,21 @@ struct calib_nbt_t {
     return true;
   }
 
+  /** Check cam-imu extrinsics */
+  bool check_cam_imu_extrinsics() {
+    const auto r_BS_init = tf_trans(T_BS_init);
+    const auto r_BS_est = tf_trans(calib->get_imu_extrinsics());
+    const auto diff = (r_BS_init - r_BS_est).norm();
+    if (diff > T_BS_deviation_threshold) {
+      LOG_ERROR("Sudden large change in cam0-imu extrinsics (T_cam0_imu0)!");
+      LOG_ERROR("This can't be good! Restarting calibration!");
+      reset();
+      return false;
+    }
+
+    return true;
+  }
+
   /** Visualize */
   void visualize() {
     // Pre-check
@@ -531,6 +563,9 @@ struct calib_nbt_t {
     calib->window_size = 4;
     calib->reset();
 
+    // Keep track of initial cam-imu extrinsics
+    T_BS_init = calib->get_imu_extrinsics();
+
     // Transition to NBT mode
     LOG_INFO("Transition to NBT mode");
     state = NBT;
@@ -544,6 +579,11 @@ struct calib_nbt_t {
       return;
     }
 
+    // // Check cam0-imu extrinsics estimate
+    // if (check_cam_imu_extrinsics() == false) {
+    //   return;
+    // }
+
     // Convert image gray to rgb
     const auto &img_gray = calib->img_buf[cam_idx].second;
     auto viz = gray2rgb(img_gray);
@@ -556,19 +596,19 @@ struct calib_nbt_t {
     // NBT IN ACTION
     if (nbt_in_action) {
       // Check If NBT time threshold met?
-      if (toc(&nbt_tic) < nbt_threshold) {
-        if (toc(&nbt_tic) < 2.0) {
-          draw_hcentered_text("Finding NBT! Hold Position!", 1.5, 1, 150, viz);
-        }
+      // if (toc(&nbt_tic) < 2.0) {
+      //   draw_hcentered_text("Finding NBT! Hold Position!", 1.5, 1, 150, viz);
+      // }
+      if (toc(&nbt_tic) < nbt_pause_threshold) {
         goto show_viz;
       }
 
-      // Check if back to calibration origin?
-      if (check_nbv_reached(calib->grid_buf[cam_idx]) == false) {
-        draw_hcentered_text("Go back to start!", 1.5, 1, 150, viz);
-        draw_nbv(cam_idx, viz);
-        goto show_viz;
-      }
+      // // Check if back to calibration origin?
+      // if (check_nbv_reached(calib->grid_buf[cam_idx]) == false) {
+      //   draw_hcentered_text("Go back to start!", 1.5, 1, 150, viz);
+      //   draw_nbv(cam_idx, viz);
+      //   goto show_viz;
+      // }
     }
 
     // Find NBT
@@ -597,6 +637,8 @@ struct calib_nbt_t {
   void finish() {
     // Change state
     state = FINISH;
+    cv::destroyAllWindows();
+    prof.stop("nbt-data_collection");
 
     // Unsubscribe imu0
     LOG_INFO("Unsubscribing from [%s]", imu0_topic.c_str());
@@ -609,12 +651,28 @@ struct calib_nbt_t {
     }
 
     // Solve with full data and save results
+    prof.start("nbt-final_solve");
     const auto results_path = data_path + "/calib-results.yaml";
     calib_vi_t final_calib(calib_file);
     final_calib.load_data(data_path);
     final_calib.solve();
     final_calib.show_results();
     final_calib.save_results(results_path);
+    prof.stop("nbt-final_solve");
+
+    // Append timings to results file
+    // clang-format off
+    const auto time_data_collection = prof.record["nbt-data_collection"].back();
+    const auto time_final_solve = prof.record["nbt-final_solve"].back();
+    const auto time_total = time_data_collection + time_final_solve;
+    FILE *results_yaml = fopen(results_path.c_str(), "a");
+    fprintf(results_yaml, "profiling:\n");
+    fprintf(results_yaml, "  data_collection: %.2f  # [s]\n", time_data_collection);
+    fprintf(results_yaml, "  final_solve:     %.2f  # [s]\n", time_final_solve);
+    fprintf(results_yaml, "  total_time:      %.2f  # [s]\n", time_total);
+    fprintf(results_yaml, "\n");
+    fclose(results_yaml);
+    // clang-format on
 
     // Kill loop
     keep_running = false;
@@ -667,8 +725,8 @@ struct calib_nbt_t {
 
     // Write imu measurement to file
     fprintf(imu_file, "%ld,", ts);
-    fprintf(imu_file, "%f,%f,%f,", acc.x, acc.y, acc.z);
-    fprintf(imu_file, "%f,%f,%f\n", gyr.x, gyr.y, gyr.z);
+    fprintf(imu_file, "%f,%f,%f,", gyr.x, gyr.y, gyr.z);
+    fprintf(imu_file, "%f,%f,%f\n", acc.x, acc.y, acc.z);
     fflush(imu_file);
   }
 
@@ -689,12 +747,33 @@ struct calib_nbt_t {
       // Add camera image to calibrator
       const bool ready = calib->add_measurement(ts, cam_idx, cam_img);
 
-      // Write image measurements to disk
-      const std::string img_fname = std::to_string(ts) + ".png";
-      const std::string img_path = cam_dirs[cam_idx] + "/data/" + img_fname;
-      cv::imwrite(img_path.c_str(), cam_img);
-      fprintf(cam_files[cam_idx], "%ld,%ld.png\n", ts, ts);
-      fflush(cam_files[cam_idx]);
+      // Write image and aprilgrid detection to file in the background
+      auto th_lambda = [](const aprilgrid_detector_t *detector,
+                          const std::string cam_path,
+                          FILE *cam_file,
+                          const std::string grid_path,
+                          const timestamp_t ts,
+                          const cv::Mat cam_img) {
+        // Write image measurements to disk
+        const std::string img_fname = std::to_string(ts) + ".png";
+        const std::string img_path = cam_path + "/data/" + img_fname;
+        cv::imwrite(img_path.c_str(), cam_img);
+        fprintf(cam_file, "%ld,%ld.png\n", ts, ts);
+        fflush(cam_file);
+
+        // Write full image aprilgrid detection
+        const auto &grid = detector->detect(ts, cam_img);
+        const auto ts_str = std::to_string(ts);
+        grid.save(grid_path + "/" + ts_str + ".csv");
+      };
+      std::thread th(th_lambda,
+                     detector.get(),
+                     cam_dirs[cam_idx],
+                     cam_files[cam_idx],
+                     grid_dirs[cam_idx],
+                     ts,
+                     cam_img.clone());
+      th.detach(); // Do not wait
 
       if (ready == false) {
         return;

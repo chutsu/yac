@@ -535,7 +535,7 @@ void aprilgrid_t::sample(const size_t n,
                          std::vector<int> &sample_tag_ids,
                          std::vector<int> &sample_corner_indicies,
                          vec2s_t &sample_keypoints,
-                         vec3s_t &sample_object_points) {
+                         vec3s_t &sample_object_points) const {
   assert(init == true);
   if (nb_detections == 0) {
     return;

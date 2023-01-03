@@ -1,5 +1,5 @@
 ros:
-  rosbag: "/data/mocap/mocap0.bag"
+  rosbag: "/data/mocap/mocap1.bag"
   cam0_topic: "/rs/ir0/image"
   body0_topic: "/vicon/chris_d435i/chris_d435i"
   target0_topic: "/vicon/AprilGrid/AprilGrid"

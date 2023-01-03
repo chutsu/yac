@@ -86,12 +86,12 @@ set -e
 # RUN_CMD="./calib_inspect 'camera-imu' '/data/euroc_results/configs/yac/calib_imu-results.yaml' /data/euroc/imu_april/mav0"
 
 # YAC - MOCAP CALIBRATION
-RUN_CMD="./test_calib_mocap"
+# RUN_CMD="./test_calib_mocap"
 
 # YAC - VISUAL-INERTIAL CALIBRATION
 # RUN_CMD="./test_calib_vi"
 # RUN_CMD="./test_calib_vi --target test_calib_vi"
-# RUN_CMD="./test_calib_vi --target test_calib_vi_batch"
+RUN_CMD="./test_calib_vi --target test_calib_vi_batch"
 # RUN_CMD="./test_calib_vi --target test_calib_vi_online"
 
 # YAC - NBV
@@ -121,14 +121,14 @@ RUN_CMD="./test_calib_mocap"
 # RUN_CMD="./test_solver"
 # gdb -ex run -ex bt
 
-# tmux send-keys -t dev -R C-l C-m
-# tmux send-keys -t dev -R "\
-# cd ~/projects/yac \
-# && sudo make lib \
-# && cd build \
-# && $RUN_CMD
-# " C-m
-# exit
+tmux send-keys -t dev -R C-l C-m
+tmux send-keys -t dev -R "\
+cd ~/projects/yac \
+&& sudo make lib \
+&& cd build \
+&& $RUN_CMD
+" C-m
+exit
 
 # && ./calib_inspect '/tmp/calib_imu-results.yaml' /data/euroc/imu_april/mav0
 
@@ -154,8 +154,10 @@ RUN_CMD="./test_calib_mocap"
 RUN_CMD="roslaunch yac_ros calib_imucam.launch \
   config_file:=/home/chutsu/projects/yac/yac_ros/config/euroc-calib_imucam.yaml"
 
-# RUN_CMD="roslaunch yac_ros intel_d435i-calib_imucam.launch \
-#   config_file:=/home/chutsu/projects/yac/yac_ros/config/intel_d435i.yaml" \
+RUN_CMD="roslaunch yac_ros intel_d435i-calib_imucam.launch \
+  config_file:=/home/chutsu/projects/yac/yac_ros/config/intel_d435i.yaml" \
+
+# RUN_CMD="roslaunch yac_ros intel_d435i.launch"
 
 # RUN_CMD="roslaunch yac_ros calib_mocap.launch \
 #   config_file:=/home/chutsu/projects/yac/yac_ros/config/calib_mocap-sotiris.yaml" \
@@ -168,21 +170,20 @@ RUN_CMD="roslaunch yac_ros calib_imucam.launch \
 #   camera_topic:=/rs/ir0/image \
 #   mocap_topic:=/vicon/chris_d435i/chris_d435i"
 
-# rm -rf /tmp/calib_data
+rm -rf /tmp/calib_data
 # rm -rf /tmp/calib_data/calib_imu
 # rm -rf /tmp/calib_data/calib_camera
 
-tmux send-keys -t dev -R C-l C-m
-tmux send-keys -t dev -R "\
-cd ~/projects/yac \
-&& sudo make lib \
-&& make release \
-&& cd ~/yac_ws \
-&& source devel/setup.bash \
-&& rm -rf /tmp/calib_data \
-&& ${RUN_CMD}
-" c-m
-exit
+# tmux send-keys -t dev -R C-l C-m
+# tmux send-keys -t dev -R "\
+# cd ~/projects/yac \
+# && sudo make lib \
+# && make release \
+# && cd ~/yac_ws \
+# && source devel/setup.bash \
+# && ${RUN_CMD}
+# " c-m
+# exit
 
 # make
 # make lib_debug

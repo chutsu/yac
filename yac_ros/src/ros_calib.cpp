@@ -52,8 +52,8 @@ void draw_camera_index(const int cam_idx, cv::Mat &image) {
   // Text properties
   const std::string text = "cam" + std::to_string(cam_idx);
   const int font = cv::FONT_HERSHEY_PLAIN;
-  const float scale = 1.0;
-  const int thickness = 1;
+  const float scale = 2.0;
+  const int thickness = 2;
   const cv::Scalar color{0, 255, 0};
   // int baseline = 0;
   // auto size = cv::getTextSize(text, font, scale, thickness, &baseline);
@@ -71,7 +71,6 @@ void draw_nbv_reproj_error(const real_t nbv_reproj_error, cv::Mat &image) {
   std::ostringstream out;
   out.precision(1);
   out << std::fixed << nbv_reproj_error;
-  out.str();
   // -- Change text color based on reprojection error
   const std::string text = "NBV Reproj Error: " + out.str() + " [px]";
   cv::Scalar text_color;
@@ -81,10 +80,10 @@ void draw_nbv_reproj_error(const real_t nbv_reproj_error, cv::Mat &image) {
     text_color = cv::Scalar(0, 255, 0);
   }
   // -- Draw text
-  const cv::Point text_pos{10, 50};
+  const cv::Point text_pos{10, 60};
   const int text_font = cv::FONT_HERSHEY_PLAIN;
-  const float text_scale = 1.0;
-  const int text_thickness = 1;
+  const float text_scale = 1.5;
+  const int text_thickness = 2;
   cv::putText(image,
               text,
               text_pos,

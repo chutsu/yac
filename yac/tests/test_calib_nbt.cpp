@@ -384,7 +384,9 @@ int test_simulate_imu() {
   pose_t pose_j{ts_j, imu_poses.back()};
   sb_params_t sb_i{ts_i, v_i, ba_i, bg_i};
   sb_params_t sb_j{ts_j, v_j, ba_j, bg_j};
-  imu_residual_t residual(imu_params, imu_buf, &pose_i, &sb_i, &pose_j, &sb_j);
+  time_delay_t td{0.0};
+  imu_residual_t
+      residual(imu_params, imu_buf, &pose_i, &sb_i, &pose_j, &sb_j, &td);
   residual.eval();
 
   printf("imu_buf size: %ld\n", imu_buf.size());

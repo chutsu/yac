@@ -20,6 +20,9 @@ set -e
 # python3 scripts/sandbox.py && exit
 # python3 scripts/lissajous.py && exit
 # python3 scripts/lissajous.py > /tmp/out.txt && exit
+# dot -Txdot scripts/pipeline.dot | dot2tex -s -c --autosize > /tmp/test.tex \
+#   && pdflatex /tmp/test.tex \
+#   && exit
 
 # --prefix 'gdb -ex=run -ex=\"set confirm off\" -ex=bt -ex=quit -args'
 # --prefix 'gdb -ex run'
@@ -148,8 +151,8 @@ exit
 # RUN_CMD="roslaunch yac_ros calib_camera.launch \
 #   config_file:=/home/chutsu/projects/yac/yac_ros/config/euroc-calib_camera.yaml"
 
-# RUN_CMD="roslaunch yac_ros calib_imucam.launch \
-#   config_file:=/home/chutsu/projects/yac/yac_ros/config/euroc-calib_imucam.yaml"
+RUN_CMD="roslaunch yac_ros calib_imucam.launch \
+  config_file:=/home/chutsu/projects/yac/yac_ros/config/euroc-calib_imucam.yaml"
 
 RUN_CMD="roslaunch yac_ros intel_d435i-calib_imucam.launch \
   config_file:=/home/chutsu/projects/yac/yac_ros/config/intel_d435i.yaml" \
@@ -163,7 +166,7 @@ RUN_CMD="roslaunch yac_ros intel_d435i-calib_imucam.launch \
 #   config_file:=/home/chutsu/projects/yac/yac_ros/config/calib_mocap-intel_d435i.yaml"
 
 # RUN_CMD="roslaunch yac_ros calib_mocap_inspect-intel_realsense.launch \
-#   calib_file:=/data/mocap/mocap1/calib_mocap-results.yaml \
+#   calib_file:=/data/mocap/mocap0/calib_mocap-results.yaml \
 #   camera_topic:=/rs/ir0/image \
 #   mocap_topic:=/vicon/chris_d435i/chris_d435i"
 

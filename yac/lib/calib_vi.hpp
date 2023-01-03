@@ -30,6 +30,7 @@ struct calib_vi_view_t {
   CamIdx2Extrinsics &cam_exts;
   std::shared_ptr<extrinsics_t> imu_exts;
   std::shared_ptr<fiducial_t> fiducial;
+  std::shared_ptr<time_delay_t> time_delay;
   PoseLocalParameterization *pose_plus;
 
   // Problem
@@ -54,6 +55,7 @@ struct calib_vi_view_t {
                   CamIdx2Extrinsics &cam_exts_,
                   std::shared_ptr<extrinsics_t> imu_exts_,
                   std::shared_ptr<fiducial_t> fiducial_,
+                  std::shared_ptr<time_delay_t> time_delay_,
                   std::shared_ptr<ceres::Problem> problem_,
                   std::shared_ptr<calib_loss_t> vision_loss,
                   std::shared_ptr<calib_loss_t> imu_loss,
@@ -209,6 +211,7 @@ struct calib_vi_t {
   void print_fiducial_pose(FILE *os) const;
   void print_imu_poses(FILE *os) const;
   void print_speed_biases(FILE *os) const;
+  void print_time_delay(FILE *os) const;
   void show_results() const;
   int save_results(const std::string &save_path) const;
 };

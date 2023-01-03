@@ -83,12 +83,12 @@ set -e
 # RUN_CMD="./calib_inspect 'camera-imu' '/data/euroc_results/configs/yac/calib_imu-results.yaml' /data/euroc/imu_april/mav0"
 
 # YAC - MOCAP CALIBRATION
-RUN_CMD="./test_calib_mocap"
+# RUN_CMD="./test_calib_mocap"
 
 # YAC - VISUAL-INERTIAL CALIBRATION
 # RUN_CMD="./test_calib_vi"
 # RUN_CMD="./test_calib_vi --target test_calib_vi"
-# RUN_CMD="./test_calib_vi --target test_calib_vi_batch"
+RUN_CMD="./test_calib_vi --target test_calib_vi_batch"
 # RUN_CMD="./test_calib_vi --target test_calib_vi_online"
 
 # YAC - NBV
@@ -118,14 +118,14 @@ RUN_CMD="./test_calib_nbt --target test_nbt_lissajous_trajs"
 # RUN_CMD="./test_solver"
 # gdb -ex run -ex bt
 
-# tmux send-keys -t dev -R C-l C-m
-# tmux send-keys -t dev -R "\
-# cd ~/projects/yac \
-# && sudo make lib \
-# && cd build \
-# && $RUN_CMD
-# " C-m
-# exit
+tmux send-keys -t dev -R C-l C-m
+tmux send-keys -t dev -R "\
+cd ~/projects/yac \
+&& sudo make lib \
+&& cd build \
+&& $RUN_CMD
+" C-m
+exit
 
 # && ./calib_inspect '/tmp/calib_imu-results.yaml' /data/euroc/imu_april/mav0
 
@@ -171,17 +171,16 @@ RUN_CMD="roslaunch yac_ros intel_d435i-calib_imucam.launch \
 # rm -rf /tmp/calib_data/calib_imu
 # rm -rf /tmp/calib_data/calib_camera
 
-tmux send-keys -t dev -R C-l C-m
-tmux send-keys -t dev -R "\
-rm -rf /tmp/calib_data \
-&& cd ~/projects/yac \
-&& sudo make lib \
-&& make release \
-&& cd ~/yac_ws \
-&& source devel/setup.bash \
-&& ${RUN_CMD}
-" c-m
-exit
+# tmux send-keys -t dev -R C-l C-m
+# tmux send-keys -t dev -R "\
+# cd ~/projects/yac \
+# && sudo make lib \
+# && make release \
+# && cd ~/yac_ws \
+# && source devel/setup.bash \
+# && ${RUN_CMD}
+# " c-m
+# exit
 
 # make
 # make lib_debug

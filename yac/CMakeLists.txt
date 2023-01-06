@@ -158,18 +158,24 @@ TARGET_LINK_LIBRARIES(test_solver yac ${DEPS})
 # DEMO
 ADD_EXECUTABLE(calib_camera demo/calib_camera.cpp)
 TARGET_LINK_LIBRARIES(calib_camera yac ${DEPS})
+INSTALL(TARGETS calib_camera)
 
 ADD_EXECUTABLE(calib_euroc demo/calib_euroc.cpp)
 TARGET_LINK_LIBRARIES(calib_euroc yac ${DEPS})
+INSTALL(TARGETS calib_euroc)
 
 ADD_EXECUTABLE(calib_info demo/calib_info.cpp)
 TARGET_LINK_LIBRARIES(calib_info yac ${DEPS})
+INSTALL(TARGETS calib_info)
 
 ADD_EXECUTABLE(calib_inspect demo/calib_inspect.cpp)
 TARGET_LINK_LIBRARIES(calib_inspect yac ${DEPS})
+INSTALL(TARGETS calib_inspect)
 
 ADD_EXECUTABLE(calib_mocap demo/calib_mocap.cpp)
 TARGET_LINK_LIBRARIES(calib_mocap yac ${DEPS})
+INSTALL(TARGETS calib_mocap)
 
 ADD_EXECUTABLE(calib_vi demo/calib_vi.cpp)
 TARGET_LINK_LIBRARIES(calib_vi yac ${DEPS})
+INSTALL(TARGETS calib_vi)

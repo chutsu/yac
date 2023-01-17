@@ -159,6 +159,7 @@ int test_calib_vi(const std::string &mode, const int max_views = -1) {
         const auto ts = imu_event->ts;
         const auto &acc = imu_event->acc;
         const auto &gyr = imu_event->gyr;
+        // calib.add_measurement(ts + sec2ts(0.1), acc, gyr);
         calib.add_measurement(ts, acc, gyr);
       }
     }

@@ -191,7 +191,8 @@ int calib_vi_view_t::filter_view(const real_t outlier_threshold) {
 void calib_vi_view_t::form_imu_residual(const imu_params_t &imu_params,
                                         const imu_data_t imu_buf,
                                         pose_t *pose_j,
-                                        sb_params_t *sb_j) {
+                                        sb_params_t *sb_j,
+                                        double time_delay_jac_step) {
   assert(imu_params.rate > 0);
   assert(fltcmp(imu_params.sigma_a_c, 0.0) != 0);
   assert(fltcmp(imu_params.sigma_g_c, 0.0) != 0);
@@ -221,7 +222,8 @@ void calib_vi_view_t::form_imu_residual(const imu_params_t &imu_params,
                                                   &sb,
                                                   pose_j,
                                                   sb_j,
-                                                  time_delay.get());
+                                                  time_delay.get(),
+                                                  time_delay_jac_step);
   imu_residual_id = problem->AddResidualBlock(imu_residual.get(),
                                               imu_loss.get(),
                                               pose.param.data(),
@@ -305,6 +307,8 @@ calib_vi_t::calib_vi_t(const std::string &config_file_)
   parse(config, "settings.imu_loss_fn_param", imu_loss_fn_param, true);
   parse(config, "settings.outlier_threshold", outlier_threshold, true);
   parse(config, "settings.window_size", window_size, true);
+  parse(config, "settings.estimate_time_delay", estimate_time_delay, true);
+  parse(config, "settings.time_delay_jac_step", time_delay_jac_step, true);
   // clang-format on
   // -- Parse calibration target
   if (calib_target.load(config_file, "calib_target") != 0) {
@@ -325,7 +329,7 @@ calib_vi_t::calib_vi_t(const std::string &config_file_)
     parse(config, "T_imu0_cam0", T_SC0);
     T_BS = T_SC0.inverse();
   }
-  add_imu(imu_params, T_BS, 0.0, false, false);
+  add_imu(imu_params, T_BS, 0.0, false, !estimate_time_delay);
 
   // -- Parse camera settings
   for (int cam_idx = 0; cam_idx < 100; cam_idx++) {
@@ -691,12 +695,12 @@ void calib_vi_t::initialize(const CamIdx2Grids &grids, imu_data_t &imu_buf) {
   }
 
   // Print to screen
-  if (verbose) {
-    printf("Initial estimates\n");
-    print_cameras(stdout);
-    print_extrinsics(stdout);
-    print_fiducial_pose(stdout);
-  }
+  // if (verbose) {
+  //   printf("Initial estimates\n");
+  //   print_cameras(stdout);
+  //   print_extrinsics(stdout);
+  //   print_fiducial_pose(stdout);
+  // }
 
   // First calibration view
   const timestamp_t ts = grids.at(0).timestamp;
@@ -791,7 +795,11 @@ void calib_vi_t::add_view(const CamIdx2Grids &grids) {
     FATAL("imu_buf.size() < 5");
   }
   auto view_k = calib_views.back();
-  view_km1->form_imu_residual(imu_params, imu_buf, &view_k->pose, &view_k->sb);
+  view_km1->form_imu_residual(imu_params,
+                              imu_buf,
+                              &view_k->pose,
+                              &view_k->sb,
+                              time_delay_jac_step);
   if (enable_marginalization) {
     imu_buf.trim(view_k->pose.ts);
   }
@@ -1254,7 +1262,7 @@ void calib_vi_t::load_data(const std::string &data_path) {
   const auto grids_path = data_path + "/grid0";
   auto cam_grids = calib_data_preprocess(calib_target, cam_paths, grids_path);
   for (const auto cam_idx : get_camera_indices()) {
-    for (const auto grid : cam_grids[cam_idx]) {
+    for (const auto &grid : cam_grids[cam_idx]) {
       timeline.add(grid.timestamp, cam_idx, grid);
     }
   }
@@ -1304,14 +1312,17 @@ void calib_vi_t::load_data(const std::string &data_path) {
 
     std::map<timestamp_t, mat4_t> imu_pose_data;
     for (int i = 0; i < imu_poses.rows(); i++) {
-      const timestamp_t ts = imu_poses(i, 0);
-      const auto rx = imu_poses(i, 1);
-      const auto ry = imu_poses(i, 2);
-      const auto rz = imu_poses(i, 3);
-      const auto qx = imu_poses(i, 4);
-      const auto qy = imu_poses(i, 5);
-      const auto qz = imu_poses(i, 6);
-      const auto qw = imu_poses(i, 7);
+      const long int sec = imu_poses(i, 0);
+      const long int nsec = imu_poses(i, 1);
+      const timestamp_t ts = tsform(sec, nsec);
+
+      const auto rx = imu_poses(i, 2);
+      const auto ry = imu_poses(i, 3);
+      const auto rz = imu_poses(i, 4);
+      const auto qx = imu_poses(i, 5);
+      const auto qy = imu_poses(i, 6);
+      const auto qz = imu_poses(i, 7);
+      const auto qw = imu_poses(i, 8);
       const vec3_t r_WS{rx, ry, rz};
       const quat_t q_WS{qw, qx, qy, qz};
       const mat4_t T_WS = tf(q_WS, r_WS);
@@ -1319,10 +1330,12 @@ void calib_vi_t::load_data(const std::string &data_path) {
     }
 
     for (auto &view : calib_views) {
-      if (imu_pose_data.count(view->ts) == 0) {
-        FATAL("Implementation Error!");
+      if (imu_pose_data.count(view->ts)) {
+        view->pose.set_tf(imu_pose_data[view->ts]);
+        // LOG_ERROR("ts [%ld] not found in IMU pose data!", view->ts);
+        // FATAL("Implementation Error!");
       }
-      view->pose.set_tf(imu_pose_data[view->ts]);
+      // view->pose.set_tf(imu_pose_data[view->ts]);
     }
   }
   // -- Load speed-biases if exists
@@ -1332,16 +1345,19 @@ void calib_vi_t::load_data(const std::string &data_path) {
 
     std::map<timestamp_t, vecx_t> sb_data;
     for (int i = 0; i < speed_biases.rows(); i++) {
-      const timestamp_t ts = speed_biases(i, 0);
-      const auto vx = speed_biases(i, 1);
-      const auto vy = speed_biases(i, 2);
-      const auto vz = speed_biases(i, 3);
-      const auto ba_x = speed_biases(i, 4);
-      const auto ba_y = speed_biases(i, 5);
-      const auto ba_z = speed_biases(i, 6);
-      const auto bg_x = speed_biases(i, 7);
-      const auto bg_y = speed_biases(i, 8);
-      const auto bg_z = speed_biases(i, 9);
+      const long int sec = speed_biases(i, 0);
+      const long int nsec = speed_biases(i, 1);
+      const timestamp_t ts = tsform(sec, nsec);
+
+      const auto vx = speed_biases(i, 2);
+      const auto vy = speed_biases(i, 3);
+      const auto vz = speed_biases(i, 4);
+      const auto ba_x = speed_biases(i, 5);
+      const auto ba_y = speed_biases(i, 6);
+      const auto ba_z = speed_biases(i, 7);
+      const auto bg_x = speed_biases(i, 8);
+      const auto bg_y = speed_biases(i, 9);
+      const auto bg_z = speed_biases(i, 10);
 
       vecx_t sb;
       sb.resize(9);
@@ -1350,12 +1366,55 @@ void calib_vi_t::load_data(const std::string &data_path) {
     }
 
     for (auto &view : calib_views) {
-      if (sb_data.count(view->ts) == 0) {
-        FATAL("Implementation Error!");
+      if (sb_data.count(view->ts)) {
+        view->sb.set_param(sb_data[view->ts]);
+        // LOG_ERROR("ts [%ld] not found in speed and biases data!", view->ts);
+        // FATAL("Implementation Error!");
       }
-      view->sb.set_param(sb_data[view->ts]);
+      // view->sb.set_param(sb_data[view->ts]);
     }
   }
+}
+
+double calib_vi_t::cost() const {
+  // Evaluate residuals
+  std::vector<calib_residual_t *> res_evaled;
+
+  std::unordered_set<calib_residual_t *> res_fns;
+  for (const auto &view : calib_views) {
+    if (view->imu_residual == nullptr) {
+      continue;
+    }
+
+    // -- Fiducial Residuals
+    for (const auto &[cam_idx, cam_res_fns] : view->fiducial_residuals) {
+      for (const auto &res : cam_res_fns) {
+        res_fns.insert(res.get());
+      }
+    }
+    // -- IMU Residuals
+    if (view->imu_residual) {
+      res_fns.insert(view->imu_residual.get());
+    }
+  }
+  // -- Marginalization Residual
+  if (marg_residual) {
+    res_fns.insert(marg_residual.get());
+  }
+
+  // Evaluate residuals
+  double cost = 0.0;
+  for (calib_residual_t *res_fn : res_fns) {
+    if (res_fn->eval_residuals() == false) {
+      FATAL("Residual evaulation failure!");
+    }
+
+    const vecx_t &r = res_fn->residuals;
+    const double res_J = (r.transpose() * r);
+    cost += 0.5 * res_J;
+  }
+
+  return cost;
 }
 
 void calib_vi_t::solve() {
@@ -1369,10 +1428,27 @@ void calib_vi_t::solve() {
 
   // Optimize problem - first pass
   {
+    problem->SetParameterBlockConstant(time_delay->param.data());
+
     ceres::Solve(options, problem.get(), &summary);
     if (verbose) {
-      std::cout << summary.BriefReport() << std::endl << std::endl;
+      std::cout << summary.FullReport() << std::endl << std::endl;
     }
+  }
+
+  {
+    problem->SetParameterBlockVariable(time_delay->param.data());
+
+    options.initial_trust_region_radius = 1e-1;
+    ceres::Solve(options, problem.get(), &summary);
+    if (verbose) {
+      std::cout << summary.FullReport() << std::endl << std::endl;
+    }
+
+    printf("time_delay: %e, ", time_delay->param(0));
+    printf("time_delay_jac_step: %e, ", time_delay_jac_step);
+    std::cout << imu_exts->param.transpose() << ", ";
+    printf("final cost: %f\n", summary.final_cost);
   }
 
   // Filter outliers
@@ -1424,6 +1500,7 @@ void calib_vi_t::print_settings(FILE *os) const {
   fprintf(os, "  outlier_threshold: %f\n", outlier_threshold);
   fprintf(os, "  window_size: %d\n", window_size);
   fprintf(os, "  img_scale: %f\n", img_scale);
+  fprintf(os, "  time_delay_jac_step: %f\n", time_delay_jac_step);
   fprintf(os, "\n");
   // clang-format on
 }
@@ -1566,16 +1643,21 @@ void calib_vi_t::print_fiducial_pose(FILE *os) const {
 void calib_vi_t::print_imu_poses(FILE *os) const {
   fprintf(os, "imu_poses:\n");
   fprintf(os, "  rows: %ld\n", calib_views.size());
-  fprintf(os, "  cols: 8\n");
+  fprintf(os, "  cols: 9\n");
   fprintf(os, "\n");
-  fprintf(os, "  # ts, rx, ry, rz, qx, qy, qz, qw\n");
+  fprintf(os, "  #sec,nsec,rx,ry,rz,qx,qy,qz,qw\n");
   fprintf(os, "  data: [\n");
   for (const auto &view : calib_views) {
     const auto ts = view->ts;
+    long int sec = 0;
+    long int nsec = 0;
+    tsdecomp(ts, sec, nsec);
     const vec3_t r = view->pose.trans();
     const quat_t q = view->pose.rot();
+
     fprintf(os, "    ");
-    fprintf(os, "%ld,", ts);
+    fprintf(os, "%ld,", sec);
+    fprintf(os, "%ld,", nsec);
     fprintf(os, "%f,%f,%f,", r.x(), r.y(), r.z());
     fprintf(os, "%f,%f,%f,%f,\n", q.x(), q.y(), q.z(), q.w());
   }
@@ -1586,17 +1668,22 @@ void calib_vi_t::print_imu_poses(FILE *os) const {
 void calib_vi_t::print_speed_biases(FILE *os) const {
   fprintf(os, "speed_biases:\n");
   fprintf(os, "  rows: %ld\n", calib_views.size());
-  fprintf(os, "  cols: 10\n");
+  fprintf(os, "  cols: 11\n");
   fprintf(os, "\n");
-  fprintf(os, "  # ts, vx, vy, vz, ba_x, ba_y, ba_z, bg_x, bg_y, bg_z\n");
+  fprintf(os, "  #sec,nsec,vx,vy,vz,ba_x,ba_y,ba_z,bg_x,bg_y,bg_z\n");
   fprintf(os, "  data: [\n");
   for (const auto &view : calib_views) {
     const auto ts = view->ts;
+    long int sec = 0;
+    long int nsec = 0;
+    tsdecomp(ts, sec, nsec);
     const vec3_t v = view->sb.vel();
     const vec3_t ba = view->sb.ba();
     const vec3_t bg = view->sb.bg();
+
     fprintf(os, "    ");
-    fprintf(os, "%ld,", ts);
+    fprintf(os, "%ld,", sec);
+    fprintf(os, "%ld,", nsec);
     fprintf(os, "%f,%f,%f,", v.x(), v.y(), v.z());
     fprintf(os, "%f,%f,%f,", ba.x(), ba.y(), ba.z());
     fprintf(os, "%f,%f,%f,\n", bg.x(), bg.y(), bg.z());

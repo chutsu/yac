@@ -3,3 +3,4 @@ tags
 
 deps/*.log
 *.mp4
+.catkin_tools/

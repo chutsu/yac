@@ -1229,6 +1229,16 @@ timestamp_t sec2ts(const real_t sec);
 real_t ts2sec(const timestamp_t &ts);
 
 /**
+ * Decompose timestamp to seconds and nano-seconds.
+ */
+void tsdecomp(const timestamp_t &ts, long int &sec, long int &nsec);
+
+/**
+ * Form timestamp from seconds and nano-seconds.
+ */
+timestamp_t tsform(const long int sec, const long int &nsec);
+
+/**
  * Convert nano-second to second.
  */
 real_t ns2sec(const int64_t ns);
@@ -2085,8 +2095,8 @@ struct imu_params_t {
   real_t sigma_a_c = 0.0;  // Accel noise density [m/s^s/sqrt(Hz)]
   real_t sigma_gw_c = 0.0; // Gyro drift noise density [rad/s^s/sqrt(Hz)]
   real_t sigma_aw_c = 0.0; // Accel drift noise density [m/s^2/sqrt(Hz)]
-  real_t sigma_bg = 0.03;  // Gyro bias prior [rad/s]
-  real_t sigma_ba = 0.1;   // Accel bias prior [m/s^2]
+  real_t sigma_bg = 0.0;   // Gyro bias prior [rad/s]
+  real_t sigma_ba = 0.0;   // Accel bias prior [m/s^2]
   real_t g = 9.81;         // Gravity vector [ms^-2]
 };
 

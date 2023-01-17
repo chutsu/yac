@@ -149,7 +149,7 @@ calib_data_preprocess(const calib_target_t &calib_target,
                       const std::map<int, std::string> cam_paths,
                       const std::string &grids_path,
                       const bool imshow) {
-  printf("Preprocessing calibration data ...\n");
+  // printf("Preprocessing calibration data ...\n");
 
   // AprilGrid detector
   const int tag_rows = calib_target.tag_rows;
@@ -181,7 +181,7 @@ calib_data_preprocess(const calib_target_t &calib_target,
     list_files(cam_path, img_paths);
 
     // Loop through image files
-    printf("Preprocessing %s data: ", cam_str.c_str());
+    // printf("Preprocessing %s data: ", cam_str.c_str());
 
 #pragma omp parallel for shared(cam_grids)
     for (size_t k = 0; k < img_paths.size(); k++) {
@@ -222,12 +222,12 @@ calib_data_preprocess(const calib_target_t &calib_target,
 #pragma omp critical
       cam_grids[cam_idx].push_back(grid);
       if ((k % 100) == 0) {
-        printf(".");
-        fflush(stdout);
+        // printf(".");
+        // fflush(stdout);
       }
     }
-    printf("\n");
-    fflush(stdout);
+    // printf("\n");
+    // fflush(stdout);
   }
 
   return cam_grids;

@@ -6,6 +6,8 @@ import sys
 from math import pi
 from math import atan2
 
+from PIL import Image, ImageChops
+
 import matplotlib.pylab as plt
 from matplotlib import animation
 from mpl_toolkits import mplot3d
@@ -25,8 +27,8 @@ from proto import tf_quat
 from proto import plot_tf
 from proto import plot_set_axes_equal
 from proto import Exp
-from proto import skew
-from proto import skew_inv
+from proto import hat
+from proto import vee
 from proto import euler321
 from proto import rot2euler
 from proto import rot2quat
@@ -37,6 +39,25 @@ from proto import quat2euler
 from proto import quat_mul
 from proto import quat_normalize
 from proto import AprilGrid
+
+
+def trim_image(image_path):
+  """ Trim whitespace in image """
+  im = Image.open(image_path)
+  bg = Image.new(im.mode, im.size, im.getpixel((0, 0)))
+  diff = ImageChops.difference(im, bg)
+  diff = ImageChops.add(diff, diff, 2.0, -100)
+  bbox = diff.getbbox()
+
+  padding = 10
+  start_x = max(bbox[0] - padding, 0)
+  start_y = max(bbox[1] - padding, 0)
+  end_x = min(bbox[2] + padding, im.width)
+  end_y = min(bbox[3] + padding, im.height)
+  bbox = (start_x, start_y, end_x, end_y)
+
+  cropped_im = im.crop(bbox)
+  cropped_im.save(image_path)
 
 
 def sympy_position(show=False, gencode=False):
@@ -684,8 +705,10 @@ class LissajousTraj:
     save_anim = kwargs.get("save_anim", False)
     save_path = kwargs.get("save_path", "traj.mp4")
     show_plot = kwargs.get("show_plot", not save_anim)
-    elev = kwargs.get("elev", 30.0)
-    azim = kwargs.get("azim", -60.0)
+    elev = kwargs.get("elev", 20.0)
+    azim = kwargs.get("azim", -45.0)
+    plot_width = kwargs.get("plot_width", 400)
+    plot_height = kwargs.get("plot_height", 400)
 
     # Get positions
     positions = []
@@ -695,7 +718,8 @@ class LissajousTraj:
     positions = np.array(positions)
 
     # Create figure
-    fig = plt.figure()
+    dpi = 96
+    fig = plt.figure(figsize=(plot_width / dpi, plot_height / dpi), dpi=dpi)
     ax = plt.axes(projection='3d')
     ax.plot3D(positions[:, 0], positions[:, 1], positions[:, 2])
     self.calib_target.plot(ax, self.T_WF)
@@ -727,6 +751,7 @@ class LissajousTraj:
         ax.lines.remove(tf_data[2])
         ax.texts.remove(tf_data[3])
 
+    # fig.tight_layout()
     if show_plot:
       plt.show()
 
@@ -740,26 +765,32 @@ def generate_plots():
   traj = LissajousTraj("hfig8", T_WF)
   traj.plot_3d(save_path="traj-hfig8.mp4", save_anim=False, show_plot=False)
   plt.savefig("traj-hfig8.png")
+  trim_image("traj-hfig8.png")
 
   traj = LissajousTraj("vfig8", T_WF)
   traj.plot_3d(save_path="traj-vfig8.mp4", save_anim=False, show_plot=False)
   plt.savefig("traj-vfig8.png")
+  trim_image("traj-vfig8.png")
 
   traj = LissajousTraj("vert-pan", T_WF)
   traj.plot_3d(save_anim=False, show_plot=False)
   plt.savefig("traj-vert-pan.png")
+  trim_image("traj-vert-pan.png")
 
   traj = LissajousTraj("horiz-pan", T_WF)
   traj.plot_3d(save_anim=False, show_plot=False)
   plt.savefig("traj-horiz-pan.png")
+  trim_image("traj-horiz-pan.png")
 
   traj = LissajousTraj("diag0", T_WF)
   traj.plot_3d(save_anim=False, show_plot=False, elev=45.0, azim=-180.0)
   plt.savefig("traj-diag0.png")
+  trim_image("traj-diag0.png")
 
   traj = LissajousTraj("diag1", T_WF)
   traj.plot_3d(save_anim=False, show_plot=False, elev=45.0, azim=-180.0)
   plt.savefig("traj-diag1.png")
+  trim_image("traj-diag1.png")
 
 
 def generate_animations():

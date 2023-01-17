@@ -36,7 +36,6 @@ s = np.linalg.norm(r @ r)
 h = 1e-8
 
 (rho0, rho1, rho2) = blake_zisserman(s)
-
 (rho0_fwd, rho1_fwd, rho2_fwd) = blake_zisserman(s + h)
 (rho0_bwd, rho1_bwd, rho2_bwd) = blake_zisserman(s - h)
 

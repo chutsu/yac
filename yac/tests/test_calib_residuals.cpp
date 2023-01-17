@@ -15,7 +15,7 @@ std::map<int, aprilgrids_t> setup_test_data() {
   return calib_data_preprocess(calib_target, cam_paths, grids_path);
 }
 
-timeline_t setup_camimu_test_data() {
+timeline_t setup_imucam_data() {
   // Load calibration data
   const calib_target_t target{"aprilgrid", 6, 6, 0.088, 0.3};
   const std::string data_path = "/data/euroc/imu_april";
@@ -382,7 +382,128 @@ int test_mocap_residual() {
   return 0;
 }
 
-int test_imu_residual() { return 0; }
+int test_imu_residual() {
+  // Setup
+  const auto timeline = setup_imucam_data();
+  const int max_views = 3;
+  bool imu_started = false;
+  int nb_views = 0;
+  std::vector<aprilgrid_t> aprilgrids;
+  imu_data_t imu_buf;
+
+  for (const auto &ts : timeline.timestamps) {
+    const auto kv = timeline.data.equal_range(ts);
+
+    // Handle multiple events in the same timestamp
+    for (auto it = kv.first; it != kv.second; it++) {
+      const auto event = it->second;
+
+      // Aprilgrid event
+      if (auto grid_event = dynamic_cast<aprilgrid_event_t *>(event)) {
+        auto cam_idx = grid_event->cam_idx;
+        auto &grid = grid_event->grid;
+
+        if (imu_started == true && cam_idx == 0) {
+          aprilgrids.push_back(grid);
+          nb_views++;
+        }
+      }
+
+      // Imu event
+      if (auto imu_event = dynamic_cast<imu_event_t *>(event)) {
+        imu_started = true;
+        const auto ts = imu_event->ts;
+        const auto &acc = imu_event->acc;
+        const auto &gyr = imu_event->gyr;
+        imu_buf.add(ts, acc, gyr);
+      }
+    }
+
+    // Break early?
+    if (max_views != -1 && nb_views >= max_views) {
+      break;
+    }
+  }
+
+  // Camera0
+  const int cam_res[2] = {752, 480};
+  const vec4_t proj_params{458.654, 457.296, 367.215, 248.375};
+  const vec4_t dist_params{-0.28340811, 0.07395907, 0.00019359, 1.76187114e-5};
+  pinhole_radtan4_t cam_geom;
+  vecx_t cam_params;
+  cam_params.resize(8);
+  cam_params << proj_params, dist_params;
+
+  // Create IMU residual
+  // -- IMU params
+  imu_params_t imu_params;
+  imu_params.rate = 200.0;
+  imu_params.sigma_g_c = 12.0e-4;
+  imu_params.sigma_a_c = 8.0e-3;
+  imu_params.sigma_gw_c = 4.0e-6;
+  imu_params.sigma_aw_c = 4.0e-5;
+  imu_params.g = 9.81007;
+
+  // -- Pose i
+  const auto grid_i = aprilgrids.front();
+  const timestamp_t ts_i = grid_i.timestamp;
+  const mat3_t C_WS_i = imu_buf.initial_attitude(1);
+  const vec3_t r_WS_i{0.0, 0.0, 0.0};
+  const mat4_t T_WS_i = tf(C_WS_i, r_WS_i);
+  pose_t pose_i{ts_i, T_WS_i, false};
+
+  // -- Pose j
+  const auto grid_j = aprilgrids[1];
+  const timestamp_t ts_j = grid_j.timestamp;
+
+  mat4_t T_CF_i;
+  mat4_t T_CF_j;
+  grid_i.estimate(&cam_geom, cam_res, cam_params, T_CF_i);
+  grid_j.estimate(&cam_geom, cam_res, cam_params, T_CF_j);
+
+  // clang-format off
+  mat4_t T_SC;
+  T_SC << 0.014933099082475938, -0.99988431843417669, 0.0028900348119686617, -0.017115938248757994,
+          0.99964156427136286, 0.014993580879112308, 0.022179619327740607, -0.067407840086255347,
+          -0.022220385525344114, 0.0025577884672023012, 0.99974982479881547, 0.0031366549353360885,
+          0, 0, 0, 1;
+  mat4_t T_CS = T_SC.inverse();
+  // clang-format on
+  const mat4_t T_FC_j = T_CF_j.inverse();
+  const mat4_t T_WF = T_WS_i * T_SC * T_CF_i;
+  const mat4_t T_WS_j = T_WF * T_FC_j * T_CS;
+
+  pose_t pose_j{ts_j, T_WS_j, false};
+
+  // -- Speed and Biases i
+  const vec3_t v_i{0.0, 0.0, 0.0};
+  const vec3_t ba_i{0.0, 0.0, 0.0};
+  const vec3_t bg_i{0.0, 0.0, 0.0};
+  sb_params_t sb_i{ts_i, v_i, ba_i, bg_i, false};
+
+  // -- Speed and Biases j
+  const vec3_t v_j{0.0, 0.0, 0.0};
+  const vec3_t ba_j{0.0, 0.0, 0.0};
+  const vec3_t bg_j{0.0, 0.0, 0.0};
+  sb_params_t sb_j{ts_j, v_j, ba_j, bg_j, false};
+
+  // -- Time delay
+  time_delay_t td{0.0, false};
+
+  // Form IMU residual
+  imu_residual_t r(imu_params, imu_buf, &pose_i, &sb_i, &pose_j, &sb_j, &td);
+  // r.squareRootInformation_.setIdentity();
+
+  const double step = 1e-8;
+  const double tol = 1e-2;
+  // MU_CHECK(r.check_jacs(0, "J_pose_i", step, tol));
+  // MU_CHECK(r.check_jacs(1, "J_sb_i", step, tol));
+  // MU_CHECK(r.check_jacs(2, "J_pose_j", step, tol));
+  // MU_CHECK(r.check_jacs(3, "J_sb_j", step, tol));
+  MU_CHECK(r.check_jacs(4, "J_time_delay", step, tol));
+
+  return 0;
+}
 
 int test_marg_residual() {
   // Fiducial corners

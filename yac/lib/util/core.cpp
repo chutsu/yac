@@ -1432,6 +1432,15 @@ timestamp_t sec2ts(const real_t sec) { return sec * 1.0e9; }
 
 real_t ts2sec(const timestamp_t &ts) { return ts * 1.0e-9; }
 
+void tsdecomp(const timestamp_t &ts, long int &sec, long int &nsec) {
+  sec = ts * 1e-9;
+  nsec = ts - (long int)(sec * 1e9);
+}
+
+timestamp_t tsform(const long int sec, const long int &nsec) {
+  return (long int)(sec * 1e9) + nsec;
+}
+
 real_t ns2sec(const int64_t ns) { return ns * 1.0e-9; }
 
 struct timespec tic() {

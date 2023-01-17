@@ -45,6 +45,13 @@ struct calib_residual_t : public ceres::CostFunction {
   /* Evaluate */
   bool eval();
 
+  /* Evaluate residuals only */
+  bool eval_residuals();
+
+  /* Perform numerical differentiation on a parameter */
+  matx_t get_numerical_jacobian(const int param_idx,
+                                const double step = 1e-4) const;
+
   /* Check jacobians */
   bool check_jacs(const int param_idx,
                   const std::string &jac_name,
@@ -76,7 +83,8 @@ struct prior_t : public calib_residual_t {
                                     double **min_jacs) const;
 };
 
-// POSE PRIOR /////////////////////////////////////////////////////////////////
+// POSE PRIOR
+// /////////////////////////////////////////////////////////////////
 
 struct pose_prior_t : public calib_residual_t {
   const pose_t *pose = nullptr;
@@ -100,7 +108,8 @@ struct pose_prior_t : public calib_residual_t {
                                     double **min_jacs) const;
 };
 
-// REPROJECTION RESIDUAL //////////////////////////////////////////////////////
+// REPROJECTION RESIDUAL
+// //////////////////////////////////////////////////////
 
 /** Reprojection Residual */
 struct reproj_residual_t : public calib_residual_t {
@@ -149,7 +158,8 @@ struct reproj_residual_t : public calib_residual_t {
                                     double **min_jacs) const;
 };
 
-// FIDUCIAL RESIDUAL //////////////////////////////////////////////////////////
+// FIDUCIAL RESIDUAL
+// //////////////////////////////////////////////////////////
 
 struct fiducial_residual_t : public calib_residual_t {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
@@ -204,7 +214,8 @@ struct fiducial_residual_t : public calib_residual_t {
                                     double **min_jacs) const;
 };
 
-// MOCAP MARKER RESIDUAL ///////////////////////////////////////////////////////
+// MOCAP MARKER RESIDUAL
+// ///////////////////////////////////////////////////////
 
 struct mocap_residual_t : public calib_residual_t {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
@@ -255,8 +266,6 @@ struct mocap_residual_t : public calib_residual_t {
 
 // INERTIAL RESIDUAL //////////////////////////////////////////////////////////
 
-#define EST_TIMEDELAY 0
-
 /**
  * Implements a nonlinear IMU factor.
  */
@@ -274,6 +283,7 @@ public:
   pose_t *pose_j_ = nullptr;
   sb_params_t *sb_j_ = nullptr;
   time_delay_t *td_ = nullptr;
+  double time_delay_jac_step_;
 
   mutable mat4_t T_WS_0_last_;
   mutable mat4_t T_WS_1_last_;
@@ -289,7 +299,8 @@ public:
                  sb_params_t *sb_i,
                  pose_t *pose_j,
                  sb_params_t *sb_j,
-                 time_delay_t *td);
+                 time_delay_t *td,
+                 double time_delay_jac_step = 1e-8);
 
   // Destructor
   virtual ~imu_residual_t() = default;
@@ -321,7 +332,7 @@ public:
                                     double **jacobians,
                                     double **jacobiansMinimal) const;
 
-protected:
+  // protected:
   // Preintegration stuff. the mutable is a TERRIBLE HACK, but what can I do.
   ///< Protect access of intermediate results.
   mutable std::mutex preintegrationMutex_;
@@ -359,7 +370,8 @@ protected:
   mutable mat_t<15, 15> squareRootInformation_;
 };
 
-// MARGINALIZATION RESIDUAL ////////////////////////////////////////////////////
+// MARGINALIZATION RESIDUAL
+// ////////////////////////////////////////////////////
 
 class marg_residual_t : public calib_residual_t {
 public:
@@ -431,7 +443,8 @@ public:
                                     double **min_jacs) const;
 };
 
-// TYPEDEFS ///////////////////////////////////////////////////////////////////
+// TYPEDEFS
+// ///////////////////////////////////////////////////////////////////
 
 // clang-format off
 using CamIdx2Grids = std::map<int, aprilgrid_t>;

@@ -70,7 +70,8 @@ struct calib_vi_view_t {
   void form_imu_residual(const imu_params_t &imu_params,
                          const imu_data_t imu_buf,
                          pose_t *pose_j,
-                         sb_params_t *sb_j);
+                         sb_params_t *sb_j,
+                         double time_delay_jac_step);
   ceres::ResidualBlockId marginalize(marg_residual_t *marg_residual);
 };
 
@@ -86,9 +87,9 @@ struct calib_vi_t {
 
   // Settings
   bool verbose = true;
-  int max_num_threads = 1;
-  int max_iter = 50;
-  bool enable_outlier_rejection = false;
+  int max_num_threads = 2;
+  int max_iter = 100;
+  bool enable_outlier_rejection = true;
   bool enable_marginalization = false;
   bool enable_vision_loss_fn = false;
   std::string vision_loss_fn_type = "CAUCHY";
@@ -97,8 +98,10 @@ struct calib_vi_t {
   std::string imu_loss_fn_type = "HUBER";
   double imu_loss_fn_param = 1.0;
   double outlier_threshold = 4.0;
-  int window_size = 3;
-  const real_t img_scale = 0.5;
+  int window_size = 5;
+  real_t img_scale = 0.4;
+  bool estimate_time_delay = true;
+  double time_delay_jac_step = 1e-8;
 
   // State-Variables
   CamIdx2Geometry cam_geoms;
@@ -201,6 +204,7 @@ struct calib_vi_t {
   void form_hessian(ParameterOrder &param_order, matx_t &H) const;
 
   void load_data(const std::string &data_path);
+  double cost() const;
   void solve();
   void print_settings(FILE *os) const;
   void print_calib_target(FILE *os) const;

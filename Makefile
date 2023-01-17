@@ -77,3 +77,18 @@ relwithdeb: ${CATKIN_WS} ${YAC_PATH} ## Build libyac and yac_ros in release with
 
 release: ${CATKIN_WS} ${YAC_PATH} ## Build libyac and yac_ros in release mode
 	$(call compile_yac_ros,Release)
+
+build_docker:
+	sudo rm -rf build \
+		&& sudo rm -rf deps/src/apriltags3/build \
+		&& docker build -t chutsu/yac .
+
+run_docker:
+	@xhost +local:docker
+	@docker run -e DISPLAY \
+		-v /tmp/.X11-unix:/tmp/.X11-unix \
+		-v /data:/data \
+		--network="host" \
+		-it \
+		--rm chutsu/yac
+

@@ -85,6 +85,99 @@ bool calib_residual_t::eval() {
   return status;
 }
 
+bool calib_residual_t::eval_residuals() {
+  // Setup parameter data
+  std::vector<double *> param_ptrs;
+  param_ptrs.reserve(param_blocks.size());
+  for (auto &param_block : param_blocks) {
+    param_ptrs.push_back(param_block->data());
+  }
+
+  // Evaluate cost function to obtain the jacobians and residuals
+  auto status = EvaluateWithMinimalJacobians(param_ptrs.data(),
+                                             residuals.data(),
+                                             nullptr,
+                                             nullptr);
+
+  // // Scale jacobians and residuals if using loss function
+  // // following ceres-sovler in `internal/ceres/corrector.cc`
+  // if (loss_fn) {
+  //   Eigen::Map<vecx_t> r(res, num_residuals());
+  //   double residual_scaling = 0.0;
+  //   double alpha_sq_norm = 0.0;
+  //   double rho[3] = {0.0};
+  //
+  //   double sq_norm = r.squaredNorm();
+  //   loss_fn->Evaluate(sq_norm, rho);
+  //   double sqrt_rho1 = sqrt(rho[1]);
+  //
+  //   if ((sq_norm == 0.0) || (rho[2] <= 0.0)) {
+  //     residual_scaling = sqrt_rho1;
+  //     alpha_sq_norm = 0.0;
+  //   } else {
+  //     const double D = 1.0 + 2.0 * sq_norm * rho[2] / rho[1];
+  //     const double alpha = 1.0 - sqrt(D);
+  //     residual_scaling = sqrt_rho1 / (1 - alpha);
+  //     alpha_sq_norm = alpha / sq_norm;
+  //   }
+  //
+  //   for (size_t i = 0; i < param_blocks.size(); i++) {
+  //     const size_t param_size = param_blocks[i]->global_size;
+  //     Eigen::Map<matx_row_major_t> J(jacs[i], num_residuals(), param_size);
+  //     J = sqrt_rho1 * (J - alpha_sq_norm * r * (r.transpose() * J));
+  //   }
+  //   r *= residual_scaling;
+  // }
+
+  return status;
+}
+
+matx_t calib_residual_t::get_numerical_jacobian(const int param_idx,
+                                                const double step) const {
+  // Setup
+  param_t *param = param_blocks[param_idx];
+  const int r_size = num_residuals();
+  const int local_size = param->local_size;
+  const size_t nb_params = param_blocks.size();
+
+  // Params
+  std::vector<double *> param_ptrs;
+  for (size_t i = 0; i < nb_params; i++) {
+    param_ptrs.push_back(param_blocks[i]->data());
+  }
+
+  // Base-line
+  // vecx_t r = zeros(r_size);
+  // Evaluate(param_ptrs.data(), r.data(), nullptr);
+
+  // Finite difference
+  matx_t fdiff = zeros(r_size, local_size);
+  vecx_t r_fwd = zeros(r_size);
+  vecx_t r_bwd = zeros(r_size);
+  for (int i = 0; i < local_size; i++) {
+    // Forward difference
+    param->perturb(i, step);
+    Evaluate(param_ptrs.data(), r_fwd.data(), nullptr);
+    param->perturb(i, -step);
+
+    // Backward difference
+    param->perturb(i, -step);
+    Evaluate(param_ptrs.data(), r_bwd.data(), nullptr);
+    param->perturb(i, step);
+
+    // Central finite difference
+    fdiff.col(i) = (r_fwd - r_bwd) / (2.0 * step);
+
+    // // Forward difference
+    // param->perturb(i, step);
+    // Evaluate(param_ptrs.data(), r_fwd.data(), nullptr);
+    // param->perturb(i, -step);
+    // fdiff.col(i) = (r_fwd - r) / step;
+  }
+
+  return fdiff;
+}
+
 bool calib_residual_t::check_jacs(const int param_idx,
                                   const std::string &jac_name,
                                   const double step,
@@ -907,10 +1000,12 @@ imu_residual_t::imu_residual_t(const imu_params_t &imu_params,
                                sb_params_t *sb_i,
                                pose_t *pose_j,
                                sb_params_t *sb_j,
-                               time_delay_t *td)
+                               time_delay_t *td,
+                               double time_delay_jac_step)
     : calib_residual_t{"imu_residual_t"}, imu_params_{imu_params},
       imu_data_{imu_data}, t0_{pose_i->ts}, t1_{pose_j->ts}, pose_i_{pose_i},
-      sb_i_{sb_i}, pose_j_{pose_j}, sb_j_{sb_j}, td_{td} {
+      sb_i_{sb_i}, pose_j_{pose_j}, sb_j_{sb_j}, td_{td},
+      time_delay_jac_step_{time_delay_jac_step} {
   assert(imu_params.rate > 0);
   assert(fltcmp(imu_params.sigma_a_c, 0.0) != 0);
   assert(fltcmp(imu_params.sigma_g_c, 0.0) != 0);
@@ -1480,7 +1575,7 @@ bool imu_residual_t::EvaluateWithMinimalJacobians(
   Eigen::Matrix<double, 6, 1> Delta_b;
   // ensure unique access
   {
-    std::lock_guard<std::mutex> lock(preintegrationMutex_);
+    // std::lock_guard<std::mutex> lock(preintegrationMutex_);
     Delta_b = sb0.tail<6>() - sb_ref_.tail<6>();
   }
   int nb_meas = redoPreintegration(T_WS_0, sb0, time_start, time_end);
@@ -1492,14 +1587,12 @@ bool imu_residual_t::EvaluateWithMinimalJacobians(
 
   // Actual propagation output:
   {
-    std::lock_guard<std::mutex> lock(preintegrationMutex_); // this is a bit
-                                                            // stupid, but
-                                                            // shared read-locks
-                                                            // only come in
-                                                            // C++14
-                                                            // clang-format off
+    // this is a bit stupid, but shared read-locks only come in C++14
+    // std::lock_guard<std::mutex> lock(preintegrationMutex_);
+
+    // clang-format off
       const vec3_t g_W = imu_params_.g * vec3_t(0, 0, 6371009).normalized();
-                                                            // clang-format on
+    // clang-format on
 
     // Assign Jacobian w.r.t. x0
     // clang-format off
@@ -1639,59 +1732,45 @@ bool imu_residual_t::EvaluateWithMinimalJacobians(
 
       // Time delay
       if (jacobians[4] != NULL) {
-        // Calculate numerical differentiation: Basically we are going to
-        // resuse the ImuError class and find the jacobians for time_delay.
-        // We do this by performing a forward finite difference.
-        //
-        //   (f(time_delay + h) - f(time_delay)) / h
-        //
-        // Where f(.) is the residual function, in this case the IMU error.
-        // time_delay is the input parameter and h is the num-diff step.
-        //
-        // In future obviously it would be nice to have a analytical diff, but
-        // for now this will have to do.
+        // // -- Form parameters
+        // const double delta = 1.0e-8;
+        // const double time_delay_0 = time_delay + delta;
+        // const double time_delay_1 = time_delay - delta;
+        // const double *params_fwd[5] = {params[0],
+        //                                params[1],
+        //                                params[2],
+        //                                params[3],
+        //                                &time_delay_0};
+        // const double *params_bwd[5] = {params[0],
+        //                                params[1],
+        //                                params[2],
+        //                                params[3],
+        //                                &time_delay_1};
 
-        // -- Variable used to perturb time_delay (a.k.a num-diff step 'h')
-        // Same as the delta in Map::isJacobianCorrect()
-        const double delta = 1.0e-8;
+        // // -- Form IMU errors and evaluate jacobians
+        // // clang-format off
+        // const imu_residual_t imu0{imu_params_, imu_data_, pose_i_, sb_i_,
+        // pose_j_, sb_j_, td_}; const imu_residual_t imu1{imu_params_,
+        // imu_data_, pose_i_, sb_i_, pose_j_, sb_j_, td_}; vec_t<15> r_fwd;
+        // vec_t<15> r_bwd;
+        // if (imu0.Evaluate(params_fwd, r_fwd.data(), nullptr) == false) {
+        //   return false;
+        // }
+        // if (imu1.Evaluate(params_bwd, r_bwd.data(), nullptr) == false) {
+        //   return false;
+        // }
+        // Eigen::Map<Eigen::Matrix<double, 15, 1>> J4(jacobians[4]);
+        // J4 = (r_fwd - r_bwd) / (2.0 * delta);
+        // if (valid == false) {
+        //   J4.setZero();
+        // }
+        // // clang-format on
 
-        // -- Form parameters
-        const double time_delay_0 = time_delay + delta;
-        const double time_delay_1 = time_delay;
-        const double *imu0_params[5] = {params[0],
-                                        params[1],
-                                        params[2],
-                                        params[3],
-                                        &time_delay_0};
-        const double *imu1_params[5] = {params[0],
-                                        params[1],
-                                        params[2],
-                                        params[3],
-                                        &time_delay_1};
-
-        // -- Form IMU errors and evaluate jacobians
-        const imu_residual_t
-            imu0{imu_params_, imu_data_, pose_i_, sb_i_, pose_j_, sb_j_, td_};
-        const imu_residual_t
-            imu1{imu_params_, imu_data_, pose_i_, sb_i_, pose_j_, sb_j_, td_};
-        double imu0_residuals[15] = {0};
-        double imu1_residuals[15] = {0};
-        if (imu0.Evaluate(imu0_params, imu0_residuals, nullptr) == false) {
-          return false;
-        }
-        if (imu1.Evaluate(imu1_params, imu1_residuals, nullptr) == false) {
-          return false;
-        }
-
-        // -- Perform central finite difference
-        // Eigen::Map<Eigen::Matrix<double, 15, 1>> residuals_0(imu0_residuals);
-        // Eigen::Map<Eigen::Matrix<double, 15, 1>> residuals_1(imu1_residuals);
-        // const vecx_t J_time_delay = (residuals_0 - residuals_1) / delta;
-        const vecx_t J_time_delay = (imu0.r_ - imu1.r_) / delta;
-
-        // -- Set time delay jacobian
         Eigen::Map<Eigen::Matrix<double, 15, 1>> J4(jacobians[4]);
-        J4 = squareRootInformation_ * J_time_delay;
+        J4 = get_numerical_jacobian(4, time_delay_jac_step_);
+        if (valid == false) {
+          J4.setZero();
+        }
 
         // If requested, provide minimal Jacobians
         if (jacobiansMinimal != NULL) {

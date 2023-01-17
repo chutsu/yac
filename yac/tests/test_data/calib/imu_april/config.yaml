@@ -1,6 +1,6 @@
 settings:
   # General
-  verbose: true
+  verbose: false
   max_num_threads: 8
 
   # Extrinsics initialization
@@ -19,6 +19,9 @@ settings:
   info_gain_threshold: 0.2
   sliding_window_size: 10
   early_stop_threshold: 30
+
+  estimate_time_delay: true
+  time_delay_jac_step: 1e-8
 
 calib_target:
   target_type: 'aprilgrid'  # Target type

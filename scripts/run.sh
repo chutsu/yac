@@ -89,8 +89,9 @@ set -e
 # RUN_CMD="./calib_info 'camera-imu' /tmp/calib_imu-results.yaml /data/euroc/imu_april/mav0 /tmp/calib_info-camera_imu.csv"
 # RUN_CMD="./calib_preprocess 6 6 0.088 0.3 /data/euroc/cam_april/mav0/cam0/data /tmp/grid0/cam0"
 
+# RUN_CMD="./calib_inspect 'camera' '/tmp/calib_camera-results.yaml' /data/euroc/cam_april"
 # RUN_CMD="./calib_inspect 'camera' '/data/euroc_results/configs/yac/calib_camera-results.yaml' /data/euroc/cam_april"
-# RUN_CMD="./calib_inspect 'camera' '/data/euroc_results/configs/kalibr/kalibr.yaml' /data/euroc/cam_april"
+RUN_CMD="./calib_inspect 'camera' '/data/yac_experiments/euroc_results/configs/kalibr/imu_april-camchain-yac.yaml' /data/euroc/cam_april"
 
 # RUN_CMD="./calib_inspect 'camera-imu' '/data/euroc_results/configs/kalibr/kalibr.yaml' /data/euroc/imu_april/mav0"
 # RUN_CMD="./calib_inspect 'camera-imu' '/data/euroc_results/configs/yac/calib_imu-results.yaml' /data/euroc/imu_april/mav0"

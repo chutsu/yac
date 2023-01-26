@@ -74,16 +74,7 @@ set -e
 # RUN_CMD="./test_calib_camera --target test_calib_camera_mono"
 # RUN_CMD="./test_calib_camera --target test_calib_camera_stereo"
 # RUN_CMD="./test_calib_camera --target test_marg_residual"
-# RUN_CMD="time ./calib_euroc 1e-8"
-# RUN_CMD="\
-#   ./calib_euroc 1e-10 \
-#   && ./calib_euroc 1e-9 \
-#   && ./calib_euroc 1e-8 \
-#   && ./calib_euroc 1e-7 \
-#   && ./calib_euroc 1e-6 \
-#   && ./calib_euroc 1e-5 \
-#   && ./calib_euroc 1e-4
-# "
+RUN_CMD="./calib_euroc"
 # RUN_CMD="./calib_mocap /data/calibration_s550_jetson_20220718/"
 # RUN_CMD="./calib_info 'camera' /tmp/calib_camera-results.yaml /data/euroc/cam_april/mav0 /tmp/calib_info-camera.csv"
 # RUN_CMD="./calib_info 'camera-imu' /tmp/calib_imu-results.yaml /data/euroc/imu_april/mav0 /tmp/calib_info-camera_imu.csv"
@@ -91,7 +82,7 @@ set -e
 
 # RUN_CMD="./calib_inspect 'camera' '/tmp/calib_camera-results.yaml' /data/euroc/cam_april"
 # RUN_CMD="./calib_inspect 'camera' '/data/euroc_results/configs/yac/calib_camera-results.yaml' /data/euroc/cam_april"
-RUN_CMD="./calib_inspect 'camera' '/data/yac_experiments/euroc_results/configs/kalibr/imu_april-camchain-yac.yaml' /data/euroc/cam_april"
+# RUN_CMD="./calib_inspect 'camera' '/data/yac_experiments/euroc_results/configs/kalibr/imu_april-camchain-yac.yaml' /data/euroc/cam_april"
 
 # RUN_CMD="./calib_inspect 'camera-imu' '/data/euroc_results/configs/kalibr/kalibr.yaml' /data/euroc/imu_april/mav0"
 # RUN_CMD="./calib_inspect 'camera-imu' '/data/euroc_results/configs/yac/calib_imu-results.yaml' /data/euroc/imu_april/mav0"

@@ -10,7 +10,7 @@ settings:
   enable_nbv: true
   enable_shuffle_views: true
   enable_nbv_filter: true
-  enable_outlier_filter: true
+  enable_outlier_filter: false
   enable_marginalization: true
   enable_cross_validation: false
   enable_early_stopping: false
@@ -19,6 +19,13 @@ settings:
   info_gain_threshold: 0.2
   sliding_window_size: 10
   early_stop_threshold: 30
+
+  enable_vision_loss_fn: false
+  vision_loss_fn_type: "CAUCHY"
+  vision_loss_fn_param: 1.5
+  enable_imu_loss_fn: false
+  imu_loss_fn_type: "HUBER"
+  imu_loss_fn_param: 2.0
 
   estimate_time_delay: true
   time_delay_jac_step: 1e-8

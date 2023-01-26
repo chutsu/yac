@@ -1418,6 +1418,61 @@ void calib_camera_t::_initialize_extrinsics() {
   // init_poses.clear();
 }
 
+motion_data_t calib_camera_t::_calculate_motion() {
+  std::vector<timestamp_t> timestamps;
+  std::vector<int> tags_detected;
+  std::map<timestamp_t, mat4_t> poses;
+
+  // Estimate camera poses
+  for (const auto &[ts, grids] : calib_data) {
+    for (const auto &[cam_idx, grid] : grids) {
+      // Estimate T_CiF
+      const auto cam_geom = cam_geoms[cam_idx].get();
+      const vecx_t param = cam_params[cam_idx]->param;
+      const auto res = cam_params[cam_idx]->resolution;
+      mat4_t T_CiF;
+      if (grid.estimate(cam_geom, res, param, T_CiF) != 0) {
+        continue;
+      }
+
+      // Transform it back to cam0
+      const mat4_t T_C0Ci = cam_exts.at(cam_idx)->tf();
+      const mat4_t T_C0F = T_C0Ci * T_CiF;
+      timestamps.push_back(ts);
+      poses[ts] = T_C0F;
+      break;
+    }
+
+    // Get number of detected tags
+    int num_tags = 0;
+    for (const auto &[cam_idx, grid] : grids) {
+      num_tags += grid.nb_detections;
+    }
+    tags_detected.push_back(num_tags);
+  }
+
+  // Estimate camera velocity
+  motion_data_t data;
+  for (size_t k = 1; k < (timestamps.size() - 1); k++) {
+    const int num_tags = tags_detected[k];
+    const timestamp_t ts_km1 = timestamps[k - 1];
+    const timestamp_t ts_k = timestamps[k];
+    const vec3_t r_km1 = tf_trans(poses[ts_km1]);
+    const vec3_t r_k = tf_trans(poses[ts_k]);
+    const mat3_t C_km1 = tf_rot(poses[ts_km1]);
+    const mat3_t C_k = tf_rot(poses[ts_k]);
+
+    const vec3_t dr = r_k - r_km1;
+    const mat3_t dC = C_k * C_km1.transpose();
+
+    const double v = sqrt(dr.x() * dr.x() + dr.y() * dr.y() + dr.z() * dr.z());
+    const double w = acos((dC.trace() - 1.0) / 2.0);
+    data[{-num_tags, w, v}] = ts_k;
+  }
+
+  return data;
+}
+
 int calib_camera_t::_filter_all_views() {
   int removed = 0;
 
@@ -1698,7 +1753,20 @@ void calib_camera_t::_solve_inc() {
 void calib_camera_t::_solve_nbv() {
   // Pre-process timestamps
   timestamps_t nbv_timestamps;
-  for (const auto ts : timestamps) {
+  // for (const auto ts : timestamps) {
+  //   for (const auto &[cam_idx, grid] : calib_data[ts]) {
+  //     if (grid.detected) {
+  //       nbv_timestamps.push_back(ts);
+  //       break;
+  //     }
+  //   }
+  // }
+  // if (nbv_timestamps.size() == 0) {
+  //   FATAL("Implementation Error: No views to process?");
+  // }
+
+  motion_data_t motion_data = _calculate_motion();
+  for (const auto &[key, ts] : motion_data) {
     for (const auto &[cam_idx, grid] : calib_data[ts]) {
       if (grid.detected) {
         nbv_timestamps.push_back(ts);

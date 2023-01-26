@@ -86,6 +86,8 @@ struct calib_view_t {
 
 // CALIBRATOR //////////////////////////////////////////////////////////////////
 
+using motion_data_t = std::map<std::tuple<int, double, double>, timestamp_t>;
+
 void print_calib_target(FILE *out, const calib_target_t &calib_target);
 void print_camera_params(FILE *out,
                          const int cam_idx,
@@ -103,22 +105,20 @@ struct calib_camera_t {
   // -- General
   bool verbose = true;
   std::string solver_type = "CERES-SOLVER";
-  int max_num_threads = 2;
+  int max_num_threads = 8;
   bool enable_nbv = true;
-  bool enable_shuffle_views = true;
+  bool enable_shuffle_views = false;
   bool enable_nbv_filter = true;
   bool enable_outlier_filter = true;
   bool enable_early_stopping = false;
   bool enable_marginalization = false;
-  bool enable_loss_fn = true;
-  // std::string loss_fn_type = "BLAKE-ZISSERMAN";
-  // double loss_fn_param = 2;
+  bool enable_loss_fn = false;
   std::string loss_fn_type = "CAUCHY";
   double loss_fn_param = 1.5;
   int min_nbv_views = 40;
   real_t outlier_threshold = 4.0;
   real_t info_gain_threshold = 0.2;
-  int early_stop_threshold = 30;
+  int early_stop_threshold = 10;
   int sliding_window_size = 10;
 
   // Data
@@ -247,6 +247,7 @@ struct calib_camera_t {
 
   void _initialize_intrinsics();
   void _initialize_extrinsics();
+  motion_data_t _calculate_motion();
   int _filter_all_views();
   void _cache_estimates();
   void _restore_estimates();

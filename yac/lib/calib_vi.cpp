@@ -1426,29 +1426,22 @@ void calib_vi_t::solve() {
   // options.check_gradients = true;
   ceres::Solver::Summary summary;
 
-  // Optimize problem - first pass
+  // Optimize problem - First fix time delay
   {
     problem->SetParameterBlockConstant(time_delay->param.data());
-
     ceres::Solve(options, problem.get(), &summary);
     if (verbose) {
       std::cout << summary.FullReport() << std::endl << std::endl;
     }
   }
 
+  // Relax time delay
   {
     problem->SetParameterBlockVariable(time_delay->param.data());
-
-    options.initial_trust_region_radius = 1e-1;
     ceres::Solve(options, problem.get(), &summary);
     if (verbose) {
       std::cout << summary.FullReport() << std::endl << std::endl;
     }
-
-    printf("time_delay: %e, ", time_delay->param(0));
-    printf("time_delay_jac_step: %e, ", time_delay_jac_step);
-    std::cout << imu_exts->param.transpose() << ", ";
-    printf("final cost: %f\n", summary.final_cost);
   }
 
   // Filter outliers
@@ -1458,10 +1451,6 @@ void calib_vi_t::solve() {
     // int view_idx = 0;
     for (auto &view : calib_views) {
       const auto view_outliers = view->filter_view(outlier_threshold);
-      // printf("filtering view[%d]: %ld [removed %d outliers]\n",
-      //        view_idx++,
-      //        view->ts,
-      //        view_outliers);
       nb_outliers += view_outliers;
     }
     LOG_INFO("Removed %d outliers!", nb_outliers);
@@ -1500,7 +1489,7 @@ void calib_vi_t::print_settings(FILE *os) const {
   fprintf(os, "  outlier_threshold: %f\n", outlier_threshold);
   fprintf(os, "  window_size: %d\n", window_size);
   fprintf(os, "  img_scale: %f\n", img_scale);
-  fprintf(os, "  time_delay_jac_step: %f\n", time_delay_jac_step);
+  fprintf(os, "  time_delay_jac_step: %e\n", time_delay_jac_step);
   fprintf(os, "\n");
   // clang-format on
 }

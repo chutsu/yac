@@ -173,6 +173,12 @@ matx_t calib_residual_t::get_numerical_jacobian(const int param_idx,
     // Evaluate(param_ptrs.data(), r_fwd.data(), nullptr);
     // param->perturb(i, -step);
     // fdiff.col(i) = (r_fwd - r) / step;
+
+    // // Backward difference
+    // param->perturb(i, -step);
+    // Evaluate(param_ptrs.data(), r_bwd.data(), nullptr);
+    // param->perturb(i, step);
+    // fdiff.col(i) = (r - r_bwd) / step;
   }
 
   return fdiff;

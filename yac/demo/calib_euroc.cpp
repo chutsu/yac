@@ -39,50 +39,6 @@ void calibrate_cameras(const std::string &train_path,
 
 // CALIBRATE IMU /////////////////////////////////////////////////////////////
 
-void load_euroc_imu_data(const std::string &csv_path,
-                         yac::timestamps_t &timestamps,
-                         yac::vec3s_t &a_B,
-                         yac::vec3s_t &w_B) {
-  // Open file for loading
-  int nb_rows = 0;
-  FILE *fp = yac::file_open(csv_path, "r", &nb_rows);
-  if (fp == nullptr) {
-    FATAL("Failed to open [%s]!", csv_path.c_str());
-  }
-
-  // Parse file
-  for (int i = 0; i < nb_rows; i++) {
-    // Skip first line
-    if (i == 0) {
-      yac::skip_line(fp);
-      continue;
-    }
-
-    // Parse line
-    yac::timestamp_t ts = 0;
-    double ax, ay, az = 0.0;
-    double wx, wy, wz = 0.0;
-    int retval = fscanf(fp,
-                        "%" SCNu64 ",%lf,%lf,%lf,%lf,%lf,%lf",
-                        &ts,
-                        &wx,
-                        &wy,
-                        &wz,
-                        &ax,
-                        &ay,
-                        &az);
-    if (retval != 7) {
-      LOG_ERROR("Invalid line: %d", i);
-      FATAL("Failed to parse line in [%s]", csv_path.c_str());
-    }
-
-    timestamps.push_back(ts);
-    a_B.emplace_back(ax, ay, az);
-    w_B.emplace_back(wx, wy, wz);
-  }
-  fclose(fp);
-}
-
 yac::timeline_t load_calib_vi_data(const std::string &data_path) {
   // Load grid data
   yac::timeline_t timeline;
@@ -108,7 +64,7 @@ yac::timeline_t load_calib_vi_data(const std::string &data_path) {
   yac::timestamps_t imu_ts;
   yac::vec3s_t imu_acc;
   yac::vec3s_t imu_gyr;
-  load_euroc_imu_data(imu0_path, imu_ts, imu_acc, imu_gyr);
+  yac::load_imu_data(imu0_path, imu_ts, imu_acc, imu_gyr);
   for (size_t k = 0; k < imu_ts.size(); k++) {
     timeline.add(imu_ts[k], imu_acc[k], imu_gyr[k]);
   }
@@ -203,8 +159,10 @@ void calibrate_imu(const std::string &data_path,
   calib.save_results(imu_results_path);
 }
 
-int main() {
-  calibrate_cameras(CAMERA_DATA, CAMERA_RESULTS_PATH);
+int main(int argc, char *argv[]) {
+  UNUSED(argc);
+
+  // calibrate_cameras(CAMERA_DATA, CAMERA_RESULTS_PATH);
   calibrate_imu(IMU_DATA, CAMERA_RESULTS_PATH, IMU_RESULTS_PATH);
   return 0;
 }

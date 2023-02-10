@@ -1,4 +1,4 @@
-FROM ubuntu:18.04
+FROM ros:noetic-perception-focal
 
 SHELL ["/bin/bash", "-c"]
 ENV HOME /root
@@ -11,7 +11,9 @@ RUN apt-get update && apt-get install -qq -y \
   build-essential \
   git \
   cmake \
-  vim
+  vim \
+  python3-catkin-tools \
+  python3-osrf-pycommon
 
 # yac over to home
 WORKDIR $HOME
@@ -21,4 +23,5 @@ COPY ./ yac
 # build yac
 WORKDIR $HOME/yac
 RUN make deps
-RUN make release
+RUN make lib
+RUN source /opt/ros/noetic/setup.bash && make release

@@ -1,17 +1,18 @@
 ros:
-  # rosbag: "/data/aabm/calib/200115-vicon-train.bag"
-  rosbag: "/data/aabm/calib/201123-vicon.bag"
-  cam0_topic: "/cam0/image"
-  body0_topic: "/body0/pose"
-  target0_topic: "/target0/pose"
+  rosbag: "/data/mocap/mocap1.bag"
+  cam0_topic: "/rs/ir0/image"
+  body0_topic: "/vicon/chris_d435i/chris_d435i"
+  target0_topic: "/vicon/AprilGrid/AprilGrid"
 
 settings:
   fix_intrinsics: true
   fix_mocap_poses: true
   fix_fiducial_pose: false
-  data_path: "/data/aabm/calib_mocap"
-  sigma_vision: 0.5
-  imshow: true
+  outlier_threshold: 4.0
+  info_gain_threshold: 0.2
+  enable_loss_fn: false
+  loss_fn_type: "CAUCHY"
+  loss_fn_param: 1.0
 
 calib_target:
   target_type: 'aprilgrid'  # Target type
@@ -22,9 +23,6 @@ calib_target:
                             # Example: tagSize=2m, spacing=0.5m --> tagSpacing=0.25[-]
 
 cam0:
-  resolution: [640.0, 480.0]
+  resolution: [640, 480]
   proj_model: "pinhole"
   dist_model: "radtan4"
-  lens_hfov: 69.4
-  lens_vfov: 42.5
-  rate: 30.0

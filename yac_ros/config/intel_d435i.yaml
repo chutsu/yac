@@ -1,0 +1,40 @@
+ros:
+  data_path: "/tmp/calib_data"
+  cam0_topic: "/rs/ir0/image"
+  cam1_topic: "/rs/ir1/image"
+  imu0_topic: "/rs/imu0/data"
+
+settings:
+  info_gain_threshold: 0.2
+
+calib_target:
+  target_type: 'aprilgrid'  # Target type
+  tag_rows: 6               # Number of rows
+  tag_cols: 6               # Number of cols
+  tag_size: 0.0375          # Size of apriltag, edge to edge [m]
+  tag_spacing: 0.3          # Ratio of space between tags to tagSize
+                            # Example: tagSize=2m, spacing=0.5m --> tagSpacing=0.25[-]
+
+cam0:
+  resolution: [640, 480]
+  proj_model: "pinhole"
+  dist_model: "radtan4"
+
+cam1:
+  resolution: [640, 480]
+  proj_model: "pinhole"
+  dist_model: "radtan4"
+
+imu0:
+  rate: 250
+  a_max: 160.0 # acceleration saturation [m/s^2]
+  g_max: 10.0 # gyro saturation [rad/s]
+  sigma_g_c: 0.00278 # gyro noise density [rad/s/sqrt(Hz)]
+  sigma_a_c: 0.0252 # accelerometer noise density [m/s^2/sqrt(Hz)]
+  sigma_gw_c: 1.65e-05 # gyro drift noise density [rad/s^s/sqrt(Hz)]
+  sigma_aw_c: 0.000441 # accelerometer drift noise density [m/s^2/sqrt(Hz)]
+  sigma_bg: 0.03 # gyro bias prior [rad/s]
+  sigma_ba: 0.1 # accelerometer bias prior [m/s^2]
+  tau: 3600.0 # reversion time constant, currently not in use [s]
+  g: 9.81007 # Earth's acceleration due to gravity [m/s^2]
+  a0: [ 0.0, 0.0, 0.0 ] # Accelerometer bias [m/s^2]

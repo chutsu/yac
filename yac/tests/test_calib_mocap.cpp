@@ -1,31 +1,23 @@
 #include "munit.hpp"
-#include "core.hpp"
 #include "calib_mocap.hpp"
 
 namespace yac {
 
 #ifndef TEST_PATH
-  #define TEST_PATH "."
+#define TEST_PATH "."
 #endif
 
-#define TEST_CALIB TEST_PATH "/test_data/calib_mocap-intel_d435i.yaml"
+#define TEST_CONF TEST_PATH "/test_data/mocap_data/calib_mocap-intel_d435i.yaml"
+#define TEST_DATA TEST_PATH "/test_data/mocap_data"
 
-int test_calib_mocap_data() {
-  calib_mocap_data_t data(TEST_CALIB);
-
+int test_calib_mocap() {
+  calib_mocap_t calib(TEST_CONF, TEST_DATA);
+  calib.solve();
+  calib.show_results();
   return 0;
 }
 
-int test_calib_mocap_solve() {
-  calib_mocap_solve(TEST_CALIB);
-
-  return 0;
-}
-
-void test_suite() {
-  MU_ADD_TEST(test_calib_mocap_data);
-  MU_ADD_TEST(test_calib_mocap_solve);
-}
+void test_suite() { MU_ADD_TEST(test_calib_mocap); }
 
 } // namespace yac
 

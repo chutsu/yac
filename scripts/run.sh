@@ -74,7 +74,7 @@ set -e
 # RUN_CMD="./test_calib_camera --target test_calib_camera_mono"
 # RUN_CMD="./test_calib_camera --target test_calib_camera_stereo"
 # RUN_CMD="./test_calib_camera --target test_marg_residual"
-RUN_CMD="./calib_euroc"
+# RUN_CMD="./calib_euroc"
 # RUN_CMD="./calib_mocap /data/calibration_s550_jetson_20220718/"
 # RUN_CMD="./calib_info 'camera' /tmp/calib_camera-results.yaml /data/euroc/cam_april/mav0 /tmp/calib_info-camera.csv"
 # RUN_CMD="./calib_info 'camera-imu' /tmp/calib_imu-results.yaml /data/euroc/imu_april/mav0 /tmp/calib_info-camera_imu.csv"
@@ -92,7 +92,7 @@ RUN_CMD="./calib_euroc"
 
 # YAC - VISUAL-INERTIAL CALIBRATION
 # RUN_CMD="./test_calib_vi"
-# RUN_CMD="./test_calib_vi --target test_calib_vi_batch"
+RUN_CMD="time ./test_calib_vi --target test_calib_vi_batch"
 # RUN_CMD="./test_calib_vi --target test_calib_vi_online"
 
 # YAC - NBV
@@ -111,7 +111,7 @@ RUN_CMD="./calib_euroc"
 
 # YAC - NBT
 # RUN_CMD="./test_calib_nbt"
-# RUN_CMD="./test_calib_nbt --target test_lissajous_trajs"
+# RUN_CMD="./test_calib_nbt --target test_lissajous_traj"
 # RUN_CMD="./test_calib_nbt --target test_nbt_lissajous_trajs"
 # RUN_CMD="./test_calib_nbt --target test_simulate_cameras"
 # RUN_CMD="./test_calib_nbt --target test_simulate_imu"

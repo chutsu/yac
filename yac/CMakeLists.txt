@@ -85,11 +85,12 @@ ADD_LIBRARY(
   lib/calib_camera.cpp
   lib/calib_data.cpp
   lib/calib_loss.cpp
-  lib/calib_residuals.cpp
   lib/calib_mocap.cpp
   lib/calib_nbt.cpp
   lib/calib_nbv.cpp
   lib/calib_params.cpp
+  lib/calib_residuals.cpp
+  lib/calib_sim.cpp
   lib/calib_vi.cpp
   lib/solver.cpp
   lib/suitesparse.cpp

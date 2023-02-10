@@ -189,8 +189,41 @@ int test_calib_vi_online() {
 
 int test_calib_vi_time_delay() {
   vio_sim_data_t sim_data;
-  sim_circle_trajectory(5.0, sim_data);
-  sim_data.save("/tmp/sim_data");
+  // sim_data.save("/tmp/sim_data");
+
+  // for (const auto &ts : timeline.timestamps) {
+  //   const auto kv = timeline.data.equal_range(ts);
+
+  //   // Handle multiple events in the same timestamp
+  //   for (auto it = kv.first; it != kv.second; it++) {
+  //     const auto event = it->second;
+
+  //     // Aprilgrid event
+  //     if (auto grid_event = dynamic_cast<aprilgrid_event_t *>(event)) {
+  //       auto cam_idx = grid_event->cam_idx;
+  //       auto &grid = grid_event->grid;
+  //       // calib.add_measurement(cam_idx, grid);
+
+  //       if (cam_idx == 0) {
+  //         nb_views++;
+  //       }
+  //     }
+
+  //     // Imu event
+  //     if (auto imu_event = dynamic_cast<imu_event_t *>(event)) {
+  //       const auto ts = imu_event->ts;
+  //       const auto &acc = imu_event->acc;
+  //       const auto &gyr = imu_event->gyr;
+  //       // calib.add_measurement(ts + sec2ts(0.001), acc, gyr);
+  //       // calib.add_measurement(ts, acc, gyr);
+  //     }
+  //   }
+
+  //   // Break early?
+  //   if (max_views != -1 && nb_views >= max_views) {
+  //     break;
+  //   }
+  // }
 
   return 0;
 }

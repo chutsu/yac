@@ -92,8 +92,9 @@ set -e
 
 # YAC - VISUAL-INERTIAL CALIBRATION
 # RUN_CMD="./test_calib_vi"
-RUN_CMD="time ./test_calib_vi --target test_calib_vi_batch"
+# RUN_CMD="time ./test_calib_vi --target test_calib_vi_batch"
 # RUN_CMD="./test_calib_vi --target test_calib_vi_online"
+RUN_CMD="./test_calib_vi --target test_calib_vi_time_delay"
 
 # YAC - NBV
 # RUN_CMD="./test_calib_nbv"

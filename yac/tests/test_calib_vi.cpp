@@ -1,5 +1,6 @@
 #include "munit.hpp"
 #include "calib_vi.hpp"
+#include "calib_sim.hpp"
 
 namespace yac {
 
@@ -186,11 +187,20 @@ int test_calib_vi_online() {
   return 0;
 }
 
+int test_calib_vi_time_delay() {
+  vio_sim_data_t sim_data;
+  sim_circle_trajectory(5.0, sim_data);
+  sim_data.save("/tmp/sim_data");
+
+  return 0;
+}
+
 void test_suite() {
   MU_ADD_TEST(test_calib_vi_add_imu);
   MU_ADD_TEST(test_calib_vi_add_camera);
   MU_ADD_TEST(test_calib_vi_batch);
   MU_ADD_TEST(test_calib_vi_online);
+  MU_ADD_TEST(test_calib_vi_time_delay);
 }
 
 } // namespace yac

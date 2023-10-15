@@ -74,7 +74,7 @@ void eval_camera_imu_info(const std::string &config_file,
   const auto calib_target = calib.calib_target;
   auto cam_grids = calib_data_preprocess(calib_target, cam_paths, grids_path);
   for (const auto cam_idx : calib.get_camera_indices()) {
-    for (const auto grid : cam_grids[cam_idx]) {
+    for (const auto &grid : cam_grids[cam_idx]) {
       timeline.add(grid.timestamp, cam_idx, grid);
     }
   }

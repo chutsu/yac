@@ -161,7 +161,7 @@ void calibrate_imu(const std::string &data_path,
 
 int main(int argc, char *argv[]) {
   UNUSED(argc);
-
+  UNUSED(argv);
   calibrate_cameras(CAMERA_DATA, CAMERA_RESULTS_PATH);
   calibrate_imu(IMU_DATA, CAMERA_RESULTS_PATH, IMU_RESULTS_PATH);
   return 0;

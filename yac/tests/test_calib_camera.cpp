@@ -121,7 +121,7 @@ int test_calib_camera_add_pose() {
   const calib_target_t calib_target;
 
   aprilgrid_t test_grid;
-  for (const auto grid : test_data.at(0)) {
+  for (const auto &grid : test_data.at(0)) {
     if (grid.detected) {
       test_grid = grid;
       break;
@@ -155,7 +155,7 @@ int test_calib_camera_add_and_remove_view() {
   timestamp_t view_ts = 0;
   for (const auto ts : calib.timestamps) {
     size_t detected = 0;
-    for (const auto [cam_idx, grid] : calib.calib_data[ts]) {
+    for (const auto &[cam_idx, grid] : calib.calib_data[ts]) {
       detected += (grid.detected) ? 1 : 0;
     }
     if (detected != 2) {
@@ -210,7 +210,7 @@ int test_calib_camera_add_nbv_view() {
   timestamp_t view_ts = 0;
   for (const auto ts : calib.timestamps) {
     size_t detected = 0;
-    for (const auto [cam_idx, grid] : calib.calib_data[ts]) {
+    for (const auto &[cam_idx, grid] : calib.calib_data[ts]) {
       detected += (grid.detected) ? 1 : 0;
     }
     if (detected != 2) {
@@ -258,7 +258,7 @@ int test_calib_camera_find_nbv() {
   // Calibration data
   aprilgrids_t cam0_grids;
   aprilgrids_t cam1_grids;
-  for (const auto grid : test_data.at(0)) {
+  for (const auto &grid : test_data.at(0)) {
     if (grid.detected) {
       cam0_grids.push_back(grid);
     }
@@ -266,7 +266,7 @@ int test_calib_camera_find_nbv() {
       break;
     }
   }
-  for (const auto grid : test_data.at(1)) {
+  for (const auto &grid : test_data.at(1)) {
     if (grid.detected) {
       cam1_grids.push_back(grid);
     }
@@ -462,7 +462,7 @@ int test_marg_error() {
   // Calibration data
   aprilgrids_t cam0_grids;
   aprilgrids_t cam1_grids;
-  for (const auto grid : test_data.at(0)) {
+  for (const auto &grid : test_data.at(0)) {
     if (grid.detected) {
       cam0_grids.push_back(grid);
     }
@@ -470,7 +470,7 @@ int test_marg_error() {
       break;
     }
   }
-  for (const auto grid : test_data.at(1)) {
+  for (const auto &grid : test_data.at(1)) {
     if (grid.detected) {
       cam1_grids.push_back(grid);
     }

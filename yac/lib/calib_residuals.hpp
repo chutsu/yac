@@ -370,8 +370,7 @@ public:
   mutable mat_t<15, 15> squareRootInformation_;
 };
 
-// MARGINALIZATION RESIDUAL
-// ////////////////////////////////////////////////////
+// MARGINALIZATION RESIDUAL ////////////////////////////////////////////////////
 
 class marg_residual_t : public calib_residual_t {
 public:
@@ -430,7 +429,7 @@ public:
   void
   marginalize(std::vector<param_t *> &marg_params,
               std::vector<std::shared_ptr<calib_residual_t>> &marg_residuals,
-              const bool debug = false);
+              const bool debug = true);
   ceres::ResidualBlockId marginalize(ceres::Problem *problem);
 
   /* Compute Delta Chi */

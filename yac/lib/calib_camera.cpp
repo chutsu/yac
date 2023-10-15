@@ -2284,7 +2284,7 @@ int calib_camera_t::save_results(const std::string &save_path) {
   FILE *est_file = fopen("/tmp/calib_camera-estimates.yaml", "w");
   for (auto &[ts, view] : calib_views) {
     for (const auto cam_idx : view->get_camera_indices()) {
-      for (const auto res_fn : view->res_fns.at(cam_idx)) {
+      for (const auto &res_fn : view->res_fns.at(cam_idx)) {
       }
     }
   }

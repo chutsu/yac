@@ -25,9 +25,9 @@ ENDIF()
 # DEPENDENCIES
 LIST(APPEND CMAKE_MODULE_PATH "../cmake")
 
-IF (NOT DEFINED apriltag3_DIR)
-  SET(apriltag3_DIR "/opt/yac/share/apriltag3/cmake")  # Use custom AprilTag3
-ENDIF()
+# IF (NOT DEFINED apriltag3_DIR)
+#   SET(apriltag3_DIR "/opt/yac/share/apriltag3/cmake")  # Use custom AprilTag3
+# ENDIF()
 
 IF (NOT DEFINED USE_OPENMP)
   SET(USE_OPENMP ON)
@@ -55,12 +55,13 @@ INCLUDE_DIRECTORIES(${SUITESPARSEQR_INCLUDE_DIR})
 INCLUDE_DIRECTORIES(${SUITESPARSE_CONFIG_INCLUDE_DIR})
 INCLUDE_DIRECTORIES("/opt/yac/include")
 LINK_DIRECTORIES("/opt/yac/lib")
+LINK_DIRECTORIES("/usr/local/lib")
 SET(DEPS
   yaml-cpp
   glog
   ceres
-  apriltag3
-  apriltag
+  apriltag  # Ed Olsen
+  apriltags # Michael Kaess
   ${OpenCV_LIBS}
 	${CHOLMOD_LIBRARY}
 	${SUITESPARSEQR_LIBRARY}

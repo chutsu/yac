@@ -9,16 +9,16 @@
 
 /// AprilTags3 by Ed Olsen
 extern "C" {
-#include "apriltag3/apriltag.h"
-#include "apriltag3/tag36h11.h"
-#include "apriltag3/tag25h9.h"
-#include "apriltag3/tag16h5.h"
-#include "apriltag3/tagCircle21h7.h"
-#include "apriltag3/tagCircle49h12.h"
-#include "apriltag3/tagCustom48h12.h"
-#include "apriltag3/tagStandard41h12.h"
-#include "apriltag3/tagStandard52h13.h"
-#include "apriltag3/common/getopt.h"
+#include "apriltag/apriltag.h"
+#include "apriltag/tag36h11.h"
+#include "apriltag/tag25h9.h"
+#include "apriltag/tag16h5.h"
+#include "apriltag/tagCircle21h7.h"
+#include "apriltag/tagCircle49h12.h"
+#include "apriltag/tagCustom48h12.h"
+#include "apriltag/tagStandard41h12.h"
+#include "apriltag/tagStandard52h13.h"
+#include "apriltag/common/getopt.h"
 }
 
 #include "core.hpp"

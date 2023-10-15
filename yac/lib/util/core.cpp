@@ -948,7 +948,7 @@ vec2_t rmse(const vec2s_t &vecs) {
   std::vector<real_t> x;
   std::vector<real_t> y;
 
-  for (const auto v : vecs) {
+  for (const auto &v : vecs) {
     x.push_back(v.x());
     y.push_back(v.y());
   }
@@ -961,7 +961,7 @@ vec3_t rmse(const vec3s_t &vecs) {
   std::vector<real_t> y;
   std::vector<real_t> z;
 
-  for (const auto v : vecs) {
+  for (const auto &v : vecs) {
     x.push_back(v.x());
     y.push_back(v.y());
     z.push_back(v.z());

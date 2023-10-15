@@ -247,7 +247,7 @@ int calib_nbv_poses(std::map<int, mat4s_t> &nbv_poses,
                     const int range_y_size,
                     const int range_z_size) {
   nbv_poses.clear();
-  for (const auto [cam_idx, _] : cam_geoms) {
+  for (const auto &[cam_idx, _] : cam_geoms) {
     UNUSED(_);
     const auto geom = cam_geoms.at(cam_idx).get();
     const auto cam = cam_params.at(cam_idx).get();
@@ -267,7 +267,7 @@ int calib_nbv_poses(std::map<int, mat4s_t> &nbv_poses,
       return -1;
     }
 
-    for (const mat4_t T_FCi : poses) {
+    for (const mat4_t &T_FCi : poses) {
       nbv_poses[cam_idx].push_back(T_FCi * T_CiC0);
     }
   }

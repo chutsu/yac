@@ -1,6 +1,6 @@
 settings:
   # General
-  verbose: false
+  verbose: true
   max_num_threads: 8
 
   # Extrinsics initialization

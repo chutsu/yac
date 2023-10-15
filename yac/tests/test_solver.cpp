@@ -44,7 +44,7 @@ int test_yac_solver() {
 
   solver.add_param(&cam_params);
   solver.add_param(&cam_exts);
-  for (const auto grid : grids) {
+  for (const auto &grid : grids) {
     // Pre-check
     if (grid.detected == false) {
       continue;

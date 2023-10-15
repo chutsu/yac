@@ -54,7 +54,7 @@ set -e
 # RUN_CMD="./test_calib_residuals --target test_reproj_residual"
 # RUN_CMD="./test_calib_residuals --target test_fiducial_residual"
 # RUN_CMD="./test_calib_residuals --target test_mocap_residual"
-# RUN_CMD="./test_calib_residuals --target test_imu_residual"
+RUN_CMD="./test_calib_residuals --target test_imu_residual"
 # RUN_CMD="./test_calib_residuals --target test_marg_residual"
 
 # YAC - CAMERA CALIBRATION
@@ -94,7 +94,7 @@ set -e
 # RUN_CMD="./test_calib_vi"
 # RUN_CMD="time ./test_calib_vi --target test_calib_vi_batch"
 # RUN_CMD="./test_calib_vi --target test_calib_vi_online"
-RUN_CMD="./test_calib_vi --target test_calib_vi_time_delay"
+# RUN_CMD="./test_calib_vi --target test_calib_vi_time_delay"
 
 # YAC - NBV
 # RUN_CMD="./test_calib_nbv"

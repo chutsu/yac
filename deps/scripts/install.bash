@@ -28,18 +28,18 @@ install_base() {
     cmake \
     g++ \
     clang \
-    wget \
-    libasan4 \
-    libasan5
+    wget
+    # libasan4 \
+    # libasan5
 }
 
 apt_update
 install_base
-install ros
-install eigen
-install apriltag
+# install ros
+# install eigen
+# install apriltag
 install apriltag3
-install suitesparse
-install ceres
-install opencv
-install yamlcpp
+# install suitesparse
+# install ceres
+# install opencv
+# install yamlcpp

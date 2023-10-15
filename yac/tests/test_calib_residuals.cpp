@@ -491,16 +491,93 @@ int test_imu_residual() {
   time_delay_t td{0.0, false};
 
   // Form IMU residual
-  imu_residual_t r(imu_params, imu_buf, &pose_i, &sb_i, &pose_j, &sb_j, &td);
-  // r.squareRootInformation_.setIdentity();
+  auto imu_res = std::make_shared<imu_residual_t>(imu_params,
+                                                  imu_buf,
+                                                  &pose_i,
+                                                  &sb_i,
+                                                  &pose_j,
+                                                  &sb_j,
+                                                  &td);
+  imu_res->squareRootInformation_.setIdentity();
 
-  const double step = 1e-8;
-  const double tol = 1e-2;
-  // MU_CHECK(r.check_jacs(0, "J_pose_i", step, tol));
-  // MU_CHECK(r.check_jacs(1, "J_sb_i", step, tol));
-  // MU_CHECK(r.check_jacs(2, "J_pose_j", step, tol));
-  // MU_CHECK(r.check_jacs(3, "J_sb_j", step, tol));
-  MU_CHECK(r.check_jacs(4, "J_time_delay", step, tol));
+  // pose_i.marginalize = true;
+  // sb_i.marginalize = true;
+  // marg_residual_t marg;
+  // marg.add(imu_res);
+  // std::vector<param_t *> marg_params;
+  // std::vector<std::shared_ptr<calib_residual_t>> marg_residuals;
+  // marg.marginalize(marg_params, marg_residuals);
+
+  // const double step = 1e-8;
+  // const double tol = 1e-2;
+  // MU_CHECK(imu_res->check_jacs(0, "J_pose_i", step, tol));
+  // MU_CHECK(imu_res->check_jacs(1, "J_sb_i", step, tol));
+  // MU_CHECK(imu_res->check_jacs(2, "J_pose_j", step, tol));
+  // MU_CHECK(imu_res->check_jacs(3, "J_sb_j", step, tol));
+  // MU_CHECK(imu_res->check_jacs(4, "J_time_delay", step, tol));
+
+  matx_t H;
+  matx_t H_marg_;
+  matx_t J_;
+  csv2mat("/tmp/H.csv", false, H);
+  csv2mat("/tmp/H_marg.csv", false, H_marg_);
+  csv2mat("/tmp/J.csv", false, J_);
+
+  const int m = 15;
+  const int r = 15;
+  matx_t Hmm = H.block(0, 0, m, m);
+  Hmm = 0.5 * (Hmm + Hmm.transpose()); // Enforce Symmetry
+  const double eps = 1.0e-8;
+  const Eigen::SelfAdjointEigenSolver<matx_t> eig(Hmm);
+  const matx_t V = eig.eigenvectors();
+  const auto eigvals_inv = (eig.eigenvalues().array() > eps)
+                               .select(eig.eigenvalues().array().inverse(), 0);
+  const matx_t Lambda_inv = vecx_t(eigvals_inv).asDiagonal();
+  const matx_t Hmm_inv = V * Lambda_inv * V.transpose();
+  const matx_t Hmr = H.block(0, m, m, r);
+  const matx_t Hrm = H.block(m, 0, r, m);
+  const matx_t Hrr = H.block(m, m, r, r);
+  const matx_t H_marg = Hrr - Hrm * Hmm_inv * Hmr;
+  print_matrix("H", H);
+  print_matrix("H_marg", H_marg);
+  printf("rank(H_marg): %ld\n", rank(H_marg));
+
+  const real_t decomp_norm = (H_marg - H_marg_).norm();
+  printf("decomp norm: %f\n", decomp_norm);
+
+  // Decompose matrix H into J' * J to obtain J via eigen-decomposition
+  // i.e.
+  //
+  //   H = J' * J = U * S * U'
+  //   J = S^{0.5} * U'
+  //
+  // H_marg = 0.5 * (H_marg + H_marg.transpose()); // Enforce Symmetry
+  {
+    const Eigen::SelfAdjointEigenSolver<matx_t> eig(H_marg);
+    const double eps = std::numeric_limits<double>::epsilon();
+    const double max_coe = eig.eigenvalues().array().maxCoeff();
+    const double tol = eps * H_marg.cols() * max_coe;
+    const vecx_t S = (eig.eigenvalues().array() > tol)
+                         .select(eig.eigenvalues().array(), 0.0);
+    const vecx_t S_inv = (eig.eigenvalues().array() > tol)
+                             .select(eig.eigenvalues().array().inverse(), 0);
+    const vecx_t S_sqrt = S.cwiseSqrt();
+    const vecx_t S_inv_sqrt = S_inv.cwiseSqrt();
+    const matx_t J = S_sqrt.asDiagonal() * eig.eigenvectors().transpose();
+    const matx_t J_inv =
+        S_inv_sqrt.asDiagonal() * eig.eigenvectors().transpose();
+    // -- Check decomposition
+    const real_t decomp_norm = ((J.transpose() * J) - H_marg).norm();
+    const bool decomp_check = decomp_norm < 1.0e-2;
+    printf("decomp norm: %f\n", decomp_norm);
+    if (decomp_check == false) {
+      LOG_WARN("Decompose JtJ check: %f", decomp_norm);
+      LOG_WARN("This is bad ... Usually means marg_residual_t is bad!");
+    }
+
+    const real_t diff = (J - J_).norm();
+    printf("diff: %f\n", diff);
+  }
 
   return 0;
 }

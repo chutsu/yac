@@ -72,19 +72,20 @@ def generateAprilTag(canvas, position, metricSize, tagSpacing, tagID, tagFamilil
             if codeMatrix[i,j]:
                 c.fill(path.rect(xPos+(j+borderBits)*bitSquareSize, yPos+((borderBits-1)+sqrtBits-i)*bitSquareSize, bitSquareSize, bitSquareSize),[color.rgb.black])
 
-    # #add squares to make corners symmetric (decreases the effect of motion blur in the subpix refinement...)
-    # if symmCorners:
-    #     metricSquareSize = tagSpacing*metricSize
-    #
-    #     corners = [
-    #                 [xPos-metricSquareSize, yPos-metricSquareSize ],
-    #                 [xPos+metricSize, yPos-metricSquareSize],
-    #                 [xPos+metricSize, yPos+metricSize],
-    #                 [xPos-metricSquareSize, yPos+metricSize]
-    #               ]
-    #
-    #     for point in corners:
-    #         c.fill(path.rect(point[0], point[1], metricSquareSize, metricSquareSize),[color.rgb.black])
+    #add squares to make corners symmetric (decreases the effect of motion blur in the subpix refinement...)
+    if symmCorners:
+        metricSquareSize = tagSpacing*metricSize
+
+        corners = [
+            [xPos-metricSquareSize, yPos-metricSquareSize ],
+            [xPos+metricSize, yPos-metricSquareSize],
+            [xPos+metricSize, yPos+metricSize],
+            [xPos-metricSquareSize, yPos+metricSize]
+        ]
+
+        # for point in corners:
+        #     c.fill(path.rect(point[0], point[1], metricSquareSize, metricSquareSize),[color.rgb.black])
+        #     break
 
 #tagSpaceing in % of tagSize
 def generateAprilBoard(canvas, n_cols, n_rows, tagSize, tagSpacing=0.25, tagFamilily="t36h11", skipIds=None):
@@ -114,23 +115,23 @@ def generateAprilBoard(canvas, n_cols, n_rows, tagSize, tagSpacing=0.25, tagFami
                 generateAprilTag(canvas, pos, tagSize, tagSpacing, id, tagFamililyData, rotation=2)
                 #c.text(pos[0]+0.45*tagSize, pos[1]-0.7*tagSize*tagSpacing, "{0}".format(id))
 
-    #draw axis
-    pos = ( -1.5*tagSpacing*tagSize, -1.5*tagSpacing*tagSize)
-    c.stroke(path.line(pos[0], pos[1], pos[0]+tagSize*0.3, pos[1]),
-             [color.rgb.red,
-              deco.earrow([deco.stroked([color.rgb.red, style.linejoin.round]),
-              deco.filled([color.rgb.red])], size=tagSize*0.10)])
-    c.text(pos[0]+tagSize*0.3, pos[1], "x")
+    ##draw axis
+    #pos = ( -1.5*tagSpacing*tagSize, -1.5*tagSpacing*tagSize)
+    #c.stroke(path.line(pos[0], pos[1], pos[0]+tagSize*0.3, pos[1]),
+    #         [color.rgb.red,
+    #          deco.earrow([deco.stroked([color.rgb.red, style.linejoin.round]),
+    #          deco.filled([color.rgb.red])], size=tagSize*0.10)])
+    #c.text(pos[0]+tagSize*0.3, pos[1], "x")
 
-    c.stroke(path.line(pos[0], pos[1], pos[0], pos[1]+tagSize*0.3),
-             [color.rgb.green,
-              deco.earrow([deco.stroked([color.rgb.green, style.linejoin.round]),
-              deco.filled([color.rgb.green])], size=tagSize*0.10)])
-    c.text(pos[0], pos[1]+tagSize*0.3, "y")
+    #c.stroke(path.line(pos[0], pos[1], pos[0], pos[1]+tagSize*0.3),
+    #         [color.rgb.green,
+    #          deco.earrow([deco.stroked([color.rgb.green, style.linejoin.round]),
+    #          deco.filled([color.rgb.green])], size=tagSize*0.10)])
+    #c.text(pos[0], pos[1]+tagSize*0.3, "y")
 
-    #text
-    caption = "{0}x{1} tags, size={2}cm and spacing={3}cm".format(n_cols,n_rows,tagSize,tagSpacing*tagSize)
-    c.text(pos[0]+0.6*tagSize, pos[0], caption)
+    ##text
+    #caption = "{0}x{1} tags, size={2}cm and spacing={3}cm".format(n_cols,n_rows,tagSize,tagSpacing*tagSize)
+    #c.text(pos[0]+0.6*tagSize, pos[0], caption)
 
 
 if __name__ == "__main__":
@@ -156,7 +157,8 @@ if __name__ == "__main__":
     nrows = parsed.n_rows
     ncols = parsed.n_cols
     tag_size = parsed.tsize
-    tag_spacing = 0.3
+    tag_spacing = 0.1
     tag_family = "t36h11"
     generateAprilBoard(canvas, ncols, nrows, tag_size, tag_spacing, tag_family, parsed.skipIds)
-    c.writePDFfile("/tmp/aprilgrid.pdf")
+    # c.writePDFfile("./aprilgrid.pdf")
+    c.writeSVGfile("./aprilgrid")

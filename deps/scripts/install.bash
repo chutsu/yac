@@ -36,10 +36,10 @@ install_base() {
 apt_update
 install_base
 # install ros
-# install eigen
-# install apriltag
+install eigen
+install apriltag
 install apriltag3
-# install suitesparse
-# install ceres
-# install opencv
-# install yamlcpp
+install suitesparse
+install ceres
+install opencv
+install yamlcpp

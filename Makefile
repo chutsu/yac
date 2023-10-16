@@ -80,7 +80,6 @@ release: ${CATKIN_WS} ${YAC_PATH} ## Build libyac and yac_ros in release mode
 
 build_docker:
 	sudo rm -rf build \
-		&& sudo rm -rf deps/src/apriltags3/build \
 		&& docker build -t chutsu/yac .
 
 run_docker:

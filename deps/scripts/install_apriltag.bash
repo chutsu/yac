@@ -25,3 +25,4 @@ cmake .. \
   -DCMAKE_PREFIX_PATH=$INSTALL_PREFIX
 make
 make install
+mv $INSTALL_PREFIX/lib/libapriltag.a $INSTALL_PREFIX/lib/libapriltags.a

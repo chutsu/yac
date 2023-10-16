@@ -9,7 +9,7 @@ mkdir -p "$INSTALL_PREFIX"
 mkdir -p "$DOWNLOAD_PATH"
 
 install() {
-  echo -n "Installing $1 ... ";
+  echo "Installing $1 ... ";
   bash $BASEDIR/install_$1.bash
   # if [ "$BASEDIR"/install_"$1".bash > "install_${1}.log" 2>&1 ]; then
   #   echo "DONE!"

@@ -1,4 +1,4 @@
-FROM ros:noetic-perception-focal
+FROM ros:humble-perception-jammy
 
 SHELL ["/bin/bash", "-c"]
 ENV HOME /root
@@ -11,9 +11,7 @@ RUN apt-get update && apt-get install -qq -y \
   build-essential \
   git \
   cmake \
-  vim \
-  python3-catkin-tools \
-  python3-osrf-pycommon
+  vim
 
 # yac over to home
 WORKDIR $HOME
@@ -23,5 +21,5 @@ COPY ./ yac
 # build yac
 WORKDIR $HOME/yac
 RUN make deps
-RUN make lib
-RUN source /opt/ros/noetic/setup.bash && make release
+# RUN make lib
+# RUN source /opt/ros/humble/setup.bash && make release

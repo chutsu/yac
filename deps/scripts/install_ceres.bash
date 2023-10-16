@@ -11,7 +11,10 @@ echo "installing ceres-solver [$VERSION] ..."
 # apt_install libgflags-doc
 # apt_install libgoogle-glog-dev
 apt_install libceres-dev
-apt_install libceres*
+apt_install libceres2
+
+# Dependencies
+# apt_install libtbb2-dev
 
 # # Clone
 # if [ ! -d $INSTALL_PREFIX/src/ceres-solver ]; then
@@ -19,11 +22,11 @@ apt_install libceres*
 #   git clone --quiet https://github.com/ceres-solver/ceres-solver
 #   cd ..
 # fi
-#
+
 # # Build
 # cd $INSTALL_PREFIX/src/ceres-solver
 # git checkout ${VERSION} --quiet
-#
+
 # mkdir -p build
 # cd build
 # cmake .. \

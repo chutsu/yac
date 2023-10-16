@@ -33,6 +33,20 @@ install_base() {
     # libasan5
 }
 
+check_ubuntu_version() {
+  if [ -x "$(command -v lsb_release)" ]; then
+    VERSION=$(lsb_release -r | grep -oP '(?<=Release:\s)[0-9.]+')
+    if [ $? -eq 0 ] && [ $VERSION != $UBUNTU_VERSION ]; then
+      echo "This script is only for Ubuntu $UBUNTU_VERSION"
+      exit -1;
+    fi
+  else
+    # lsb_release command is not installed - Not ubuntu
+    exit -1;
+  fi
+}
+
+check_ubuntu_version
 apt_update
 install_base
 # install ros

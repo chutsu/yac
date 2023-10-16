@@ -3,14 +3,17 @@ set -e
 BASEDIR=$(dirname "$0")
 source "$BASEDIR/config.bash"
 
-# Build
-cd src/apriltag3
+# Install AprilTags3
+apt_install libapriltag3
 
-mkdir -p build
-cd build
-cmake .. \
-  -DCMAKE_BUILD_TYPE=$BUILD_TYPE \
-  -DCMAKE_INSTALL_PREFIX=$INSTALL_PREFIX \
-  -DCMAKE_PREFIX_PATH=$INSTALL_PREFIX
-make
-make install
+# # Build
+# cd src/apriltag3
+
+# mkdir -p build
+# cd build
+# cmake .. \
+#   -DCMAKE_BUILD_TYPE=$BUILD_TYPE \
+#   -DCMAKE_INSTALL_PREFIX=$INSTALL_PREFIX \
+#   -DCMAKE_PREFIX_PATH=$INSTALL_PREFIX
+# make
+# make install

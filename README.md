@@ -29,7 +29,6 @@ Dependencies
     libomp-dev (optional)
 
     # Custom (see deps dir)
-    Modified apriltag3 (https://github.com/AprilRobotics/apriltag)
     Modified apriltags (https://github.com/chutsu/apriltags)
 
 
@@ -75,8 +74,8 @@ Click [here](docs/aprilgrid_A0.pdf) to download and print the AprilGrid.
 During data collection make sure the calibration target is as flat as possible.
 
 
-Calibrate Camera Intrinsics or Stereo Intrinsics and Extrinsics
----------------------------------------------------------------
+Calibrate Camera Intrinsics and Extrinsics
+------------------------------------------
 
 First inorder to calibrate a monocular camera or stereo camera pair we need to
 create the calibration configuration file. For example `calib_intel_d435i.yaml`

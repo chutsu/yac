@@ -7,9 +7,9 @@ VERSION=2.0.0
 echo "installing ceres-solver [$VERSION] ..."
 
 # Install GFLAGS, GLOG
-apt_install libgflags-dev
-apt_install libgflags-doc
-apt_install libgoogle-glog-dev
+# apt_install libgflags-dev
+# apt_install libgflags-doc
+# apt_install libgoogle-glog-dev
 apt_install libceres-dev
 apt_install libceres*
 

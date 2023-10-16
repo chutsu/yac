@@ -10,12 +10,13 @@ mkdir -p "$DOWNLOAD_PATH"
 
 install() {
   echo -n "Installing $1 ... ";
-  if [ "$BASEDIR"/install_"$1".bash > "install_${1}.log" 2>&1 ]; then
-    echo "DONE!"
-  else
-    echo "FAILED!"
-    cat "install_${1}.log"
-  fi
+  bash $BASEDIR/install_$1.bash
+  # if [ "$BASEDIR"/install_"$1".bash > "install_${1}.log" 2>&1 ]; then
+  #   echo "DONE!"
+  # else
+  #   echo "FAILED!"
+  #   cat "install_${1}.log"
+  # fi
 }
 
 install_base() {

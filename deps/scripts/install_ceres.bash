@@ -4,14 +4,14 @@ BASEDIR=$(dirname "$0")
 source "$BASEDIR/config.bash"
 
 VERSION=2.0.0
-echo "building ceres-solver [$VERSION] ..."
+echo "installing ceres-solver [$VERSION] ..."
 
 # Install GFLAGS, GLOG
 apt_install libgflags-dev
 apt_install libgflags-doc
 apt_install libgoogle-glog-dev
 apt_install libceres-dev
-apt_install libceres1
+apt_install libceres*
 
 # # Clone
 # if [ ! -d $INSTALL_PREFIX/src/ceres-solver ]; then

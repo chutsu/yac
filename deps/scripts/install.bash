@@ -10,8 +10,7 @@ mkdir -p "$DOWNLOAD_PATH"
 
 install() {
   echo -n "Installing $1 ... ";
-  if "$BASEDIR"/install_"$1".bash > "install_${1}.log" 2>&1
-  then
+  if [ "$BASEDIR"/install_"$1".bash > "install_${1}.log" 2>&1 ]; then
     echo "DONE!"
   else
     echo "FAILED!"

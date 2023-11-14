@@ -3,14 +3,9 @@ on: [push]
 jobs:
   ci:
     runs-on: ubuntu-latest
-    container:
-      image: ubuntu:jammy
 
     steps:
     - uses: actions/checkout@master
-
-    - name: Install make and sudo
-      run: apt-get update -y && apt-get install make sudo
 
     - name: install dependencies
       run: sudo make deps

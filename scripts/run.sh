@@ -123,14 +123,14 @@ set -e
 # RUN_CMD="./test_solver"
 # gdb -ex run -ex bt
 
-tmux send-keys -t dev -R C-l C-m
-tmux send-keys -t dev -R "\
-cd ~/projects/yac \
-&& sudo make lib \
-&& cd build \
-&& $RUN_CMD
-" C-m
-exit
+# tmux send-keys -t dev -R C-l C-m
+# tmux send-keys -t dev -R "\
+# cd ~/projects/yac \
+# && sudo make lib \
+# && cd build \
+# && $RUN_CMD
+# " C-m
+# exit
 
 # && ./calib_inspect '/tmp/calib_imu-results.yaml' /data/euroc/imu_april/mav0
 

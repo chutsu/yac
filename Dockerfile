@@ -20,12 +20,21 @@ RUN apt-get update && apt-get install -qq -y \
   build-essential \
   git \
   cmake \
-  vim
+  vim \
+  wget
+
+# Install catkin-tools
+RUN sh -c 'echo "deb http://packages.ros.org/ros/ubuntu `lsb_release -sc` main" \
+  > /etc/apt/sources.list.d/ros-latest.list'
+RUN wget http://packages.ros.org/ros.key -O - | sudo apt-key add -
+RUN apt-get update -yq
+RUN apt-get install -qq -y python3-catkin-tools
 
 # Build yac
 WORKDIR /usr/local/src
 RUN git clone https://github.com/chutsu/yac
 WORKDIR /usr/local/src/yac
+RUN git checkout ubuntu2004
 RUN make deps
 RUN make lib
 
@@ -39,7 +48,9 @@ ENV PATH="${PATH}:/opt/yac/bin"
 
 # Create catkin_ws
 WORKDIR $HOME
-RUN . /opt/ros/noetic/setup.sh
 RUN mkdir -p $HOME/catkin_ws/src/
-RUN cd $HOME/catkin_ws/src && ln -s /usr/local/yac/yac_ros .
-RUN catkin build
+RUN ln -s /usr/local/src/yac/yac_ros $HOME/catkin_ws/src/yac_ros
+RUN . /opt/ros/noetic/setup.sh \
+  && cd $HOME/catkin_ws \
+  && catkin init \
+  && catkin build

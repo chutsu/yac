@@ -1,6 +1,0 @@
-<launch>
-  <arg name="config_file"/>
-  <node pkg="yac_ros" type="calib_camera_node" name="calib_camera_node" required="true" output="screen">
-    <param name="config_file" value="$(arg config_file)" />
-  </node>
-</launch>

@@ -34,7 +34,7 @@ RUN apt-get install -qq -y python3-catkin-tools
 WORKDIR /usr/local/src
 RUN git clone https://github.com/chutsu/yac
 WORKDIR /usr/local/src/yac
-RUN git checkout ubuntu2004
+RUN git checkout iros2023
 RUN make deps
 RUN make lib
 
@@ -49,6 +49,7 @@ ENV PATH="${PATH}:/opt/yac/bin"
 # Create catkin_ws
 WORKDIR $HOME
 RUN mkdir -p $HOME/catkin_ws/src/
+RUN git clone https://github.com/chutsu/rs4se
 RUN ln -s /usr/local/src/yac/yac_ros $HOME/catkin_ws/src/yac_ros
 RUN . /opt/ros/noetic/setup.sh \
   && cd $HOME/catkin_ws \

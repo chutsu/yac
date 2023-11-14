@@ -79,8 +79,7 @@ release: ${CATKIN_WS} ${YAC_PATH} ## Build libyac and yac_ros in release mode
 	$(call compile_yac_ros,Release)
 
 build_docker:
-	sudo rm -rf build \
-		&& docker build -f Dockerfile -t chutsu/yac .
+		docker build -f Dockerfile --no-cache -t chutsu/yac .
 
 run_docker:
 	@xhost +local:docker

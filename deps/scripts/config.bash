@@ -2,8 +2,8 @@
 INSTALL_PREFIX="/opt/yac"
 DOWNLOAD_PATH="$INSTALL_PREFIX/src"
 BUILD_TYPE="Release"
-ROS_VERSION="humble"
-UBUNTU_VERSION="22.04"
+ROS_VERSION="noetic"
+UBUNTU_VERSION="20.04"
 
 apt_update() {
   echo "[Updating APT package list]";

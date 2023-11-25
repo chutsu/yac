@@ -3,8 +3,7 @@ set -e
 BASEDIR=$(dirname "$0")
 source "$BASEDIR/config.bash"
 
-VERSION=2.0.0
-echo "installing ceres-solver [$VERSION] ..."
+echo "installing ceres-solver ..."
 
 # Install GFLAGS, GLOG
 # apt_install libgflags-dev

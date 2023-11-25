@@ -7,11 +7,11 @@ UBUNTU_VERSION="22.04"
 
 apt_update() {
   echo "[Updating APT package list]";
-  apt-get update -qqq;
+  apt-get update;
 }
 
 apt_install() {
-  apt-get install -qqq -y "$@";
+  apt-get install -y "$@";
 }
 
 # $1 - Git Repo URL

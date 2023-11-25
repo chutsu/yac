@@ -190,6 +190,6 @@ set -e
 # make
 # make lib_debug
 # make debug
-# make lib
+make lib
 # make release
 # make tests

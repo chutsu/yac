@@ -49,7 +49,6 @@ check_ubuntu_version() {
 check_ubuntu_version
 apt_update
 install_base
-# install ros
 install eigen
 install suitesparse
 install ceres

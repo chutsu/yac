@@ -9,8 +9,8 @@ echo "installing ceres-solver ..."
 # apt_install libgflags-dev
 # apt_install libgflags-doc
 # apt_install libgoogle-glog-dev
-apt_install libceres-dev
-# apt_install libceres2
+# apt_install libceres-dev
+apt_install libceres2
 
 # Dependencies
 # apt_install libtbb2-dev

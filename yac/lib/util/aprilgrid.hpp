@@ -45,7 +45,7 @@ struct aprilgrid_t {
   matx_t data;
 
   aprilgrid_t() = default;
-  aprilgrid_t(const std::string &csv_path);
+  aprilgrid_t(const std::string &csv_path, const bool format_v2 = false);
   aprilgrid_t(const timestamp_t &timestamp,
               const int tag_rows,
               const int tag_cols,
@@ -88,6 +88,7 @@ struct aprilgrid_t {
 
   int save(const std::string &save_path) const;
   int load(const std::string &data_path);
+  int loadv2(const std::string &data_path);
   int equal(const aprilgrid_t &grid1) const;
 
   void intersect(aprilgrid_t &grid1);
@@ -111,13 +112,11 @@ struct aprilgrid_t {
 };
 
 /* AprilGrids */
-// clang-format off
-// using aprilgrids_t = std::vector<aprilgrid_t, Eigen::aligned_allocator<aprilgrid_t>>;
 using aprilgrids_t = std::vector<aprilgrid_t>;
-// clang-format on
 
 /* Load AprilGrids */
-aprilgrids_t load_aprilgrids(const std::string &dir_path);
+aprilgrids_t load_aprilgrids(const std::string &dir_path,
+                             const bool format_v2 = false);
 
 struct aprilgrid_detect_data_t {
   const AprilTags::AprilGridDetector &det;

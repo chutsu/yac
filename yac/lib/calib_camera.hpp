@@ -120,6 +120,7 @@ struct calib_camera_t {
   real_t info_gain_threshold = 0.2;
   int early_stop_threshold = 10;
   int sliding_window_size = 10;
+  bool format_v2 = false;
 
   // Data
   calib_target_t calib_target;

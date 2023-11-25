@@ -593,6 +593,7 @@ calib_camera_t::calib_camera_t(const std::string &config_path)
   parse(config, "settings.info_gain_threshold", info_gain_threshold, true);
   parse(config, "settings.early_stop_threshold", early_stop_threshold, true);
   parse(config, "settings.sliding_window_size", sliding_window_size, true);
+  parse(config, "settings.format_v2", format_v2, true);
   // clang-format on
   // -- Parse calibration target
   if (calib_target.load(config_path, "calib_target") != 0) {
@@ -1859,10 +1860,11 @@ void calib_camera_t::_load_views(const std::string &data_path) {
   }
 
   // Add views
+  printf("format_v2: %d\n", format_v2);
   for (const auto &[ts, cam_data] : grid_data) {
     std::map<int, aprilgrid_t> view_data;
     for (const auto &[cam_idx, grid_file] : cam_data) {
-      aprilgrid_t grid{grid_file};
+      aprilgrid_t grid{grid_file, format_v2};
       view_data[cam_idx] = grid;
 
       timestamps.insert(ts);
@@ -1984,6 +1986,7 @@ void calib_camera_t::print_settings(FILE *out) const {
   fprintf(out, "  info_gain_threshold: %f\n", info_gain_threshold);
   fprintf(out, "  early_stop_threshold: %d\n", early_stop_threshold);
   fprintf(out, "  sliding_window_size: %d\n", sliding_window_size);
+  fprintf(out, "  format_v2: %d\n", format_v2);
   fprintf(out, "\n");
   // clang-format on
 }

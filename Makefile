@@ -1,9 +1,6 @@
 SHELL:=/bin/bash
-PREFIX=/opt/yac
+PREFIX=/usr/local
 BUILD_DIR=build
-CATKIN_WS=${HOME}/yac_ws
-YAC_PATH=${CATKIN_WS}/src/yac
-ROS_VERSION="noetic"
 NUM_CPU=2
 
 .PHONY: help deps lib_debug lib debug release download_test_data tests
@@ -13,13 +10,7 @@ define compile_yac
 		&& cmake ../yac \
 		-DCMAKE_BUILD_TYPE=$(1) \
 		-DCMAKE_INSTALL_PREFIX=${PREFIX} \
-		&& time sudo make install -s -j${NUM_CPU}
-endef
-
-define compile_yac_ros
-  @cd ${CATKIN_WS} \
-	&& . /opt/ros/${ROS_VERSION}/setup.sh \
-	&& catkin build yac_ros -DCMAKE_BUILD_TYPE=Release -j${NUM_CPU}
+		&& time make -j${NUM_CPU}
 endef
 
 help:
@@ -29,16 +20,10 @@ help:
 		{printf "\033[1;36m%-20s\033[0m%s\n", $$1, $$2}'
 
 ${BUILD_DIR}:
-	@sudo mkdir -p ${BUILD_DIR}
+	@mkdir -p ${BUILD_DIR}
 
 ${PREFIX}:
-	@sudo mkdir -p ${PREFIX}
-
-${CATKIN_WS}:
-	@mkdir -p ${CATKIN_WS}/src; catkin init
-
-${YAC_PATH}:
-	ln -sf ${PWD} ${CATKIN_WS}/src/yac
+	@mkdir -p ${PREFIX}
 
 deps: ## Install dependencies
 	@echo "[Installing Dependencies]"
@@ -52,6 +37,9 @@ lib_relwithdeb: ${BUILD_DIR} ${PREFIX} ## Build libyac in release with debug inf
 
 lib: ${BUILD_DIR} ${PREFIX} ## Build libyac in release mode
 	$(call compile_yac,Release)
+
+install:
+	cd ${BUILD_DIR} && make install
 
 download_test_data: ## Download test data
 	@bash ./scripts/download_test_data.bash
@@ -69,18 +57,8 @@ tests: ## Build and run tests
 		&& ./test_calib_mocap \
 		&& ./test_calib_vi
 
-debug: ${CATKIN_WS} ${YAC_PATH} ## Build libyac and yac_ros in debug mode
-	$(call compile_yac_ros,Debug)
-
-relwithdeb: ${CATKIN_WS} ${YAC_PATH} ## Build libyac and yac_ros in release with debug info
-	$(call compile_yac_ros,RelWithDebInfo)
-
-release: ${CATKIN_WS} ${YAC_PATH} ## Build libyac and yac_ros in release mode
-	$(call compile_yac_ros,Release)
-
 build_docker:
-	sudo rm -rf build \
-		&& docker build -f Dockerfile -t chutsu/yac .
+	docker build -f Dockerfile -t chutsu/yac .
 
 run_docker:
 	@xhost +local:docker
@@ -90,4 +68,3 @@ run_docker:
 		--network="host" \
 		-it \
 		--rm chutsu/yac
-

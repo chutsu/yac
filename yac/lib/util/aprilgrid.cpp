@@ -2,7 +2,12 @@
 
 namespace yac {
 
-aprilgrid_t::aprilgrid_t(const std::string &csv_path) : init{true} {
+aprilgrid_t::aprilgrid_t(const std::string &csv_path, const bool format_v2)
+    : init{true} {
+  if (format_v2) {
+    loadv2(csv_path);
+    return;
+  }
   load(csv_path);
 }
 
@@ -420,6 +425,125 @@ int aprilgrid_t::load(const std::string &data_path) {
   return 0;
 }
 
+static void aprilgrid_parse_line(FILE *fp,
+                                 const char *key,
+                                 const char *value_type,
+                                 void *value) {
+  assert(fp != NULL);
+  assert(key != NULL);
+  assert(value_type != NULL);
+  assert(value != NULL);
+
+  // Parse line
+  const size_t buf_len = 1024;
+  char buf[1024] = {0};
+  if (fgets(buf, buf_len, fp) == NULL) {
+    FATAL("Failed to parse [%s]\n", key);
+  }
+
+  // Split key-value
+  char delim[2] = ":";
+  char *key_str = strtok(buf, delim);
+  char *value_str = strtok(NULL, delim);
+
+  // Check key matches
+  if (strcmp(key_str, key) != 0) {
+    FATAL("Failed to parse [%s]\n", key);
+  }
+
+  // Typecase value
+  if (value_type == NULL) {
+    FATAL("Value type not set!\n");
+  }
+
+  if (strcmp(value_type, "uint64_t") == 0) {
+    *(uint64_t *)value = atol(value_str);
+  } else if (strcmp(value_type, "int") == 0) {
+    *(int *)value = atoi(value_str);
+  } else if (strcmp(value_type, "real_t") == 0) {
+    *(real_t *)value = atof(value_str);
+  } else {
+    FATAL("Invalid value type [%s]\n", value_type);
+  }
+}
+
+static void aprilgrid_parse_skip_line(FILE *fp) {
+  assert(fp != NULL);
+  const size_t buf_len = 1024;
+  char buf[1024] = {0};
+  char *retval = fgets(buf, buf_len, fp);
+  UNUSED(retval);
+}
+
+int aprilgrid_t::loadv2(const std::string &data_path) {
+  // Open file for loading
+  FILE *fp = fopen(data_path.c_str(), "r");
+  if (fp == NULL) {
+    LOG_ERROR("Failed to open [%s]!\n", data_path.c_str());
+    return -1;
+  }
+
+  // Parse configuration
+  aprilgrid_parse_line(fp, "timestamp", "uint64_t", &timestamp);
+  aprilgrid_parse_line(fp, "num_rows", "int", &tag_rows);
+  aprilgrid_parse_line(fp, "num_cols", "int", &tag_cols);
+  aprilgrid_parse_line(fp, "tag_size", "real_t", &tag_size);
+  aprilgrid_parse_line(fp, "tag_spacing", "real_t", &tag_spacing);
+  aprilgrid_parse_skip_line(fp);
+
+  // Parse data
+  int corners_detected = 0;
+  aprilgrid_parse_line(fp, "corners_detected", "int", &corners_detected);
+  aprilgrid_parse_skip_line(fp);
+
+#if PRECISION == 1
+  const char *scan_format = "%d,%d,%f,%f,%f,%f,%f";
+#else
+  const char *scan_format = "%d,%d,%lf,%lf,%lf,%lf,%lf";
+#endif
+  for (int i = 0; i < corners_detected; i++) {
+    // Parse data line
+    int tag_id = 0;
+    int corner_idx = 0;
+    real_t kp[2] = {0};
+    real_t p[3] = {0};
+    const int retval = fscanf(fp,
+                              scan_format,
+                              &tag_id,
+                              &corner_idx,
+                              &kp[0],
+                              &kp[1],
+                              &p[0],
+                              &p[1],
+                              &p[2]);
+    if (retval != 7) {
+      FATAL("Failed to parse data line in [%s]\n", data_path.c_str());
+    }
+
+    // Resize data if not already
+    if (data.rows() == 0 && data.cols() == 0) {
+      data.resize(tag_rows * tag_cols * 4, 6);
+      data.setZero();
+    }
+
+    // Map variables back to data
+    const int data_row = (tag_id * 4) + corner_idx;
+    data(data_row, 0) = 1.0;
+    data(data_row, 1) = kp[0];
+    data(data_row, 2) = kp[1];
+    data(data_row, 3) = p[0];
+    data(data_row, 4) = p[1];
+    data(data_row, 5) = p[2];
+    detected = true;
+    nb_detections++;
+  }
+
+  // Clean up
+  fclose(fp);
+
+  return 0;
+}
+
 int aprilgrid_t::equal(const aprilgrid_t &grid1) const {
   assert(init == true);
   bool timestamp_ok = (this->timestamp == grid1.timestamp);
@@ -614,7 +738,8 @@ std::ostream &operator<<(std::ostream &os, const aprilgrid_t &grid) {
   return os;
 }
 
-aprilgrids_t load_aprilgrids(const std::string &dir_path) {
+aprilgrids_t load_aprilgrids(const std::string &dir_path,
+                             const bool format_v2) {
   std::vector<std::string> csv_files;
   if (list_dir(dir_path, csv_files) != 0) {
     FATAL("Failed to list dir [%s]!", dir_path.c_str());
@@ -624,7 +749,7 @@ aprilgrids_t load_aprilgrids(const std::string &dir_path) {
   aprilgrids_t grids;
   for (const auto &grid_csv : csv_files) {
     const auto csv_path = dir_path + "/" + grid_csv;
-    aprilgrid_t grid{csv_path};
+    aprilgrid_t grid{csv_path, format_v2};
     if (grid.detected) {
       grids.push_back(grid);
     }

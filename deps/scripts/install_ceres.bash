@@ -5,11 +5,10 @@ source "$BASEDIR/config.bash"
 
 echo "installing ceres-solver ..."
 
-# Install GFLAGS, GLOG
-# apt_install libgflags-dev
-# apt_install libgflags-doc
-# apt_install libgoogle-glog-dev
-# apt_install libceres-dev
+apt_install libgflags-dev
+apt_install libgflags-doc
+apt_install libgoogle-glog-dev
+apt_install libceres-dev
 apt_install libceres2
 
 # Dependencies

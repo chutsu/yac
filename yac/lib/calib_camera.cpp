@@ -641,6 +641,18 @@ calib_camera_t::calib_camera_t(const std::string &config_path)
     parse(config, key, T_C0Ci);
     cam_exts[cam_idx]->set_tf(T_C0Ci);
   }
+  // -- Parse IMU settings (if it exists)
+  if (yaml_has_key(config_path, "imu0")) {
+    imu_params = std::make_unique<imu_params_t>();
+    parse(config, "imu0.rate", imu_params->rate, true);
+    parse(config, "imu0.sigma_g_c", imu_params->sigma_g_c, true);
+    parse(config, "imu0.sigma_a_c", imu_params->sigma_a_c, true);
+    parse(config, "imu0.sigma_gw_c", imu_params->sigma_gw_c, true);
+    parse(config, "imu0.sigma_aw_c", imu_params->sigma_aw_c, true);
+    parse(config, "imu0.sigma_bg", imu_params->sigma_bg, true);
+    parse(config, "imu0.sigma_ba", imu_params->sigma_ba, true);
+    parse(config, "imu0.g", imu_params->g, true);
+  }
 
   // Load calibration data
   if (yaml_has_key(config, "settings.data_path")) {
@@ -1860,7 +1872,6 @@ void calib_camera_t::_load_views(const std::string &data_path) {
   }
 
   // Add views
-  printf("format_v2: %d\n", format_v2);
   for (const auto &[ts, cam_data] : grid_data) {
     std::map<int, aprilgrid_t> view_data;
     for (const auto &[cam_idx, grid_file] : cam_data) {
@@ -1986,7 +1997,7 @@ void calib_camera_t::print_settings(FILE *out) const {
   fprintf(out, "  info_gain_threshold: %f\n", info_gain_threshold);
   fprintf(out, "  early_stop_threshold: %d\n", early_stop_threshold);
   fprintf(out, "  sliding_window_size: %d\n", sliding_window_size);
-  fprintf(out, "  format_v2: %d\n", format_v2);
+  fprintf(out, "  format_v2: %s\n", format_v2 ? "true" : "false");
   fprintf(out, "\n");
   // clang-format on
 }
@@ -2250,6 +2261,21 @@ void calib_camera_t::print_reproj_errors(FILE *out) const {
   fprintf(out, "\n");
 }
 
+void calib_camera_t::print_imu(FILE *os) const {
+  if (imu_params) {
+    fprintf(os, "imu0:\n");
+    fprintf(os, "  rate: %f\n", imu_params->rate);
+    fprintf(os, "  sigma_a_c: %e\n", imu_params->sigma_a_c);
+    fprintf(os, "  sigma_g_c: %e\n", imu_params->sigma_g_c);
+    fprintf(os, "  sigma_aw_c: %e\n", imu_params->sigma_aw_c);
+    fprintf(os, "  sigma_gw_c: %e\n", imu_params->sigma_gw_c);
+    fprintf(os, "  sigma_ba: %e\n", imu_params->sigma_ba);
+    fprintf(os, "  sigma_bg: %e\n", imu_params->sigma_bg);
+    fprintf(os, "  g: %f\n", imu_params->g);
+    fprintf(os, "\n");
+  }
+}
+
 void calib_camera_t::show_results() const {
   const auto reproj_errors = get_reproj_errors();
   const auto reproj_errors_all = get_all_reproj_errors();
@@ -2277,6 +2303,7 @@ int calib_camera_t::save_results(const std::string &save_path) {
   print_calib_target(outfile, calib_target);
   print_metrics(outfile, calib_views.size(), reproj_errors, reproj_errors_all);
   print_estimates(outfile, cam_params, cam_exts);
+  print_imu(outfile);
   // print_camera_convergence(outfile);
   // print_extrinsics_convergence(outfile);
   // print_convergence(outfile);

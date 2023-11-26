@@ -173,6 +173,9 @@ struct calib_camera_t {
   // AprilGrid detector
   std::unique_ptr<aprilgrid_detector_t> detector;
 
+  // Imu parameters
+  std::unique_ptr<imu_params_t> imu_params;
+
   // Constructor / Destructor
   calib_camera_t() = delete;
   calib_camera_t(const calib_target_t &calib_target_);
@@ -274,6 +277,7 @@ struct calib_camera_t {
   void print_extrinsics_convergence(FILE *out) const;
   void print_convergence(FILE *out) const;
   void print_reproj_errors(FILE *out) const;
+  void print_imu(FILE *os) const;
   void show_results() const;
   int save_results(const std::string &save_path);
 

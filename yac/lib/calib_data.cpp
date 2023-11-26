@@ -148,7 +148,8 @@ std::map<int, aprilgrids_t>
 calib_data_preprocess(const calib_target_t &calib_target,
                       const std::map<int, std::string> cam_paths,
                       const std::string &grids_path,
-                      const bool imshow) {
+                      const bool imshow,
+                      const bool format_v2) {
   // printf("Preprocessing calibration data ...\n");
 
   // AprilGrid detector
@@ -200,7 +201,12 @@ calib_data_preprocess(const calib_target_t &calib_target,
       // Load or detect apriltag
       aprilgrid_t grid;
       if (file_exists(grid_path)) {
-        grid.load(grid_path);
+        if (format_v2) {
+          grid.loadv2(grid_path);
+        } else {
+          grid.load(grid_path);
+        }
+
         if (grid.detected == false) {
           grid.timestamp = ts;
           grid.tag_rows = detector.tag_rows;

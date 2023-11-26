@@ -8,8 +8,8 @@ YAC - Yet Another Calibrator
 Yet Another Calibrator (YAC) is a calibration tool for calibrating RGB
 cameras. Specifically:
 
-- Camera intrinsics
-- Stereo camera intrinsics and extrinsics
+- Camera intrinsics and extrinsics
+- Camera-IMU extrinsic
 - Mocap-marker to camera extrinsics
 
 Supported projection-distortion models:
@@ -37,28 +37,20 @@ Build
 
 For the lazy :
 
-    # The following assumes you have a catkin workspace at $HOME/catkin_ws
-    # If not edit the CATKIN_WS variable in the Makefile
-
     git clone https://github.com/chutsu/yac
     cd yac
     make deps
-    make release
+    make lib
 
 
 Or standard approach:
 
-    # Clone repo to your catkin workspace
-    cd <your catkin workspace>/src
     git clone https://github.com/chutsu/yac
-
-    # Install dependencies
-    cd yac && make deps
-
-    # Build yac
-    catkin build -DCMAKE_BUILD_TYPE=Release yac yac_ros
-    # Note: Optimization will be very slow if not built in RELEASE mode.
-
+    cd yac
+    mkdir -p build
+    cd build
+    cmake .. -DCMAKE_BUILD_TYPE=Release
+    make
 
 
 Calibration Target
@@ -82,10 +74,6 @@ create the calibration configuration file. For example `calib_intel_d435i.yaml`
 configuration file:
 
 ```
-ros:
-  bag: "/data/intel_d435i/imucam-1.bag"
-  cam0_topic: "/stereo/camera0/image"
-
 calib_target:
   target_type: 'aprilgrid'  # Target type
   tag_rows: 6               # Number of rows
@@ -98,30 +86,28 @@ calib_target:
 cam0:
   proj_model: "pinhole"
   dist_model: "radtan4"
-  lens_hfov: 69.4
-  lens_vfov: 42.5
   resolution: [640.0, 480.0]
-  rate: 30.0
 
 cam1:
   proj_model: "pinhole"
   dist_model: "radtan4"
-  lens_hfov: 69.4
-  lens_vfov: 42.5
   resolution: [640.0, 480.0]
-  rate: 30.0
 ```
 
-The above tells `yac` where to find the rosbag containing the calibration data,
-the calibration target and camera details. Now, we need to pass that to a yac
-calibrator via the roslaunch file `calib_mono.launch` or `calib_stereo.launch`:
+
+Calibrate Camera(s)
+~~~~~~~~~~~~~~~~~~~
 
 ```
-# To calibrate cam0 intrinsics only
-roslaunch yac calib_mono.launch config_file:=<path to calib_intel_d435i.yaml>
+calib_camera <path to config file> <path to data>
+```
 
-# To calibrate stereo camera pair intrinsics and extrinsics
-roslaunch yac calib_stereo.launch config_file:=<path to calib_intel_d435i.yaml>
+
+Calibrate Camera-IMU
+~~~~~~~~~~~~~~~~~~~~
+
+```
+calib_vi <path to config file> <path to data>
 ```
 
 

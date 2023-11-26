@@ -50,7 +50,7 @@ check_ubuntu_version
 apt_update
 install_base
 install eigen
-install suitesparse
+# install suitesparse
 install ceres
 install opencv
 install yamlcpp

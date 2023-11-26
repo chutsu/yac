@@ -309,6 +309,7 @@ calib_vi_t::calib_vi_t(const std::string &config_file_)
   parse(config, "settings.window_size", window_size, true);
   parse(config, "settings.estimate_time_delay", estimate_time_delay, true);
   parse(config, "settings.time_delay_jac_step", time_delay_jac_step, true);
+  parse(config, "settings.format_v2", format_v2, true);
   // clang-format on
   // -- Parse calibration target
   if (calib_target.load(config_file, "calib_target") != 0) {
@@ -1260,7 +1261,11 @@ void calib_vi_t::load_data(const std::string &data_path) {
     cam_paths[cam_idx] = data_path + "/" + cam_str + "/data";
   }
   const auto grids_path = data_path + "/grid0";
-  auto cam_grids = calib_data_preprocess(calib_target, cam_paths, grids_path);
+  auto cam_grids = calib_data_preprocess(calib_target,
+                                         cam_paths,
+                                         grids_path,
+                                         false,
+                                         format_v2);
   for (const auto cam_idx : get_camera_indices()) {
     for (const auto &grid : cam_grids[cam_idx]) {
       timeline.add(grid.timestamp, cam_idx, grid);
@@ -1490,6 +1495,7 @@ void calib_vi_t::print_settings(FILE *os) const {
   fprintf(os, "  window_size: %d\n", window_size);
   fprintf(os, "  img_scale: %f\n", img_scale);
   fprintf(os, "  time_delay_jac_step: %e\n", time_delay_jac_step);
+  fprintf(os, "  format_v2: %s\n", format_v2 ? "true" : "false");
   fprintf(os, "\n");
   // clang-format on
 }

@@ -102,6 +102,7 @@ struct calib_vi_t {
   real_t img_scale = 0.4;
   bool estimate_time_delay = true;
   double time_delay_jac_step = 1e-8;
+  bool format_v2 = false;
 
   // State-Variables
   CamIdx2Geometry cam_geoms;

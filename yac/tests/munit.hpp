@@ -91,6 +91,7 @@ static std::string test_target = "";
 
 #define MU_REPORT()                                                            \
   do {                                                                         \
+    printf("\n");                                                              \
     printf(KBLU);                                                              \
     printf("%d tests, ", tests);                                               \
     printf("%d passed, ", passed);                                             \

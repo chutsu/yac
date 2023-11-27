@@ -66,6 +66,16 @@ void print_vector(const std::string &name, const vecx_t &v) {
   printf("\n");
 }
 
+void print_vector(const std::string &name, const double *v, const int N) {
+  Eigen::VectorXd vec;
+  vec.resize(N);
+  for (int i = 0; i < N; i++) {
+    vec(i) = v[i];
+  }
+
+  print_vector(name, vec);
+}
+
 void print_matrix(const std::string &name,
                   const matx_t &m,
                   const std::string &indent) {
@@ -1309,13 +1319,13 @@ mat3_t quat2rot(const quat_t &q) {
   C(0, 1) = 2 * (qx * qy - qw * qz);
   C(0, 2) = 2 * (qx * qz + qw * qy);
   // -- 2nd row
-  C(1, 3) = 2 * (qx * qy + qw * qz);
-  C(1, 4) = qw2 - qx2 + qy2 - qz2;
-  C(1, 5) = 2 * (qy * qz - qw * qx);
+  C(1, 0) = 2 * (qx * qy + qw * qz);
+  C(1, 1) = qw2 - qx2 + qy2 - qz2;
+  C(1, 2) = 2 * (qy * qz - qw * qx);
   // -- 3rd row
-  C(2, 6) = 2 * (qx * qz - qw * qy);
-  C(2, 7) = 2 * (qy * qz + qw * qx);
-  C(2, 8) = qw2 - qx2 - qy2 + qz2;
+  C(2, 0) = 2 * (qx * qz - qw * qy);
+  C(2, 1) = 2 * (qy * qz + qw * qx);
+  C(2, 2) = qw2 - qx2 - qy2 + qz2;
 
   return C;
 }

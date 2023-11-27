@@ -331,6 +331,11 @@ void print_array(const std::string &name,
 void print_vector(const std::string &name, const vecx_t &v);
 
 /**
+ * Print vector `v` with a `name`.
+ */
+void print_vector(const std::string &name, const double *v, const int N);
+
+/**
  * Print matrix `m` with a `name`.
  */
 void print_matrix(const std::string &name,

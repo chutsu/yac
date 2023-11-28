@@ -866,6 +866,8 @@ int main() {
 
   problem.SetParameterBlockConstant(calib_data.pose);
   problem.SetParameterBlockConstant(calib_data.gimbal_ext);
+  // problem.SetParameterBlockConstant(calib_data.cam0_ext);
+  // problem.SetParameterBlockConstant(calib_data.cam1_ext);
 
   // -- Lambda function to add reprojection errors
   auto add_grid = [&](const int cam_idx, const aprilgrid_t &grid) {
@@ -892,11 +894,17 @@ int main() {
       double *joint0 = &calib_data.joint0_data[ts];
       double *joint1 = &calib_data.joint1_data[ts];
       double *joint2 = &calib_data.joint2_data[ts];
+      problem.AddParameterBlock(joint0, 1);
+      problem.AddParameterBlock(joint1, 1);
+      problem.AddParameterBlock(joint2, 1);
+      problem.SetParameterBlockConstant(joint0);
+      problem.SetParameterBlockConstant(joint1);
+      problem.SetParameterBlockConstant(joint2);
 
       auto reproj_error = GimbalReprojError::Create(proj_params, z, p_FFi);
-      auto joint0_error = GimbalJointError::Create(*joint0, 1e-6);
-      auto joint1_error = GimbalJointError::Create(*joint1, 1e-6);
-      auto joint2_error = GimbalJointError::Create(*joint2, 1e-6);
+      auto joint0_error = GimbalJointError::Create(*joint0, 0.1);
+      auto joint1_error = GimbalJointError::Create(*joint1, 0.1);
+      auto joint2_error = GimbalJointError::Create(*joint2, 0.1);
 
       std::vector<double *> param_blocks;
       param_blocks.push_back(calib_data.pose);
@@ -926,6 +934,7 @@ int main() {
   CalibEval eval{calib_data};
   pose_perturb(calib_data.link0_ext, 0.01, deg2rad(2.0));
   pose_perturb(calib_data.link1_ext, 0.01, deg2rad(2.0));
+  eval.compare(calib_data);
 
   ceres::Solver::Options options;
   ceres::Solver::Summary summary;

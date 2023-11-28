@@ -758,6 +758,92 @@ struct GimbalJointError {
   }
 };
 
+struct CalibEval {
+  double gnd_gimbal_ext[7] = {0};
+  double gnd_link0_ext[7] = {0};
+  double gnd_link1_ext[7] = {0};
+  double gnd_cam0_ext[7] = {0};
+  double gnd_cam1_ext[7] = {0};
+  std::map<timestamp_t, double> gnd_joint0_data;
+  std::map<timestamp_t, double> gnd_joint1_data;
+  std::map<timestamp_t, double> gnd_joint2_data;
+
+  CalibEval(const CalibData &calib_data) {
+    pose_copy(calib_data.gimbal_ext, gnd_gimbal_ext);
+    pose_copy(calib_data.link0_ext, gnd_link0_ext);
+    pose_copy(calib_data.link1_ext, gnd_link1_ext);
+    pose_copy(calib_data.cam0_ext, gnd_cam0_ext);
+    pose_copy(calib_data.cam1_ext, gnd_cam1_ext);
+    gnd_joint0_data = calib_data.joint0_data;
+    gnd_joint1_data = calib_data.joint1_data;
+    gnd_joint2_data = calib_data.joint2_data;
+  }
+
+  void compare(const CalibData &data) {
+    printf("\n[gnd]\n");
+    print_vector("gimbal_ext", gnd_gimbal_ext, 7);
+    print_vector("link0_ext ", gnd_link0_ext, 7);
+    print_vector("link1_ext ", gnd_link1_ext, 7);
+    print_vector("cam0_ext  ", gnd_cam0_ext, 7);
+    print_vector("cam1_ext  ", gnd_cam1_ext, 7);
+
+    printf("\n[est]\n");
+    print_vector("gimbal_ext", data.gimbal_ext, 7);
+    print_vector("link0_ext ", data.link0_ext, 7);
+    print_vector("link1_ext ", data.link1_ext, 7);
+    print_vector("cam0_ext  ", data.cam0_ext, 7);
+    print_vector("cam1_ext  ", data.cam1_ext, 7);
+
+    printf("\n");
+    for (const auto &[ts, _] : gnd_joint0_data) {
+      const double gnd_joint0 = gnd_joint0_data[ts];
+      const double gnd_joint1 = gnd_joint1_data[ts];
+      const double gnd_joint2 = gnd_joint2_data[ts];
+      const double est_joint0 = data.joint0_data.at(ts);
+      const double est_joint1 = data.joint1_data.at(ts);
+      const double est_joint2 = data.joint2_data.at(ts);
+
+      const double dx = (gnd_joint0 - est_joint0);
+      const double dy = (gnd_joint1 - est_joint1);
+      const double dz = (gnd_joint2 - est_joint2);
+
+      printf("joint diff: [%.4f, %.4f, %.4f]\n", dx, dy, dz);
+    }
+    printf("\n");
+
+    double gimbal_dpos = {0};
+    double link0_dpos = {0};
+    double link1_dpos = {0};
+    double cam0_dpos = {0};
+    double cam1_dpos = {0};
+
+    double gimbal_drot = {0};
+    double link0_drot = {0};
+    double link1_drot = {0};
+    double cam0_drot = {0};
+    double cam1_drot = {0};
+
+    pose_diff(data.gimbal_ext, gnd_gimbal_ext, &gimbal_dpos, &gimbal_drot);
+    pose_diff(data.link0_ext, gnd_link0_ext, &link0_dpos, &link0_drot);
+    pose_diff(data.link1_ext, gnd_link1_ext, &link1_dpos, &link1_drot);
+    pose_diff(data.cam0_ext, gnd_cam0_ext, &cam0_dpos, &cam0_drot);
+    pose_diff(data.cam1_ext, gnd_cam1_ext, &cam1_dpos, &cam1_drot);
+
+    gimbal_drot = rad2deg(gimbal_drot);
+    link0_drot = rad2deg(link0_drot);
+    link1_drot = rad2deg(link1_drot);
+    cam0_drot = rad2deg(cam0_drot);
+    cam1_drot = rad2deg(cam1_drot);
+
+    printf("\n");
+    printf("gimbal dr: %f [m], drot: %f [deg]\n", gimbal_dpos, gimbal_drot);
+    printf("link0  dr: %f [m], drot: %f [deg]\n", link0_dpos, link0_drot);
+    printf("link1  dr: %f [m], drot: %f [deg]\n", link1_dpos, link1_drot);
+    printf("cam0   dr: %f [m], drot: %f [deg]\n", cam0_dpos, cam0_drot);
+    printf("cam1   dr: %f [m], drot: %f [deg]\n", cam1_dpos, cam1_drot);
+  }
+};
+
 int main() {
   // Setup
   const std::string data_path = "/tmp/sim_gimbal";
@@ -836,35 +922,16 @@ int main() {
     add_grid(1, calib_data.cam1_grids[ts]);
   }
 
-  printf("\n[gnd]\n");
-  print_vector("gimbal_ext", calib_data.gimbal_ext, 7);
-  print_vector("link0_ext ", calib_data.link0_ext, 7);
-  print_vector("link1_ext ", calib_data.link1_ext, 7);
-  print_vector("cam0_ext  ", calib_data.cam0_ext, 7);
-  print_vector("cam1_ext  ", calib_data.cam1_ext, 7);
-
   // perturb
-  pose_perturb(calib_data.link0_ext, 0.01, 0.1);
-  pose_perturb(calib_data.link1_ext, 0.01, 0.1);
-
-  // printf("\n[before]\n");
-  // print_vector("gimbal_ext", calib_data.gimbal_ext, 7);
-  // print_vector("link0_ext ", calib_data.link0_ext, 7);
-  // print_vector("link1_ext ", calib_data.link1_ext, 7);
-  // print_vector("cam0_ext  ", calib_data.cam0_ext, 7);
-  // print_vector("cam1_ext  ", calib_data.cam1_ext, 7);
+  CalibEval eval{calib_data};
+  pose_perturb(calib_data.link0_ext, 0.01, deg2rad(2.0));
+  pose_perturb(calib_data.link1_ext, 0.01, deg2rad(2.0));
 
   ceres::Solver::Options options;
   ceres::Solver::Summary summary;
   options.minimizer_progress_to_stdout = true;
   ceres::Solve(options, &problem, &summary);
-
-  printf("\n[after]\n");
-  print_vector("gimbal_ext", calib_data.gimbal_ext, 7);
-  print_vector("link0_ext ", calib_data.link0_ext, 7);
-  print_vector("link1_ext ", calib_data.link1_ext, 7);
-  print_vector("cam0_ext  ", calib_data.cam0_ext, 7);
-  print_vector("cam1_ext  ", calib_data.cam1_ext, 7);
+  eval.compare(calib_data);
 
   return 0;
 }

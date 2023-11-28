@@ -6,7 +6,7 @@ source "$BASEDIR/config.bash"
 echo "installing ceres-solver ..."
 
 # apt_install libunwind-dev
-# apt_install libgflags-dev
+apt_install libgflags-dev
 # apt_install libgflags-doc
 # apt_install libgoogle-glog-dev
 # apt_install libceres-dev

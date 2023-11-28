@@ -827,5 +827,35 @@ int main() {
     add_grid(1, calib_data.cam1_grids[ts]);
   }
 
+  printf("\n[gnd]\n");
+  print_vector("gimbal_ext", calib_data.gimbal_ext, 7);
+  print_vector("link0_ext ", calib_data.link0_ext, 7);
+  print_vector("link1_ext ", calib_data.link1_ext, 7);
+  print_vector("cam0_ext  ", calib_data.cam0_ext, 7);
+  print_vector("cam1_ext  ", calib_data.cam1_ext, 7);
+
+  // perturb
+  pose_perturb(calib_data.link0_ext, 0.01, 0.1);
+  pose_perturb(calib_data.link1_ext, 0.01, 0.1);
+
+  // printf("\n[before]\n");
+  // print_vector("gimbal_ext", calib_data.gimbal_ext, 7);
+  // print_vector("link0_ext ", calib_data.link0_ext, 7);
+  // print_vector("link1_ext ", calib_data.link1_ext, 7);
+  // print_vector("cam0_ext  ", calib_data.cam0_ext, 7);
+  // print_vector("cam1_ext  ", calib_data.cam1_ext, 7);
+
+  ceres::Solver::Options options;
+  ceres::Solver::Summary summary;
+  options.minimizer_progress_to_stdout = true;
+  ceres::Solve(options, &problem, &summary);
+
+  printf("\n[after]\n");
+  print_vector("gimbal_ext", calib_data.gimbal_ext, 7);
+  print_vector("link0_ext ", calib_data.link0_ext, 7);
+  print_vector("link1_ext ", calib_data.link1_ext, 7);
+  print_vector("cam0_ext  ", calib_data.cam0_ext, 7);
+  print_vector("cam1_ext  ", calib_data.cam1_ext, 7);
+
   return 0;
 }

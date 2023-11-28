@@ -1084,8 +1084,91 @@ mat4_t tf_perturb_trans(const mat4_t &T, const real_t step_size, const int i) {
   return tf(C, r_diff);
 }
 
+mat4_t tf_perturb(const mat4_t &T, const real_t dr, const real_t drot) {
+  const real_t dx = randf(dr, -dr);
+  const real_t dy = randf(dr, -dr);
+  const real_t dz = randf(dr, -dr);
+  const real_t drotx = randf(drot, -drot);
+  const real_t droty = randf(drot, -drot);
+  const real_t drotz = randf(drot, -drot);
+
+  auto T_perturbed = tf_perturb_trans(T, dx, 0);
+  T_perturbed = tf_perturb_trans(T_perturbed, dy, 1);
+  T_perturbed = tf_perturb_trans(T_perturbed, dz, 2);
+
+  T_perturbed = tf_perturb_rot(T_perturbed, drotx, 0);
+  T_perturbed = tf_perturb_rot(T_perturbed, droty, 1);
+  T_perturbed = tf_perturb_rot(T_perturbed, drotz, 2);
+
+  return T_perturbed;
+}
+
 vec3_t tf_point(const mat4_t &T, const vec3_t &p) {
   return (T * p.homogeneous()).head(3);
+}
+
+/**
+ * Inverse Quaternion `q`.
+ */
+static void quat_inv(const real_t q[4], real_t q_inv[4]) {
+  q_inv[0] = q[0];
+  q_inv[1] = -q[1];
+  q_inv[2] = -q[2];
+  q_inv[3] = -q[3];
+}
+
+/**
+ * Quaternion left-multiply `p` with `q`, results are outputted to `r`.
+ */
+static void quat_lmul(const real_t p[4], const real_t q[4], real_t r[4]) {
+  assert(p != NULL);
+  assert(q != NULL);
+  assert(r != NULL);
+
+  const real_t pw = p[0];
+  const real_t px = p[1];
+  const real_t py = p[2];
+  const real_t pz = p[3];
+
+  r[0] = pw * q[0] - px * q[1] - py * q[2] - pz * q[3];
+  r[1] = px * q[0] + pw * q[1] - pz * q[2] + py * q[3];
+  r[2] = py * q[0] + pz * q[1] + pw * q[2] - px * q[3];
+  r[3] = pz * q[0] - py * q[1] + px * q[2] + pw * q[3];
+}
+
+/**
+ * Quaternion multiply `p` with `q`, results are outputted to `r`.
+ */
+static void quat_mul(const real_t p[4], const real_t q[4], real_t r[4]) {
+  assert(p != NULL);
+  assert(q != NULL);
+  assert(r != NULL);
+  quat_lmul(p, q, r);
+}
+
+void pose_diff(const real_t pose0[7], const real_t pose1[7], real_t diff[6]) {
+  assert(pose0 != NULL);
+  assert(pose1 != NULL);
+  assert(diff != NULL);
+
+  // dr
+  diff[0] = pose0[0] - pose1[0];
+  diff[1] = pose0[1] - pose1[1];
+  diff[2] = pose0[2] - pose1[2];
+
+  // dq = quat_mul(quat_inv(q_meas), q_est);
+  const real_t *q0 = pose0 + 3;
+  const real_t *q1 = pose1 + 3;
+  real_t q0_inv[4] = {0};
+  real_t dq[4] = {0};
+  quat_inv(q0, q0_inv);
+  quat_mul(q0_inv, q1, dq);
+
+  // dtheta = 2 * dq;
+  const real_t dtheta[3] = {2.0 * dq[1], 2.0 * dq[2], 2.0 * dq[3]};
+  diff[3] = dtheta[0];
+  diff[4] = dtheta[1];
+  diff[5] = dtheta[2];
 }
 
 mat3_t rotx(const real_t theta) {

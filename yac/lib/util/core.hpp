@@ -1077,9 +1077,19 @@ mat4_t tf_perturb_rot(const mat4_t &T, real_t step_size, const int i);
 mat4_t tf_perturb_trans(const mat4_t &T, real_t step_size, const int i);
 
 /**
+ * Perturb the translation and rotation component.
+ */
+mat4_t tf_perturb(const mat4_t &T, const real_t dr, const real_t drot);
+
+/**
  * Transform point `p` with transform `T`.
  */
 vec3_t tf_point(const mat4_t &T, const vec3_t &p);
+
+/**
+ * Pose difference between pose0 and pose1.
+ */
+void pose_diff(const real_t pose0[7], const real_t pose1[7], real_t diff[6]);
 
 /**
  * Rotation matrix around x-axis (counter-clockwise, right-handed).

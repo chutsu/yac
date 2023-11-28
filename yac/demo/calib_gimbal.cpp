@@ -101,6 +101,15 @@ void pose_perturb(double *pose, const real_t dr, const real_t drot) {
 }
 
 /**
+ * Copy pose.
+ */
+void pose_copy(const double *src, double *dst) {
+  for (int i = 0; i < 7; i++) {
+    dst[i] = src[i];
+  }
+}
+
+/**
  * Gimbal joint angle to transformation matrix.
  */
 template <typename T>

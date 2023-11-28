@@ -176,20 +176,13 @@ set -e
 # rm -rf /tmp/calib_data/calib_imu
 # rm -rf /tmp/calib_data/calib_camera
 
-# tmux send-keys -t dev -R C-l C-m
-# tmux send-keys -t dev -R "\
-# cd ~/projects/yac \
-# && sudo make lib \
-# && make release \
-# && cd ~/yac_ws \
-# && source devel/setup.bash \
-# && ${RUN_CMD}
-# " c-m
-# exit
+tmux send-keys -t dev -R C-l C-m
+tmux send-keys -t dev -R "cd ~/projects/yac && make lib_relwithdeb && ./build/calib_gimbal" c-m
+exit
 
 # make
 # make lib_debug
 # make debug
-make lib
+# make lib
 # make release
 # make tests

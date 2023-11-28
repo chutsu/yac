@@ -799,9 +799,9 @@ int main() {
       double *joint2 = &calib_data.joint2_data[ts];
 
       auto reproj_error = GimbalReprojError::Create(proj_params, z, p_FFi);
-      auto joint0_error = GimbalJointError::Create(*joint0, 0.01);
-      auto joint1_error = GimbalJointError::Create(*joint1, 0.01);
-      auto joint2_error = GimbalJointError::Create(*joint2, 0.01);
+      auto joint0_error = GimbalJointError::Create(*joint0, 1e-6);
+      auto joint1_error = GimbalJointError::Create(*joint1, 1e-6);
+      auto joint2_error = GimbalJointError::Create(*joint2, 1e-6);
 
       std::vector<double *> param_blocks;
       param_blocks.push_back(calib_data.pose);

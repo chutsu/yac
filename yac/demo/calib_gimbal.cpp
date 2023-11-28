@@ -721,6 +721,34 @@ struct GimbalReprojError {
   }
 };
 
+/**
+ * Gimbal Joint Error.
+ */
+struct GimbalJointError {
+  double joint_angle = 0.0;
+  double covar = 0.0;
+  double sqrt_info = 0.0;
+
+  GimbalJointError(const double joint_angle_, const double covar_)
+      : joint_angle{joint_angle_}, covar{covar_}, sqrt_info{sqrt(1.0 / covar)} {
+  }
+
+  static ceres::CostFunction *Create(const double joint_angle_,
+                                     const double covar_) {
+    return new ceres::AutoDiffCostFunction<GimbalJointError,
+                                           1, // Residual size
+                                           1  // Joint Angle
+                                           >(
+        new GimbalJointError(joint_angle_, covar_));
+  }
+
+  template <typename T>
+  bool operator()(const T *const est_joint_angle, T *residuals) const {
+    residuals[0] = sqrt_info * (joint_angle - est_joint_angle[0]);
+    return true;
+  }
+};
+
 int main() {
   // Setup
   const std::string data_path = "/tmp/sim_gimbal";
@@ -728,8 +756,23 @@ int main() {
 
   // Setup problem
   ceres::Problem::Options prob_options;
-  ceres::Problem problem;
+  prob_options.manifold_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
+  ceres::Problem problem{prob_options};
+  ceres::ProductManifold<ceres::EuclideanManifold<3>, ceres::QuaternionManifold>
+      R3xSO3;
 
+  problem.AddParameterBlock(calib_data.pose, 7, &R3xSO3);
+  problem.AddParameterBlock(calib_data.cam0_ext, 7, &R3xSO3);
+  problem.AddParameterBlock(calib_data.cam1_ext, 7, &R3xSO3);
+  problem.AddParameterBlock(calib_data.link0_ext, 7, &R3xSO3);
+  problem.AddParameterBlock(calib_data.link1_ext, 7, &R3xSO3);
+  problem.AddParameterBlock(calib_data.gimbal_ext, 7, &R3xSO3);
+  problem.AddParameterBlock(calib_data.fiducial_pose, 7, &R3xSO3);
+
+  problem.SetParameterBlockConstant(calib_data.pose);
+  problem.SetParameterBlockConstant(calib_data.gimbal_ext);
+
+  // -- Lambda function to add reprojection errors
   auto add_grid = [&](const int cam_idx, const aprilgrid_t &grid) {
     // Get AprilGrid measurments
     const timestamp_t ts = grid.timestamp;
@@ -741,27 +784,44 @@ int main() {
 
     // Add Reprojection Errors
     const auto proj_params = calib_data.cam_params[cam_idx].proj_params();
+    double *cam_ext = nullptr;
+    if (cam_idx == 0) {
+      cam_ext = calib_data.cam0_ext;
+    } else if (cam_idx == 1) {
+      cam_ext = calib_data.cam1_ext;
+    }
 
     for (size_t i = 0; i < tag_ids.size(); i++) {
       const Eigen::Vector2d z = kps[i];
       const Eigen::Vector3d p_FFi = obj_pts[i];
+      double *joint0 = &calib_data.joint0_data[ts];
+      double *joint1 = &calib_data.joint1_data[ts];
+      double *joint2 = &calib_data.joint2_data[ts];
+
       auto reproj_error = GimbalReprojError::Create(proj_params, z, p_FFi);
+      auto joint0_error = GimbalJointError::Create(*joint0, 0.01);
+      auto joint1_error = GimbalJointError::Create(*joint1, 0.01);
+      auto joint2_error = GimbalJointError::Create(*joint2, 0.01);
 
       std::vector<double *> param_blocks;
       param_blocks.push_back(calib_data.pose);
       param_blocks.push_back(calib_data.gimbal_ext);
       param_blocks.push_back(calib_data.link0_ext);
       param_blocks.push_back(calib_data.link1_ext);
-      param_blocks.push_back(&calib_data.joint0_data[ts]);
-      param_blocks.push_back(&calib_data.joint1_data[ts]);
-      param_blocks.push_back(&calib_data.joint2_data[ts]);
-      param_blocks.push_back(calib_data.cam0_ext);
+      param_blocks.push_back(joint0);
+      param_blocks.push_back(joint1);
+      param_blocks.push_back(joint2);
+      param_blocks.push_back(cam_ext);
       param_blocks.push_back(calib_data.fiducial_pose);
 
       problem.AddResidualBlock(reproj_error, nullptr, param_blocks);
+      problem.AddResidualBlock(joint0_error, nullptr, {joint0});
+      problem.AddResidualBlock(joint1_error, nullptr, {joint1});
+      problem.AddResidualBlock(joint2_error, nullptr, {joint2});
     }
   };
 
+  // -- Add reprojection errors
   for (const auto &ts : calib_data.timestamps) {
     add_grid(0, calib_data.cam0_grids[ts]);
     add_grid(1, calib_data.cam1_grids[ts]);

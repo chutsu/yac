@@ -5,14 +5,11 @@ source "$BASEDIR/config.bash"
 
 echo "installing ceres-solver ..."
 
-# apt_install libunwind-dev
+apt_install libunwind-dev
 apt_install libgflags-dev
 apt_install libgoogle-glog-dev
 # apt_install libceres-dev
 # apt_install libceres2
-
-# Dependencies
-# apt_install libtbb2-dev
 
 # Clone
 if [ ! -d $INSTALL_PREFIX/src/ceres-solver ]; then

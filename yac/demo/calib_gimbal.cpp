@@ -589,6 +589,50 @@ struct CalibData {
       fiducial_pose[i] = fiducial[i];
     }
     fiducial_pose_ok = true;
+
+    // Sanity check
+    // const auto T_WF = transform(fiducial_pose);
+    // for (const auto ts : timestamps) {
+    //   const double joint0 = joint0_data[ts];
+    //   const double joint1 = joint1_data[ts];
+    //   const double joint2 = joint2_data[ts];
+
+    //   const Eigen::Matrix4d T_M0L0 = gimbal_joint_transform(joint0);
+    //   const Eigen::Matrix4d T_M1L1 = gimbal_joint_transform(joint1);
+    //   const Eigen::Matrix4d T_M2L2 = gimbal_joint_transform(joint2);
+    //   const Eigen::Matrix4d T_L2C0 = transform(cam0_ext);
+
+    //   auto T_WC0 = T_WB;
+    //   T_WC0 *= T_BM0;
+    //   T_WC0 *= T_M0L0;
+    //   T_WC0 *= T_L0M1;
+    //   T_WC0 *= T_M1L1;
+    //   T_WC0 *= T_L1M2;
+    //   T_WC0 *= T_M2L2;
+    //   T_WC0 *= T_L2C0;
+
+    //   auto T_C0F = T_WC0.inverse() * T_WF;
+
+    //   std::vector<int> tag_ids;
+    //   std::vector<int> corner_idxs;
+    //   vec2s_t kps;
+    //   vec3s_t obj_pts;
+    //   cam0_grids[ts].get_measurements(tag_ids, corner_idxs, kps, obj_pts);
+    //   if (tag_ids.size() == 0) {
+    //     continue;
+    //   }
+
+    //   for (size_t i = 0; i < tag_ids.size(); i++) {
+    //     const auto res = cam_params[0].resolution;
+    //     const auto cam = cam_params[0].param;
+    //     const auto z = kps[i];
+    //     const auto p_FFi = obj_pts[i];
+    //     const auto p_C = tf_point(T_C0F, p_FFi);
+    //     vec2_t z_hat;
+    //     pinhole_radtan4_project(res, cam, p_C, z_hat);
+    //     printf("%f\n", (z - z_hat).norm());
+    //   }
+    // }
   }
 };
 

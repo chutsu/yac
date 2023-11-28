@@ -639,21 +639,21 @@ struct CalibData {
 /**
  * Gimbal Reprojection Error.
  */
-struct GimbalReprojectionError {
+struct GimbalReprojError {
   Eigen::VectorXd proj_params;
   Eigen::Vector2d z;
   Eigen::Vector3d p_FFi;
 
-  GimbalReprojectionError(const Eigen::VectorXd &proj_params_,
-                          const Eigen::Vector2d &z_,
-                          const Eigen::Vector3d &p_FFi_)
+  GimbalReprojError(const Eigen::VectorXd &proj_params_,
+                    const Eigen::Vector2d &z_,
+                    const Eigen::Vector3d &p_FFi_)
       : proj_params{proj_params_}, z{z_}, p_FFi{p_FFi_} {}
 
   // Create GimbalReprojectError
   static ceres::CostFunction *Create(const Eigen::VectorXd &proj_params_,
                                      const Eigen::Vector2d &z_,
                                      const Eigen::Vector3d &p_FFi_) {
-    return new ceres::AutoDiffCostFunction<GimbalReprojectionError,
+    return new ceres::AutoDiffCostFunction<GimbalReprojError,
                                            2, // Residual size
                                            7, // Body pose
                                            7, // Gimbal extrinsic
@@ -665,7 +665,7 @@ struct GimbalReprojectionError {
                                            7, // Camera extrinsic
                                            7  // Fiducial pose
                                            >(
-        new GimbalReprojectionError(proj_params_, z_, p_FFi_));
+        new GimbalReprojError(proj_params_, z_, p_FFi_));
   }
 
   template <typename T>
@@ -745,7 +745,7 @@ int main() {
     for (size_t i = 0; i < tag_ids.size(); i++) {
       const Eigen::Vector2d z = kps[i];
       const Eigen::Vector3d p_FFi = obj_pts[i];
-      auto cost_fn = GimbalReprojectionError::Create(proj_params, z, p_FFi);
+      auto reproj_error = GimbalReprojError::Create(proj_params, z, p_FFi);
 
       std::vector<double *> param_blocks;
       param_blocks.push_back(calib_data.pose);
@@ -758,7 +758,7 @@ int main() {
       param_blocks.push_back(calib_data.cam0_ext);
       param_blocks.push_back(calib_data.fiducial_pose);
 
-      problem.AddResidualBlock(cost_fn, nullptr, param_blocks);
+      problem.AddResidualBlock(reproj_error, nullptr, param_blocks);
     }
   };
 

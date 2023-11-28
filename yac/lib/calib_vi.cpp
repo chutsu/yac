@@ -26,7 +26,7 @@ calib_vi_view_t::calib_vi_view_t(const bool live_mode_,
       problem{problem_}, vision_loss{vision_loss_}, imu_loss{imu_loss_} {
   // Add pose to problem
   problem->AddParameterBlock(pose.param.data(), 7);
-  problem->SetParameterization(pose.param.data(), pose_plus);
+  problem->SetManifold(pose.param.data(), pose_plus);
 
   // Add speed and biases to problem
   problem->AddParameterBlock(sb.param.data(), 9);
@@ -260,7 +260,7 @@ calib_vi_view_t::marginalize(marg_residual_t *marg_residual) {
 calib_vi_t::calib_vi_t(const calib_target_t &calib_target_)
     : calib_target{calib_target_} {
   // Ceres-Problem
-  prob_options.local_parameterization_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
+  prob_options.manifold_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
   prob_options.cost_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
   prob_options.loss_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
   prob_options.enable_fast_removal = true;
@@ -284,7 +284,7 @@ calib_vi_t::calib_vi_t(const calib_target_t &calib_target_)
 calib_vi_t::calib_vi_t(const std::string &config_file_)
     : config_file{config_file_} {
   // Ceres-Problem
-  prob_options.local_parameterization_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
+  prob_options.manifold_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
   prob_options.cost_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
   prob_options.loss_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
   prob_options.enable_fast_removal = true;
@@ -377,7 +377,7 @@ calib_vi_t::calib_vi_t(const std::string &config_file_)
     fiducial = std::make_shared<fiducial_t>(T_WF);
     problem->AddParameterBlock(fiducial->param.data(), FIDUCIAL_PARAMS_SIZE);
     if (fiducial->param.size() == 7) {
-      problem->SetParameterization(fiducial->param.data(), &pose_plus);
+      problem->SetManifold(fiducial->param.data(), &pose_plus);
     }
   }
 
@@ -413,7 +413,7 @@ void calib_vi_t::add_imu(const imu_params_t &imu_params_,
   // Imu extrinsics
   imu_exts = std::make_shared<extrinsics_t>(T_BS);
   problem->AddParameterBlock(imu_exts->param.data(), 7);
-  problem->SetParameterization(imu_exts->param.data(), &pose_plus);
+  problem->SetManifold(imu_exts->param.data(), &pose_plus);
   if (fix_extrinsics) {
     problem->SetParameterBlockConstant(imu_exts->param.data());
     imu_exts->fixed = true;
@@ -466,7 +466,7 @@ void calib_vi_t::add_camera(const int cam_idx,
   // Camera extrinsics
   cam_exts[cam_idx] = std::make_shared<extrinsics_t>(T_BCi);
   problem->AddParameterBlock(cam_exts[cam_idx]->param.data(), 7);
-  problem->SetParameterization(cam_exts[cam_idx]->param.data(), &pose_plus);
+  problem->SetManifold(cam_exts[cam_idx]->param.data(), &pose_plus);
   if (fix_extrinsics) {
     problem->SetParameterBlockConstant(cam_exts[cam_idx]->param.data());
     cam_exts[cam_idx]->fixed = true;
@@ -676,7 +676,7 @@ void calib_vi_t::initialize(const CamIdx2Grids &grids, imu_data_t &imu_buf) {
     fiducial = std::make_shared<fiducial_t>(T_WF);
     problem->AddParameterBlock(fiducial->param.data(), FIDUCIAL_PARAMS_SIZE);
     if (fiducial->param.size() == 7) {
-      problem->SetParameterization(fiducial->param.data(), &pose_plus);
+      problem->SetManifold(fiducial->param.data(), &pose_plus);
     }
   } else {
     const mat4_t T_C0S = get_imu_extrinsics();

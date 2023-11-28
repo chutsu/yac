@@ -964,7 +964,7 @@ void yac_solver_t::solve(const int max_iter,
 // CERES-SOLVER //////////////////////////////////////////////////////////////
 
 ceres_solver_t::ceres_solver_t() {
-  prob_options.local_parameterization_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
+  prob_options.manifold_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
   prob_options.cost_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
   prob_options.loss_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
   prob_options.enable_fast_removal = true;
@@ -1005,7 +1005,7 @@ void ceres_solver_t::add_param(param_t *param) {
     return false;
   };
   if (is_pose(param)) {
-    problem->SetParameterization(param->data(), &pose_plus);
+    problem->SetManifold(param->data(), &pose_plus);
   }
 }
 

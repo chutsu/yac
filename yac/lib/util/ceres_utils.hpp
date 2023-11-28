@@ -31,16 +31,20 @@ bool evaluate_residual_block(const ceres::Problem &problem,
                              vec2_t &r);
 
 // Pose local parameterization
-class PoseLocalParameterization : public ceres::LocalParameterization {
+class PoseLocalParameterization : public ceres::Manifold {
 public:
   PoseLocalParameterization();
   virtual ~PoseLocalParameterization();
   virtual bool Plus(const double *x,
                     const double *delta,
                     double *x_plus_delta) const;
-  virtual bool ComputeJacobian(const double *x, double *jacobian) const;
-  virtual int GlobalSize() const { return 7; }
-  virtual int LocalSize() const { return 6; }
+  virtual bool PlusJacobian(const double *x, double *jacobian) const;
+  virtual bool Minus(const double *x,
+                     const double *delta,
+                     double *x_plus_delta) const;
+  virtual bool MinusJacobian(const double *x, double *jacobian) const;
+  virtual int AmbientSize() const;
+  virtual int TangentSize() const;
 };
 
 } //  namespace yac

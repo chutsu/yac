@@ -127,8 +127,8 @@ bool PoseLocalParameterization::Plus(const double *x,
   return true;
 }
 
-bool PoseLocalParameterization::ComputeJacobian(const double *x,
-                                                double *jacobian) const {
+bool PoseLocalParameterization::PlusJacobian(const double *x,
+                                             double *jacobian) const {
   // Jacobian of Plus(x, delta) w.r.t delta at delta = 0.
   Eigen::Map<Eigen::Matrix<double, 7, 6, Eigen::RowMajor>> Jp(jacobian);
   UNUSED(x);
@@ -150,5 +150,25 @@ bool PoseLocalParameterization::ComputeJacobian(const double *x,
 
   return true;
 }
+
+bool PoseLocalParameterization::Minus(const double *x,
+                                      const double *delta,
+                                      double *x_plus_delta) const {
+  UNUSED(x);
+  UNUSED(delta);
+  UNUSED(x_plus_delta);
+  return false;
+}
+
+bool PoseLocalParameterization::MinusJacobian(const double *x,
+                                              double *jacobian) const {
+  UNUSED(x);
+  UNUSED(jacobian);
+  return false;
+}
+
+int PoseLocalParameterization::AmbientSize() const { return 7; }
+
+int PoseLocalParameterization::TangentSize() const { return 6; }
 
 } // namespace yac

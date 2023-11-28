@@ -1,5 +1,5 @@
 SHELL:=/bin/bash
-PREFIX=/usr/local
+PREFIX=/opt/yac
 BUILD_DIR=build
 NUM_CPU=2
 
@@ -29,16 +29,16 @@ deps: ## Install dependencies
 	@echo "[Installing Dependencies]"
 	@make -s -C deps
 
-lib_debug: ${BUILD_DIR} ${PREFIX} ## Build libyac in debug mode
+lib_debug: ${BUILD_DIR} ## Build libyac in debug mode
 	$(call compile_yac,Debug)
 
-lib_relwithdeb: ${BUILD_DIR} ${PREFIX} ## Build libyac in release with debug info
+lib_relwithdeb: ${BUILD_DIR} ## Build libyac in release with debug info
 	$(call compile_yac,RelWithDebInfo)
 
-lib: ${BUILD_DIR} ${PREFIX} ## Build libyac in release mode
+lib: ${BUILD_DIR} ## Build libyac in release mode
 	$(call compile_yac,Release)
 
-install:
+install: ${PREFIX}
 	cd ${BUILD_DIR} && make install
 
 download_test_data: ## Download test data

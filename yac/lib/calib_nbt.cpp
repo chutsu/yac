@@ -681,8 +681,8 @@ int nbt_eval(const lissajous_traj_t &traj,
   calib_nbt.problem->AddParameterBlock(calib_nbt.fiducial->param.data(),
                                        FIDUCIAL_PARAMS_SIZE);
   if (calib_nbt.fiducial->param.size() == 7) {
-    calib_nbt.problem->SetParameterization(calib_nbt.fiducial->param.data(),
-                                           &calib_nbt.pose_plus);
+    calib_nbt.problem->SetManifold(calib_nbt.fiducial->param.data(),
+                                   &calib_nbt.pose_plus);
   }
 
   for (const auto &ts : timeline.timestamps) {

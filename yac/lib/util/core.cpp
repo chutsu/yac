@@ -1146,15 +1146,20 @@ static void quat_mul(const real_t p[4], const real_t q[4], real_t r[4]) {
   quat_lmul(p, q, r);
 }
 
-void pose_diff(const real_t pose0[7], const real_t pose1[7], real_t diff[6]) {
+void pose_diff(const real_t pose0[7],
+               const real_t pose1[7],
+               real_t *dr,
+               real_t *drot) {
   assert(pose0 != NULL);
   assert(pose1 != NULL);
   assert(diff != NULL);
 
   // dr
-  diff[0] = pose0[0] - pose1[0];
-  diff[1] = pose0[1] - pose1[1];
-  diff[2] = pose0[2] - pose1[2];
+  Eigen::Vector3d dpos;
+  dpos(0) = pose0[0] - pose1[0];
+  dpos(1) = pose0[1] - pose1[1];
+  dpos(2) = pose0[2] - pose1[2];
+  *dr = dpos.norm();
 
   // dq = quat_mul(quat_inv(q_meas), q_est);
   const real_t *q0 = pose0 + 3;
@@ -1165,10 +1170,11 @@ void pose_diff(const real_t pose0[7], const real_t pose1[7], real_t diff[6]) {
   quat_mul(q0_inv, q1, dq);
 
   // dtheta = 2 * dq;
-  const real_t dtheta[3] = {2.0 * dq[1], 2.0 * dq[2], 2.0 * dq[3]};
-  diff[3] = dtheta[0];
-  diff[4] = dtheta[1];
-  diff[5] = dtheta[2];
+  Eigen::Vector3d dtheta;
+  dtheta(0) = 2.0 * dq[1];
+  dtheta(1) = 2.0 * dq[2];
+  dtheta(2) = 2.0 * dq[3];
+  *drot = dtheta.norm();
 }
 
 mat3_t rotx(const real_t theta) {

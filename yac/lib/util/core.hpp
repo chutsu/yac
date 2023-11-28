@@ -1089,7 +1089,10 @@ vec3_t tf_point(const mat4_t &T, const vec3_t &p);
 /**
  * Pose difference between pose0 and pose1.
  */
-void pose_diff(const real_t pose0[7], const real_t pose1[7], real_t diff[6]);
+void pose_diff(const real_t pose0[7],
+               const real_t pose1[7],
+               real_t *dr,
+               real_t *drot);
 
 /**
  * Rotation matrix around x-axis (counter-clockwise, right-handed).

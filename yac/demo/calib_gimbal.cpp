@@ -89,6 +89,18 @@ vecx_t transform_vector(const mat4_t &T) {
 }
 
 /**
+ * Perturb pose translation and rotation component.
+ */
+void pose_perturb(double *pose, const real_t dr, const real_t drot) {
+  const auto T = transform(pose);
+  const auto T_perturbed = tf_perturb(T, dr, drot);
+  const auto pose_vector = transform_vector(T_perturbed);
+  for (int i = 0; i < 7; i++) {
+    pose[i] = pose_vector[i];
+  }
+}
+
+/**
  * Gimbal joint angle to transformation matrix.
  */
 template <typename T>

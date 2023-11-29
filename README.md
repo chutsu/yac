@@ -66,11 +66,11 @@ Click [here](docs/aprilgrid_A0.pdf) to download and print the AprilGrid.
 During data collection make sure the calibration target is as flat as possible.
 
 
-Calibrate Camera Intrinsics and Extrinsics
-------------------------------------------
+Setting up the Calibration Configuration File
+---------------------------------------------
 
-First inorder to calibrate a monocular camera or stereo camera pair we need to
-create the calibration configuration file. For example `calib_intel_d435i.yaml`
+First inorder to calibrate a camera or camera-IMU we need to create the 
+calibration configuration file. For example `calib_intel_d435i.yaml`
 configuration file:
 
 ```
@@ -94,19 +94,11 @@ cam1:
   resolution: [640.0, 480.0]
 ```
 
-
-Calibrate Camera(s)
-~~~~~~~~~~~~~~~~~~~
+Run the Calibration
+-------------------
 
 ```
 calib_camera <path to config file> <path to data>
-```
-
-
-Calibrate Camera-IMU
-~~~~~~~~~~~~~~~~~~~~
-
-```
 calib_vi <path to config file> <path to data>
 ```
 

@@ -4,13 +4,6 @@ BASEDIR=$(dirname "$0")
 source "$BASEDIR/config.bash"
 echo "building apriltag ..."
 
-# Clone
-# if [ ! -d $INSTALL_PREFIX/src/apriltag ]; then
-#   cd $INSTALL_PREFIX/src
-#   git clone --quiet https://github.com/chutsu/apriltag
-#   cd ..
-# fi
-
 # Build
 cp -r $PWD/src/apriltag $INSTALL_PREFIX/src/apriltag
 cd $INSTALL_PREFIX/src/apriltag

@@ -5,17 +5,15 @@ source "$BASEDIR/config.bash"
 echo "building apriltag ..."
 
 # Clone
-if [ ! -d $INSTALL_PREFIX/src/apriltag ]; then
-  cd $INSTALL_PREFIX/src
-  git clone --quiet https://github.com/chutsu/apriltag
-  cd ..
-fi
+# if [ ! -d $INSTALL_PREFIX/src/apriltag ]; then
+#   cd $INSTALL_PREFIX/src
+#   git clone --quiet https://github.com/chutsu/apriltag
+#   cd ..
+# fi
 
 # Build
+cp -r $PWD/src/apriltag $INSTALL_PREFIX/src/apriltag
 cd $INSTALL_PREFIX/src/apriltag
-
-git submodule --quiet init
-git submodule --quiet update
 
 mkdir -p build
 cd build

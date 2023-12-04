@@ -64,23 +64,26 @@
 
 #include "progressbar.hpp"
 
+/* PRECISION TYPE */
+// #define PRECISION 1 // Single Precision
+#define PRECISION 2 // Double Precision
+
+#ifndef REAL_TYPE
+#define REAL_TYPE
+#if PRECISION == 1
+typedef float real_t;
+#elif PRECISION == 2
+typedef double real_t;
+#else
+#error "Floating Point Precision not defined!"
+#endif
+#endif
+
 namespace yac {
 
 /******************************************************************************
  *                                DATA TYPE
  *****************************************************************************/
-
-/* PRECISION TYPE */
-// #define PRECISION 1 // Single Precision
-#define PRECISION 2 // Double Precision
-
-#if PRECISION == 1
-#define real_t float
-#elif PRECISION == 2
-#define real_t double
-#else
-#define real_t double
-#endif
 
 // -- TIMESTAMP ----------------------------------------------------------------
 

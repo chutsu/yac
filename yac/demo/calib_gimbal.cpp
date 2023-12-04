@@ -1005,7 +1005,6 @@ void save_results(CalibData &calib_data, const std::string &data_path) {
     const auto dist_params = yac::vec2str(cam->dist_params(), true, max_digits);
 
     fprintf(out, "cam%d:\n", cam_idx);
-    fprintf(out, "  fixed: %s\n", cam->fixed ? "true" : "false");
     fprintf(out, "  resolution: [%d, %d]\n", cam_res[0], cam_res[1]);
     fprintf(out, "  proj_model: \"%s\"\n", proj_model);
     fprintf(out, "  dist_model: \"%s\"\n", dist_model);

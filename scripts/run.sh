@@ -177,8 +177,14 @@ set -e
 # rm -rf /tmp/calib_data/calib_camera
 
 tmux send-keys -t dev -R C-l C-m
-tmux send-keys -t dev -R "cd ~/projects/yac && make lib_relwithdeb && ./build/calib_gimbal" c-m
+tmux send-keys -t dev -R "\
+  cd ~/projects/yac/build \
+  && cmake --build . --target calib_gimbal .. \
+  && ./calib_gimbal
+" c-m
 exit
+
+# python3 scripts/plot_gimbal_frames.py
 
 # make
 # make lib_debug

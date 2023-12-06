@@ -467,13 +467,6 @@ struct CalibData {
       assert(n == num_joints + 1);
       timestamps.push_back(ts);
 
-      // joint1_data[ts] = strtod(s[1], NULL);
-      // free(s[1]);
-      // joint2_data[ts] = strtod(s[2], NULL);
-      // free(s[2]);
-      // joint0_data[ts] = strtod(s[3], NULL);
-      // free(s[3]);
-
       joint0_data[ts] = strtod(s[1], NULL);
       free(s[1]);
       joint1_data[ts] = strtod(s[2], NULL);
@@ -512,8 +505,8 @@ struct CalibData {
   }
 
   void load_images(const std::string &data_path) {
-    const std::string cam0_path = data_path + "/cam0/data";
-    const std::string cam1_path = data_path + "/cam1/data";
+    const std::string cam0_path = data_path + "/cam0";
+    const std::string cam1_path = data_path + "/cam1";
 
     std::vector<std::string> cam0_files;
     std::vector<std::string> cam1_files;
@@ -559,6 +552,8 @@ struct CalibData {
     const Eigen::Matrix4d T_BM0 = transform(gimbal_ext);
     const Eigen::Matrix4d T_L0M1 = transform(link0_ext);
     const Eigen::Matrix4d T_L1M2 = transform(link1_ext);
+    const Eigen::Matrix4d T_L2E = transform(end_ext);
+    const Eigen::Matrix4d T_EC0 = transform(cam0_ext);
 
     std::vector<double> fid_pos_x;
     std::vector<double> fid_pos_y;
@@ -575,23 +570,15 @@ struct CalibData {
       const Eigen::Matrix4d T_M0L0 = gimbal_joint_transform(joint0);
       const Eigen::Matrix4d T_M1L1 = gimbal_joint_transform(joint1);
       const Eigen::Matrix4d T_M2L2 = gimbal_joint_transform(joint2);
-      const Eigen::Matrix4d T_L2C0 = transform(end_ext);
-
-      auto T_WC0 = T_WB;
-      T_WC0 *= T_BM0;
-      T_WC0 *= T_M0L0;
-      T_WC0 *= T_L0M1;
-      T_WC0 *= T_M1L1;
-      T_WC0 *= T_L1M2;
-      T_WC0 *= T_M2L2;
-      T_WC0 *= T_L2C0;
+      const Eigen::Matrix4d T_WC0 = T_WB * T_BM0 * T_M0L0 * T_L0M1 * T_M1L1 *
+                                    T_L1M2 * T_M2L2 * T_L2E * T_EC0;
 
       std::vector<int> tag_ids;
       std::vector<int> corner_idxs;
       vec2s_t kps;
       vec3s_t obj_pts;
       cam0_grids[ts].get_measurements(tag_ids, corner_idxs, kps, obj_pts);
-      if (tag_ids.size() < 10) {
+      if (tag_ids.size() < 20) {
         continue;
       }
 
@@ -616,13 +603,14 @@ struct CalibData {
       const Eigen::Vector3d r_WF = tf_trans(T_WF);
       const Eigen::Vector3d rpy_WF = quat2euler(tf_quat(T_WF));
       const Eigen::VectorXd fiducial = transform_vector(T_WF);
-      std::cout << fiducial.transpose() << std::endl;
+      std::cout << "fiducial pose: " << fiducial.transpose() << std::endl;
       fid_pos_x.push_back(r_WF.x());
       fid_pos_y.push_back(r_WF.y());
       fid_pos_z.push_back(r_WF.z());
       fid_rot_r.push_back(rpy_WF.x());
       fid_rot_p.push_back(rpy_WF.y());
       fid_rot_y.push_back(rpy_WF.z());
+      // break;
     }
 
     // Median fiducial pose
@@ -635,58 +623,50 @@ struct CalibData {
     const Eigen::Vector3d r_WF{pos_x, pos_y, pos_z};
     const Eigen::Vector3d rpy_WF{rot_r, rot_p, rot_y};
     const Eigen::Quaterniond q_WF{euler321(rpy_WF)};
-    const Eigen::VectorXd fiducial = transform_vector(tf(q_WF, r_WF));
+    const Eigen::Matrix4d T_WF = tf(q_WF, r_WF);
+    const Eigen::VectorXd fiducial = transform_vector(T_WF);
     for (int i = 0; i < 7; i++) {
       fiducial_pose[i] = fiducial[i];
     }
     fiducial_pose_ok = true;
+    std::cout << "fiducial: " << fiducial.transpose() << std::endl;
 
     // Sanity check
-    const auto T_WF = transform(fiducial_pose);
-    for (const auto ts : timestamps) {
-      const double joint0 = joint0_data[ts];
-      const double joint1 = joint1_data[ts];
-      const double joint2 = joint2_data[ts];
+    // for (const auto ts : timestamps) {
+    //   const double joint0 = joint0_data[ts];
+    //   const double joint1 = joint1_data[ts];
+    //   const double joint2 = joint2_data[ts];
 
-      const Eigen::Matrix4d T_M0L0 =
-          gimbal_joint_transform(joint0); // Yaw motor
-      const Eigen::Matrix4d T_M1L1 =
-          gimbal_joint_transform(joint1); // Roll motor
-      const Eigen::Matrix4d T_M2L2 =
-          gimbal_joint_transform(joint2); // Pitch motor
-      const Eigen::Matrix4d T_L2C0 = transform(end_ext);
+    //   const Eigen::Matrix4d T_M0L0 = gimbal_joint_transform(joint0);
+    //   const Eigen::Matrix4d T_M1L1 = gimbal_joint_transform(joint1);
+    //   const Eigen::Matrix4d T_M2L2 = gimbal_joint_transform(joint2);
+    //   const Eigen::Matrix4d T_WC0 = T_WB * T_BM0 * T_M0L0 * T_L0M1 * T_M1L1 *
+    //                                 T_L1M2 * T_M2L2 * T_L2E * T_EC0;
+    //   const Eigen::Matrix4d T_C0F = T_WC0.inverse() * T_WF;
 
-      auto T_WC0 = T_WB;
-      T_WC0 *= T_BM0;
-      T_WC0 *= T_M0L0;
-      T_WC0 *= T_L0M1;
-      T_WC0 *= T_M1L1;
-      T_WC0 *= T_L1M2;
-      T_WC0 *= T_M2L2;
-      T_WC0 *= T_L2C0;
+    //   std::vector<int> tag_ids;
+    //   std::vector<int> corner_idxs;
+    //   vec2s_t kps;
+    //   vec3s_t obj_pts;
+    //   cam0_grids[ts].get_measurements(tag_ids, corner_idxs, kps, obj_pts);
+    //   if (tag_ids.size() == 0) {
+    //     continue;
+    //   }
 
-      auto T_C0F = T_WC0.inverse() * T_WF;
-
-      std::vector<int> tag_ids;
-      std::vector<int> corner_idxs;
-      vec2s_t kps;
-      vec3s_t obj_pts;
-      cam0_grids[ts].get_measurements(tag_ids, corner_idxs, kps, obj_pts);
-      if (tag_ids.size() == 0) {
-        continue;
-      }
-
-      for (size_t i = 0; i < tag_ids.size(); i++) {
-        const auto res = cam_params[0].resolution;
-        const auto cam = cam_params[0].param;
-        const auto z = kps[i];
-        const auto p_FFi = obj_pts[i];
-        const auto p_C = tf_point(T_C0F, p_FFi);
-        vec2_t z_hat;
-        pinhole_radtan4_project(res, cam, p_C, z_hat);
-        printf("%f\n", (z - z_hat).norm());
-      }
-    }
+    //   std::vector<double> reproj_errors;
+    //   for (size_t i = 0; i < tag_ids.size(); i++) {
+    //     const auto res = cam_params[0].resolution;
+    //     const auto cam = cam_params[0].param;
+    //     const auto z = kps[i];
+    //     const auto p_FFi = obj_pts[i];
+    //     const auto p_C = tf_point(T_C0F, p_FFi);
+    //     vec2_t z_hat;
+    //     pinhole_radtan4_project(res, cam, p_C, z_hat);
+    //     reproj_errors.push_back((z - z_hat).norm());
+    //     // printf("%f\n", (z - z_hat).norm());
+    //   }
+    //   printf("ts: %ld, mean reproj errors: %f\n", ts, mean(reproj_errors));
+    // }
   }
 };
 
@@ -1021,6 +1001,7 @@ void save_results(CalibData &calib_data, const std::string &data_path) {
   double *end_ext = calib_data.end_ext;
   double *cam0_ext = calib_data.cam0_ext;
   double *cam1_ext = calib_data.cam1_ext;
+  double *fiducial_pose = calib_data.fiducial_pose;
 
   FILE *results = fopen(results_path.c_str(), "w");
   fprintf(results, "num_cams: 2\n");
@@ -1034,17 +1015,18 @@ void save_results(CalibData &calib_data, const std::string &data_path) {
   fprintf(results, "end_ext: %s\n", vec2str(end_ext, 7).c_str());
   fprintf(results, "cam0_ext: %s\n", vec2str(cam0_ext, 7).c_str());
   fprintf(results, "cam1_ext: %s\n", vec2str(cam1_ext, 7).c_str());
+  fprintf(results, "fiducial_pose: %s\n", vec2str(fiducial_pose, 7).c_str());
   fclose(results);
 }
 
 int main() {
   bool format_v2 = true;
-  bool fix_joints = false;
+  bool fix_joints = true;
   bool enable_joint_errors = true;
 
   // Setup
   // const std::string data_path = "/tmp/sim_gimbal";
-  const std::string data_path = "/home/chutsu/calib_gimbal2";
+  const std::string data_path = "/home/chutsu/calib_gimbal3";
   CalibData calib_data{data_path, format_v2};
 
   // Setup problem
@@ -1053,13 +1035,17 @@ int main() {
   ceres::Problem problem{prob_options};
   ceres::ProductManifold<ceres::EuclideanManifold<3>, ceres::QuaternionManifold>
       R3xSO3;
+  ceres::ProductManifold<ceres::SubsetManifold, ceres::QuaternionManifold>
+      link_manif{ceres::SubsetManifold{3, {0, 1}}, ceres::QuaternionManifold{}};
 
   problem.AddParameterBlock(calib_data.pose, 7, &R3xSO3);
   problem.AddParameterBlock(calib_data.end_ext, 7, &R3xSO3);
   problem.AddParameterBlock(calib_data.cam0_ext, 7, &R3xSO3);
   problem.AddParameterBlock(calib_data.cam1_ext, 7, &R3xSO3);
-  problem.AddParameterBlock(calib_data.link0_ext, 7, &R3xSO3);
-  problem.AddParameterBlock(calib_data.link1_ext, 7, &R3xSO3);
+  // problem.AddParameterBlock(calib_data.link0_ext, 7, &R3xSO3);
+  // problem.AddParameterBlock(calib_data.link1_ext, 7, &R3xSO3);
+  problem.AddParameterBlock(calib_data.link0_ext, 7, &link_manif);
+  problem.AddParameterBlock(calib_data.link1_ext, 7, &link_manif);
   problem.AddParameterBlock(calib_data.gimbal_ext, 7, &R3xSO3);
   problem.AddParameterBlock(calib_data.fiducial_pose, 7, &R3xSO3);
 
@@ -1127,9 +1113,9 @@ int main() {
 
       // Add Gimbal Joint Error
       if (enable_joint_errors) {
-        auto joint0_error = GimbalJointError::Create(*joint0, 0.1);
-        auto joint1_error = GimbalJointError::Create(*joint1, 0.1);
-        auto joint2_error = GimbalJointError::Create(*joint2, 0.1);
+        auto joint0_error = GimbalJointError::Create(*joint0, 0.01);
+        auto joint1_error = GimbalJointError::Create(*joint1, 0.01);
+        auto joint2_error = GimbalJointError::Create(*joint2, 0.01);
         problem.AddResidualBlock(joint0_error, nullptr, {joint0});
         problem.AddResidualBlock(joint1_error, nullptr, {joint1});
         problem.AddResidualBlock(joint2_error, nullptr, {joint2});
@@ -1146,20 +1132,20 @@ int main() {
   }
 
   // -- Solve
-  ceres::Solver::Options options;
-  ceres::Solver::Summary summary;
-  options.minimizer_progress_to_stdout = true;
-  ceres::Solve(options, &problem, &summary);
+  // ceres::Solver::Options options;
+  // ceres::Solver::Summary summary;
+  // options.minimizer_progress_to_stdout = true;
+  // ceres::Solve(options, &problem, &summary);
 
-  print_vector("gimbal_ext", calib_data.gimbal_ext, 7);
-  print_vector("link0_ext ", calib_data.link0_ext, 7);
-  print_vector("link1_ext ", calib_data.link1_ext, 7);
-  print_vector("end_ext   ", calib_data.end_ext, 7);
-  print_vector("cam0_ext  ", calib_data.cam0_ext, 7);
-  print_vector("cam1_ext  ", calib_data.cam1_ext, 7);
+  // print_vector("gimbal_ext", calib_data.gimbal_ext, 7);
+  // print_vector("link0_ext ", calib_data.link0_ext, 7);
+  // print_vector("link1_ext ", calib_data.link1_ext, 7);
+  // print_vector("end_ext   ", calib_data.end_ext, 7);
+  // print_vector("cam0_ext  ", calib_data.cam0_ext, 7);
+  // print_vector("cam1_ext  ", calib_data.cam1_ext, 7);
 
-  inspect_calib(calib_data);
-  save_results(calib_data, data_path);
+  // inspect_calib(calib_data);
+  // save_results(calib_data, data_path);
 
   return 0;
 }

@@ -46,7 +46,7 @@ def gimbal_joint_transform(theta):
 
 
 def load_calib_config(data_path):
-  calib_config_file = open(f"{data_path}/calib.config", "r")
+  calib_config_file = open(f"{data_path}/results.yaml", "r")
   calib_config = yaml.safe_load(calib_config_file)
   return calib_config
 
@@ -99,7 +99,7 @@ def remove_tf(tf):
 
 if __name__ == "__main__":
   # Load data
-  data_path = "/home/chutsu/calib_gimbal3"
+  data_path = "/home/chutsu/calib_gimbal2"
   calib_config = load_calib_config(data_path)
   joint_data = load_joint_data(data_path)
   cam0_images, cam1_images = load_image_data(data_path)
@@ -112,61 +112,70 @@ if __name__ == "__main__":
   T_L2E = form_transform(calib_config["end_ext"])
   T_EC0 = form_transform(calib_config["cam0_ext"])
   T_EC1 = form_transform(calib_config["cam1_ext"])
+  T_WF = form_transform(calib_config["fiducial_pose"])
 
-  # Setup plot
-  fig = plt.figure()
-  ax0 = fig.add_subplot(1, 2, 1, projection="3d")
-  ax1 = fig.add_subplot(1, 2, 2)
-  fs = 0.01
+  print(f"T_BM0:\n{T_BM0}\n")
+  print(f"T_L0M1:\n{T_L0M1}\n")
+  print(f"T_L1M2:\n{T_L1M2}\n")
+  print(f"T_L2E:\n{T_L2E}\n")
+  print(f"T_EC0:\n{T_EC0}\n")
+  print(f"T_EC1:\n{T_EC1}\n")
+  print(f"T_WF:\n{T_WF}\n")
 
-  ax0.set_xlabel("x [m]")
-  ax0.set_ylabel("y [m]")
-  ax0.set_zlabel("z [m]")
+  # # Setup plot
+  # fig = plt.figure()
+  # ax0 = fig.add_subplot(1, 2, 1, projection="3d")
+  # ax1 = fig.add_subplot(1, 2, 2)
+  # fs = 0.01
 
-  ax1.set_xlabel("x [pixel]")
-  ax1.set_ylabel("y [pixel]")
+  # ax0.set_xlabel("x [m]")
+  # ax0.set_ylabel("y [m]")
+  # ax0.set_zlabel("z [m]")
 
-  plt.draw()
-  plt.pause(1)
-  plt.ion()
-  plt.show()
+  # ax1.set_xlabel("x [pixel]")
+  # ax1.set_ylabel("y [pixel]")
 
-  # Loop over timestamps
-  for ts in joint_data["timestamps"]:
-    joint0 = joint_data["joint0"][ts]
-    joint1 = joint_data["joint1"][ts]
-    joint2 = joint_data["joint2"][ts]
-    img0 = cam0_images[ts]
-    img1 = cam1_images[ts]
+  # plt.draw()
+  # plt.pause(1)
+  # plt.ion()
+  # plt.show()
 
-    T_M0L0 = gimbal_joint_transform(joint0)
-    T_M1L1 = gimbal_joint_transform(joint1)
-    T_M2L2 = gimbal_joint_transform(joint2)
+  # # Loop over timestamps
+  # for ts in joint_data["timestamps"]:
+  #   joint0 = joint_data["joint0"][ts]
+  #   joint1 = joint_data["joint1"][ts]
+  #   joint2 = joint_data["joint2"][ts]
+  #   img0 = cam0_images[ts]
+  #   img1 = cam1_images[ts]
 
-    T_WL0 = T_WB @ T_BM0 @ T_M0L0
-    T_WL1 = T_WB @ T_BM0 @ T_M0L0 @ T_L0M1 @ T_M1L1
-    T_WL2 = T_WB @ T_BM0 @ T_M0L0 @ T_L0M1 @ T_M1L1 @ T_L1M2 @ T_M2L2
-    T_WC0 = T_WL2 @ T_L2E @ T_EC0
-    T_WC1 = T_WL2 @ T_L2E @ T_EC1
+  #   T_M0L0 = gimbal_joint_transform(joint0)
+  #   T_M1L1 = gimbal_joint_transform(joint1)
+  #   T_M2L2 = gimbal_joint_transform(joint2)
 
-    # Plot frames
-    plot_T_WL0 = plot_tf(ax0, T_WL0, name="joint0", size=fs)
-    plot_T_WL1 = plot_tf(ax0, T_WL1, name="joint1", size=fs)
-    plot_T_WL2 = plot_tf(ax0, T_WL2, name="joint2", size=fs)
-    plot_T_WC0 = plot_tf(ax0, T_WC0, name="cam0", size=fs)
-    plot_T_WC1 = plot_tf(ax0, T_WC1, name="cam1", size=fs)
-    plot_set_axes_equal(ax0)
+  #   T_WL0 = T_WB @ T_BM0 @ T_M0L0
+  #   T_WL1 = T_WB @ T_BM0 @ T_M0L0 @ T_L0M1 @ T_M1L1
+  #   T_WL2 = T_WB @ T_BM0 @ T_M0L0 @ T_L0M1 @ T_M1L1 @ T_L1M2 @ T_M2L2
+  #   T_WC0 = T_WL2 @ T_L2E @ T_EC0
+  #   T_WC1 = T_WL2 @ T_L2E @ T_EC1
 
-    # Plot cam0 image
-    plot_cam0 = ax1.imshow(cam0_images[ts])
+  #   # Plot frames
+  #   plot_T_WL0 = plot_tf(ax0, T_WL0, name="joint0", size=fs)
+  #   plot_T_WL1 = plot_tf(ax0, T_WL1, name="joint1", size=fs)
+  #   plot_T_WL2 = plot_tf(ax0, T_WL2, name="joint2", size=fs)
+  #   plot_T_WC0 = plot_tf(ax0, T_WC0, name="cam0", size=fs)
+  #   plot_T_WC1 = plot_tf(ax0, T_WC1, name="cam1", size=fs)
+  #   plot_set_axes_equal(ax0)
 
-    # Draw
-    plt.draw()
-    plt.pause(1)
+  #   # Plot cam0 image
+  #   plot_cam0 = ax1.imshow(cam0_images[ts])
 
-    # Remove frames
-    remove_tf(plot_T_WL0)
-    remove_tf(plot_T_WL1)
-    remove_tf(plot_T_WL2)
-    remove_tf(plot_T_WC0)
-    remove_tf(plot_T_WC1)
+  #   # Draw
+  #   plt.draw()
+  #   plt.pause(1)
+
+  #   # Remove frames
+  #   remove_tf(plot_T_WL0)
+  #   remove_tf(plot_T_WL1)
+  #   remove_tf(plot_T_WL2)
+  #   remove_tf(plot_T_WC0)
+  #   remove_tf(plot_T_WC1)

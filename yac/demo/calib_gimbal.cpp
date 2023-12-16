@@ -603,14 +603,13 @@ struct CalibData {
       const Eigen::Vector3d r_WF = tf_trans(T_WF);
       const Eigen::Vector3d rpy_WF = quat2euler(tf_quat(T_WF));
       const Eigen::VectorXd fiducial = transform_vector(T_WF);
-      std::cout << "fiducial pose: " << fiducial.transpose() << std::endl;
+      // std::cout << "fiducial pose: " << fiducial.transpose() << std::endl;
       fid_pos_x.push_back(r_WF.x());
       fid_pos_y.push_back(r_WF.y());
       fid_pos_z.push_back(r_WF.z());
       fid_rot_r.push_back(rpy_WF.x());
       fid_rot_p.push_back(rpy_WF.y());
       fid_rot_y.push_back(rpy_WF.z());
-      // break;
     }
 
     // Median fiducial pose
@@ -629,7 +628,7 @@ struct CalibData {
       fiducial_pose[i] = fiducial[i];
     }
     fiducial_pose_ok = true;
-    std::cout << "fiducial: " << fiducial.transpose() << std::endl;
+    // std::cout << "fiducial: " << fiducial.transpose() << std::endl;
 
     // Sanity check
     // for (const auto ts : timestamps) {
@@ -881,7 +880,8 @@ struct CalibEval {
   }
 };
 
-void inspect_calib(const CalibData &calib_data) {
+void inspect_calib(const CalibData &calib_data,
+                   const std::vector<timestamp_t> &test_timestamps) {
   // Draw settings
   const cv::Scalar color_red(0, 0, 255);
   const cv::Scalar color_green(0, 255, 0);
@@ -933,11 +933,7 @@ void inspect_calib(const CalibData &calib_data) {
     cv::waitKey(0);
   };
 
-  // for (const auto ts : calib_data.timestamps) {
-  for (size_t k = calib_data.timestamps.size() - 20;
-       k < calib_data.timestamps.size();
-       k++) {
-    const auto ts = calib_data.timestamps[k];
+  for (const auto ts : test_timestamps) {
     const double joint0 = calib_data.joint0_data.at(ts);
     const double joint1 = calib_data.joint1_data.at(ts);
     const double joint2 = calib_data.joint2_data.at(ts);
@@ -959,10 +955,10 @@ void inspect_calib(const CalibData &calib_data) {
     auto frame0 = calib_data.cam0_images.at(ts);
     draw(cam0, grid0, T_WE * T_EC0, frame0);
 
-    const auto &grid1 = calib_data.cam1_grids.at(ts);
-    const auto &cam1 = calib_data.cam_params.at(1);
-    auto frame1 = calib_data.cam1_images.at(ts);
-    draw(cam1, grid1, T_WE * T_EC1, frame1);
+    // const auto &grid1 = calib_data.cam1_grids.at(ts);
+    // const auto &cam1 = calib_data.cam_params.at(1);
+    // auto frame1 = calib_data.cam1_images.at(ts);
+    // draw(cam1, grid1, T_WE * T_EC1, frame1);
   }
 }
 
@@ -1021,12 +1017,12 @@ void save_results(CalibData &calib_data, const std::string &data_path) {
 
 int main() {
   bool format_v2 = true;
-  bool fix_joints = true;
+  bool fix_joints = false;
   bool enable_joint_errors = true;
 
   // Setup
   // const std::string data_path = "/tmp/sim_gimbal";
-  const std::string data_path = "/home/chutsu/calib_gimbal3";
+  const std::string data_path = "/home/chutsu/calib_gimbal2";
   CalibData calib_data{data_path, format_v2};
 
   // Setup problem
@@ -1124,28 +1120,41 @@ int main() {
   };
 
   // -- Add reprojection errors
-  // for (const auto &ts : calib_data.timestamps) {
-  for (size_t k = 0; k < (calib_data.timestamps.size() - 10); k++) {
-    const auto ts = calib_data.timestamps[k];
+  std::vector<timestamp_t> timestamps = calib_data.timestamps;
+  std::random_device rd;
+  std::mt19937 generator(rd());
+  std::shuffle(timestamps.begin(), timestamps.end(), generator);
+
+  const int N = timestamps.size() * 0.8;
+  std::vector<timestamp_t> train_timestamps;
+  std::vector<timestamp_t> test_timestamps;
+  train_timestamps.insert(train_timestamps.end(),
+                          timestamps.begin(),
+                          timestamps.begin() + N);
+  test_timestamps.insert(test_timestamps.end(),
+                         timestamps.begin() + N + 1,
+                         timestamps.end());
+  for (const auto ts : train_timestamps) {
     add_grid(0, calib_data.cam0_grids[ts]);
     add_grid(1, calib_data.cam1_grids[ts]);
   }
 
   // -- Solve
-  // ceres::Solver::Options options;
-  // ceres::Solver::Summary summary;
-  // options.minimizer_progress_to_stdout = true;
-  // ceres::Solve(options, &problem, &summary);
+  ceres::Solver::Options options;
+  ceres::Solver::Summary summary;
+  options.minimizer_progress_to_stdout = true;
+  ceres::Solve(options, &problem, &summary);
 
-  // print_vector("gimbal_ext", calib_data.gimbal_ext, 7);
-  // print_vector("link0_ext ", calib_data.link0_ext, 7);
-  // print_vector("link1_ext ", calib_data.link1_ext, 7);
-  // print_vector("end_ext   ", calib_data.end_ext, 7);
-  // print_vector("cam0_ext  ", calib_data.cam0_ext, 7);
-  // print_vector("cam1_ext  ", calib_data.cam1_ext, 7);
+  print_vector("gimbal_ext   ", calib_data.gimbal_ext, 7);
+  print_vector("link0_ext    ", calib_data.link0_ext, 7);
+  print_vector("link1_ext    ", calib_data.link1_ext, 7);
+  print_vector("end_ext      ", calib_data.end_ext, 7);
+  print_vector("cam0_ext     ", calib_data.cam0_ext, 7);
+  print_vector("cam1_ext     ", calib_data.cam1_ext, 7);
+  print_vector("fiducial_pose", calib_data.fiducial_pose, 7);
 
-  // inspect_calib(calib_data);
-  // save_results(calib_data, data_path);
+  inspect_calib(calib_data, test_timestamps);
+  save_results(calib_data, data_path);
 
   return 0;
 }

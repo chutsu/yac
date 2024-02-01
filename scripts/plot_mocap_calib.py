@@ -11,7 +11,8 @@ from scipy import interpolate
 import matplotlib.pylab as plt
 
 # data_dir = "/mnt/koala/calibration_d455_ros_20220713/calibration_d455_ros_20220713_183241"
-data_dir = "/mnt/koala/calibration_s550_jetson_20220714/calibration_s550_jetson_20220714_192445"
+# data_dir = "/mnt/koala/calibration_s550_jetson_20220714/calibration_s550_jetson_20220714_192445"
+data_dir = "/data/calib0"
 
 
 def lag_finder(y1, y2, sr):
@@ -146,28 +147,28 @@ if __name__ == "__main__":
   # lag_finder(camera_y_fn(interp_timestamps), mocap_y_fn(interp_timestamps), sr)
   # lag_finder(camera_z_fn(interp_timestamps), mocap_z_fn(interp_timestamps), sr)
 
-  # # Plot camera poses
-  # plt.figure()
+  # Plot camera poses
+  plt.figure()
 
-  # plt.subplot(311)
-  # plt.plot(vision_time, camera_poses[:, 0], 'r-', label="vision - x")
-  # plt.plot(mocap_time, mocap_camera_poses[:, 0], 'r--', label="mocap - x")
-  # plt.xlabel("Time [s]")
-  # plt.ylabel("Displacement [m]")
-  # plt.legend(loc=0)
+  plt.subplot(311)
+  plt.plot(vision_time, camera_poses[:, 0], 'r-', label="vision - x")
+  plt.plot(mocap_time, mocap_camera_poses[:, 0], 'r--', label="mocap - x")
+  plt.xlabel("Time [s]")
+  plt.ylabel("Displacement [m]")
+  plt.legend(loc=0)
 
-  # plt.subplot(312)
-  # plt.plot(vision_time, camera_poses[:, 1], 'g-', label="vision - y")
-  # plt.plot(mocap_time, mocap_camera_poses[:, 1], 'g--', label="mocap - y")
-  # plt.xlabel("Time [s]")
-  # plt.ylabel("Displacement [m]")
-  # plt.legend(loc=0)
+  plt.subplot(312)
+  plt.plot(vision_time, camera_poses[:, 1], 'g-', label="vision - y")
+  plt.plot(mocap_time, mocap_camera_poses[:, 1], 'g--', label="mocap - y")
+  plt.xlabel("Time [s]")
+  plt.ylabel("Displacement [m]")
+  plt.legend(loc=0)
 
-  # plt.subplot(313)
-  # plt.plot(vision_time, camera_poses[:, 2], 'b-', label="vision - z")
-  # plt.plot(mocap_time, mocap_camera_poses[:, 2], 'b--', label="mocap - z")
-  # plt.xlabel("Time [s]")
-  # plt.ylabel("Displacement [m]")
-  # plt.legend(loc=0)
+  plt.subplot(313)
+  plt.plot(vision_time, camera_poses[:, 2], 'b-', label="vision - z")
+  plt.plot(mocap_time, mocap_camera_poses[:, 2], 'b--', label="mocap - z")
+  plt.xlabel("Time [s]")
+  plt.ylabel("Displacement [m]")
+  plt.legend(loc=0)
 
-  # plt.show()
+  plt.show()

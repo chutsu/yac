@@ -17,6 +17,7 @@ set -e
 # python3 scripts/plot_xyz.py /tmp/vel.csv "#ts" vx vy vz && exit
 # python3 scripts/plot_xyz.py /tmp/acc.csv "#ts" ax ay az && exit
 # python3 scripts/plot_xyz.py /tmp/gyr.csv "#ts" wx wy wz && exit
+python3 scripts/calib_gimbal.py
 # python3 scripts/sandbox.py && exit
 # python3 scripts/lissajous.py && exit
 # python3 scripts/lissajous.py > /tmp/out.txt && exit
@@ -149,11 +150,20 @@ set -e
 # rm -rf /tmp/calib_data/calib_imu
 # rm -rf /tmp/calib_data/calib_camera
 
+tmux send-keys -t dev -R C-l C-m
+tmux send-keys -t dev -R "\
+  cd ~/projects/yac/build \
+  && cmake --build . --target calib_gimbal2 .. \
+  && ./calib_gimbal2
+" c-m
+exit
+
 # tmux send-keys -t dev -R C-l C-m
 # tmux send-keys -t dev -R "\
 #   cd ~/projects/yac/build \
-#   && cmake --build . --target calib_gimbal .. \
-#   && ./calib_gimbal
+#   && cmake --build . --target calib_mocap .. \
+#   && cd .. \
+#   && ./build/calib_mocap config/intel_d435i.yaml /data/mocap_experiments/calib0
 # " c-m
 # exit
 

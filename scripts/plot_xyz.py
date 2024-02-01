@@ -1,5 +1,5 @@
-""" Plot XYZ """
 #!/usr/bin/env python3
+""" Plot XYZ """
 import sys
 import pandas
 import proto

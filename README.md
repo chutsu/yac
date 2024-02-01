@@ -69,7 +69,7 @@ During data collection make sure the calibration target is as flat as possible.
 Setting up the Calibration Configuration File
 ---------------------------------------------
 
-First inorder to calibrate a camera or camera-IMU we need to create the 
+First inorder to calibrate a camera or camera-IMU we need to create the
 calibration configuration file. For example `calib_intel_d435i.yaml`
 configuration file:
 
@@ -86,12 +86,12 @@ calib_target:
 cam0:
   proj_model: "pinhole"
   dist_model: "radtan4"
-  resolution: [640.0, 480.0]
+  resolution: [640, 480]
 
 cam1:
   proj_model: "pinhole"
   dist_model: "radtan4"
-  resolution: [640.0, 480.0]
+  resolution: [640, 480]
 ```
 
 Run the Calibration

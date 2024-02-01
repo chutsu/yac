@@ -13,7 +13,7 @@ int main(int argc, char *argv[]) {
   yac::calib_camera_t calib{config_file};
   calib.load_data(data_path);
   calib.solve();
-  calib.save_results("/tmp/calib_camera-results.yaml");
+  calib.save_results(data_path + "/calib_camera-results.yaml");
 
   return 0;
 }

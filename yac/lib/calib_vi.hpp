@@ -99,7 +99,6 @@ struct calib_vi_t {
   double imu_loss_fn_param = 1.0;
   double outlier_threshold = 4.0;
   int window_size = 5;
-  real_t img_scale = 0.4;
   real_t img_scale = 1.0;
   bool estimate_time_delay = true;
   double time_delay_jac_step = 1e-8;

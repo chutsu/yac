@@ -164,6 +164,10 @@ ADD_EXECUTABLE(calib_gimbal demo/calib_gimbal.cpp)
 TARGET_LINK_LIBRARIES(calib_gimbal yac ${DEPS})
 INSTALL(TARGETS calib_gimbal)
 
+ADD_EXECUTABLE(calib_gimbal2 demo/calib_gimbal2.cpp)
+TARGET_LINK_LIBRARIES(calib_gimbal2 yac ${DEPS})
+INSTALL(TARGETS calib_gimbal2)
+
 ADD_EXECUTABLE(calib_info demo/calib_info.cpp)
 TARGET_LINK_LIBRARIES(calib_info yac ${DEPS})
 INSTALL(TARGETS calib_info)

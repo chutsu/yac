@@ -79,7 +79,7 @@ struct calib_mocap_t {
 
   // Settings
   bool fix_intrinsics = false;
-  bool fix_mocap_poses = false;
+  bool fix_mocap_poses = true;
   bool fix_fiducial_pose = false;
   real_t outlier_threshold = 3.0;
   real_t info_gain_threshold = 0.2;

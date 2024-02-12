@@ -106,7 +106,7 @@ struct calib_camera_t {
   bool verbose = true;
   std::string solver_type = "CERES-SOLVER";
   int max_num_threads = 8;
-  bool enable_nbv = true;
+  bool enable_nbv = false;
   bool enable_shuffle_views = false;
   bool enable_nbv_filter = true;
   bool enable_outlier_filter = true;

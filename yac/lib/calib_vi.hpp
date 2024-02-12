@@ -89,7 +89,7 @@ struct calib_vi_t {
   bool verbose = true;
   int max_num_threads = 2;
   int max_iter = 100;
-  bool enable_outlier_rejection = true;
+  bool enable_outlier_rejection = false;
   bool enable_marginalization = false;
   bool enable_vision_loss_fn = false;
   std::string vision_loss_fn_type = "CAUCHY";

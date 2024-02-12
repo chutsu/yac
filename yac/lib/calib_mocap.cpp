@@ -198,7 +198,7 @@ calib_mocap_t::calib_mocap_t(const std::string &config_file_,
   const auto cam0_path = data_path + "/cam0/data";
   const auto grid0_path = data_path + "/grid0/cam0/data";
   const auto body0_csv_path = data_path + "/body0/data.csv";
-  const auto target0_csv_path = data_path + "/target0/data.csv";
+  const auto grid0_csv_path = data_path + "/grid0/data.csv";
 
   // Setup calibration target
   if (calib_target.load(config_file, "calib_target") != 0) {
@@ -236,6 +236,8 @@ calib_mocap_t::calib_mocap_t(const std::string &config_file_,
     LOG_INFO("Camera parameters unknown!");
     LOG_INFO("Calibrating camera intrinsics!");
     calib_camera_t calib{calib_target};
+    calib.enable_nbv = false;
+    calib.enable_outlier_filter = false;
     calib.add_camera_data(0, cam_grids);
     calib.add_camera(0, cam_res.data(), proj_model, dist_model);
     calib.solve();
@@ -251,7 +253,7 @@ calib_mocap_t::calib_mocap_t(const std::string &config_file_,
 
   // Load dataset
   // -- Fiducial target pose
-  const mat4_t T_WF = load_pose(target0_csv_path);
+  const mat4_t T_WF = load_pose(grid0_csv_path);
   _add_fiducial_pose(0, T_WF, fix_fiducial_pose);
   // -- Mocap poses
   timestamps_t body_timestamps;
@@ -281,6 +283,7 @@ calib_mocap_t::calib_mocap_t(const std::string &config_file_,
     T_MC0 = T_MW * T_WF * T_C0F.inverse();
     calib_grids[ts] = grid;
   }
+  // print_matrix("T_MC0", T_MC0);
   _add_mocap_camera_extrinsics(T_MC0);
 }
 

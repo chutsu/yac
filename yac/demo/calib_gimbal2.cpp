@@ -63,6 +63,34 @@ Eigen::Matrix<T, 3, 3> quat2rot(const Eigen::Quaternion<T> &q) {
 }
 
 /**
+ * Initialize transformation vector.
+ */
+void transform_init(real_t *x) {
+  x[0] = 0.0;
+  x[1] = 0.0;
+  x[2] = 0.0;
+
+  x[3] = 1.0;
+  x[4] = 0.0;
+  x[5] = 0.0;
+  x[6] = 0.0;
+}
+
+/**
+ * Initialize transformation vector.
+ */
+void transform_copy(const real_t *x, real_t *x_copy) {
+  x_copy[0] = x[0];
+  x_copy[1] = x[1];
+  x_copy[2] = x[2];
+
+  x_copy[3] = x[3];
+  x_copy[4] = x[4];
+  x_copy[5] = x[5];
+  x_copy[6] = x[6];
+}
+
+/**
  * Form transformation matrix.
  */
 template <typename T>
@@ -360,15 +388,16 @@ struct CalibData {
   int num_links = 0;
   int num_views = 0;
   int num_joints = 0;
-  bool fiducial_pose_ok = false;
 
   std::map<int, camera_params_t> cam_params;
+  double gimbal_ext[7] = {0};
+  double link0_ext[7] = {0};
+  double link1_ext[7] = {0};
   double end_ext[7] = {0};
   double cam0_ext[7] = {0};
   double cam1_ext[7] = {0};
-  double link0_ext[7] = {0};
-  double link1_ext[7] = {0};
-  double gimbal_ext[7] = {0};
+  double cam2_ext[7] = {0};
+  double cam3_ext[7] = {0};
   double fiducial_pose[7] = {0};
 
   std::vector<timestamp_t> timestamps;
@@ -378,8 +407,12 @@ struct CalibData {
   std::map<timestamp_t, double> joint2_data;
   std::map<timestamp_t, aprilgrid_t> cam0_grids;
   std::map<timestamp_t, aprilgrid_t> cam1_grids;
+  std::map<timestamp_t, aprilgrid_t> cam2_grids;
+  std::map<timestamp_t, aprilgrid_t> cam3_grids;
   std::map<timestamp_t, cv::Mat> cam0_images;
   std::map<timestamp_t, cv::Mat> cam1_images;
+  std::map<timestamp_t, cv::Mat> cam2_images;
+  std::map<timestamp_t, cv::Mat> cam3_images;
 
   CalibData(const std::string &data_path, const bool format_v2) {
     load_config(data_path);
@@ -425,12 +458,14 @@ struct CalibData {
     }
 
     // Parse extrinsics
-    parse_key_value(conf, "cam0_ext", "pose", cam0_ext);
-    parse_key_value(conf, "cam1_ext", "pose", cam1_ext);
-    parse_key_value(conf, "end_ext", "pose", end_ext);
-    parse_key_value(conf, "link0_ext", "pose", link0_ext);
-    parse_key_value(conf, "link1_ext", "pose", link1_ext);
-    parse_key_value(conf, "gimbal_ext", "pose", gimbal_ext);
+    parse_key_value(conf, "gimbal_ext", "pose", gimbal_ext);  // T_C0M0
+    parse_key_value(conf, "link0_ext", "pose", link0_ext);    // T_L0M1
+    parse_key_value(conf, "link1_ext", "pose", link1_ext);    // T_L1M2
+    parse_key_value(conf, "end_ext", "pose", end_ext);        // T_L2C2
+    parse_key_value(conf, "cam0_cam1_ext", "pose", cam1_ext); // T_C0C1
+    parse_key_value(conf, "cam2_cam3_ext", "pose", cam3_ext); // T_C2C3
+    transform_init(cam0_ext);                                 // T_C0C0
+    transform_init(cam2_ext);                                 // T_C2C2
 
     // Clean up
     fclose(conf);
@@ -485,11 +520,17 @@ struct CalibData {
     // Calibration data preprocessing
     const std::string grid0_path = data_path + "/grid0/cam0";
     const std::string grid1_path = data_path + "/grid0/cam1";
+    const std::string grid2_path = data_path + "/grid0/cam2";
+    const std::string grid3_path = data_path + "/grid0/cam3";
 
     std::vector<std::string> grid0_files;
     std::vector<std::string> grid1_files;
+    std::vector<std::string> grid2_files;
+    std::vector<std::string> grid3_files;
     list_files(grid0_path, grid0_files);
     list_files(grid1_path, grid1_files);
+    list_files(grid2_path, grid2_files);
+    list_files(grid3_path, grid3_files);
 
     for (const auto &fname : grid0_files) {
       const std::string grid_path = grid0_path + "/" + fname;
@@ -502,27 +543,40 @@ struct CalibData {
       aprilgrid_t grid{grid_path, format_v2};
       cam1_grids[grid.timestamp] = grid;
     }
+
+    for (const auto &fname : grid2_files) {
+      const std::string grid_path = grid2_path + "/" + fname;
+      aprilgrid_t grid{grid_path, format_v2};
+      cam2_grids[grid.timestamp] = grid;
+    }
+
+    for (const auto &fname : grid3_files) {
+      const std::string grid_path = grid3_path + "/" + fname;
+      aprilgrid_t grid{grid_path, format_v2};
+      cam3_grids[grid.timestamp] = grid;
+    }
   }
 
   void load_images(const std::string &data_path) {
     const std::string cam0_path = data_path + "/cam0";
     const std::string cam1_path = data_path + "/cam1";
+    const std::string cam2_path = data_path + "/cam2";
+    const std::string cam3_path = data_path + "/cam3";
 
     std::vector<std::string> cam0_files;
     std::vector<std::string> cam1_files;
+    std::vector<std::string> cam2_files;
+    std::vector<std::string> cam3_files;
     list_files(cam0_path, cam0_files);
     list_files(cam1_path, cam1_files);
+    list_files(cam2_path, cam2_files);
+    list_files(cam3_path, cam3_files);
 
     for (const auto &fname : cam0_files) {
       const std::string ts_str = fname.substr(0, 19);
       const timestamp_t ts = std::stoull(ts_str);
       const std::string img_path = cam0_path + "/" + fname;
       cam0_images[ts] = cv::imread(img_path);
-
-      // const auto &grid = cam0_grids[ts];
-      // const auto viz = grid.draw(cam0_images[ts]);
-      // cv::imshow("cam0", viz);
-      // cv::waitKey(0);
     }
 
     for (const auto &fname : cam1_files) {
@@ -530,31 +584,25 @@ struct CalibData {
       const timestamp_t ts = std::stoull(ts_str);
       const std::string img_path = cam1_path + "/" + fname;
       cam1_images[ts] = cv::imread(img_path);
+    }
 
-      // const auto &grid = cam1_grids[ts];
-      // const auto viz = grid.draw(cam1_images[ts]);
-      // cv::imshow("cam1", viz);
-      // cv::waitKey(0);
+    for (const auto &fname : cam2_files) {
+      const std::string ts_str = fname.substr(0, 19);
+      const timestamp_t ts = std::stoull(ts_str);
+      const std::string img_path = cam2_path + "/" + fname;
+      cam2_images[ts] = cv::imread(img_path);
+    }
+
+    for (const auto &fname : cam3_files) {
+      const std::string ts_str = fname.substr(0, 19);
+      const timestamp_t ts = std::stoull(ts_str);
+      const std::string img_path = cam3_path + "/" + fname;
+      cam3_images[ts] = cv::imread(img_path);
     }
   }
 
   void init_fiducial_pose() {
     // Set body pose
-    pose[0] = 0.0;
-    pose[1] = 0.0;
-    pose[2] = 0.0;
-    pose[3] = 1.0;
-    pose[4] = 0.0;
-    pose[5] = 0.0;
-    pose[6] = 0.0;
-
-    const Eigen::Matrix4d T_WB = transform(pose);
-    const Eigen::Matrix4d T_BM0 = transform(gimbal_ext);
-    const Eigen::Matrix4d T_L0M1 = transform(link0_ext);
-    const Eigen::Matrix4d T_L1M2 = transform(link1_ext);
-    const Eigen::Matrix4d T_L2E = transform(end_ext);
-    const Eigen::Matrix4d T_EC0 = transform(cam0_ext);
-
     std::vector<double> fid_pos_x;
     std::vector<double> fid_pos_y;
     std::vector<double> fid_pos_z;
@@ -563,16 +611,6 @@ struct CalibData {
     std::vector<double> fid_rot_y;
 
     for (const auto ts : timestamps) {
-      const double joint0 = joint0_data[ts];
-      const double joint1 = joint1_data[ts];
-      const double joint2 = joint2_data[ts];
-
-      const Eigen::Matrix4d T_M0L0 = gimbal_joint_transform(joint0);
-      const Eigen::Matrix4d T_M1L1 = gimbal_joint_transform(joint1);
-      const Eigen::Matrix4d T_M2L2 = gimbal_joint_transform(joint2);
-      const Eigen::Matrix4d T_WC0 = T_WB * T_BM0 * T_M0L0 * T_L0M1 * T_M1L1 *
-                                    T_L1M2 * T_M2L2 * T_L2E * T_EC0;
-
       std::vector<int> tag_ids;
       std::vector<int> corner_idxs;
       vec2s_t kps;
@@ -597,19 +635,18 @@ struct CalibData {
       // const auto &cam0_grid = cam0_grids[ts];
       // const auto &viz = cam0_grid.draw(cam0_images[ts]);
       // cv::imshow("cam0", viz);
-      // cv::waitKey(0);
+      // cv::waitKey(1);
 
-      const Eigen::Matrix4d T_WF = T_WC0 * T_C0F;
-      const Eigen::Vector3d r_WF = tf_trans(T_WF);
-      const Eigen::Vector3d rpy_WF = quat2euler(tf_quat(T_WF));
-      const Eigen::VectorXd fiducial = transform_vector(T_WF);
+      const Eigen::Vector3d r_C0F = tf_trans(T_C0F);
+      const Eigen::Vector3d rpy_C0F = quat2euler(tf_quat(T_C0F));
+      const Eigen::VectorXd fiducial = transform_vector(T_C0F);
       // std::cout << "fiducial pose: " << fiducial.transpose() << std::endl;
-      fid_pos_x.push_back(r_WF.x());
-      fid_pos_y.push_back(r_WF.y());
-      fid_pos_z.push_back(r_WF.z());
-      fid_rot_r.push_back(rpy_WF.x());
-      fid_rot_p.push_back(rpy_WF.y());
-      fid_rot_y.push_back(rpy_WF.z());
+      fid_pos_x.push_back(r_C0F.x());
+      fid_pos_y.push_back(r_C0F.y());
+      fid_pos_z.push_back(r_C0F.z());
+      fid_rot_r.push_back(rpy_C0F.x());
+      fid_rot_p.push_back(rpy_C0F.y());
+      fid_rot_y.push_back(rpy_C0F.z());
     }
 
     // Median fiducial pose
@@ -619,53 +656,14 @@ struct CalibData {
     const auto rot_r = median(fid_rot_r);
     const auto rot_p = median(fid_rot_p);
     const auto rot_y = median(fid_rot_y);
-    const Eigen::Vector3d r_WF{pos_x, pos_y, pos_z};
-    const Eigen::Vector3d rpy_WF{rot_r, rot_p, rot_y};
-    const Eigen::Quaterniond q_WF{euler321(rpy_WF)};
-    const Eigen::Matrix4d T_WF = tf(q_WF, r_WF);
-    const Eigen::VectorXd fiducial = transform_vector(T_WF);
+    const Eigen::Vector3d r_C0F{pos_x, pos_y, pos_z};
+    const Eigen::Vector3d rpy_C0F{rot_r, rot_p, rot_y};
+    const Eigen::Quaterniond q_C0F{euler321(rpy_C0F)};
+    const Eigen::Matrix4d T_C0F = tf(q_C0F, r_C0F);
+    const Eigen::VectorXd fiducial = transform_vector(T_C0F);
     for (int i = 0; i < 7; i++) {
       fiducial_pose[i] = fiducial[i];
     }
-    fiducial_pose_ok = true;
-    // std::cout << "fiducial: " << fiducial.transpose() << std::endl;
-
-    // Sanity check
-    // for (const auto ts : timestamps) {
-    //   const double joint0 = joint0_data[ts];
-    //   const double joint1 = joint1_data[ts];
-    //   const double joint2 = joint2_data[ts];
-
-    //   const Eigen::Matrix4d T_M0L0 = gimbal_joint_transform(joint0);
-    //   const Eigen::Matrix4d T_M1L1 = gimbal_joint_transform(joint1);
-    //   const Eigen::Matrix4d T_M2L2 = gimbal_joint_transform(joint2);
-    //   const Eigen::Matrix4d T_WC0 = T_WB * T_BM0 * T_M0L0 * T_L0M1 * T_M1L1 *
-    //                                 T_L1M2 * T_M2L2 * T_L2E * T_EC0;
-    //   const Eigen::Matrix4d T_C0F = T_WC0.inverse() * T_WF;
-
-    //   std::vector<int> tag_ids;
-    //   std::vector<int> corner_idxs;
-    //   vec2s_t kps;
-    //   vec3s_t obj_pts;
-    //   cam0_grids[ts].get_measurements(tag_ids, corner_idxs, kps, obj_pts);
-    //   if (tag_ids.size() == 0) {
-    //     continue;
-    //   }
-
-    //   std::vector<double> reproj_errors;
-    //   for (size_t i = 0; i < tag_ids.size(); i++) {
-    //     const auto res = cam_params[0].resolution;
-    //     const auto cam = cam_params[0].param;
-    //     const auto z = kps[i];
-    //     const auto p_FFi = obj_pts[i];
-    //     const auto p_C = tf_point(T_C0F, p_FFi);
-    //     vec2_t z_hat;
-    //     pinhole_radtan4_project(res, cam, p_C, z_hat);
-    //     reproj_errors.push_back((z - z_hat).norm());
-    //     // printf("%f\n", (z - z_hat).norm());
-    //   }
-    //   printf("ts: %ld, mean reproj errors: %f\n", ts, mean(reproj_errors));
-    // }
   }
 };
 
@@ -688,23 +686,21 @@ struct GimbalReprojError {
                                      const Eigen::Vector3d &p_FFi_) {
     return new ceres::AutoDiffCostFunction<GimbalReprojError,
                                            2, // Residual size
-                                           7, // Body pose
-                                           7, // Gimbal extrinsic
-                                           7, // link0 extrinsic
-                                           7, // link1 extrinsic
-                                           1, // joint0 angle
-                                           1, // joint1 angle
-                                           1, // joint2 angle
-                                           7, // End-effector extrinsic
-                                           7, // Camera extrinsic
-                                           7  // Fiducial pose
+                                           7, // T_C0M0: Gimbal extrinsic
+                                           7, // T_L0M1: link0 extrinsic
+                                           7, // T_L1M2: link1 extrinsic
+                                           1, // T_M0L0: joint0 angle
+                                           1, // T_M1L1: joint1 angle
+                                           1, // T_M2L2: joint2 angle
+                                           7, // T_L2C2: End-effector extrinsic
+                                           7, // T_ECi: Camera extrinsic
+                                           7  // T_C0F: Relative pose
                                            >(
         new GimbalReprojError(proj_params_, z_, p_FFi_));
   }
 
   template <typename T>
-  bool operator()(const T *const body_pose,
-                  const T *const gimbal_ext,
+  bool operator()(const T *const gimbal_ext,
                   const T *const link0_ext,
                   const T *const link1_ext,
                   const T *const joint0,
@@ -712,33 +708,22 @@ struct GimbalReprojError {
                   const T *const joint2,
                   const T *const end_ext,
                   const T *const cam_ext,
-                  const T *const fiducial_pose,
+                  const T *const rel_pose,
                   T *residuals) const {
-    // Map variables
-    Eigen::Matrix<T, 4, 4> T_WB = transform(body_pose);
-    Eigen::Matrix<T, 4, 4> T_BM0 = transform(gimbal_ext);
+    // // Map variables
+    Eigen::Matrix<T, 4, 4> T_C0M0 = transform(gimbal_ext);
     Eigen::Matrix<T, 4, 4> T_L0M1 = transform(link0_ext);
     Eigen::Matrix<T, 4, 4> T_L1M2 = transform(link1_ext);
     Eigen::Matrix<T, 4, 4> T_M0L0 = gimbal_joint_transform(joint0[0]);
     Eigen::Matrix<T, 4, 4> T_M1L1 = gimbal_joint_transform(joint1[0]);
     Eigen::Matrix<T, 4, 4> T_M2L2 = gimbal_joint_transform(joint2[0]);
-    Eigen::Matrix<T, 4, 4> T_L2E = transform(end_ext);
-    Eigen::Matrix<T, 4, 4> T_ECi = transform(cam_ext);
-    Eigen::Matrix<T, 4, 4> T_WF = transform(fiducial_pose);
-
-    // Form camera pose in world frame
-    auto T_WCi = T_WB;
-    T_WCi *= T_BM0;
-    T_WCi *= T_M0L0;
-    T_WCi *= T_L0M1;
-    T_WCi *= T_M1L1;
-    T_WCi *= T_L1M2;
-    T_WCi *= T_M2L2;
-    T_WCi *= T_L2E;
-    T_WCi *= T_ECi;
+    Eigen::Matrix<T, 4, 4> T_L2C2 = transform(end_ext);
+    Eigen::Matrix<T, 4, 4> T_C2Ci = transform(cam_ext);
+    Eigen::Matrix<T, 4, 4> T_C0F = transform(rel_pose);
 
     // Transform point in fiducial frame to camera frame
-    const auto T_CiF = T_WCi.inverse() * T_WF;
+    auto T_C0C2 = T_C0M0 * T_M0L0 * T_L0M1 * T_M1L1 * T_L1M2 * T_M2L2 * T_L2C2;
+    auto T_CiF = (T_C0F.inverse() * T_C0C2 * T_C2Ci).inverse();
     const auto p_Ci = (T_CiF * p_FFi.homogeneous()).head(3);
 
     // Project to image plane
@@ -787,99 +772,8 @@ struct GimbalJointError {
 };
 
 /**
- * Evaluate calibration results
+ * Inspect calibration
  */
-struct CalibEval {
-  double gnd_gimbal_ext[7] = {0};
-  double gnd_link0_ext[7] = {0};
-  double gnd_link1_ext[7] = {0};
-  double gnd_end_ext[7] = {0};
-  double gnd_cam0_ext[7] = {0};
-  double gnd_cam1_ext[7] = {0};
-  std::map<timestamp_t, double> gnd_joint0_data;
-  std::map<timestamp_t, double> gnd_joint1_data;
-  std::map<timestamp_t, double> gnd_joint2_data;
-
-  CalibEval(const CalibData &calib_data) {
-    pose_copy(calib_data.gimbal_ext, gnd_gimbal_ext);
-    pose_copy(calib_data.link0_ext, gnd_link0_ext);
-    pose_copy(calib_data.link1_ext, gnd_link1_ext);
-    pose_copy(calib_data.end_ext, gnd_end_ext);
-    pose_copy(calib_data.cam0_ext, gnd_cam0_ext);
-    pose_copy(calib_data.cam1_ext, gnd_cam1_ext);
-
-    gnd_joint0_data = calib_data.joint0_data;
-    gnd_joint1_data = calib_data.joint1_data;
-    gnd_joint2_data = calib_data.joint2_data;
-  }
-
-  void compare(const CalibData &data) {
-    printf("\n[gnd]\n");
-    print_vector("gimbal_ext", gnd_gimbal_ext, 7);
-    print_vector("link0_ext ", gnd_link0_ext, 7);
-    print_vector("link1_ext ", gnd_link1_ext, 7);
-    print_vector("end_ext  ", gnd_end_ext, 7);
-    print_vector("cam0_ext  ", gnd_cam0_ext, 7);
-    print_vector("cam1_ext  ", gnd_cam1_ext, 7);
-
-    printf("\n[est]\n");
-    print_vector("gimbal_ext", data.gimbal_ext, 7);
-    print_vector("link0_ext ", data.link0_ext, 7);
-    print_vector("link1_ext ", data.link1_ext, 7);
-    print_vector("end_ext  ", data.end_ext, 7);
-    print_vector("cam0_ext  ", data.cam0_ext, 7);
-    print_vector("cam1_ext  ", data.cam1_ext, 7);
-
-    // printf("\n");
-    // for (const auto &[ts, _] : gnd_joint0_data) {
-    //   const double gnd_joint0 = gnd_joint0_data[ts];
-    //   const double gnd_joint1 = gnd_joint1_data[ts];
-    //   const double gnd_joint2 = gnd_joint2_data[ts];
-    //   const double est_joint0 = data.joint0_data.at(ts);
-    //   const double est_joint1 = data.joint1_data.at(ts);
-    //   const double est_joint2 = data.joint2_data.at(ts);
-
-    //   const double dx = (gnd_joint0 - est_joint0);
-    //   const double dy = (gnd_joint1 - est_joint1);
-    //   const double dz = (gnd_joint2 - est_joint2);
-
-    //   // printf("joint diff: [%.4f, %.4f, %.4f]\n", dx, dy, dz);
-    // }
-    // printf("\n");
-
-    double gimbal_dpos = {0};
-    double link0_dpos = {0};
-    double link1_dpos = {0};
-    double cam0_dpos = {0};
-    double cam1_dpos = {0};
-
-    double gimbal_drot = {0};
-    double link0_drot = {0};
-    double link1_drot = {0};
-    double cam0_drot = {0};
-    double cam1_drot = {0};
-
-    pose_diff(data.gimbal_ext, gnd_gimbal_ext, &gimbal_dpos, &gimbal_drot);
-    pose_diff(data.link0_ext, gnd_link0_ext, &link0_dpos, &link0_drot);
-    pose_diff(data.link1_ext, gnd_link1_ext, &link1_dpos, &link1_drot);
-    pose_diff(data.end_ext, gnd_end_ext, &cam0_dpos, &cam0_drot);
-    pose_diff(data.cam0_ext, gnd_cam0_ext, &cam1_dpos, &cam1_drot);
-
-    gimbal_drot = rad2deg(gimbal_drot);
-    link0_drot = rad2deg(link0_drot);
-    link1_drot = rad2deg(link1_drot);
-    cam0_drot = rad2deg(cam0_drot);
-    cam1_drot = rad2deg(cam1_drot);
-
-    printf("\n");
-    printf("gimbal dr: %f [m], drot: %f [deg]\n", gimbal_dpos, gimbal_drot);
-    printf("link0  dr: %f [m], drot: %f [deg]\n", link0_dpos, link0_drot);
-    printf("link1  dr: %f [m], drot: %f [deg]\n", link1_dpos, link1_drot);
-    printf("cam0   dr: %f [m], drot: %f [deg]\n", cam0_dpos, cam0_drot);
-    printf("cam1   dr: %f [m], drot: %f [deg]\n", cam1_dpos, cam1_drot);
-  }
-};
-
 void inspect_calib(const CalibData &calib_data,
                    const std::vector<timestamp_t> &test_timestamps) {
   // Draw settings
@@ -888,19 +782,18 @@ void inspect_calib(const CalibData &calib_data,
   const int marker_size = 2;
 
   // Transforms
-  const Eigen::Matrix4d T_WF = transform(calib_data.fiducial_pose);
-  const Eigen::Matrix4d T_WB = transform(calib_data.pose);
-  const Eigen::Matrix4d T_BM0 = transform(calib_data.gimbal_ext);
+  const Eigen::Matrix4d T_C0F = transform(calib_data.fiducial_pose);
+  const Eigen::Matrix4d T_C0M0 = transform(calib_data.gimbal_ext);
   const Eigen::Matrix4d T_L0M1 = transform(calib_data.link0_ext);
   const Eigen::Matrix4d T_L1M2 = transform(calib_data.link1_ext);
-  const Eigen::Matrix4d T_L2E = transform(calib_data.end_ext);
-  const Eigen::Matrix4d T_EC0 = transform(calib_data.cam0_ext);
-  const Eigen::Matrix4d T_EC1 = transform(calib_data.cam1_ext);
+  const Eigen::Matrix4d T_L2C2 = transform(calib_data.end_ext);
+  const Eigen::Matrix4d T_C0C1 = transform(calib_data.cam1_ext);
+  const Eigen::Matrix4d T_C2C3 = transform(calib_data.cam3_ext);
 
   // Draw function
   auto draw = [&](const camera_params_t &cam,
                   const aprilgrid_t &grid,
-                  const mat4_t &T_WCi,
+                  const mat4_t &T_CiF,
                   cv::Mat &frame) {
     // Get measurements
     std::vector<int> tag_ids;
@@ -915,7 +808,6 @@ void inspect_calib(const CalibData &calib_data,
     for (size_t i = 0; i < tag_ids.size(); i++) {
       // Project point
       const auto p_FFi = obj_pts[i];
-      const auto T_CiF = T_WCi.inverse() * T_WF;
       const auto p_Ci = (T_CiF * p_FFi.homogeneous()).head(3);
       vec2_t z_hat;
       pinhole_radtan4_project(cam.resolution, cam.param, p_Ci, z_hat);
@@ -928,11 +820,9 @@ void inspect_calib(const CalibData &calib_data,
       const cv::Point2f p_pred(z_hat.x(), z_hat.y());
       cv::circle(frame, p_pred, marker_size, color_green, -1);
     }
-
-    cv::imshow("cam", frame);
-    cv::waitKey(0);
   };
 
+  // Loop through dataset
   for (const auto ts : test_timestamps) {
     const double joint0 = calib_data.joint0_data.at(ts);
     const double joint1 = calib_data.joint1_data.at(ts);
@@ -941,27 +831,52 @@ void inspect_calib(const CalibData &calib_data,
     const Eigen::Matrix4d T_M1L1 = gimbal_joint_transform(joint1);
     const Eigen::Matrix4d T_M2L2 = gimbal_joint_transform(joint2);
 
-    auto T_WE = T_WB;
-    T_WE *= T_BM0;
-    T_WE *= T_M0L0;
-    T_WE *= T_L0M1;
-    T_WE *= T_M1L1;
-    T_WE *= T_L1M2;
-    T_WE *= T_M2L2;
-    T_WE *= T_L2E;
+    auto T_C0C2 = T_C0M0 * T_M0L0 * T_L0M1 * T_M1L1 * T_L1M2 * T_M2L2 * T_L2C2;
+    auto T_C1F = (T_C0F.inverse() * T_C0C1).inverse();
+    auto T_C2F = (T_C0F.inverse() * T_C0C2).inverse();
+    auto T_C3F = (T_C0F.inverse() * T_C0C2 * T_C2C3).inverse();
 
-    const auto &grid0 = calib_data.cam0_grids.at(ts);
+    // Draw camera0 frame
     const auto &cam0 = calib_data.cam_params.at(0);
+    const auto &grid0 = calib_data.cam0_grids.at(ts);
     auto frame0 = calib_data.cam0_images.at(ts);
-    draw(cam0, grid0, T_WE * T_EC0, frame0);
+    draw(cam0, grid0, T_C0F, frame0);
 
-    // const auto &grid1 = calib_data.cam1_grids.at(ts);
-    // const auto &cam1 = calib_data.cam_params.at(1);
-    // auto frame1 = calib_data.cam1_images.at(ts);
-    // draw(cam1, grid1, T_WE * T_EC1, frame1);
+    // Draw camera1 frame
+    const auto &cam1 = calib_data.cam_params.at(1);
+    const auto &grid1 = calib_data.cam1_grids.at(ts);
+    auto frame1 = calib_data.cam1_images.at(ts);
+    draw(cam1, grid1, T_C1F, frame1);
+
+    // Draw camera2 frame
+    const auto &cam2 = calib_data.cam_params.at(2);
+    const auto &grid2 = calib_data.cam2_grids.at(ts);
+    auto frame2 = calib_data.cam2_images.at(ts);
+    draw(cam2, grid2, T_C2F, frame2);
+
+    // Draw camera3 frame
+    const auto &cam3 = calib_data.cam_params.at(3);
+    const auto &grid3 = calib_data.cam3_grids.at(ts);
+    auto frame3 = calib_data.cam3_images.at(ts);
+    draw(cam3, grid3, T_C3F, frame3);
+
+    // Show visualization
+    cv::Mat viz_row0;
+    cv::Mat viz_row1;
+    cv::Mat viz;
+    cv::hconcat(frame2, frame3, viz_row0);
+    cv::hconcat(frame0, frame1, viz_row1);
+    cv::vconcat(viz_row0, viz_row1, viz);
+    cv::imshow("Viz", viz);
+    if (cv::waitKey(0) == 'q') {
+      break;
+    }
   }
 }
 
+/**
+ * Save results
+ **/
 void save_results(CalibData &calib_data, const std::string &data_path) {
   // Vector to string
   auto vec2str = [](double *vec, const size_t size) {
@@ -990,34 +905,40 @@ void save_results(CalibData &calib_data, const std::string &data_path) {
   };
 
   // Save results
-  const std::string results_path = data_path + "/results.yaml";
+  const std::string results_path = data_path + "/calib_gimbal-results.yaml";
   double *gimbal_ext = calib_data.gimbal_ext;
   double *link0_ext = calib_data.link0_ext;
   double *link1_ext = calib_data.link1_ext;
   double *end_ext = calib_data.end_ext;
   double *cam0_ext = calib_data.cam0_ext;
   double *cam1_ext = calib_data.cam1_ext;
+  double *cam2_ext = calib_data.cam2_ext;
+  double *cam3_ext = calib_data.cam3_ext;
   double *fiducial_pose = calib_data.fiducial_pose;
 
   FILE *results = fopen(results_path.c_str(), "w");
-  fprintf(results, "num_cams: 2\n");
+  fprintf(results, "num_cams: 4\n");
   fprintf(results, "num_links: 2\n");
   fprintf(results, "\n");
   save_camera_params(results, 0, &calib_data.cam_params.at(0));
   save_camera_params(results, 1, &calib_data.cam_params.at(1));
+  save_camera_params(results, 2, &calib_data.cam_params.at(2));
+  save_camera_params(results, 3, &calib_data.cam_params.at(3));
   fprintf(results, "gimbal_ext: %s\n", vec2str(gimbal_ext, 7).c_str());
   fprintf(results, "link0_ext: %s\n", vec2str(link0_ext, 7).c_str());
   fprintf(results, "link1_ext: %s\n", vec2str(link1_ext, 7).c_str());
   fprintf(results, "end_ext: %s\n", vec2str(end_ext, 7).c_str());
   fprintf(results, "cam0_ext: %s\n", vec2str(cam0_ext, 7).c_str());
   fprintf(results, "cam1_ext: %s\n", vec2str(cam1_ext, 7).c_str());
+  fprintf(results, "cam2_ext: %s\n", vec2str(cam2_ext, 7).c_str());
+  fprintf(results, "cam3_ext: %s\n", vec2str(cam3_ext, 7).c_str());
   fprintf(results, "fiducial_pose: %s\n", vec2str(fiducial_pose, 7).c_str());
   fclose(results);
 }
 
 int main(int argc, char *argv[]) {
   bool format_v2 = true;
-  bool fix_joints = false;
+  bool fix_joints = true;
   bool enable_joint_errors = true;
 
   // Check arguments
@@ -1031,29 +952,29 @@ int main(int argc, char *argv[]) {
   CalibData calib_data{data_path, format_v2};
 
   // Setup problem
+  // clang-format off
   ceres::Problem::Options prob_options;
   prob_options.manifold_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
   ceres::Problem problem{prob_options};
-  ceres::ProductManifold<ceres::EuclideanManifold<3>, ceres::QuaternionManifold>
-      R3xSO3;
-  ceres::ProductManifold<ceres::SubsetManifold, ceres::QuaternionManifold>
-      link_manif{ceres::SubsetManifold{3, {0, 1}}, ceres::QuaternionManifold{}};
+  ceres::ProductManifold<ceres::EuclideanManifold<3>, ceres::QuaternionManifold> R3xSO3;
+  ceres::ProductManifold<ceres::SubsetManifold, ceres::QuaternionManifold> link_manif{ceres::SubsetManifold{3, {0, 1}}, ceres::QuaternionManifold{}};
+  // clang-format on
 
-  problem.AddParameterBlock(calib_data.pose, 7, &R3xSO3);
+  problem.AddParameterBlock(calib_data.gimbal_ext, 7, &R3xSO3);
+  problem.AddParameterBlock(calib_data.link0_ext, 7, &link_manif);
+  problem.AddParameterBlock(calib_data.link1_ext, 7, &link_manif);
   problem.AddParameterBlock(calib_data.end_ext, 7, &R3xSO3);
   problem.AddParameterBlock(calib_data.cam0_ext, 7, &R3xSO3);
   problem.AddParameterBlock(calib_data.cam1_ext, 7, &R3xSO3);
-  // problem.AddParameterBlock(calib_data.link0_ext, 7, &R3xSO3);
-  // problem.AddParameterBlock(calib_data.link1_ext, 7, &R3xSO3);
-  problem.AddParameterBlock(calib_data.link0_ext, 7, &link_manif);
-  problem.AddParameterBlock(calib_data.link1_ext, 7, &link_manif);
-  problem.AddParameterBlock(calib_data.gimbal_ext, 7, &R3xSO3);
+  problem.AddParameterBlock(calib_data.cam2_ext, 7, &R3xSO3);
+  problem.AddParameterBlock(calib_data.cam3_ext, 7, &R3xSO3);
   problem.AddParameterBlock(calib_data.fiducial_pose, 7, &R3xSO3);
-
-  problem.SetParameterBlockConstant(calib_data.pose);
+  // problem.SetParameterBlockConstant(calib_data.gimbal_ext);
   problem.SetParameterBlockConstant(calib_data.cam0_ext);
   problem.SetParameterBlockConstant(calib_data.cam1_ext);
-  problem.SetParameterBlockConstant(calib_data.gimbal_ext);
+  problem.SetParameterBlockConstant(calib_data.cam2_ext);
+  problem.SetParameterBlockConstant(calib_data.cam3_ext);
+  problem.SetParameterBlockConstant(calib_data.fiducial_pose);
 
   // -- Lambda function to add reprojection errors
   auto add_grid = [&](const int cam_idx, const aprilgrid_t &grid) {
@@ -1075,10 +996,12 @@ int main(int argc, char *argv[]) {
     // Add residual blocks
     const auto proj_params = calib_data.cam_params[cam_idx].proj_params();
     double *cam_ext = nullptr;
-    if (cam_idx == 0) {
-      cam_ext = calib_data.cam0_ext;
-    } else if (cam_idx == 1) {
-      cam_ext = calib_data.cam1_ext;
+    if (cam_idx == 2) {
+      cam_ext = calib_data.cam2_ext;
+    } else if (cam_idx == 3) {
+      cam_ext = calib_data.cam3_ext;
+    } else {
+      FATAL("Invalid camera index!");
     }
 
     for (size_t i = 0; i < tag_ids.size(); i++) {
@@ -1100,7 +1023,6 @@ int main(int argc, char *argv[]) {
       const Eigen::Vector3d p_FFi = obj_pts[i];
       auto reproj_error = GimbalReprojError::Create(proj_params, z, p_FFi);
       std::vector<double *> param_blocks;
-      param_blocks.push_back(calib_data.pose);
       param_blocks.push_back(calib_data.gimbal_ext);
       param_blocks.push_back(calib_data.link0_ext);
       param_blocks.push_back(calib_data.link1_ext);
@@ -1114,9 +1036,9 @@ int main(int argc, char *argv[]) {
 
       // Add Gimbal Joint Error
       if (enable_joint_errors) {
-        auto joint0_error = GimbalJointError::Create(*joint0, 0.01);
-        auto joint1_error = GimbalJointError::Create(*joint1, 0.01);
-        auto joint2_error = GimbalJointError::Create(*joint2, 0.01);
+        auto joint0_error = GimbalJointError::Create(*joint0, 1.0);
+        auto joint1_error = GimbalJointError::Create(*joint1, 1.0);
+        auto joint2_error = GimbalJointError::Create(*joint2, 1.0);
         problem.AddResidualBlock(joint0_error, nullptr, {joint0});
         problem.AddResidualBlock(joint1_error, nullptr, {joint1});
         problem.AddResidualBlock(joint2_error, nullptr, {joint2});
@@ -1124,7 +1046,6 @@ int main(int argc, char *argv[]) {
     }
   };
 
-  // -- Add reprojection errors
   std::vector<timestamp_t> timestamps = calib_data.timestamps;
   std::random_device rd;
   std::mt19937 generator(rd());
@@ -1139,9 +1060,11 @@ int main(int argc, char *argv[]) {
   test_timestamps.insert(test_timestamps.end(),
                          timestamps.begin() + N + 1,
                          timestamps.end());
+
+  // -- Add reprojection errors
   for (const auto ts : train_timestamps) {
-    add_grid(0, calib_data.cam0_grids[ts]);
-    add_grid(1, calib_data.cam1_grids[ts]);
+    add_grid(2, calib_data.cam2_grids[ts]);
+    add_grid(3, calib_data.cam3_grids[ts]);
   }
 
   // -- Solve
@@ -1150,12 +1073,15 @@ int main(int argc, char *argv[]) {
   options.minimizer_progress_to_stdout = true;
   ceres::Solve(options, &problem, &summary);
 
+  printf("[after]\n");
   print_vector("gimbal_ext   ", calib_data.gimbal_ext, 7);
   print_vector("link0_ext    ", calib_data.link0_ext, 7);
   print_vector("link1_ext    ", calib_data.link1_ext, 7);
   print_vector("end_ext      ", calib_data.end_ext, 7);
   print_vector("cam0_ext     ", calib_data.cam0_ext, 7);
   print_vector("cam1_ext     ", calib_data.cam1_ext, 7);
+  print_vector("cam2_ext     ", calib_data.cam2_ext, 7);
+  print_vector("cam3_ext     ", calib_data.cam3_ext, 7);
   print_vector("fiducial_pose", calib_data.fiducial_pose, 7);
 
   inspect_calib(calib_data, test_timestamps);

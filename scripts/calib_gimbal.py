@@ -2,7 +2,13 @@
 import os
 from os.path import join
 import yaml
+
 import numpy as np
+import proto
+from proto import plot_tf
+from proto import plot_set_axes_equal
+import matplotlib.pylab as plt
+from mpl_toolkits import mplot3d
 
 
 def load_yaml(file_path):
@@ -78,7 +84,15 @@ imu0:
   return save_path
 
 
+def tf_vector(T):
+  """ Return tf vector """
+  r = proto.tf_trans(T)
+  q = proto.tf_quat(T)
+  return np.array([r[0], r[1], r[2], q[0], q[1], q[2], q[3]])
+
+
 def create_gimbal_calib_config(rs0_results, rs1_results, save_path):
+  np.set_printoptions(linewidth=1000)
   rs0 = load_yaml(rs0_results)
   rs1 = load_yaml(rs1_results)
 
@@ -91,12 +105,53 @@ def create_gimbal_calib_config(rs0_results, rs1_results, save_path):
   cam1_dist_params = rs0["cam1"]["dist_params"]
   cam2_dist_params = rs1["cam0"]["dist_params"]
   cam3_dist_params = rs1["cam1"]["dist_params"]
-  T_imu0_cam0 = rs0["T_imu0_cam0"]["data"]
-  T_cam0_cam1 = rs0["T_cam0_cam1"]["data"]
-  T_cam2_cam3 = rs1["T_cam0_cam1"]["data"]
+
+  T_cam0_cam1 = np.array(rs0["T_cam0_cam1"]["data"]).reshape((4, 4))
+  T_cam2_cam3 = np.array(rs1["T_cam0_cam1"]["data"]).reshape((4, 4))
+  cam0_cam1_ext = tf_vector(T_cam0_cam1)
+  cam2_cam3_ext = tf_vector(T_cam2_cam3)
+
+  # Gimbal extrinsic
+  r_C0M0 = np.array([0.025, -0.105, -0.045])
+  q_C0M0 = proto.euler2quat(np.pi / 2, -np.pi / 2, 0.0)
+  T_C0M0 = proto.tf(q_C0M0, r_C0M0)
+  gimbal_ext = tf_vector(T_C0M0)
+
+  # Joint 0
+  r_M0L0 = np.array([0.0, 0.0, 0.0])
+  q_M0L0 = proto.euler2quat(0.0, 0.0, 0.0)
+  T_M0L0 = proto.tf(q_M0L0, r_M0L0)
+
+  # Link 0
+  r_L0M1 = np.array([0.0, 0.0, 0.045])
+  q_L0M1 = proto.euler2quat(0.0, np.pi / 2, 0.0)
+  T_L0M1 = proto.tf(q_L0M1, r_L0M1)
+  link0_ext = tf_vector(T_L0M1)
+
+  # Joint 1
+  r_M1L1 = np.array([0.0, 0.0, 0.0])
+  q_M1L1 = proto.euler2quat(0.0, 0.0, 0.0)
+  T_M1L1 = proto.tf(q_M1L1, r_M1L1)
+
+  # Link1
+  r_L1M2 = np.array([0.0, 0.0, 0.03])
+  q_L1M2 = proto.euler2quat(0.0, 0.0, -np.pi / 2)
+  T_L1M2 = proto.tf(q_L1M2, r_L1M2)
+  link1_ext = tf_vector(T_L1M2)
+
+  # Joint 2
+  r_M2L2 = np.array([0.0, 0.0, 0.0])
+  q_M2L2 = proto.euler2quat(0.0, 0.0, 0.0)
+  T_M2L2 = proto.tf(q_M2L2, r_M2L2)
+
+  # End effector extrinsic
+  r_L2C2 = np.array([0.0, -0.035, 0.02])
+  q_L2C2 = proto.euler2quat(-np.pi / 2, np.pi / 2, 0.0)
+  T_L2C2 = proto.tf(q_L2C2, r_L2C2)
+  end_ext = tf_vector(T_L2C2)
 
   calib_conf = f"""\
-num_cams: 2
+num_cams: 4
 num_links: 3
 
 cam0:
@@ -127,51 +182,54 @@ cam3:
   proj_params: {cam3_proj_params}
   dist_params: {cam3_dist_params}
 
-T_imu0_cam0:
-  rows: 4
-  cols: 4
-  data: [
-    {T_imu0_cam0[0]}, {T_imu0_cam0[1]}, {T_imu0_cam0[2]}, {T_imu0_cam0[3]},
-    {T_imu0_cam0[4]}, {T_imu0_cam0[5]}, {T_imu0_cam0[6]}, {T_imu0_cam0[7]},
-    {T_imu0_cam0[8]}, {T_imu0_cam0[9]}, {T_imu0_cam0[10]}, {T_imu0_cam0[11]},
-    {T_imu0_cam0[12]}, {T_imu0_cam0[13]}, {T_imu0_cam0[14]}, {T_imu0_cam0[15]}
-  ]
-
-T_cam0_cam1:
-  rows: 4
-  cols: 4
-  data: [
-    {T_cam0_cam1[0]}, {T_cam0_cam1[1]}, {T_cam0_cam1[2]}, {T_cam0_cam1[3]},
-    {T_cam0_cam1[4]}, {T_cam0_cam1[5]}, {T_cam0_cam1[6]}, {T_cam0_cam1[7]},
-    {T_cam0_cam1[8]}, {T_cam0_cam1[9]}, {T_cam0_cam1[10]}, {T_cam0_cam1[11]},
-    {T_cam0_cam1[12]}, {T_cam0_cam1[13]}, {T_cam0_cam1[14]}, {T_cam0_cam1[15]}
-  ]
-
-T_cam2_cam3:
-  rows: 4
-  cols: 4
-  data: [
-    {T_cam2_cam3[0]}, {T_cam2_cam3[1]}, {T_cam2_cam3[2]}, {T_cam2_cam3[3]},
-    {T_cam2_cam3[4]}, {T_cam2_cam3[5]}, {T_cam2_cam3[6]}, {T_cam2_cam3[7]},
-    {T_cam2_cam3[8]}, {T_cam2_cam3[9]}, {T_cam2_cam3[10]}, {T_cam2_cam3[11]},
-    {T_cam2_cam3[12]}, {T_cam2_cam3[13]}, {T_cam2_cam3[14]}, {T_cam2_cam3[15]}
-  ]
-
-imu0:
-  rate: 200.000000
-  sigma_a_c: {imu_params["sigma_a_c"]}
-  sigma_g_c: {imu_params["sigma_g_c"]}
-  sigma_aw_c: {imu_params["sigma_aw_c"]}
-  sigma_gw_c: {imu_params["sigma_gw_c"]}
-  g: {imu_params["g"]}
+gimbal_ext: {gimbal_ext.tolist()}
+link0_ext: {link0_ext.tolist()}
+link1_ext: {link1_ext.tolist()}
+end_ext: {end_ext.tolist()}
+cam0_cam1_ext: {cam0_cam1_ext.tolist()}
+cam2_cam3_ext: {cam2_cam3_ext.tolist()}
   """
   conf_file = open(save_path, "w")
   conf_file.write(calib_conf)
   conf_file.close()
 
+  plt.figure()
+  ax = plt.axes(projection='3d')
+
+  # yapf:disable
+  T_WC0 = np.array([
+      [0.000000, 0.000000, 1.000000, 0.000000],
+      [-1.000000, 0.000000, 0.000000, 0.000000],
+      [0.000000, -1.000000, 0.000000, 0.000000],
+      [0.000000, 0.000000, 0.000000, 1.000000]
+  ])
+  # yapf:enable
+
+  T_WC1 = T_WC0 @ T_cam0_cam1
+  T_WM0 = T_WC0 @ T_C0M0
+  T_WM1 = T_WM0 @ T_M0L0 @ T_L0M1
+  T_WM2 = T_WM1 @ T_M1L1 @ T_L1M2
+  T_WC2 = T_WM2 @ T_M2L2 @ T_L2C2
+  T_WC3 = T_WC2 @ T_cam2_cam3
+
+  plot_tf(ax, T_WC0, name="C0", size=0.02)
+  plot_tf(ax, T_WC1, name="C1", size=0.02)
+  plot_tf(ax, T_WM0, name="M0", size=0.02)
+  plot_tf(ax, T_WM1, name="M1", size=0.02)
+  plot_tf(ax, T_WM2, name="M2", size=0.02)
+  plot_tf(ax, T_WC2, name="C2", size=0.02)
+  plot_tf(ax, T_WC3, name="C3", size=0.02)
+
+  ax.set_xlabel("x [m]")
+  ax.set_ylabel("y [m]")
+  ax.set_zlabel("z [m]")
+  plot_set_axes_equal(ax)
+  plt.show()
+
 
 if __name__ == "__main__":
-  calib_dir = "/data/gimbal_experiments/calib"
+  # calib_dir = "/data/gimbal_experiments/calib"
+  calib_dir = "/home/chutsu/calib-240212"
   calib_camera_conf = join(calib_dir, "calib_camera.config")
   calib_camera_rs0 = join(calib_dir, "calib_camera-rs0")
   calib_camera_rs1 = join(calib_dir, "calib_camera-rs1")
@@ -181,22 +239,22 @@ if __name__ == "__main__":
   rs1_camera_results = join(calib_camera_rs1, "calib_camera-results.yaml")
   rs0_camimu_results = join(calib_camimu_rs0, "calib_vi-results.yaml")
   rs1_camimu_results = join(calib_camimu_rs1, "calib_vi-results.yaml")
-  calib_gimbal = join(calib_dir, "calib_gimbal.yaml")
+  calib_gimbal = join(calib_dir, "calib_gimbal", "calib.config")
 
   # Calibrate camera intrinsics and extrinsics
   # os.system(f"./build/calib_camera {calib_camera_conf} {calib_camera_rs0}")
   # os.system(f"./build/calib_camera {calib_camera_conf} {calib_camera_rs1}")
 
-  # # Calibrate camera-imu extrinsics
-  # # -- Calibrate rs0
+  # Calibrate camera-imu extrinsics
+  # -- Calibrate rs0
   # calib_camimu_path = create_calib_camimu_config(rs0_camera_results)
   # calib_camimu_rs0 = join(calib_dir, "calib_camimu-rs0")
   # os.system(f"./build/calib_vi {calib_camimu_path} {calib_camimu_rs0}")
-  # # -- Calibrate rs1
+  # -- Calibrate rs1
   # calib_camimu_path = create_calib_camimu_config(rs1_camera_results)
   # calib_camimu_rs1 = join(calib_dir, "calib_camimu-rs1")
   # os.system(f"./build/calib_vi {calib_camimu_path} {calib_camimu_rs1}")
 
   # Create gimbal calibration file
-  # create_gimbal_calib_config(rs0_camimu_results, rs1_camimu_results, calib_gimbal)
-
+  create_gimbal_calib_config(rs0_camimu_results, rs1_camimu_results,
+                             calib_gimbal)

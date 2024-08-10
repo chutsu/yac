@@ -256,5 +256,5 @@ if __name__ == "__main__":
   # os.system(f"./build/calib_vi {calib_camimu_path} {calib_camimu_rs1}")
 
   # Create gimbal calibration file
-  create_gimbal_calib_config(rs0_camimu_results, rs1_camimu_results,
-                             calib_gimbal)
+  # create_gimbal_calib_config(rs0_camimu_results, rs1_camimu_results,
+  #                            calib_gimbal)

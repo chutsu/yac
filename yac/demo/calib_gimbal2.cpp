@@ -791,7 +791,8 @@ void inspect_calib(const CalibData &calib_data,
   const Eigen::Matrix4d T_C2C3 = transform(calib_data.cam3_ext);
 
   // Draw function
-  auto draw = [&](const camera_params_t &cam,
+  auto draw = [&](const std::string cam_str,
+                  const camera_params_t &cam,
                   const aprilgrid_t &grid,
                   const mat4_t &T_CiF,
                   cv::Mat &frame) {
@@ -805,12 +806,14 @@ void inspect_calib(const CalibData &calib_data,
       return;
     }
 
+    std::vector<double> reproj_errors;
     for (size_t i = 0; i < tag_ids.size(); i++) {
       // Project point
       const auto p_FFi = obj_pts[i];
       const auto p_Ci = (T_CiF * p_FFi.homogeneous()).head(3);
       vec2_t z_hat;
       pinhole_radtan4_project(cam.resolution, cam.param, p_Ci, z_hat);
+      reproj_errors.push_back((kps[i] - z_hat).norm());
 
       // Draw measured corner
       const cv::Point2f p_meas(kps[i].x(), kps[i].y());
@@ -819,6 +822,42 @@ void inspect_calib(const CalibData &calib_data,
       // Draw predicted corner
       const cv::Point2f p_pred(z_hat.x(), z_hat.y());
       cv::circle(frame, p_pred, marker_size, color_green, -1);
+    }
+
+    // Draw camera string
+    {
+      const cv::Point cxy(5, 15);
+      const cv::Scalar text_color(0, 255, 0);
+      const int font = cv::FONT_HERSHEY_PLAIN;
+      const double font_scale = 1;
+      const int thickness = 1;
+      cv::putText(frame,
+                  cam_str,
+                  cxy,
+                  font,
+                  font_scale,
+                  text_color,
+                  thickness,
+                  cv::LINE_AA);
+    }
+
+    // Draw reprojection error
+    {
+      const cv::Point cxy(5, 30);
+      const cv::Scalar text_color(0, 255, 0);
+      const int font = cv::FONT_HERSHEY_PLAIN;
+      const double font_scale = 1;
+      const int thickness = 1;
+      const auto error = rmse(reproj_errors);
+      const auto text = cv::format("RMS Reproj Error: %.2f [px]", error);
+      cv::putText(frame,
+                  text,
+                  cxy,
+                  font,
+                  font_scale,
+                  text_color,
+                  thickness,
+                  cv::LINE_AA);
     }
   };
 
@@ -839,26 +878,26 @@ void inspect_calib(const CalibData &calib_data,
     // Draw camera0 frame
     const auto &cam0 = calib_data.cam_params.at(0);
     const auto &grid0 = calib_data.cam0_grids.at(ts);
-    auto frame0 = calib_data.cam0_images.at(ts);
-    draw(cam0, grid0, T_C0F, frame0);
+    auto frame0 = calib_data.cam0_images.at(ts).clone();
+    draw("Camera 0", cam0, grid0, T_C0F, frame0);
 
     // Draw camera1 frame
     const auto &cam1 = calib_data.cam_params.at(1);
     const auto &grid1 = calib_data.cam1_grids.at(ts);
-    auto frame1 = calib_data.cam1_images.at(ts);
-    draw(cam1, grid1, T_C1F, frame1);
+    auto frame1 = calib_data.cam1_images.at(ts).clone();
+    draw("Camera 1", cam1, grid1, T_C1F, frame1);
 
     // Draw camera2 frame
     const auto &cam2 = calib_data.cam_params.at(2);
     const auto &grid2 = calib_data.cam2_grids.at(ts);
-    auto frame2 = calib_data.cam2_images.at(ts);
-    draw(cam2, grid2, T_C2F, frame2);
+    auto frame2 = calib_data.cam2_images.at(ts).clone();
+    draw("Camera 2", cam2, grid2, T_C2F, frame2);
 
     // Draw camera3 frame
     const auto &cam3 = calib_data.cam_params.at(3);
     const auto &grid3 = calib_data.cam3_grids.at(ts);
-    auto frame3 = calib_data.cam3_images.at(ts);
-    draw(cam3, grid3, T_C3F, frame3);
+    auto frame3 = calib_data.cam3_images.at(ts).clone();
+    draw("Camera 3", cam3, grid3, T_C3F, frame3);
 
     // Show visualization
     cv::Mat viz_row0;
@@ -867,6 +906,7 @@ void inspect_calib(const CalibData &calib_data,
     cv::hconcat(frame2, frame3, viz_row0);
     cv::hconcat(frame0, frame1, viz_row1);
     cv::vconcat(viz_row0, viz_row1, viz);
+    // cv::imwrite(cv::format("/tmp/viz-%ld.png", ts), viz);
     cv::imshow("Viz", viz);
     if (cv::waitKey(0) == 'q') {
       break;
@@ -938,8 +978,8 @@ void save_results(CalibData &calib_data, const std::string &data_path) {
 
 int main(int argc, char *argv[]) {
   bool format_v2 = true;
-  bool fix_joints = true;
-  bool enable_joint_errors = true;
+  bool fix_joints = false;
+  bool enable_joint_errors = false;
 
   // Check arguments
   if (argc != 2) {
@@ -958,6 +998,7 @@ int main(int argc, char *argv[]) {
   ceres::Problem problem{prob_options};
   ceres::ProductManifold<ceres::EuclideanManifold<3>, ceres::QuaternionManifold> R3xSO3;
   ceres::ProductManifold<ceres::SubsetManifold, ceres::QuaternionManifold> link_manif{ceres::SubsetManifold{3, {0, 1}}, ceres::QuaternionManifold{}};
+  std::vector<ceres::ResidualBlockId> res_ids;
   // clang-format on
 
   problem.AddParameterBlock(calib_data.gimbal_ext, 7, &R3xSO3);
@@ -1032,7 +1073,9 @@ int main(int argc, char *argv[]) {
       param_blocks.push_back(calib_data.end_ext);
       param_blocks.push_back(cam_ext);
       param_blocks.push_back(calib_data.fiducial_pose);
-      problem.AddResidualBlock(reproj_error, nullptr, param_blocks);
+      auto res_id =
+          problem.AddResidualBlock(reproj_error, nullptr, param_blocks);
+      res_ids.push_back(res_id);
 
       // Add Gimbal Joint Error
       if (enable_joint_errors) {
@@ -1062,7 +1105,11 @@ int main(int argc, char *argv[]) {
                          timestamps.end());
 
   // -- Add reprojection errors
-  for (const auto ts : train_timestamps) {
+  // for (const auto ts : train_timestamps) {
+  //   add_grid(2, calib_data.cam2_grids[ts]);
+  //   add_grid(3, calib_data.cam3_grids[ts]);
+  // }
+  for (const auto ts : timestamps) {
     add_grid(2, calib_data.cam2_grids[ts]);
     add_grid(3, calib_data.cam3_grids[ts]);
   }
@@ -1072,6 +1119,16 @@ int main(int argc, char *argv[]) {
   ceres::Solver::Summary summary;
   options.minimizer_progress_to_stdout = true;
   ceres::Solve(options, &problem, &summary);
+
+  std::vector<double> reproj_errors;
+  for (const auto res_id : res_ids) {
+    double cost = 0.0;
+    double r[2] = {0};
+    problem.EvaluateResidualBlock(res_id, false, &cost, r, nullptr);
+    reproj_errors.push_back(sqrt(r[0] * r[0] + r[1] * r[1]));
+  }
+  printf("rmse: %f\n", rmse(reproj_errors));
+  printf("mean: %f\n", mean(reproj_errors));
 
   printf("[after]\n");
   print_vector("gimbal_ext   ", calib_data.gimbal_ext, 7);
@@ -1084,7 +1141,8 @@ int main(int argc, char *argv[]) {
   print_vector("cam3_ext     ", calib_data.cam3_ext, 7);
   print_vector("fiducial_pose", calib_data.fiducial_pose, 7);
 
-  inspect_calib(calib_data, test_timestamps);
+  inspect_calib(calib_data, timestamps);
+  // inspect_calib(calib_data, test_timestamps);
   save_results(calib_data, data_path);
 
   return 0;

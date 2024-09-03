@@ -1,9 +1,15 @@
 SHELL:=/bin/bash
-PREFIX=/opt/yac
 BUILD_DIR=build
-NUM_CPU=2
+NUM_PROCS := $(shell expr `nproc` / 2)
 
-.PHONY: help deps debug release download_test_data tests
+define cmake_build
+	mkdir -p build \
+		&& cd build || return \
+		&& cmake -DCMAKE_BUILD_TYPE=$1 .. \
+		&& make -j$(NUM_PROCS)
+endef
+
+.PHONY: help third_party debug release
 
 help:
 	@echo -e "\033[1;34m[make targets]:\033[0m"
@@ -11,18 +17,12 @@ help:
 		| awk 'BEGIN {FS = ":.*?## "}; \
 		{printf "\033[1;36m%-20s\033[0m%s\n", $$1, $$2}'
 
-${BUILD_DIR}:
-	@mkdir -p ${BUILD_DIR}
+third_party: ## Build third party
+	@echo "[Build Third Party]"
+	@make -s -C third_party
 
-${PREFIX}:
-	@mkdir -p ${PREFIX}
+debug: third_party  ## Build in debug mode
+	$(call cmake_build,Debug)
 
-deps: ## Install dependencies
-	@echo "[Installing Dependencies]"
-	@make -s -C deps
-
-debug: ## Build in debug mode
-	@mkdir -p build && cd build && cmake .. -DCMAKE_BUILD_TYPE=Debug && make
-
-release: ## Build in release mode
-	@mkdir -p build && cd build && cmake .. -DCMAKE_BUILD_TYPE=Release && make
+release: third_party  ## Build in release mode
+	$(call cmake_build,Release)

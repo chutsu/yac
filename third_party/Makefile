@@ -1,0 +1,62 @@
+MKFILE_PATH := $(abspath $(lastword $(MAKEFILE_LIST)))
+MKFILE_DIR := $(patsubst %/,%,$(dir $(MKFILE_PATH)))
+PREFIX := $(MKFILE_DIR)
+SRC_PATH := $(PREFIX)/src
+NUM_PROCS := $(shell expr `nproc` / 2)
+
+define cmake_build
+	@cd "$(SRC_PATH)/$1" \
+		&& mkdir -p build \
+		&& cd build || return \
+		&& cmake \
+			-DCMAKE_BUILD_TYPE=Release \
+			-DCMAKE_INSTALL_PREFIX="$(PREFIX)" \
+			.. \
+		&& make -j$(NUM_PROCS) \
+		&& make install
+endef
+
+help:
+	@echo "\033[1;34m[make targets]:\033[0m"
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
+		| awk 'BEGIN {FS = ":.*?## "}; \
+		{printf "\033[1;36m%-20s\033[0m%s\n", $$1, $$2}'
+
+default: dirs install
+.PHONY: dirs install
+
+setup:
+	@mkdir -p bin
+	@mkdir -p include
+	@mkdir -p lib
+	@mkdir -p log
+	@mkdir -p share
+	@mkdir -p src
+
+clean: ## Clean
+	@rm -rf bin
+	@rm -rf include
+	@rm -rf lib
+	@rm -rf log
+	@rm -rf share
+
+build_abseil:  ## Build GTest
+	$(call cmake_build,abseil-cpp)
+
+build_gtest:  ## Build GTest
+	$(call cmake_build,googletest)
+
+build_eigen:  ## Build Eigen
+	$(call cmake_build,eigen)
+
+build_suitesparse: build_eigen  ## Build SuiteSparse
+	$(call cmake_build,SuiteSparse)
+
+build_ceres-solver: build_abseil build_gtest build_eigen build_suitesparse  ## Build SuiteSparse
+	$(call cmake_build,ceres-solver)
+
+build_opencv: build_eigen  ## Build OpenCV
+	$(call cmake_build,opencv)
+
+build_apriltag: build_eigen build_opencv  ## Build AprilTag
+	$(call cmake_build,apriltag)

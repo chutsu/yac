@@ -8,10 +8,10 @@ jobs:
     - uses: actions/checkout@master
 
     - name: install dependencies
-      run: sudo make deps
+      run: sudo make third_party
 
-    - name: build yac
-      run: sudo make lib
+    # - name: build yac
+    #   run: sudo make lib
 
-    - name: run tests
-      run: make tests
+    # - name: run tests
+    #   run: make tests

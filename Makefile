@@ -1,18 +1,23 @@
-SHELL:=/bin/bash
-BUILD_DIR=build
+MKFILE_PATH := $(abspath $(lastword $(MAKEFILE_LIST)))
+MKFILE_DIR := $(patsubst %/,%,$(dir $(MKFILE_PATH)))
+PREFIX := $(MKFILE_DIR)/third_party
 NUM_PROCS := $(shell expr `nproc` / 2)
 
 define cmake_build
-	mkdir -p build \
+	cd $1 \
+		&& mkdir -p build \
 		&& cd build || return \
-		&& cmake -DCMAKE_BUILD_TYPE=$1 .. \
+		&& cmake \
+			-DCMAKE_BUILD_TYPE=$2 \
+			-DCMAKE_PREFIX_PATH=$(PREFIX) \
+			.. \
 		&& make -j$(NUM_PROCS)
 endef
 
 .PHONY: help third_party debug release
 
 help:
-	@echo -e "\033[1;34m[make targets]:\033[0m"
+	@echo "\033[1;34m[make targets]:\033[0m"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
 		| awk 'BEGIN {FS = ":.*?## "}; \
 		{printf "\033[1;36m%-20s\033[0m%s\n", $$1, $$2}'
@@ -22,7 +27,7 @@ third_party: ## Build third party
 	@make -s -C third_party
 
 debug: third_party  ## Build in debug mode
-	$(call cmake_build,Debug)
+	$(call cmake_build,lib,Debug)
 
 release: third_party  ## Build in release mode
-	$(call cmake_build,Release)
+	$(call cmake_build,lib,Release)

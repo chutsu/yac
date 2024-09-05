@@ -22,8 +22,10 @@ help:
 		| awk 'BEGIN {FS = ":.*?## "}; \
 		{printf "\033[1;36m%-20s\033[0m%s\n", $$1, $$2}'
 
-default: dirs install
-.PHONY: dirs install
+default: setup
+.PHONY: setup clean
+.PHONY: build_abseil build_gtest build_eigen build_suitesparse
+.PHONY: build_ceres-solver build_opencv build_apriltag
 
 setup:
 	@mkdir -p bin

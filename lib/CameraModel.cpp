@@ -81,15 +81,6 @@ mat2_t radtan4_point_jacobian(const vec4_t &dist_params, const vec2_t &p) {
   J_point(1, 1) += y * (2.0 * k1 * y + 4.0 * k2 * y * r2);
   // Above is generated using sympy
 
-  // const auto radtan = k1 * r2 + k2 * r2 * r2;
-  // J_point(0, 0) = 1 + radtan + k1 * 2.0 * x2 + k2 * r2 * 4 * x2 +
-  //                 2.0 * p1 * p.y() + 6 * p2 * p.x();
-  // J_point(1, 0) = k1 * 2.0 * p.x() * p.y() + k2 * 4 * r2 * p.x() * p.y() +
-  //                 p1 * 2.0 * p.x() + 2.0 * p2 * p.y();
-  // J_point(0, 1) = J_point(1, 0);
-  // J_point(1, 1) = 1 + radtan + k1 * 2.0 * y2 + k2 * r2 * 4 * y2 +
-  //                 6 * p1 * p.y() + 2.0 * p2 * p.x();
-
   return J_point;
 }
 
@@ -311,11 +302,15 @@ mat_t<2, 4> pinhole_params_jacobian(const vec4_t &proj_params,
   return J;
 }
 
+/***************************** PINHOLE-RADTAN4 ********************************/
+
 PINHOLE_PROJECT(pinhole_radtan4_project, radtan4_distort);
 PINHOLE_PROJECT_J(pinhole_radtan4_project_jacobian, radtan4_point_jacobian);
 PINHOLE_PARAMS_J(pinhole_radtan4_params_jacobian, radtan4_params_jacobian);
 PINHOLE_BACK_PROJECT(pinhole_radtan4_back_project, radtan4_undistort);
 PINHOLE_UNDISTORT(pinhole_radtan4_undistort, radtan4_undistort);
+
+/****************************** PINHOLE-EQUI4 *********************************/
 
 PINHOLE_PROJECT(pinhole_equi4_project, equi4_distort);
 PINHOLE_PROJECT_J(pinhole_equi4_project_jacobian, equi4_point_jacobian);

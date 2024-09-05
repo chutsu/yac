@@ -139,6 +139,8 @@ mat_t<2, 4> pinhole_params_jacobian(const vec4_t &proj_params, const vec2_t &p);
     return z_undist;                                                           \
   }
 
+/***************************** PINHOLE-RADTAN4 ********************************/
+
 int pinhole_radtan4_project(const int res[2],
                             const vecx_t &params,
                             const vec3_t &p_C,
@@ -150,6 +152,8 @@ int pinhole_radtan4_back_project(const vecx_t &params,
                                  const vec2_t &x,
                                  vec3_t &ray);
 vec2_t pinhole_radtan4_undistort(const vecx_t &params, const vec2_t &z);
+
+/****************************** PINHOLE-EQUI4 *********************************/
 
 int pinhole_equi4_project(const int res[2],
                           const vecx_t &params,

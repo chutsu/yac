@@ -19,3 +19,6 @@
 [submodule "third_party/src/abseil-cpp"]
 	path = third_party/src/abseil-cpp
 	url = https://github.com/abseil/abseil-cpp
+[submodule "third_party/src/apriltags"]
+	path = third_party/src/apriltags
+	url = https://bitbucket.org/kaess/apriltags

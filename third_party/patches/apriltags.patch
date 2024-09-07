@@ -1,0 +1,34 @@
+diff --git a/AprilTags/TagDetector.h b/AprilTags/TagDetector.h
+index 71ef9f5..faabbee 100644
+--- a/AprilTags/TagDetector.h
++++ b/AprilTags/TagDetector.h
+@@ -13,15 +13,15 @@ namespace AprilTags {
+ 
+ class TagDetector {
+ public:
+-	
+-	const TagFamily thisTagFamily;
++
++	TagFamily thisTagFamily;
+ 
+ 	//! Constructor
+   // note: TagFamily is instantiated here from TagCodes
+ 	TagDetector(const TagCodes& tagCodes) : thisTagFamily(tagCodes) {}
+-	
++
+ 	std::vector<TagDetection> extractTags(const cv::Mat& image);
+-	
++
+ };
+ 
+ } // namespace
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index d7a5aba..70143ab 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -32,4 +32,4 @@ pods_install_pkg_config_file(apriltags
+     REQUIRES eigen3 opencv2
+     VERSION 1.0.0)
+ 
+-add_subdirectory(example)
++# add_subdirectory(example)

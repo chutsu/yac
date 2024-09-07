@@ -25,7 +25,7 @@ help:
 default: setup
 .PHONY: setup clean
 .PHONY: build_abseil build_gtest build_eigen build_suitesparse
-.PHONY: build_ceres-solver build_opencv build_apriltag
+.PHONY: build_ceres build_opencv build_apriltag build_apriltags
 
 setup:
 	@mkdir -p bin
@@ -54,7 +54,7 @@ build_eigen:  ## Build Eigen
 build_suitesparse: build_eigen  ## Build SuiteSparse
 	$(call cmake_build,SuiteSparse)
 
-build_ceres-solver: build_abseil build_gtest build_eigen build_suitesparse  ## Build SuiteSparse
+build_ceres: build_abseil build_gtest build_eigen build_suitesparse  ## Build SuiteSparse
 	$(call cmake_build,ceres-solver)
 
 build_opencv: build_eigen  ## Build OpenCV
@@ -62,3 +62,17 @@ build_opencv: build_eigen  ## Build OpenCV
 
 build_apriltag: build_eigen build_opencv  ## Build AprilTag
 	$(call cmake_build,apriltag)
+
+build_apriltags: build_eigen build_opencv  ## Build AprilTags
+	@cd src/apriltags && git apply ../../patches/apriltags.patch
+	$(call cmake_build,apriltags)
+
+BUILD_TARGETS := \
+	build_abseil \
+	build_gtest \
+	build_eigen \
+	build_suitesparse \
+	build_ceres \
+	build_opencv \
+	build_apriltag
+all: $(BUILD_TARGETS)  ## Build all

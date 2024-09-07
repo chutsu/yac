@@ -138,12 +138,6 @@ void AprilGrid::add(const int tag_id,
     data_[tag_id] = TagDetection();
   }
 
-  printf("tag_id: %d, corner_index: %d, keypoint: (%.2f, %.2f)\n",
-         tag_id,
-         corner_index,
-         kp.x(),
-         kp.y());
-
   data_[tag_id].corner_indicies.insert(corner_index);
   data_[tag_id].keypoints[corner_index] = kp;
   data_[tag_id].object_points[corner_index] = objectPoint(tag_id, corner_index);
@@ -203,30 +197,6 @@ void AprilGrid::imshow(const std::string &title, const cv::Mat &image) const {
   cv::imshow(title, draw(image));
   cv::waitKey(1);
 }
-
-// int AprilGrid::estimate(const CameraModel *cam,
-//                         const int cam_res[2],
-//                         const vecx_t &cam_params,
-//                         mat4_t &T_CF) const {
-//
-//
-//   // Check if we actually have data to work with
-//   if (nb_detections == 0) {
-//     return -1;
-//   }
-//
-//   // Create object points (counter-clockwise, from bottom left)
-//   vec2s_t img_pts;
-//   vec3s_t obj_pts;
-//   for (int i = 0; i < (tag_rows * tag_cols * 4); i++) {
-//     if (data(i, 0) > 0) {
-//       img_pts.emplace_back(data(i, 1), data(i, 2));
-//       obj_pts.emplace_back(data(i, 3), data(i, 4), data(i, 5));
-//     }
-//   }
-//
-//   return solvepnp(cam, cam_res, cam_params, img_pts, obj_pts, T_CF);
-// }
 
 int AprilGrid::save(const std::string &save_path) const {
   // Check save dir
@@ -382,25 +352,21 @@ AprilGrid AprilGrid::load(const std::string &data_path) {
   return grid;
 }
 
-// // aprilgrids_t load_aprilgrids(const std::string &dir_path,
-// //                              const bool format_v2) {
-// //   std::vector<std::string> csv_files;
-// //   if (list_dir(dir_path, csv_files) != 0) {
-// //     FATAL("Failed to list dir [%s]!", dir_path.c_str());
-// //   }
-// //   sort(csv_files.begin(), csv_files.end());
-// //
-// //   aprilgrids_t grids;
-// //   for (const auto &grid_csv : csv_files) {
-// //     const auto csv_path = dir_path + "/" + grid_csv;
-// //     AprilGrid grid{csv_path, format_v2};
-// //     if (grid.detected) {
-// //       grids.push_back(grid);
-// //     }
-// //   }
-// //
-// //   return grids;
-// // }
+std::vector<AprilGrid> AprilGrid::loadDirectory(const std::string &dir_path) {
+  std::vector<std::string> csv_files;
+  if (list_dir(dir_path, csv_files) != 0) {
+    FATAL("Failed to list dir [%s]!", dir_path.c_str());
+  }
+  sort(csv_files.begin(), csv_files.end());
+
+  std::vector<AprilGrid> grids;
+  for (const auto &grid_csv : csv_files) {
+    const auto csv_path = dir_path + "/" + grid_csv;
+    grids.push_back(AprilGrid::load(grid_csv));
+  }
+
+  return grids;
+}
 
 AprilGridDetector::AprilGridDetector(const int tag_rows,
                                      const int tag_cols,
@@ -420,8 +386,14 @@ AprilGridDetector::~AprilGridDetector() {
   tag36h11_destroy(tf_);
 }
 
-AprilGrid AprilGridDetector::detect(const timestamp_t ts,
-                                    const cv::Mat &image) {
+void AprilGridDetector::olsenDetect(const cv::Mat &image,
+                                    std::vector<int> &tag_ids,
+                                    std::vector<int> &corner_indicies,
+                                    std::vector<vec2_t> &keypoints) {
+  assert(image.channels() == 1);
+  const int image_width = image.cols;
+  const int image_height = image.rows;
+
   // Make an image_u8_t header for the Mat data
   image_u8_t im = {.width = image.cols,
                    .height = image.rows,
@@ -430,20 +402,105 @@ AprilGrid AprilGridDetector::detect(const timestamp_t ts,
 
   // Detector tags
   zarray_t *detections = apriltag_detector_detect(det_, &im);
-  AprilGrid grid{ts, tag_rows_, tag_cols_, tag_size_, tag_spacing_};
-
   for (int i = 0; i < zarray_size(detections); i++) {
     apriltag_detection_t *det;
     zarray_get(detections, i, &det);
 
-    const auto tag_id = det->id;
-    const auto kps = det->p;
-    grid.add(tag_id, 0, vec2_t(kps[0][0], kps[0][1])); // Bottom left
-    grid.add(tag_id, 1, vec2_t(kps[1][0], kps[1][1])); // Bottom right
-    grid.add(tag_id, 2, vec2_t(kps[2][0], kps[2][1])); // Top right
-    grid.add(tag_id, 3, vec2_t(kps[3][0], kps[3][1])); // Top left
+    // Check tag id
+    if (det->id < 0 || det->id >= (tag_rows_ * tag_cols_)) {
+      continue;
+    }
+
+    // Check if too close to image bounds
+    bool bad_tag = false;
+    for (int i = 0; i < 4; i++) {
+      bad_tag |= det->p[i][0] < min_border_dist_;
+      bad_tag |= det->p[i][0] > image_width - min_border_dist_;
+      bad_tag |= det->p[i][1] < min_border_dist_;
+      bad_tag |= det->p[i][1] > image_height - min_border_dist_;
+      if (bad_tag) {
+        break;
+      }
+    }
+
+    tag_ids.push_back(det->id); // Bottom left
+    tag_ids.push_back(det->id); // Bottom right
+    tag_ids.push_back(det->id); // Top right
+    tag_ids.push_back(det->id); // Top left
+
+    corner_indicies.push_back(0); // Bottom left
+    corner_indicies.push_back(1); // Bottom right
+    corner_indicies.push_back(2); // Top right
+    corner_indicies.push_back(3); // Top left
+
+    keypoints.emplace_back(det->p[0][0], det->p[0][1]); // Bottom left
+    keypoints.emplace_back(det->p[1][0], det->p[1][1]); // Bottom right
+    keypoints.emplace_back(det->p[2][0], det->p[2][1]); // Top right
+    keypoints.emplace_back(det->p[3][0], det->p[3][1]); // Top left
   }
   apriltag_detections_destroy(detections);
+}
+
+void AprilGridDetector::kaessDetect(const cv::Mat &image,
+                                    std::vector<int> &tag_ids,
+                                    std::vector<int> &corner_indicies,
+                                    std::vector<vec2_t> &keypoints) {
+  assert(image.channels() == 1);
+  const int image_width = image.cols;
+  const int image_height = image.rows;
+
+  const auto detections = detector.extractTags(image);
+  for (const auto &tag : detections) {
+    // Check detection
+    if (tag.good == false) {
+      continue;
+    }
+
+    // Check tag id
+    if (tag.id < 0 || tag.id >= (tag_rows_ * tag_cols_)) {
+      continue;
+    }
+
+    // Check if too close to image bounds
+    bool bad_tag = false;
+    for (int i = 0; i < 4; i++) {
+      bad_tag |= tag.p[i].first < min_border_dist_;
+      bad_tag |= tag.p[i].first > image_width - min_border_dist_;
+      bad_tag |= tag.p[i].second < min_border_dist_;
+      bad_tag |= tag.p[i].second > image_height - min_border_dist_;
+      if (bad_tag) {
+        break;
+      }
+    }
+
+    tag_ids.push_back(tag.id); // Bottom left
+    tag_ids.push_back(tag.id); // Bottom right
+    tag_ids.push_back(tag.id); // Top right
+    tag_ids.push_back(tag.id); // Top left
+
+    corner_indicies.push_back(0); // Bottom left
+    corner_indicies.push_back(1); // Bottom right
+    corner_indicies.push_back(2); // Top right
+    corner_indicies.push_back(3); // Top left
+
+    keypoints.emplace_back(tag.p[0].first, tag.p[0].second); // Bottom left
+    keypoints.emplace_back(tag.p[1].first, tag.p[1].second); // Bottom right
+    keypoints.emplace_back(tag.p[2].first, tag.p[2].second); // Top right
+    keypoints.emplace_back(tag.p[3].first, tag.p[3].second); // Top left
+  }
+}
+
+AprilGrid AprilGridDetector::detect(const timestamp_t ts,
+                                    const cv::Mat &image) {
+  AprilGrid grid{ts, tag_rows_, tag_cols_, tag_size_, tag_spacing_};
+
+  std::vector<int> tag_ids;
+  std::vector<int> corner_indicies;
+  std::vector<vec2_t> keypoints;
+  kaessDetect(image, tag_ids, corner_indicies, keypoints);
+  for (size_t i = 0; i < tag_ids.size(); i++) {
+    grid.add(tag_ids[i], corner_indicies[i], keypoints[i]);
+  }
 
   return grid;
 }

@@ -23,26 +23,21 @@ endif()
 find_package(GTest REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(OpenCV REQUIRED)
+find_package(apriltag REQUIRED)
 
-find_package(PkgConfig)
-set(ENV{PKG_CONFIG_PATH} "${CMAKE_PREFIX_PATH}/lib/pkgconfig:$ENV{PKG_CONFIG_PATH}")
-
-pkg_search_module(APRILTAG REQUIRED apriltag)
-include_directories(${APRILTAG_INCLUDE_DIRS})
 
 # Build libyac
-include_directories(lib)
 add_library(
   yac
-  SHARED
   AprilGrid.cpp
   CalibTarget.cpp
   CameraModel.cpp
   Core.cpp
 )
-set(yac_DEPS Eigen3::Eigen ${OpenCV_LIBS} ${APRILTAG_LIB})
+set(yac_DEPS  Eigen3::Eigen ${OpenCV_LIBS} apriltag::apriltag apriltags)
 target_link_libraries(yac ${yac_DEPS})
 
 # Build unit-tests
+link_directories(${CMAKE_PREFIX_PATH}/lib)
 add_executable(TestAprilGrid TestAprilGrid.cpp)
-target_link_libraries(TestAprilGrid GTest::gtest_main ${yac_DEPS} ${PROJECT_NAME})
+target_link_libraries(TestAprilGrid GTest::gtest_main ${PROJECT_NAME} ${yac_DEPS})

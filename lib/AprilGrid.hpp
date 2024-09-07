@@ -5,18 +5,36 @@
 #include <set>
 #include <unordered_map>
 
+#include <opencv2/objdetect/aruco_board.hpp>
+#include <opencv2/objdetect/aruco_detector.hpp>
+#include <opencv2/objdetect/aruco_dictionary.hpp>
+
 #include "Core.hpp"
 #include "CameraModel.hpp"
 #include "CalibTarget.hpp"
 
-/// AprilTags3 by Ed Olsen
+// AprilTags3 by Ed Olsen
 extern "C" {
 #include "apriltag/apriltag.h"
 #include "apriltag/tag36h11.h"
 #include "apriltag/common/getopt.h"
 }
 
+// AprilTags by Michael Kaess
+#include "AprilTags/TagDetector.h"
+#include "AprilTags/Tag36h11.h"
+
 namespace yac {
+namespace internal {
+
+class GridDetector : public AprilTags::TagDetector {
+public:
+  GridDetector() : TagDetector(AprilTags::tagCodes36h11) {
+    thisTagFamily.blackBorder = 2;
+  }
+};
+
+} // namespace internal
 
 /* AprilGrid */
 class AprilGrid : public CalibTarget {
@@ -99,6 +117,9 @@ public:
   /** Load AprilGrid **/
   static AprilGrid load(const std::string &data_path);
 
+  /** Load AprilGrids **/
+  static std::vector<AprilGrid> loadDirectory(const std::string &dir_path);
+
   /** Draw AprilGrid */
   cv::Mat draw(const cv::Mat &image,
                const int marker_size = 2,
@@ -115,9 +136,24 @@ private:
   int tag_cols_ = 0;
   double tag_size_ = 0.0;
   double tag_spacing_ = 0.0;
+  int min_border_dist_ = 5;
 
+  // Ed Olsen's AprilTag detector
   apriltag_family_t *tf_ = tag36h11_create();
   apriltag_detector_t *det_ = apriltag_detector_create();
+
+  void olsenDetect(const cv::Mat &image,
+                   std::vector<int> &tag_ids,
+                   std::vector<int> &corner_indicies,
+                   std::vector<vec2_t> &keypoints);
+
+  // Michale Kaess's AprilTag detector
+  internal::GridDetector detector;
+
+  void kaessDetect(const cv::Mat &image,
+                   std::vector<int> &tag_ids,
+                   std::vector<int> &corner_indicies,
+                   std::vector<vec2_t> &keypoints);
 
 public:
   AprilGridDetector(const int tag_rows,

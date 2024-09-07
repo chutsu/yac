@@ -72,24 +72,11 @@ int AprilGrid::getTagRows() const { return tag_rows_; }
 
 int AprilGrid::getTagCols() const { return tag_cols_; }
 
-double AprilGrid::getTagSpacing() const { return tag_spacing_; }
-
 double AprilGrid::getTagSize() const { return tag_size_; }
 
-bool AprilGrid::has(const int tag_id, const int corner_index) const {
-  if (data_.count(tag_id) == 0) {
-    return false;
-  }
+double AprilGrid::getTagSpacing() const { return tag_spacing_; }
 
-  if (data_.at(tag_id).corner_indicies.count(corner_index) == 0) {
-    return false;
-  }
-
-  return true;
-}
-
-vec2_t AprilGrid::center() const {
-
+vec2_t AprilGrid::getCenter() const {
   double x = ((tag_cols_ / 2.0) * tag_size_);
   x += (((tag_cols_ / 2.0) - 1) * tag_spacing_ * tag_size_);
   x += (0.5 * tag_spacing_ * tag_size_);
@@ -128,12 +115,34 @@ void AprilGrid::getMeasurements(std::vector<int> &corner_ids,
   }
 }
 
+bool AprilGrid::has(const int tag_id, const int corner_index) const {
+  if (data_.count(tag_id) == 0) {
+    return false;
+  }
+
+  if (data_.at(tag_id).corner_indicies.count(corner_index) == 0) {
+    return false;
+  }
+
+  return true;
+}
+
 void AprilGrid::add(const int tag_id,
                     const int corner_index,
                     const vec2_t &kp) {
+  if (tag_id < 0 || tag_id >= (tag_rows_ * tag_cols_)) {
+    return;
+  }
+
   if (data_.count(tag_id) == 0) {
     data_[tag_id] = TagDetection();
   }
+
+  printf("tag_id: %d, corner_index: %d, keypoint: (%.2f, %.2f)\n",
+         tag_id,
+         corner_index,
+         kp.x(),
+         kp.y());
 
   data_[tag_id].corner_indicies.insert(corner_index);
   data_[tag_id].keypoints[corner_index] = kp;
@@ -190,13 +199,11 @@ cv::Mat AprilGrid::draw(const cv::Mat &image,
   return image_rgb;
 }
 
-// void AprilGrid::imshow(const std::string &title, const cv::Mat &image) const
-// {
-//
-//   cv::imshow(title, draw(image));
-//   cv::waitKey(1);
-// }
-//
+void AprilGrid::imshow(const std::string &title, const cv::Mat &image) const {
+  cv::imshow(title, draw(image));
+  cv::waitKey(1);
+}
+
 // int AprilGrid::estimate(const CameraModel *cam,
 //                         const int cam_res[2],
 //                         const vecx_t &cam_params,
@@ -222,7 +229,6 @@ cv::Mat AprilGrid::draw(const cv::Mat &image,
 // }
 
 int AprilGrid::save(const std::string &save_path) const {
-
   // Check save dir
   const std::string dir_path = dir_name(save_path);
   if (dir_create(dir_path) != 0) {
@@ -237,49 +243,36 @@ int AprilGrid::save(const std::string &save_path) const {
     return -1;
   }
 
-  // Output header
-  // -- Configuration
-  fprintf(fp, "#");
-  fprintf(fp, "ts,");
-  fprintf(fp, "tag_rows,");
-  fprintf(fp, "tag_cols,");
-  fprintf(fp, "tag_size,");
-  fprintf(fp, "tag_spacing,");
-  // -- Keypoint
-  fprintf(fp, "kp_x,kp_y,");
-  // -- Object point
-  fprintf(fp, "p_x,p_y,p_z,");
-  // -- tag_id, corner_index
-  fprintf(fp, "tag_id,corner_index");
-  fprintf(fp, "\n");
+  // Get measurement data
+  std::vector<int> tag_ids;
+  std::vector<int> corner_indicies;
+  vec2s_t keypoints;
+  vec3s_t object_points;
+  getMeasurements(tag_ids, corner_indicies, keypoints, object_points);
 
-  // Output data
-  // if (detected) {
-  //   vec2s_t kps = keypoints();
-  //   for (long i = 0; i < data.rows(); i++) {
-  //     const int tag_id = int(i / 4);
-  //     const int corner_index = (i % 4);
-  //
-  //     int corner_detected = data(i, 0);
-  //     if (corner_detected > 0) {
-  //       const vec2_t kp = data.block(i, 1, 1, 2).transpose();
-  //       const vec3_t p = data.block(i, 3, 1, 3).transpose();
-  //       fprintf(fp, "%ld,", timestamp);
-  //       fprintf(fp, "%d,", tag_rows);
-  //       fprintf(fp, "%d,", tag_cols);
-  //       fprintf(fp, "%f,", tag_size);
-  //       fprintf(fp, "%f,", tag_spacing);
-  //       fprintf(fp, "%.10f,", kp.x());
-  //       fprintf(fp, "%.10f,", kp.y());
-  //       fprintf(fp, "%f,", p(0));
-  //       fprintf(fp, "%f,", p(1));
-  //       fprintf(fp, "%f,", p(2));
-  //       fprintf(fp, "%d,", tag_id);
-  //       fprintf(fp, "%d", corner_index);
-  //       fprintf(fp, "\n");
-  //     }
-  //   }
-  // }
+  // Output header
+  fprintf(fp, "timestamp %ld\n", ts_);
+  fprintf(fp, "num_rows %d\n", tag_rows_);
+  fprintf(fp, "num_cols %d\n", tag_cols_);
+  fprintf(fp, "tag_size %f\n", tag_size_);
+  fprintf(fp, "tag_spacing %f\n", tag_spacing_);
+  fprintf(fp, "corners_detected %ld\n", corner_indicies.size());
+  fprintf(fp, "\n");
+  fprintf(fp, "# tag_id corner_index kp_x kp_y pt_x pt_y pt_z\n");
+  for (size_t i = 0; i < corner_indicies.size(); i++) {
+    const int tag_id = tag_ids[i];
+    const int corner_index = corner_indicies[i];
+    const vec2_t kp = keypoints[i];
+    const vec3_t pt = object_points[i];
+
+    fprintf(fp, "%d ", tag_id);
+    fprintf(fp, "%d ", corner_index);
+    fprintf(fp, "%lf ", kp.x());
+    fprintf(fp, "%lf ", kp.y());
+    fprintf(fp, "%lf ", pt.x());
+    fprintf(fp, "%lf ", pt.y());
+    fprintf(fp, "%lf\n", pt.z());
+  }
 
   // Close up
   fclose(fp);
@@ -303,7 +296,7 @@ static void aprilgrid_parse_line(FILE *fp,
   }
 
   // Split key-value
-  char delim[2] = ":";
+  char delim[2] = " ";
   char *key_str = strtok(buf, delim);
   char *value_str = strtok(NULL, delim);
 
@@ -349,20 +342,19 @@ AprilGrid AprilGrid::load(const std::string &data_path) {
   int tag_cols = 0;
   double tag_size = 0;
   double tag_spacing = 0;
+  int corners_detected = 0;
   aprilgrid_parse_line(fp, "timestamp", "uint64_t", &ts);
   aprilgrid_parse_line(fp, "num_rows", "int", &tag_rows);
   aprilgrid_parse_line(fp, "num_cols", "int", &tag_cols);
   aprilgrid_parse_line(fp, "tag_size", "double", &tag_size);
   aprilgrid_parse_line(fp, "tag_spacing", "double", &tag_spacing);
-  aprilgrid_parse_skip_line(fp);
-
-  // Parse data
-  AprilGrid grid{ts, tag_rows, tag_cols, tag_size, tag_spacing};
-  int corners_detected = 0;
   aprilgrid_parse_line(fp, "corners_detected", "int", &corners_detected);
   aprilgrid_parse_skip_line(fp);
+  aprilgrid_parse_skip_line(fp);
+  AprilGrid grid{ts, tag_rows, tag_cols, tag_size, tag_spacing};
 
-  const char *scan_format = "%d,%d,%lf,%lf,%lf,%lf,%lf";
+  // Parse data
+  const char *scan_format = "%d %d %lf %lf %lf %lf %lf";
   for (int i = 0; i < corners_detected; i++) {
     // Parse data line
     int tag_id = 0;
@@ -379,25 +371,9 @@ AprilGrid AprilGrid::load(const std::string &data_path) {
                               &p[1],
                               &p[2]);
     if (retval != 7) {
-      FATAL("Failed to parse data line in [%s]\n", data_path.c_str());
+      FATAL("Failed to parse data line %d in [%s]\n", i, data_path.c_str());
     }
-
-    // // Resize data if not already
-    // if (data.rows() == 0 && data.cols() == 0) {
-    //   data.resize(tag_rows * tag_cols * 4, 6);
-    //   data.setZero();
-    // }
-
-    // // Map variables back to data
-    // const int data_row = (tag_id * 4) + corner_index;
-    // data(data_row, 0) = 1.0;
-    // data(data_row, 1) = kp[0];
-    // data(data_row, 2) = kp[1];
-    // data(data_row, 3) = p[0];
-    // data(data_row, 4) = p[1];
-    // data(data_row, 5) = p[2];
-    // detected = true;
-    // nb_detections++;
+    grid.add(tag_id, corner_index, {kp[0], kp[1]});
   }
 
   // Clean up
@@ -425,5 +401,51 @@ AprilGrid AprilGrid::load(const std::string &data_path) {
 // //
 // //   return grids;
 // // }
+
+AprilGridDetector::AprilGridDetector(const int tag_rows,
+                                     const int tag_cols,
+                                     const double tag_size,
+                                     const double tag_spacing)
+    : tag_rows_{tag_rows}, tag_cols_{tag_cols}, tag_size_{tag_size},
+      tag_spacing_{tag_spacing} {
+  det_->quad_decimate = 1.0;
+  det_->quad_sigma = 0.0; // Blur
+  det_->nthreads = 2;
+  det_->debug = 0;
+  det_->refine_edges = 1;
+}
+
+AprilGridDetector::~AprilGridDetector() {
+  apriltag_detector_destroy(det_);
+  tag36h11_destroy(tf_);
+}
+
+AprilGrid AprilGridDetector::detect(const timestamp_t ts,
+                                    const cv::Mat &image) {
+  // Make an image_u8_t header for the Mat data
+  image_u8_t im = {.width = image.cols,
+                   .height = image.rows,
+                   .stride = image.cols,
+                   .buf = image.data};
+
+  // Detector tags
+  zarray_t *detections = apriltag_detector_detect(det_, &im);
+  AprilGrid grid{ts, tag_rows_, tag_cols_, tag_size_, tag_spacing_};
+
+  for (int i = 0; i < zarray_size(detections); i++) {
+    apriltag_detection_t *det;
+    zarray_get(detections, i, &det);
+
+    const auto tag_id = det->id;
+    const auto kps = det->p;
+    grid.add(tag_id, 0, vec2_t(kps[0][0], kps[0][1])); // Bottom left
+    grid.add(tag_id, 1, vec2_t(kps[1][0], kps[1][1])); // Bottom right
+    grid.add(tag_id, 2, vec2_t(kps[2][0], kps[2][1])); // Top right
+    grid.add(tag_id, 3, vec2_t(kps[3][0], kps[3][1])); // Top left
+  }
+  apriltag_detections_destroy(detections);
+
+  return grid;
+}
 
 } // namespace yac

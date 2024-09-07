@@ -2,26 +2,19 @@
 
 #include <string>
 #include <algorithm>
+#include <set>
 #include <unordered_map>
-#include <unordered_set>
 
 #include "Core.hpp"
 #include "CameraModel.hpp"
 #include "CalibTarget.hpp"
 
-// /// AprilTags3 by Ed Olsen
-// extern "C" {
-// #include "apriltag/apriltag.h"
-// #include "apriltag/tag36h11.h"
-// #include "apriltag/tag25h9.h"
-// #include "apriltag/tag16h5.h"
-// #include "apriltag/tagCircle21h7.h"
-// #include "apriltag/tagCircle49h12.h"
-// #include "apriltag/tagCustom48h12.h"
-// #include "apriltag/tagStandard41h12.h"
-// #include "apriltag/tagStandard52h13.h"
-// #include "apriltag/common/getopt.h"
-// }
+/// AprilTags3 by Ed Olsen
+extern "C" {
+#include "apriltag/apriltag.h"
+#include "apriltag/tag36h11.h"
+#include "apriltag/common/getopt.h"
+}
 
 namespace yac {
 
@@ -38,7 +31,7 @@ private:
 
   // Data
   struct TagDetection {
-    std::unordered_set<int> corner_indicies;
+    std::set<int> corner_indicies;
     std::unordered_map<int, vec2_t> keypoints;
     std::unordered_map<int, vec3_t> object_points;
   };
@@ -68,17 +61,14 @@ public:
   /** Return number of tag cols */
   int getTagCols() const;
 
-  /** Return number of tag spacing */
-  double getTagSpacing() const;
-
   /** Return number of tag size */
   double getTagSize() const;
 
-  /** Get the center of the AprilGrid */
-  vec2_t center() const;
+  /** Return number of tag spacing */
+  double getTagSpacing() const;
 
-  /** Check to see if AprilGrid has specific tag id and corner index */
-  bool has(const int tag_id, const int corner_index) const;
+  /** Get the center of the AprilGrid */
+  vec2_t getCenter() const;
 
   /** Get all measurements */
   void getMeasurements(std::vector<int> &tag_ids,
@@ -90,6 +80,9 @@ public:
   void getMeasurements(std::vector<int> &corner_ids,
                        vec2s_t &keypoints,
                        vec3s_t &object_points) const override;
+
+  /** Check to see if AprilGrid has specific tag id and corner index */
+  bool has(const int tag_id, const int corner_index) const;
 
   /** Add measurmeent */
   void add(const int tag_id, const int corner_index, const vec2_t &kp);
@@ -113,6 +106,29 @@ public:
 
   /** Imshow AprilGrid */
   void imshow(const std::string &title, const cv::Mat &image) const;
+};
+
+/** AprilGrid Detector **/
+class AprilGridDetector {
+private:
+  int tag_rows_ = 0;
+  int tag_cols_ = 0;
+  double tag_size_ = 0.0;
+  double tag_spacing_ = 0.0;
+
+  apriltag_family_t *tf_ = tag36h11_create();
+  apriltag_detector_t *det_ = apriltag_detector_create();
+
+public:
+  AprilGridDetector(const int tag_rows,
+                    const int tag_cols,
+                    const double tag_size,
+                    const double tag_spacing);
+
+  virtual ~AprilGridDetector();
+
+  /** Detect AprilGrid **/
+  AprilGrid detect(const timestamp_t ts, const cv::Mat &image);
 };
 
 } // namespace yac

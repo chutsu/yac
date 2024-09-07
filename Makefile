@@ -24,10 +24,10 @@ help:
 
 third_party: ## Build third party
 	@echo "[Build Third Party]"
-	@make -s -C third_party
+	@make -s -C third_party all
 
-debug: third_party  ## Build in debug mode
+debug: ## Build in debug mode
 	$(call cmake_build,lib,Debug)
 
-release: third_party  ## Build in release mode
+release: ## Build in release mode
 	$(call cmake_build,lib,Release)

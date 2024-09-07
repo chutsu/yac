@@ -22,3 +22,6 @@
 [submodule "third_party/src/apriltags"]
 	path = third_party/src/apriltags
 	url = https://bitbucket.org/kaess/apriltags
+[submodule "third_party/src/yaml-cpp"]
+	path = third_party/src/yaml-cpp
+	url = https://github.com/jbeder/yaml-cpp

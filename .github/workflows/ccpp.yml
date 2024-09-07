@@ -7,11 +7,14 @@ jobs:
     steps:
     - uses: actions/checkout@master
 
-    - name: install dependencies
+    - name: Initialize git submodules
       run: sudo make third_party
 
-    # - name: build yac
-    #   run: sudo make lib
+    - name: Install dependencies
+      run: sudo make third_party
+
+    - name: Build libyac
+      run: sudo make lib
 
     # - name: run tests
     #   run: make tests

@@ -24,7 +24,8 @@ help:
 
 default: setup
 .PHONY: setup clean
-.PHONY: build_abseil build_gtest build_eigen build_suitesparse
+.PHONY: build_yaml build_abseil build_gtest
+.PHONY: build_eigen build_suitesparse
 .PHONY: build_ceres build_opencv build_apriltag build_apriltags
 
 setup:
@@ -42,7 +43,10 @@ clean: ## Clean
 	@rm -rf log
 	@rm -rf share
 
-build_abseil:  ## Build GTest
+build_yaml:  ## Build yaml
+	$(call cmake_build,yaml-cpp)
+
+build_abseil:  ## Build abseil
 	$(call cmake_build,abseil-cpp)
 
 build_gtest:  ## Build GTest
@@ -68,6 +72,7 @@ build_apriltags: build_eigen build_opencv  ## Build AprilTags
 	$(call cmake_build,apriltags)
 
 BUILD_TARGETS := \
+	build_yaml \
 	build_abseil \
 	build_gtest \
 	build_eigen \

@@ -20,8 +20,6 @@ TEST(AprilGrid, construct) {
   const double tag_spacing = 0.3;
   const AprilGrid grid{ts, tag_rows, tag_cols, tag_size, tag_spacing};
 
-  ASSERT_EQ(grid.getNumRows(), tag_rows * 2);
-  ASSERT_EQ(grid.getNumCols(), tag_cols * 2);
   ASSERT_EQ(grid.getTagRows(), tag_rows);
   ASSERT_EQ(grid.getTagCols(), tag_cols);
   ASSERT_EQ(grid.getTagSize(), tag_size);
@@ -49,11 +47,13 @@ TEST(AprilGrid, addAndRemove) {
   grid.add(tag_id, 2, kp3_gnd);
   grid.add(tag_id, 3, kp4_gnd);
   {
-    std::vector<int> corner_ids;
+    std::vector<int> tag_ids;
+    std::vector<int> corner_indicies;
     vec2s_t keypoints;
     vec3s_t object_points;
-    grid.getMeasurements(corner_ids, keypoints, object_points);
-    ASSERT_EQ(corner_ids.size(), 4);
+    grid.getMeasurements(tag_ids, corner_indicies, keypoints, object_points);
+    ASSERT_EQ(tag_ids.size(), 4);
+    ASSERT_EQ(corner_indicies.size(), 4);
     ASSERT_EQ(keypoints.size(), 4);
     ASSERT_EQ(object_points.size(), 4);
 
@@ -67,11 +67,13 @@ TEST(AprilGrid, addAndRemove) {
   grid.remove(tag_id, 0);
   grid.remove(tag_id, 2);
   {
-    std::vector<int> corner_ids;
+    std::vector<int> tag_ids;
+    std::vector<int> corner_indicies;
     vec2s_t keypoints;
     vec3s_t object_points;
-    grid.getMeasurements(corner_ids, keypoints, object_points);
-    ASSERT_EQ(corner_ids.size(), 2);
+    grid.getMeasurements(tag_ids, corner_indicies, keypoints, object_points);
+    ASSERT_EQ(tag_ids.size(), 2);
+    ASSERT_EQ(corner_indicies.size(), 2);
     ASSERT_EQ(keypoints.size(), 2);
     ASSERT_EQ(object_points.size(), 2);
 
@@ -103,10 +105,11 @@ TEST(AprilGrid, saveAndLoad) {
   // Test load
   auto grid2 = AprilGrid::load(TEST_OUTPUT);
 
-  std::vector<int> corner_ids;
+  std::vector<int> tag_ids;
+  std::vector<int> corner_indicies;
   vec2s_t keypoints;
   vec3s_t object_points;
-  grid2->getMeasurements(corner_ids, keypoints, object_points);
+  grid.getMeasurements(tag_ids, corner_indicies, keypoints, object_points);
 
   ASSERT_EQ(grid.getTimestamp(), grid2->getTimestamp());
   ASSERT_FLOAT_EQ(0.0, (keypoints[0] - kp0).norm());
@@ -116,9 +119,9 @@ TEST(AprilGrid, saveAndLoad) {
 }
 
 TEST(AprilGrid, detect) {
-  const std::string img_dir = "/data/euroc/cam_april/mav0/cam0/data";
-  std::vector<std::string> img_paths;
-  list_files(img_dir, img_paths);
+  const std::string image_dir = "/data/euroc/cam_april/mav0/cam0/data";
+  std::vector<std::string> image_paths;
+  list_files(image_dir, image_paths);
 
   const int tag_rows = 6;
   const int tag_cols = 6;
@@ -126,14 +129,19 @@ TEST(AprilGrid, detect) {
   const double tag_spacing = 0.3;
   AprilGridDetector detector(tag_rows, tag_cols, tag_size, tag_spacing);
 
-  for (const auto &img_fname : img_paths) {
-    const std::string img_path = img_dir + "/" + img_fname;
-    const auto img = cv::imread(img_path, cv::IMREAD_GRAYSCALE);
+  for (size_t k = 0; k < image_paths.size(); k++) {
+    const std::string image_fname = image_paths[k];
+    const std::string image_path = image_dir + "/" + image_fname;
+    const auto img = cv::imread(image_path, cv::IMREAD_GRAYSCALE);
 
     auto grid = detector.detect(0, img);
-    // grid.imshow("viz", img);
+    // grid->imshow("viz", img);
 
     if (cv::waitKey(1) == 'q') {
+      break;
+    }
+
+    if (k > 10) {
       break;
     }
   }

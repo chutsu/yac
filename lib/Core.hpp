@@ -131,6 +131,14 @@ namespace yac {
   }
 #endif
 
+/******************************************************************************
+ *                                PROGRESS
+ *****************************************************************************/
+
+#define PBSTR "||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||"
+#define PBWIDTH 60
+
+void print_progress(double percentage, const std::string &prefix = "");
 
 /******************************************************************************
  *                                DATA TYPE
@@ -147,18 +155,20 @@ typedef std::vector<timestamp_t> timestamps_t;
 #define col_major_t Eigen::ColMajor
 #define row_major_t Eigen::RowMajor
 
-using veci2_t = Eigen::Matrix<int, 2, 1>;
-using veci3_t = Eigen::Matrix<int, 3, 1>;
-using veci4_t = Eigen::Matrix<int, 4, 1>;
-using veci5_t = Eigen::Matrix<int, 5, 1>;
-using veci6_t = Eigen::Matrix<int, 6, 1>;
-using vecix_t = Eigen::Matrix<int, dynamic_t, 1>;
+using vec2i_t = Eigen::Matrix<int, 2, 1>;
+using vec3i_t = Eigen::Matrix<int, 3, 1>;
+using vec4i_t = Eigen::Matrix<int, 4, 1>;
+using vec5i_t = Eigen::Matrix<int, 5, 1>;
+using vec6i_t = Eigen::Matrix<int, 6, 1>;
+using vec7i_t = Eigen::Matrix<int, 7, 1>;
+using vecxi_t = Eigen::Matrix<int, dynamic_t, 1>;
 
 using vec2_t = Eigen::Matrix<double, 2, 1>;
 using vec3_t = Eigen::Matrix<double, 3, 1>;
 using vec4_t = Eigen::Matrix<double, 4, 1>;
 using vec5_t = Eigen::Matrix<double, 5, 1>;
 using vec6_t = Eigen::Matrix<double, 6, 1>;
+using vec7_t = Eigen::Matrix<double, 7, 1>;
 using vecx_t = Eigen::Matrix<double, dynamic_t, 1>;
 
 using vec2s_t = std::vector<vec2_t, Eigen::aligned_allocator<vec2_t>>;
@@ -166,7 +176,8 @@ using vec3s_t = std::vector<vec3_t, Eigen::aligned_allocator<vec3_t>>;
 using vec4s_t = std::vector<vec4_t, Eigen::aligned_allocator<vec4_t>>;
 using vec5s_t = std::vector<vec5_t, Eigen::aligned_allocator<vec5_t>>;
 using vec6s_t = std::vector<vec6_t, Eigen::aligned_allocator<vec6_t>>;
-using vecxs_t = std::vector<vecx_t, Eigen::aligned_allocator<vec6_t>>;
+using vec7s_t = std::vector<vec7_t, Eigen::aligned_allocator<vec7_t>>;
+using vecxs_t = std::vector<vecx_t, Eigen::aligned_allocator<vecx_t>>;
 
 using row_vector_t = Eigen::Matrix<double, 1, dynamic_t>;
 using col_vector_t = Eigen::Matrix<double, dynamic_t, 1>;
@@ -209,7 +220,6 @@ using quat_t = Eigen::Quaternion<double>;
 using quats_t = std::vector<quat_t, Eigen::aligned_allocator<quat_t>>;
 using angle_axis_t = Eigen::AngleAxis<double>;
 using arrayx_t = Eigen::Array<double, dynamic_t, 1>;
-
 
 /******************************************************************************
  *                                FILESYSTEM
@@ -465,27 +475,42 @@ int parse(const config_t &config,
 
 int parse(const config_t &config,
           const std::string &key,
+          vec5_t &vec,
+          const bool optional = false);
+
+int parse(const config_t &config,
+          const std::string &key,
+          vec6_t &vec,
+          const bool optional = false);
+
+int parse(const config_t &config,
+          const std::string &key,
+          vec7_t &vec,
+          const bool optional = false);
+
+int parse(const config_t &config,
+          const std::string &key,
           vecx_t &vec,
           const bool optional = false);
 
 int parse(const config_t &config,
           const std::string &key,
-          veci2_t &vec,
+          vec2i_t &vec,
           const bool optional = false);
 
 int parse(const config_t &config,
           const std::string &key,
-          veci3_t &vec,
+          vec3i_t &vec,
           const bool optional = false);
 
 int parse(const config_t &config,
           const std::string &key,
-          veci4_t &vec,
+          vec4i_t &vec,
           const bool optional = false);
 
 int parse(const config_t &config,
           const std::string &key,
-          vecix_t &vec,
+          vecxi_t &vec,
           const bool optional = false);
 
 int parse(const config_t &config,
@@ -543,15 +568,15 @@ size_t yaml_check_vector(const YAML::Node &node,
   } else if (std::is_same<T, vecx_t>::value) {
     vector_size = node.size();
     return vector_size; // Don't bother, it could be anything
-  } else if (std::is_same<T, veci2_t>::value) {
+  } else if (std::is_same<T, vec2i_t>::value) {
     vector_size = 2;
-  } else if (std::is_same<T, veci3_t>::value) {
+  } else if (std::is_same<T, vec3i_t>::value) {
     vector_size = 3;
-  } else if (std::is_same<T, veci4_t>::value) {
+  } else if (std::is_same<T, vec4i_t>::value) {
     vector_size = 4;
-  } else if (std::is_same<T, veci5_t>::value) {
+  } else if (std::is_same<T, vec5i_t>::value) {
     vector_size = 5;
-  } else if (std::is_same<T, vecix_t>::value) {
+  } else if (std::is_same<T, vecxi_t>::value) {
     vector_size = node.size();
     return vector_size; // Don't bother, it could be anything
   } else {

@@ -2,96 +2,84 @@
 
 namespace yac {
 
-static void
-parse_line(FILE *fp, const char *key, const char *value_type, void *value) {
-  assert(fp != NULL);
-  assert(key != NULL);
-  assert(value_type != NULL);
-  assert(value != NULL);
-
-  // Parse line
-  const size_t buf_len = 1024;
-  char buf[1024] = {0};
-  if (fgets(buf, buf_len, fp) == NULL) {
-    FATAL("Failed to parse [%s]\n", key);
-  }
-
-  // Split key-value
-  char delim[2] = " ";
-  char *key_str = strtok(buf, delim);
-  char *value_str = strtok(NULL, delim);
-
-  // Check key matches
-  if (strcmp(key_str, key) != 0) {
-    FATAL("Failed to parse [%s]\n", key);
-  }
-
-  // Typecase value
-  if (value_type == NULL) {
-    FATAL("Value type not set!\n");
-  }
-
-  if (strcmp(value_type, "uint64_t") == 0) {
-    *(uint64_t *)value = atol(value_str);
-  } else if (strcmp(value_type, "int") == 0) {
-    *(int *)value = atoi(value_str);
-  } else if (strcmp(value_type, "double") == 0) {
-    *(double *)value = atof(value_str);
-  } else if (strcmp(value_type, "string") == 0) {
-    *(std::string *)value = value_str;
-  } else {
-    FATAL("Invalid value type [%s]\n", value_type);
-  }
-}
-
-static void parse_skip_line(FILE *fp) {
-  assert(fp != NULL);
-  const size_t buf_len = 1024;
-  char buf[1024] = {0};
-  char *retval = fgets(buf, buf_len, fp);
-  UNUSED(retval);
-}
-
 CalibData::CalibData(const std::string &config_path)
     : config_path_{config_path} {}
 
+void CalibData::addCamera(const int camera_index,
+                          const std::string &camera_model,
+                          const vec2i_t &resolution,
+                          const vecx_t &intrinsic,
+                          const vec7_t &extrinsic) {
+  camera_geoms_[camera_index] = std::make_shared<CameraGeometry>(camera_index,
+                                                                 camera_model,
+                                                                 resolution,
+                                                                 intrinsic,
+                                                                 extrinsic);
+}
+
 void CalibData::loadConfig(const std::string &config_path) {
-  FILE *fp = fopen(config_path.c_str(), "r");
-  if (fp == NULL) {
-    FATAL("Failed to open [%s]!\n", config_path.c_str());
+  // Parse config
+  config_t config{config_path};
+
+  // -- Parse data settings
+  parse(config, "data_path", data_path_);
+
+  // -- Parse target settings
+  parse(config, "calibration_target.target_type", target_type_);
+  parse(config, "calibration_target.tag_rows", tag_rows_);
+  parse(config, "calibration_target.tag_cols", tag_cols_);
+  parse(config, "calibration_target.tag_size", tag_size_);
+  parse(config, "calibration_target.tag_spacing", tag_spacing_);
+
+  // -- Parse camera settings
+  for (int camera_index = 0; camera_index < 100; camera_index++) {
+    // Check if key exists
+    const std::string prefix = "cam" + std::to_string(camera_index);
+    if (yaml_has_key(config, prefix) == 0) {
+      continue;
+    }
+
+    // Load camera data
+    loadCameraData(camera_index);
+
+    // Parse
+    vec2i_t resolution;
+    std::string camera_model;
+    parse(config, prefix + ".resolution", resolution);
+    parse(config, prefix + ".camera_model", camera_model);
+
+    vecx_t intrinsic;
+    if (yaml_has_key(config, prefix + ".intrinsic")) {
+      parse(config, prefix + ".intrinsic", intrinsic);
+    }
+
+    vec7_t extrinsic;
+    if (yaml_has_key(config, prefix + ".extrinsic")) {
+      parse(config, prefix + ".extrinsic", extrinsic);
+    } else {
+      extrinsic << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0;
+    }
+
+    // Add camera
+    addCamera(camera_index, camera_model, resolution, intrinsic, extrinsic);
   }
-
-  // Calibration settings
-  std::string dataset_path;
-  int num_cams;
-  int num_imus;
-  parse_line(fp, "dataset_path", "string", &dataset_path);
-  parse_line(fp, "num_cams", "int", &num_cams);
-  parse_line(fp, "num_imus", "int", &num_imus);
-
-  // Calibration target settings
-  parse_line(fp, "target_type", "string", &target_type_);
-  parse_line(fp, "target_rows", "int", &target_rows_);
-  parse_line(fp, "target_cols", "int", &target_cols_);
-  parse_line(fp, "target_size", "double", &target_size_);
-  parse_line(fp, "target_spacing", "double", &target_spacing_);
-  parse_skip_line(fp);
-
-  fclose(fp);
 }
 
 void CalibData::loadCameraData(const int camera_index) {
+  assert(target_type_ == "aprilgrid");
+  assert(tag_rows_ > 0);
+  assert(tag_cols_ > 0);
+  assert(tag_size_ > 0);
+  assert(tag_spacing_ > 0);
+
   // Setup detector
-  const AprilGridDetector detector{target_rows_,
-                                   target_cols_,
-                                   target_size_,
-                                   target_spacing_};
+  AprilGridDetector detector{tag_rows_, tag_cols_, tag_size_, tag_spacing_};
 
   // Form calibration target path
   const std::string camera_string = "cam" + std::to_string(camera_index);
-  const std::string camera_path = dir_path_ + "/" + camera_string;
-  std::string target_dir = dir_path_;
-  target_dir += (dir_path_.back() == '/') ? "" : "/";
+  const std::string camera_path = data_path_ + "/" + camera_string;
+  std::string target_dir = data_path_;
+  target_dir += (data_path_.back() == '/') ? "" : "/";
   target_dir += "calib_target/" + camera_string;
 
   // Create grids path
@@ -104,8 +92,9 @@ void CalibData::loadCameraData(const int camera_index) {
   list_files(camera_path, image_paths);
 
   // Detect aprilgrids
-#pragma omp parallel for
+  const std::string desc = "Loading " + camera_string + " data: ";
   for (size_t k = 0; k < image_paths.size(); k++) {
+    print_progress((double) k / (double) image_paths.size(), desc);
     const std::string image_fname = image_paths[k];
     const std::string image_path = camera_path + "/" + image_fname;
     const std::string ts_str = image_fname.substr(0, 19);
@@ -119,25 +108,16 @@ void CalibData::loadCameraData(const int camera_index) {
     const auto image = cv::imread(image_path, cv::IMREAD_GRAYSCALE);
 
     // Load or detect apriltag
+    std::shared_ptr<AprilGrid> calib_target;
     if (file_exists(target_path)) {
-      camera_data_[camera_index][ts] = AprilGrid::load(target_path);
+      calib_target = AprilGrid::load(target_path);
     } else {
-      // camera_data_[camera_index][ts] = detector.detect(ts, image);
-      // camera_data_[camera_index][ts].save(target_path);
+      calib_target = detector.detect(ts, image);
+      calib_target->save(target_path);
     }
-
-    // Imshow
-    // if (imshow) {
-    //   grid.imshow("viz", image);
-    //   cv::waitKey(1);
-    // }
-
-    // camera_data[camera_index][ts] = grid;
-    if ((k % 100) == 0) {
-      printf(".");
-      fflush(stdout);
-    }
+    camera_data_[camera_index][ts] = calib_target;
   }
+  printf("\n");
 }
 
 // void lerp_body_poses(const CalibTarget &grids,

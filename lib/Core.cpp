@@ -3,6 +3,18 @@
 namespace yac {
 
 /******************************************************************************
+ *                                PROGRESS
+ *****************************************************************************/
+
+void print_progress(double percentage, const std::string &prefix) {
+  int val = (int)(percentage * 100);
+  int lpad = (int)(percentage * PBWIDTH);
+  int rpad = PBWIDTH - lpad;
+  printf("\r%s [%.*s%*s]%3d%%", prefix.c_str(), lpad, PBSTR, rpad, "", val);
+  fflush(stdout);
+}
+
+/******************************************************************************
  *                               FILESYSTEM
  *****************************************************************************/
 
@@ -461,6 +473,58 @@ int parse(const config_t &config,
 
 int parse(const config_t &config,
           const std::string &key,
+          vec5_t &vec,
+          const bool optional) {
+  // Get node
+  YAML::Node node;
+  if (yaml_get_node(config, key, optional, node) != 0) {
+    return -1;
+  }
+
+  // Parse
+  yaml_check_vector<vec5_t>(node, key, optional);
+  vec << node[0].as<double>(), node[1].as<double>(), node[2].as<double>(),
+      node[3].as<double>(), node[4].as<double>();
+  return 0;
+}
+
+int parse(const config_t &config,
+          const std::string &key,
+          vec6_t &vec,
+          const bool optional) {
+  // Get node
+  YAML::Node node;
+  if (yaml_get_node(config, key, optional, node) != 0) {
+    return -1;
+  }
+
+  // Parse
+  yaml_check_vector<vec6_t>(node, key, optional);
+  vec << node[0].as<double>(), node[1].as<double>(), node[2].as<double>(),
+      node[3].as<double>(), node[4].as<double>(), node[5].as<double>();
+  return 0;
+}
+
+int parse(const config_t &config,
+          const std::string &key,
+          vec7_t &vec,
+          const bool optional) {
+  // Get node
+  YAML::Node node;
+  if (yaml_get_node(config, key, optional, node) != 0) {
+    return -1;
+  }
+
+  // Parse
+  yaml_check_vector<vec7_t>(node, key, optional);
+  vec << node[0].as<double>(), node[1].as<double>(), node[2].as<double>(),
+      node[3].as<double>(), node[4].as<double>(), node[5].as<double>(),
+      node[6].as<double>();
+  return 0;
+}
+
+int parse(const config_t &config,
+          const std::string &key,
           vecx_t &vec,
           const bool optional) {
   // Get node
@@ -480,7 +544,7 @@ int parse(const config_t &config,
 
 int parse(const config_t &config,
           const std::string &key,
-          veci2_t &vec,
+          vec2i_t &vec,
           const bool optional) {
   // Get node
   YAML::Node node;
@@ -489,14 +553,14 @@ int parse(const config_t &config,
   }
 
   // Parse
-  yaml_check_vector<veci2_t>(node, key, optional);
-  vec = veci2_t{node[0].as<int>(), node[1].as<int>()};
+  yaml_check_vector<vec2i_t>(node, key, optional);
+  vec = vec2i_t{node[0].as<int>(), node[1].as<int>()};
   return 0;
 }
 
 int parse(const config_t &config,
           const std::string &key,
-          veci3_t &vec,
+          vec3i_t &vec,
           const bool optional) {
   // Get node
   YAML::Node node;
@@ -505,14 +569,14 @@ int parse(const config_t &config,
   }
 
   // Parse
-  yaml_check_vector<veci3_t>(node, key, optional);
-  vec = veci3_t{node[0].as<int>(), node[1].as<int>(), node[2].as<int>()};
+  yaml_check_vector<vec3i_t>(node, key, optional);
+  vec = vec3i_t{node[0].as<int>(), node[1].as<int>(), node[2].as<int>()};
   return 0;
 }
 
 int parse(const config_t &config,
           const std::string &key,
-          veci4_t &vec,
+          vec4i_t &vec,
           const bool optional) {
   // Get node
   YAML::Node node;
@@ -521,8 +585,8 @@ int parse(const config_t &config,
   }
 
   // Parse
-  yaml_check_vector<veci4_t>(node, key, optional);
-  vec = veci4_t{node[0].as<int>(),
+  yaml_check_vector<vec4i_t>(node, key, optional);
+  vec = vec4i_t{node[0].as<int>(),
                 node[1].as<int>(),
                 node[2].as<int>(),
                 node[3].as<int>()};
@@ -531,7 +595,7 @@ int parse(const config_t &config,
 
 int parse(const config_t &config,
           const std::string &key,
-          vecix_t &vec,
+          vecxi_t &vec,
           const bool optional) {
   // Get node
   YAML::Node node;
@@ -540,8 +604,8 @@ int parse(const config_t &config,
   }
 
   // Parse
-  const size_t vector_size = yaml_check_vector<vecix_t>(node, key, optional);
-  vec = vecix_t::Zero(vector_size, 1);
+  const size_t vector_size = yaml_check_vector<vecxi_t>(node, key, optional);
+  vec = vecxi_t::Zero(vector_size, 1);
   for (size_t i = 0; i < node.size(); i++) {
     vec(i) = node[i].as<int>();
   }

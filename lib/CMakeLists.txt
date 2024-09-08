@@ -24,17 +24,19 @@ find_package(GTest REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(apriltag REQUIRED)
-
+find_package(yaml-cpp REQUIRED)
 
 # Build libyac
 add_library(
   yac
   AprilGrid.cpp
+  CalibData.cpp
   CalibTarget.cpp
+  CameraGeometry.cpp
   CameraModel.cpp
   Core.cpp
 )
-set(yac_DEPS  Eigen3::Eigen ${OpenCV_LIBS} apriltag::apriltag apriltags)
+set(yac_DEPS yaml-cpp::yaml-cpp Eigen3::Eigen ${OpenCV_LIBS} apriltag::apriltag apriltags)
 target_link_libraries(yac ${yac_DEPS})
 
 # Build unit-tests

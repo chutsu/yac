@@ -299,7 +299,7 @@ static void aprilgrid_parse_skip_line(FILE *fp) {
   UNUSED(retval);
 }
 
-AprilGrid AprilGrid::load(const std::string &data_path) {
+std::shared_ptr<CalibTarget> AprilGrid::load(const std::string &data_path) {
   // Open file for loading
   FILE *fp = fopen(data_path.c_str(), "r");
   if (fp == NULL) {
@@ -321,7 +321,11 @@ AprilGrid AprilGrid::load(const std::string &data_path) {
   aprilgrid_parse_line(fp, "corners_detected", "int", &corners_detected);
   aprilgrid_parse_skip_line(fp);
   aprilgrid_parse_skip_line(fp);
-  AprilGrid grid{ts, tag_rows, tag_cols, tag_size, tag_spacing};
+  auto grid = std::make_shared<AprilGrid>(ts,
+                                          tag_rows,
+                                          tag_cols,
+                                          tag_size,
+                                          tag_spacing);
 
   // Parse data
   const char *scan_format = "%d %d %lf %lf %lf %lf %lf";
@@ -343,7 +347,7 @@ AprilGrid AprilGrid::load(const std::string &data_path) {
     if (retval != 7) {
       FATAL("Failed to parse data line %d in [%s]\n", i, data_path.c_str());
     }
-    grid.add(tag_id, corner_index, {kp[0], kp[1]});
+    grid->add(tag_id, corner_index, {kp[0], kp[1]});
   }
 
   // Clean up
@@ -352,14 +356,15 @@ AprilGrid AprilGrid::load(const std::string &data_path) {
   return grid;
 }
 
-std::vector<AprilGrid> AprilGrid::loadDirectory(const std::string &dir_path) {
+std::vector<std::shared_ptr<CalibTarget>>
+AprilGrid::loadDirectory(const std::string &dir_path) {
   std::vector<std::string> csv_files;
   if (list_dir(dir_path, csv_files) != 0) {
     FATAL("Failed to list dir [%s]!", dir_path.c_str());
   }
   sort(csv_files.begin(), csv_files.end());
 
-  std::vector<AprilGrid> grids;
+  std::vector<std::shared_ptr<CalibTarget>> grids;
   for (const auto &grid_csv : csv_files) {
     const auto csv_path = dir_path + "/" + grid_csv;
     grids.push_back(AprilGrid::load(grid_csv));

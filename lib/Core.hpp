@@ -40,6 +40,8 @@
 #include <unordered_set>
 #include <type_traits>
 
+#include <yaml-cpp/yaml.h>
+
 #include <Eigen/Core>
 #include <Eigen/Dense>
 #include <Eigen/Geometry>
@@ -53,6 +55,161 @@
 #include <opencv2/features2d/features2d.hpp>
 
 namespace yac {
+
+/******************************************************************************
+ *                                MACROS
+ *****************************************************************************/
+
+#define KNRM "\x1B[1;0m"
+#define KRED "\x1B[1;31m"
+#define KGRN "\x1B[1;32m"
+#define KYEL "\x1B[1;33m"
+#define KBLU "\x1B[1;34m"
+#define KMAG "\x1B[1;35m"
+#define KCYN "\x1B[1;36m"
+#define KWHT "\x1B[1;37m"
+
+#define STRINGIFY(x) #x
+#define TOSTRING(x) STRINGIFY(x)
+
+#define __FILENAME__                                                           \
+  (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
+
+#define LOG_ERROR(M, ...)                                                      \
+  fprintf(stderr,                                                              \
+          "\033[31m[ERROR] [%s:%d] " M "\033[0m\n",                            \
+          __FILENAME__,                                                        \
+          __LINE__,                                                            \
+          ##__VA_ARGS__)
+
+#define LOG_INFO(M, ...) fprintf(stdout, "[INFO] " M "\n", ##__VA_ARGS__)
+#define LOG_WARN(M, ...)                                                       \
+  fprintf(stdout, "\033[33m[WARN] " M "\033[0m\n", ##__VA_ARGS__)
+
+#define FATAL(M, ...)                                                          \
+  {                                                                            \
+    char msg[9046] = {0};                                                      \
+    sprintf(msg,                                                               \
+            "\033[31m[FATAL] [%s:%d] " M "\033[0m\n",                          \
+            __FILENAME__,                                                      \
+            __LINE__,                                                          \
+            ##__VA_ARGS__);                                                    \
+    throw std::runtime_error(msg);                                             \
+  }
+
+#define FATAL_ASSERT(X, M, ...)                                                \
+  if (!(X)) {                                                                  \
+    char msg[9046] = {0};                                                      \
+    sprintf(msg,                                                               \
+            "\033[31m[FATAL] [%s:%d] " M "\033[0m\n",                          \
+            __FILENAME__,                                                      \
+            __LINE__,                                                          \
+            ##__VA_ARGS__);                                                    \
+    throw std::runtime_error(msg);                                             \
+  }
+
+// #ifdef NDEBUG
+// #define DEBUG(M, ...)
+// #else
+// #define DEBUG(M, ...) fprintf(stdout, "[DEBUG] " M "\n", ##__VA_ARGS__)
+// #endif
+
+#define UNUSED(expr)                                                           \
+  do {                                                                         \
+    (void)(expr);                                                              \
+  } while (0)
+
+#ifndef CHECK
+#define CHECK(A)                                                               \
+  if (!(A)) {                                                                  \
+    char msg[9046] = {0};                                                      \
+    sprintf(msg,                                                               \
+            "\033[31m[CHECK FAILED] [%s:%d] " TOSTRING(A) "\033[0m\n",         \
+            __FILENAME__,                                                      \
+            __LINE__);                                                         \
+    throw std::runtime_error(msg);                                             \
+  }
+#endif
+
+
+/******************************************************************************
+ *                                DATA TYPE
+ *****************************************************************************/
+
+// -- TIMESTAMP ----------------------------------------------------------------
+
+typedef int64_t timestamp_t;
+typedef std::vector<timestamp_t> timestamps_t;
+
+// -- VECTOR ------------------------------------------------------------------
+
+#define dynamic_t Eigen::Dynamic
+#define col_major_t Eigen::ColMajor
+#define row_major_t Eigen::RowMajor
+
+using veci2_t = Eigen::Matrix<int, 2, 1>;
+using veci3_t = Eigen::Matrix<int, 3, 1>;
+using veci4_t = Eigen::Matrix<int, 4, 1>;
+using veci5_t = Eigen::Matrix<int, 5, 1>;
+using veci6_t = Eigen::Matrix<int, 6, 1>;
+using vecix_t = Eigen::Matrix<int, dynamic_t, 1>;
+
+using vec2_t = Eigen::Matrix<double, 2, 1>;
+using vec3_t = Eigen::Matrix<double, 3, 1>;
+using vec4_t = Eigen::Matrix<double, 4, 1>;
+using vec5_t = Eigen::Matrix<double, 5, 1>;
+using vec6_t = Eigen::Matrix<double, 6, 1>;
+using vecx_t = Eigen::Matrix<double, dynamic_t, 1>;
+
+using vec2s_t = std::vector<vec2_t, Eigen::aligned_allocator<vec2_t>>;
+using vec3s_t = std::vector<vec3_t, Eigen::aligned_allocator<vec3_t>>;
+using vec4s_t = std::vector<vec4_t, Eigen::aligned_allocator<vec4_t>>;
+using vec5s_t = std::vector<vec5_t, Eigen::aligned_allocator<vec5_t>>;
+using vec6s_t = std::vector<vec6_t, Eigen::aligned_allocator<vec6_t>>;
+using vecxs_t = std::vector<vecx_t, Eigen::aligned_allocator<vec6_t>>;
+
+using row_vector_t = Eigen::Matrix<double, 1, dynamic_t>;
+using col_vector_t = Eigen::Matrix<double, dynamic_t, 1>;
+
+template <int LENGTH, Eigen::StorageOptions STRIDE_TYPE = Eigen::ColMajor>
+using vec_t = Eigen::Matrix<double, LENGTH, 1, STRIDE_TYPE>;
+
+// -- MATRIX -------------------------------------------------------------------
+
+// clang-format off
+using mat2_t = Eigen::Matrix<double, 2, 2>;
+using mat3_t = Eigen::Matrix<double, 3, 3>;
+using mat4_t = Eigen::Matrix<double, 4, 4>;
+using matx_t = Eigen::Matrix<double, dynamic_t, dynamic_t>;
+using matx_row_major_t = Eigen::Matrix<double, dynamic_t, dynamic_t, row_major_t>;
+using mat34_t = Eigen::Matrix<double, 3, 4>;
+
+using mat2s_t = std::vector<mat2_t, Eigen::aligned_allocator<mat2_t>>;
+using mat3s_t = std::vector<mat3_t, Eigen::aligned_allocator<mat3_t>>;
+using mat4s_t = std::vector<mat4_t, Eigen::aligned_allocator<mat4_t>>;
+using matxs_t = std::vector<matx_t, Eigen::aligned_allocator<matx_t>>;
+using matxs_row_major_t = std::vector<matx_row_major_t, Eigen::aligned_allocator<matx_row_major_t>>;
+
+using mat_hash_t = std::unordered_map<long, std::unordered_map<long, double>>;
+using mat_indicies_t = std::vector<std::pair<long int, long int>>;
+
+template <int ROWS, int COLS, Eigen::StorageOptions STRIDE_TYPE = Eigen::ColMajor>
+using mat_t = Eigen::Matrix<double, ROWS, COLS, STRIDE_TYPE>;
+
+template <int ROWS, int COLS, Eigen::StorageOptions STRIDE_TYPE = Eigen::ColMajor>
+using map_mat_t = Eigen::Map<Eigen::Matrix<double, ROWS, COLS, STRIDE_TYPE>>;
+
+template <int ROWS>
+using map_vec_t = Eigen::Map<Eigen::Matrix<double, ROWS, 1>>;
+// clang-format on
+
+// -- GEOMETRY -----------------------------------------------------------------
+
+using quat_t = Eigen::Quaternion<double>;
+using quats_t = std::vector<quat_t, Eigen::aligned_allocator<quat_t>>;
+using angle_axis_t = Eigen::AngleAxis<double>;
+using arrayx_t = Eigen::Array<double, dynamic_t, 1>;
+
 
 /******************************************************************************
  *                                FILESYSTEM
@@ -204,158 +361,300 @@ std::vector<std::string> path_split(const std::string path);
  */
 std::string paths_join(const std::string path1, const std::string path2);
 
-/******************************************************************************
- *                                DATA TYPE
+/*****************************************************************************
+ *                               CONFIG
  *****************************************************************************/
 
-// -- TIMESTAMP ----------------------------------------------------------------
+/** Configuration **/
+struct config_t {
+  std::string file_path;
+  YAML::Node root;
+  bool ok = false;
 
-typedef int64_t timestamp_t;
-typedef std::vector<timestamp_t> timestamps_t;
+  config_t() = default;
+  config_t(const std::string &file_path_);
+  ~config_t() = default;
+};
 
-// -- VECTOR ------------------------------------------------------------------
+/**
+ * Load YAML file.
+ * @returns 0 for success or -1 for failure.
+ */
+int yaml_load_file(const std::string file_path, YAML::Node &root);
 
-#define dynamic_t Eigen::Dynamic
-#define col_major_t Eigen::ColMajor
-#define row_major_t Eigen::RowMajor
+/**
+ * Get YAML node containing the parameter value.
+ * @returns 0 for success or -1 for failure.
+ */
+int yaml_get_node(const config_t &config,
+                  const std::string &key,
+                  const bool optional,
+                  YAML::Node &node);
 
-using veci2_t = Eigen::Matrix<int, 2, 1>;
-using veci3_t = Eigen::Matrix<int, 3, 1>;
-using veci4_t = Eigen::Matrix<int, 4, 1>;
-using veci5_t = Eigen::Matrix<int, 5, 1>;
-using veci6_t = Eigen::Matrix<int, 6, 1>;
-using vecix_t = Eigen::Matrix<int, dynamic_t, 1>;
+/**
+ * Check if yaml file has `key`.
+ * @returns 0 for success or -1 for failure.
+ */
+int yaml_has_key(const config_t &config, const std::string &key);
 
-using vec2_t = Eigen::Matrix<double, 2, 1>;
-using vec3_t = Eigen::Matrix<double, 3, 1>;
-using vec4_t = Eigen::Matrix<double, 4, 1>;
-using vec5_t = Eigen::Matrix<double, 5, 1>;
-using vec6_t = Eigen::Matrix<double, 6, 1>;
-using vecx_t = Eigen::Matrix<double, dynamic_t, 1>;
+/**
+ * Check if yaml file has `key`.
+ * @returns 0 for success or -1 for failure.
+ */
+int yaml_has_key(const std::string &file_path, const std::string &key);
 
-using vec2s_t = std::vector<vec2_t, Eigen::aligned_allocator<vec2_t>>;
-using vec3s_t = std::vector<vec3_t, Eigen::aligned_allocator<vec3_t>>;
-using vec4s_t = std::vector<vec4_t, Eigen::aligned_allocator<vec4_t>>;
-using vec5s_t = std::vector<vec5_t, Eigen::aligned_allocator<vec5_t>>;
-using vec6s_t = std::vector<vec6_t, Eigen::aligned_allocator<vec6_t>>;
-using vecxs_t = std::vector<vecx_t, Eigen::aligned_allocator<vec6_t>>;
+/**
+ * Check size of vector in config file and returns the size.
+ */
+template <typename T>
+size_t yaml_check_vector(const YAML::Node &node,
+                         const std::string &key,
+                         const bool optional);
 
-using row_vector_t = Eigen::Matrix<double, 1, dynamic_t>;
-using col_vector_t = Eigen::Matrix<double, dynamic_t, 1>;
+/**
+ * Check matrix fields.
+ */
+void yaml_check_matrix_fields(const YAML::Node &node,
+                              const std::string &key,
+                              size_t &rows,
+                              size_t &cols);
 
-template <int LENGTH, Eigen::StorageOptions STRIDE_TYPE = Eigen::ColMajor>
-using vec_t = Eigen::Matrix<double, LENGTH, 1, STRIDE_TYPE>;
+/**
+ * Check matrix to make sure that the parameter has the data field "rows",
+ * "cols" and "data". It also checks to make sure the number of values is the
+ * same size as the matrix.
+ */
+template <typename T>
+void yaml_check_matrix(const YAML::Node &node,
+                       const std::string &key,
+                       const bool optional,
+                       size_t &rows,
+                       size_t &cols);
 
-// -- MATRIX -------------------------------------------------------------------
+template <typename T>
+void yaml_check_matrix(const YAML::Node &node,
+                       const std::string &key,
+                       const bool optional);
 
-// clang-format off
-using mat2_t = Eigen::Matrix<double, 2, 2>;
-using mat3_t = Eigen::Matrix<double, 3, 3>;
-using mat4_t = Eigen::Matrix<double, 4, 4>;
-using matx_t = Eigen::Matrix<double, dynamic_t, dynamic_t>;
-using matx_row_major_t = Eigen::Matrix<double, dynamic_t, dynamic_t, row_major_t>;
-using mat34_t = Eigen::Matrix<double, 3, 4>;
+template <typename T>
+int parse(const config_t &config,
+          const std::string &key,
+          T &out,
+          const bool optional = false);
 
-using mat2s_t = std::vector<mat2_t, Eigen::aligned_allocator<mat2_t>>;
-using mat3s_t = std::vector<mat3_t, Eigen::aligned_allocator<mat3_t>>;
-using mat4s_t = std::vector<mat4_t, Eigen::aligned_allocator<mat4_t>>;
-using matxs_t = std::vector<matx_t, Eigen::aligned_allocator<matx_t>>;
-using matxs_row_major_t = std::vector<matx_row_major_t, Eigen::aligned_allocator<matx_row_major_t>>;
+template <typename T>
+int parse(const config_t &config,
+          const std::string &key,
+          std::vector<T> &out,
+          const bool optional);
 
-using mat_hash_t = std::unordered_map<long, std::unordered_map<long, double>>;
-using mat_indicies_t = std::vector<std::pair<long int, long int>>;
+int parse(const config_t &config,
+          const std::string &key,
+          vec2_t &vec,
+          const bool optional = false);
 
-template <int ROWS, int COLS, Eigen::StorageOptions STRIDE_TYPE = Eigen::ColMajor>
-using mat_t = Eigen::Matrix<double, ROWS, COLS, STRIDE_TYPE>;
+int parse(const config_t &config,
+          const std::string &key,
+          vec3_t &vec,
+          const bool optional = false);
 
-template <int ROWS, int COLS, Eigen::StorageOptions STRIDE_TYPE = Eigen::ColMajor>
-using map_mat_t = Eigen::Map<Eigen::Matrix<double, ROWS, COLS, STRIDE_TYPE>>;
+int parse(const config_t &config,
+          const std::string &key,
+          vec4_t &vec,
+          const bool optional = false);
 
-template <int ROWS>
-using map_vec_t = Eigen::Map<Eigen::Matrix<double, ROWS, 1>>;
-// clang-format on
+int parse(const config_t &config,
+          const std::string &key,
+          vecx_t &vec,
+          const bool optional = false);
 
-// -- GEOMETRY -----------------------------------------------------------------
+int parse(const config_t &config,
+          const std::string &key,
+          veci2_t &vec,
+          const bool optional = false);
 
-using quat_t = Eigen::Quaternion<double>;
-using quats_t = std::vector<quat_t, Eigen::aligned_allocator<quat_t>>;
-using angle_axis_t = Eigen::AngleAxis<double>;
-using arrayx_t = Eigen::Array<double, dynamic_t, 1>;
+int parse(const config_t &config,
+          const std::string &key,
+          veci3_t &vec,
+          const bool optional = false);
 
-/******************************************************************************
- *                                MACROS
- *****************************************************************************/
+int parse(const config_t &config,
+          const std::string &key,
+          veci4_t &vec,
+          const bool optional = false);
 
-#define KNRM "\x1B[1;0m"
-#define KRED "\x1B[1;31m"
-#define KGRN "\x1B[1;32m"
-#define KYEL "\x1B[1;33m"
-#define KBLU "\x1B[1;34m"
-#define KMAG "\x1B[1;35m"
-#define KCYN "\x1B[1;36m"
-#define KWHT "\x1B[1;37m"
+int parse(const config_t &config,
+          const std::string &key,
+          vecix_t &vec,
+          const bool optional = false);
 
-#define STRINGIFY(x) #x
-#define TOSTRING(x) STRINGIFY(x)
+int parse(const config_t &config,
+          const std::string &key,
+          mat2_t &mat,
+          const bool optional = false);
 
-#define __FILENAME__                                                           \
-  (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
+int parse(const config_t &config,
+          const std::string &key,
+          mat3_t &mat,
+          const bool optional = false);
 
-#define LOG_ERROR(M, ...)                                                      \
-  fprintf(stderr,                                                              \
-          "\033[31m[ERROR] [%s:%d] " M "\033[0m\n",                            \
-          __FILENAME__,                                                        \
-          __LINE__,                                                            \
-          ##__VA_ARGS__)
+int parse(const config_t &config,
+          const std::string &key,
+          mat4_t &mat,
+          const bool optional = false);
 
-#define LOG_INFO(M, ...) fprintf(stdout, "[INFO] " M "\n", ##__VA_ARGS__)
-#define LOG_WARN(M, ...)                                                       \
-  fprintf(stdout, "\033[33m[WARN] " M "\033[0m\n", ##__VA_ARGS__)
+int parse(const config_t &config,
+          const std::string &key,
+          matx_t &mat,
+          const bool optional = false);
 
-#define FATAL(M, ...)                                                          \
-  {                                                                            \
-    char msg[9046] = {0};                                                      \
-    sprintf(msg,                                                               \
-            "\033[31m[FATAL] [%s:%d] " M "\033[0m\n",                          \
-            __FILENAME__,                                                      \
-            __LINE__,                                                          \
-            ##__VA_ARGS__);                                                    \
-    throw std::runtime_error(msg);                                             \
+int parse(const config_t &config,
+          const std::string &key,
+          cv::Mat &mat,
+          const bool optional = false);
+
+template <typename T>
+int parse(const config_t &config,
+          const std::string &key,
+          const int rows,
+          const int cols,
+          T &mat,
+          const bool optional = false);
+
+////////// CONFIG IMPLEMENTATION
+
+template <typename T>
+size_t yaml_check_vector(const YAML::Node &node,
+                         const std::string &key,
+                         const bool optional) {
+  UNUSED(optional);
+  assert(node);
+
+  // Get expected vector size
+  size_t vector_size = 0;
+  if (std::is_same<T, vec2_t>::value) {
+    vector_size = 2;
+  } else if (std::is_same<T, vec3_t>::value) {
+    vector_size = 3;
+  } else if (std::is_same<T, vec4_t>::value) {
+    vector_size = 4;
+  } else if (std::is_same<T, vec5_t>::value) {
+    vector_size = 5;
+  } else if (std::is_same<T, vecx_t>::value) {
+    vector_size = node.size();
+    return vector_size; // Don't bother, it could be anything
+  } else if (std::is_same<T, veci2_t>::value) {
+    vector_size = 2;
+  } else if (std::is_same<T, veci3_t>::value) {
+    vector_size = 3;
+  } else if (std::is_same<T, veci4_t>::value) {
+    vector_size = 4;
+  } else if (std::is_same<T, veci5_t>::value) {
+    vector_size = 5;
+  } else if (std::is_same<T, vecix_t>::value) {
+    vector_size = node.size();
+    return vector_size; // Don't bother, it could be anything
+  } else {
+    LOG_ERROR("Failed to check vector [%s]!", key.c_str());
+    FATAL("Unsupported vector type!");
   }
 
-#define FATAL_ASSERT(X, M, ...)                                                \
-  if (!(X)) {                                                                  \
-    char msg[9046] = {0};                                                      \
-    sprintf(msg,                                                               \
-            "\033[31m[FATAL] [%s:%d] " M "\033[0m\n",                          \
-            __FILENAME__,                                                      \
-            __LINE__,                                                          \
-            ##__VA_ARGS__);                                                    \
-    throw std::runtime_error(msg);                                             \
+  // Check number of values in the param
+  if (node.size() == 0 && node.size() != vector_size) {
+    FATAL("Vector [%s] should have %d values but config has %d!",
+          key.c_str(),
+          static_cast<int>(vector_size),
+          static_cast<int>(node.size()));
   }
 
-// #ifdef NDEBUG
-// #define DEBUG(M, ...)
-// #else
-// #define DEBUG(M, ...) fprintf(stdout, "[DEBUG] " M "\n", ##__VA_ARGS__)
-// #endif
+  return vector_size;
+}
 
-#define UNUSED(expr)                                                           \
-  do {                                                                         \
-    (void)(expr);                                                              \
-  } while (0)
+template <typename T>
+void yaml_check_matrix(const YAML::Node &node,
+                       const std::string &key,
+                       const bool optional,
+                       size_t &rows,
+                       size_t &cols) {
+  UNUSED(optional);
+  assert(node);
+  yaml_check_matrix_fields(node, key, rows, cols);
 
-#ifndef CHECK
-#define CHECK(A)                                                               \
-  if (!(A)) {                                                                  \
-    char msg[9046] = {0};                                                      \
-    sprintf(msg,                                                               \
-            "\033[31m[CHECK FAILED] [%s:%d] " TOSTRING(A) "\033[0m\n",         \
-            __FILENAME__,                                                      \
-            __LINE__);                                                         \
-    throw std::runtime_error(msg);                                             \
+  // Check number of elements
+  size_t nb_elements = 0;
+  if (std::is_same<T, mat2_t>::value) {
+    nb_elements = 4;
+  } else if (std::is_same<T, mat3_t>::value) {
+    nb_elements = 9;
+  } else if (std::is_same<T, mat4_t>::value) {
+    nb_elements = 16;
+  } else if (std::is_same<T, matx_t>::value) {
+    nb_elements = node["data"].size();
+
+  } else if (std::is_same<T, cv::Mat>::value) {
+    nb_elements = node["data"].size();
+  } else {
+    FATAL("Unsportted matrix type!");
   }
-#endif
+  if (node["data"].size() != nb_elements) {
+    FATAL("Matrix [%s] rows and cols do not match number of values!",
+          key.c_str());
+  }
+}
+
+template <typename T>
+void yaml_check_matrix(const YAML::Node &node,
+                       const std::string &key,
+                       const bool optional) {
+  size_t rows;
+  size_t cols;
+  yaml_check_matrix<T>(node, key, optional, rows, cols);
+}
+
+template <typename T>
+int parse(const config_t &config,
+          const std::string &key,
+          T &out,
+          const bool optional) {
+  try {
+    // Get node
+    YAML::Node node;
+    if (yaml_get_node(config, key, optional, node) != 0) {
+      return -1;
+    }
+
+    // Parse
+    out = node.as<T>();
+  } catch (const std::exception &e) {
+    FATAL("Failed to parse [%s]: %s", key.c_str(), e.what());
+  }
+
+  return 0;
+}
+
+template <typename T>
+int parse(const config_t &config,
+          const std::string &key,
+          std::vector<T> &out,
+          const bool optional) {
+  // Get node
+  try {
+    YAML::Node node;
+    if (yaml_get_node(config, key, optional, node) != 0) {
+      return -1;
+    }
+
+    // Parse
+    std::vector<T> array;
+    for (auto n : node) {
+      out.push_back(n.as<T>());
+    }
+  } catch (const std::exception &e) {
+    FATAL("Failed to parse [%s]: %s", key.c_str(), e.what());
+  }
+
+  return 0;
+}
 
 /******************************************************************************
  *                                  ALGEBRA

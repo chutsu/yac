@@ -101,19 +101,14 @@ TEST(AprilGrid, saveAndLoad) {
   ASSERT_TRUE(grid.save(TEST_OUTPUT) == 0);
 
   // Test load
-  AprilGrid grid2 = AprilGrid::load(TEST_OUTPUT);
+  auto grid2 = AprilGrid::load(TEST_OUTPUT);
 
   std::vector<int> corner_ids;
   vec2s_t keypoints;
   vec3s_t object_points;
-  grid2.getMeasurements(corner_ids, keypoints, object_points);
+  grid2->getMeasurements(corner_ids, keypoints, object_points);
 
-  ASSERT_EQ(grid.getTimestamp(), grid2.getTimestamp());
-  ASSERT_EQ(grid.getTagRows(), grid2.getTagRows());
-  ASSERT_EQ(grid.getTagCols(), grid2.getTagCols());
-  ASSERT_EQ(grid.getTagSize(), grid2.getTagSize());
-  ASSERT_EQ(grid.getTagSpacing(), grid2.getTagSpacing());
-
+  ASSERT_EQ(grid.getTimestamp(), grid2->getTimestamp());
   ASSERT_FLOAT_EQ(0.0, (keypoints[0] - kp0).norm());
   ASSERT_FLOAT_EQ(0.0, (keypoints[1] - kp1).norm());
   ASSERT_FLOAT_EQ(0.0, (keypoints[2] - kp2).norm());

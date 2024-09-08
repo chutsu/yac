@@ -55,6 +55,9 @@ private:
   };
   std::unordered_map<int, TagDetection> data_;
 
+  // Default constructor
+  AprilGrid() = default;
+
   /** Calculate AprilGrid tag index based on tag ID */
   void gridIndex(const int tag_id, int &i, int &j) const;
 
@@ -65,7 +68,6 @@ private:
   vec3s_t objectPoints() const;
 
 public:
-  AprilGrid() = delete;
   AprilGrid(const timestamp_t &timestamp,
             const int tag_rows,
             const int tag_cols,
@@ -115,10 +117,11 @@ public:
   int save(const std::string &save_path) const;
 
   /** Load AprilGrid **/
-  static AprilGrid load(const std::string &data_path);
+  static std::shared_ptr<CalibTarget> load(const std::string &data_path);
 
   /** Load AprilGrids **/
-  static std::vector<AprilGrid> loadDirectory(const std::string &dir_path);
+  static std::vector<std::shared_ptr<CalibTarget>>
+  loadDirectory(const std::string &dir_path);
 
   /** Draw AprilGrid */
   cv::Mat draw(const cv::Mat &image,

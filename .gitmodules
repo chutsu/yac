@@ -25,6 +25,3 @@
 [submodule "third_party/src/yaml-cpp"]
 	path = third_party/src/yaml-cpp
 	url = https://github.com/jbeder/yaml-cpp
-[submodule "third_party/src/tqdm.cpp"]
-	path = third_party/src/tqdm.cpp
-	url = https://github.com/tqdm/tqdm.cpp

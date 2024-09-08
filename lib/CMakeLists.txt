@@ -36,10 +36,18 @@ add_library(
   CameraModel.cpp
   Core.cpp
 )
-set(yac_DEPS yaml-cpp::yaml-cpp Eigen3::Eigen ${OpenCV_LIBS} apriltag::apriltag apriltags)
-target_link_libraries(yac ${yac_DEPS})
+set(DEPS yaml-cpp::yaml-cpp Eigen3::Eigen ${OpenCV_LIBS} apriltag::apriltag apriltags)
+target_link_libraries(yac ${DEPS})
 
 # Build unit-tests
 link_directories(${CMAKE_PREFIX_PATH}/lib)
+set(TEST_DEPS GTest::gtest_main ${PROJECT_NAME} ${DEPS})
+set(TEST_DATA ${CMAKE_CURRENT_LIST_DIR}/test_data)
+
 add_executable(TestAprilGrid TestAprilGrid.cpp)
-target_link_libraries(TestAprilGrid GTest::gtest_main ${PROJECT_NAME} ${yac_DEPS})
+add_compile_definitions(TestAprilGrid PRIVATE TEST_DATA="${TEST_DATA}")
+target_link_libraries(TestAprilGrid ${TEST_DEPS})
+
+add_executable(TestCalibData TestCalibData.cpp)
+add_compile_definitions(TestCalibData PRIVATE TEST_DATA="${TEST_DATA}")
+target_link_libraries(TestCalibData ${TEST_DEPS})

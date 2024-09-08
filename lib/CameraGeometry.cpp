@@ -9,6 +9,7 @@ CameraGeometry::CameraGeometry(const int camera_index,
                                const vecx_t &extrinsic)
     : camera_index_{camera_index}, resolution_{resolution},
       intrinsic_{intrinsic}, extrinsic_{extrinsic} {
+  // Initialize camera model
   if (camera_model == "pinhole-radtan4") {
     camera_model_ = std::make_shared<PinholeRadtan4>();
   } else if (camera_model == "pinhole-equi4") {
@@ -16,6 +17,29 @@ CameraGeometry::CameraGeometry(const int camera_index,
   } else {
     FATAL("Unsupported camera model [%s]", camera_model.c_str());
   }
+
+  // Initialize camera intrinsic
+  if (intrinsic.size() != 0) {
+    return;
+  }
+  const double fx = pinhole_focal(resolution.x(), 90.0);
+  const double fy = pinhole_focal(resolution.x(), 90.0);
+  const double cx = resolution.x() / 2.0;
+  const double cy = resolution.y() / 2.0;
+
+  int intrinsic_size = 0;
+  if (camera_model == "pinhole-radtan4") {
+    intrinsic_size = 8;
+  } else if (camera_model == "pinhole-equi4") {
+    intrinsic_size = 8;
+  }
+
+  intrinsic_.resize(intrinsic_size);
+  intrinsic_.setZero();
+  intrinsic_[0] = fx;
+  intrinsic_[1] = fy;
+  intrinsic_[2] = cx;
+  intrinsic_[3] = cy;
 }
 
 int CameraGeometry::getCameraIndex() const { return camera_index_; }

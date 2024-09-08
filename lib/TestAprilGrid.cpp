@@ -2,13 +2,8 @@
 
 #include "AprilGrid.hpp"
 
-#ifndef TEST_PATH
-#define TEST_PATH "."
-#endif
-
 #define TEST_OUTPUT "/tmp/aprilgrid.csv"
-#define TEST_IMAGE TEST_PATH "/test_data/calib/aprilgrid/aprilgrid.png"
-#define TEST_CONF TEST_PATH "/test_data/calib/aprilgrid/target.yaml"
+#define TEST_IMAGE TEST_DATA "/aprilgrid/aprilgrid.png"
 
 namespace yac {
 
@@ -119,32 +114,25 @@ TEST(AprilGrid, saveAndLoad) {
 }
 
 TEST(AprilGrid, detect) {
-  const std::string image_dir = "/data/euroc/cam_april/mav0/cam0/data";
-  std::vector<std::string> image_paths;
-  list_files(image_dir, image_paths);
-
   const int tag_rows = 6;
   const int tag_cols = 6;
   const double tag_size = 0.088;
   const double tag_spacing = 0.3;
   AprilGridDetector detector(tag_rows, tag_cols, tag_size, tag_spacing);
 
-  for (size_t k = 0; k < image_paths.size(); k++) {
-    const std::string image_fname = image_paths[k];
-    const std::string image_path = image_dir + "/" + image_fname;
-    const auto img = cv::imread(image_path, cv::IMREAD_GRAYSCALE);
+  const auto img = cv::imread(TEST_IMAGE, cv::IMREAD_GRAYSCALE);
+  auto grid = detector.detect(0, img);
 
-    auto grid = detector.detect(0, img);
-    // grid->imshow("viz", img);
+  std::vector<int> tag_ids;
+  std::vector<int> corner_indicies;
+  vec2s_t keypoints;
+  vec3s_t object_points;
+  grid->getMeasurements(tag_ids, corner_indicies, keypoints, object_points);
 
-    if (cv::waitKey(1) == 'q') {
-      break;
-    }
-
-    if (k > 10) {
-      break;
-    }
-  }
+  ASSERT_EQ(tag_ids.size(), tag_rows * tag_cols * 4);
+  ASSERT_EQ(corner_indicies.size(), tag_rows * tag_cols * 4);
+  ASSERT_EQ(keypoints.size(), tag_rows * tag_cols * 4);
+  ASSERT_EQ(object_points.size(), tag_rows * tag_cols * 4);
 }
 
 } // namespace yac

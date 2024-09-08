@@ -10,7 +10,7 @@ void print_progress(double percentage, const std::string &prefix) {
   int val = (int)(percentage * 100);
   int lpad = (int)(percentage * PBWIDTH);
   int rpad = PBWIDTH - lpad;
-  printf("\r%s [%.*s%*s]%3d%%", prefix.c_str(), lpad, PBSTR, rpad, "", val);
+  printf("\r%s[%.*s%*s]%3d%%", prefix.c_str(), lpad, PBSTR, rpad, "", val);
   fflush(stdout);
 }
 

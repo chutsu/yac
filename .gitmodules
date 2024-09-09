@@ -1,27 +1,36 @@
 [submodule "third_party/src/eigen"]
 	path = third_party/src/eigen
 	url = https://github.com/libigl/eigen
+	ignore = all
 [submodule "third_party/src/opencv"]
 	path = third_party/src/opencv
 	url = https://github.com/opencv/opencv
+	ignore = all
 [submodule "third_party/src/ceres-solver"]
 	path = third_party/src/ceres-solver
 	url = https://github.com/ceres-solver/ceres-solver
+	ignore = all
 [submodule "third_party/src/SuiteSparse"]
 	path = third_party/src/SuiteSparse
 	url = https://github.com/DrTimothyAldenDavis/SuiteSparse
+	ignore = all
 [submodule "third_party/src/apriltag"]
 	path = third_party/src/apriltag
 	url = https://github.com/AprilRobotics/apriltag
+	ignore = all
 [submodule "third_party/src/googletest"]
 	path = third_party/src/googletest
 	url = https://github.com/google/googletest
+	ignore = all
 [submodule "third_party/src/abseil-cpp"]
 	path = third_party/src/abseil-cpp
 	url = https://github.com/abseil/abseil-cpp
+	ignore = all
 [submodule "third_party/src/apriltags"]
 	path = third_party/src/apriltags
 	url = https://bitbucket.org/kaess/apriltags
+	ignore = all
 [submodule "third_party/src/yaml-cpp"]
 	path = third_party/src/yaml-cpp
 	url = https://github.com/jbeder/yaml-cpp
+	ignore = all

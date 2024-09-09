@@ -4,20 +4,51 @@ namespace yac {
 
 CalibData::CalibData(const std::string &config_path)
     : config_path_{config_path} {
-  loadConfig();
-  formTimeline();
-}
+  // Parse config
+  config_t config{config_path_};
 
-void CalibData::addCamera(const int camera_index,
-                          const std::string &camera_model,
-                          const vec2i_t &resolution,
-                          const vecx_t &intrinsic,
-                          const vec7_t &extrinsic) {
-  camera_geoms_[camera_index] = std::make_shared<CameraGeometry>(camera_index,
-                                                                 camera_model,
-                                                                 resolution,
-                                                                 intrinsic,
-                                                                 extrinsic);
+  // -- Parse data settings
+  parse(config, "data_path", data_path_);
+
+  // -- Parse target settings
+  parse(config, "calibration_target.target_type", target_type_);
+  parse(config, "calibration_target.tag_rows", tag_rows_);
+  parse(config, "calibration_target.tag_cols", tag_cols_);
+  parse(config, "calibration_target.tag_size", tag_size_);
+  parse(config, "calibration_target.tag_spacing", tag_spacing_);
+
+  // -- Parse camera settings
+  for (int camera_index = 0; camera_index < 100; camera_index++) {
+    // Check if key exists
+    const std::string prefix = "cam" + std::to_string(camera_index);
+    if (yaml_has_key(config, prefix) == 0) {
+      continue;
+    }
+
+    // Load camera data
+    loadCameraData(camera_index);
+
+    // Parse
+    vec2i_t resolution;
+    std::string camera_model;
+    parse(config, prefix + ".resolution", resolution);
+    parse(config, prefix + ".camera_model", camera_model);
+
+    vecx_t intrinsic;
+    if (yaml_has_key(config, prefix + ".intrinsic")) {
+      parse(config, prefix + ".intrinsic", intrinsic);
+    }
+
+    vec7_t extrinsic;
+    if (yaml_has_key(config, prefix + ".extrinsic")) {
+      parse(config, prefix + ".extrinsic", extrinsic);
+    } else {
+      extrinsic << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0;
+    }
+
+    // Add camera
+    addCamera(camera_index, camera_model, resolution, intrinsic, extrinsic);
+  }
 }
 
 void CalibData::loadCameraData(const int camera_index) {
@@ -70,69 +101,43 @@ void CalibData::loadCameraData(const int camera_index) {
       calib_target = detector.detect(ts, image);
       calib_target->save(target_path);
     }
-    camera_data_[camera_index][ts] = calib_target;
+
+    // Add camera measurement
+    addCameraMeasurement(ts, camera_index, calib_target);
   }
   printf("\n");
 }
 
-void CalibData::loadConfig() {
-  // Parse config
-  config_t config{config_path_};
-
-  // -- Parse data settings
-  parse(config, "data_path", data_path_);
-
-  // -- Parse target settings
-  parse(config, "calibration_target.target_type", target_type_);
-  parse(config, "calibration_target.tag_rows", tag_rows_);
-  parse(config, "calibration_target.tag_cols", tag_cols_);
-  parse(config, "calibration_target.tag_size", tag_size_);
-  parse(config, "calibration_target.tag_spacing", tag_spacing_);
-
-  // -- Parse camera settings
-  for (int camera_index = 0; camera_index < 100; camera_index++) {
-    // Check if key exists
-    const std::string prefix = "cam" + std::to_string(camera_index);
-    if (yaml_has_key(config, prefix) == 0) {
-      continue;
-    }
-
-    // Load camera data
-    loadCameraData(camera_index);
-
-    // Parse
-    vec2i_t resolution;
-    std::string camera_model;
-    parse(config, prefix + ".resolution", resolution);
-    parse(config, prefix + ".camera_model", camera_model);
-
-    vecx_t intrinsic;
-    if (yaml_has_key(config, prefix + ".intrinsic")) {
-      parse(config, prefix + ".intrinsic", intrinsic);
-    }
-
-    vec7_t extrinsic;
-    if (yaml_has_key(config, prefix + ".extrinsic")) {
-      parse(config, prefix + ".extrinsic", extrinsic);
-    } else {
-      extrinsic << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0;
-    }
-
-    // Add camera
-    addCamera(camera_index, camera_model, resolution, intrinsic, extrinsic);
-  }
+void CalibData::addCamera(const int camera_index,
+                          const std::string &camera_model,
+                          const vec2i_t &resolution,
+                          const vecx_t &intrinsic,
+                          const vec7_t &extrinsic) {
+  camera_geoms_[camera_index] = std::make_shared<CameraGeometry>(camera_index,
+                                                                 camera_model,
+                                                                 resolution,
+                                                                 intrinsic,
+                                                                 extrinsic);
 }
 
-void CalibData::formTimeline() {
-  for (const auto &[camera_index, camera_measurements] : camera_data_) {
-    for (const auto &[ts, calib_target] : camera_measurements) {
-      timeline_.add(ts, camera_index, calib_target);
-    }
-  }
+void CalibData::addCameraMeasurement(const timestamp_t ts,
+                                     const int camera_index,
+                                     const CalibTargetPtr &calib_target) {
+  camera_data_[camera_index][ts] = calib_target;
+  timeline_.add(ts, camera_index, calib_target);
 }
 
-const Timeline &CalibData::getTimeline() const {
-  return timeline_;
+int CalibData::getNumCameras() const { return camera_geoms_.size(); }
+
+const CameraData &CalibData::getCameraData(const int camera_index) const {
+  return camera_data_.at(camera_index);
 }
+
+const CameraGeometryPtr &
+CalibData::getCameraGeometry(const int camera_index) const {
+  return camera_geoms_.at(camera_index);
+}
+
+const Timeline &CalibData::getTimeline() const { return timeline_; }
 
 } // namespace yac

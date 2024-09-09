@@ -6,7 +6,9 @@
 
 namespace yac {
 
-using CameraData = std::map<timestamp_t, std::shared_ptr<CalibTarget>>;
+using CameraGeometryPtr = std::shared_ptr<CameraGeometry>;
+using CalibTargetPtr = std::shared_ptr<CalibTarget>;
+using CameraData = std::map<timestamp_t, CalibTargetPtr>;
 
 /** Calibration Data */
 class CalibData {
@@ -24,8 +26,16 @@ private:
 
   // Data
   std::map<int, CameraData> camera_data_;
-  std::map<int, std::shared_ptr<CameraGeometry>> camera_geoms_;
+  std::map<int, CameraGeometryPtr> camera_geoms_;
   Timeline timeline_ = Timeline();
+
+  /** Load Camera Data */
+  void loadCameraData(const int camera_index);
+
+public:
+  CalibData() = delete;
+  CalibData(const std::string &config_path);
+  virtual ~CalibData() = default;
 
   /** Add Camera */
   void addCamera(const int camera_index,
@@ -34,19 +44,19 @@ private:
                  const vecx_t &intrinsic,
                  const vec7_t &extrinsic);
 
-  /** Load Camera Data */
-  void loadCameraData(const int camera_index);
+  /** Add Camera Measurement */
+  void addCameraMeasurement(const timestamp_t ts,
+                            const int camera_index,
+                            const std::shared_ptr<CalibTarget> &calib_target);
 
-  /** Load Config */
-  void loadConfig();
+  /** Get number of cameras */
+  int getNumCameras() const;
 
-  /** Form timeline */
-  void formTimeline();
+  /** Get camera data */
+  const CameraData &getCameraData(const int camera_index) const;
 
-public:
-  CalibData() = delete;
-  CalibData(const std::string &config_path);
-  virtual ~CalibData() = default;
+  /** Get camera geometry */
+  const CameraGeometryPtr &getCameraGeometry(const int camera_index) const;
 
   /** Get timeline */
   const Timeline &getTimeline() const;

@@ -6,8 +6,9 @@
 
 namespace yac {
 
-TEST(CalibData, cameraData) {
+TEST(CalibData, load) {
   CalibData calib_data{TEST_CONFIG};
+  ASSERT_EQ(calib_data.getNumCameras(), 2);
 }
 
 }

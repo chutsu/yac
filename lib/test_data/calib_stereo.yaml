@@ -1,0 +1,16 @@
+data_path: "/data/euroc/cam_april/mav0"
+
+calibration_target:
+  target_type: "aprilgrid"
+  tag_rows: 6
+  tag_cols: 6
+  tag_size: 0.088
+  tag_spacing: 0.3
+
+cam0:
+  resolution: [768, 452]
+  camera_model: "pinhole-radtan4"
+
+cam1:
+  resolution: [768, 452]
+  camera_model: "pinhole-radtan4"

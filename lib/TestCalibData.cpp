@@ -2,7 +2,7 @@
 
 #include "CalibData.hpp"
 
-#define TEST_CONFIG TEST_DATA "/calib_mono.yaml"
+#define TEST_CONFIG TEST_DATA "/calib_camera.yaml"
 
 namespace yac {
 

@@ -3,72 +3,77 @@
 
 namespace yac {
 
-/** Parameter Block */
+/* Parameter Block */
 class ParamBlock {
 private:
-  int local_size_;
   int param_size_;
+  int local_size_;
   vecx_t data_;
 
 public:
   ParamBlock() = delete;
 
   ParamBlock(const int param_size)
-      : local_size_{param_size}, param_size_{param_size}, data_{zeros(
+      : param_size_{param_size}, local_size_{param_size}, data_{zeros(
                                                               param_size)} {}
 
   ParamBlock(const int param_size, const int local_size)
       : param_size_{param_size}, local_size_{local_size}, data_{zeros(
                                                               param_size)} {}
 
-  virtual ParamBlock() = default;
+  virtual ~ParamBlock() = default;
 
-  /** Get local size */
+  /* Get local size */
   int getLocalSize() const { return local_size_; }
 
-  /** Get param size */
+  /* Get param size */
   int getParamSize() const { return param_size_; }
 
-  /** Get Data */
+  /* Get Data */
   vecx_t getData() const { return data_; }
 
-  /** Get Data */
-  double *getPtr() const { return data_.data(); }
+  /* Get Data */
+  double *getPtr() { return data_.data(); }
+
+  /* Perturb */
+  void perturb(const int i, const double step) { data_[i] += step; }
 };
 
-/** Pose */
+/* Pose */
 class Pose : ParamBlock {
 private:
   timestamp_t ts_;
 
 public:
   Pose() = delete;
-  Pose(const timestamp_t ts) : ParamBlock{7, 6} ts_{ts} {}
-  virtual Pose() = default;
+  Pose(const timestamp_t ts) : ParamBlock{7, 6}, ts_{ts} {}
 
-  /** Get timestamp */
+  /* Get timestamp */
   timestamp_t getTimestamp() const { return ts_; }
 };
 
-/** Extrinsic */
+/* Extrinsic */
 class Extrinsic : ParamBlock {
 public:
-  Extrinsic() : ParamBlock{7, 6} ts_{ts} {}
-  virtual Extrinsic() = default;
+  Extrinsic() : ParamBlock{7, 6} {}
 };
 
-/** Velocity */
+/* Velocity */
 class Velocity : ParamBlock {
+private:
+  timestamp_t ts_;
+
 public:
-  Velocity() : ParamBlock{3} ts_{ts} {}
-  virtual Velocity() = default;
+  Velocity(const timestamp_t ts) : ParamBlock{3}, ts_{ts} {}
 };
 
-/** Bias */
+/* Bias */
 class Bias : ParamBlock {
+private:
+  timestamp_t ts_;
+
 public:
-  Bias() : ParamBlock{3} ts_{ts} {}
-  virtual Bias() = default;
+  Bias(const timestamp_t ts) : ParamBlock{3}, ts_{ts} {}
 };
 
 } // namespace yac

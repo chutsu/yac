@@ -35,6 +35,7 @@ add_library(
   CameraGeometry.cpp
   CameraModel.cpp
   Core.cpp
+  Residual.cpp
 )
 set(DEPS yaml-cpp::yaml-cpp Eigen3::Eigen ${OpenCV_LIBS} apriltag::apriltag apriltags)
 target_link_libraries(yac ${DEPS})

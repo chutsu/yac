@@ -27,6 +27,7 @@ extern "C" {
 namespace yac {
 namespace internal {
 
+/** Grid Detector */
 class GridDetector : public AprilTags::TagDetector {
 public:
   GridDetector() : TagDetector(AprilTags::tagCodes36h11) {
@@ -36,7 +37,7 @@ public:
 
 } // namespace internal
 
-/* AprilGrid */
+/** AprilGrid */
 class AprilGrid : public CalibTarget {
 private:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;

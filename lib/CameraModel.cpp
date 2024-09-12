@@ -321,7 +321,7 @@ PINHOLE_UNDISTORT(pinhole_equi4_undistort, equi4_undistort);
 /*********************************** MISC *************************************/
 
 int solvepnp(const CameraModel *cam,
-             const int cam_res[2],
+             const vec2i_t &cam_res,
              const vecx_t &cam_params,
              const vec2s_t &keypoints,
              const vec3s_t &object_points,
@@ -329,17 +329,15 @@ int solvepnp(const CameraModel *cam,
   UNUSED(cam_res);
   assert(keypoints.size() == object_points.size());
 
-  // Create object points (counter-clockwise, from bottom left)
-  // Note: SolvPnP assumes radtan which may not be true, therefore we
-  // have to manually undistort the keypoints ourselves
+  // Form object and image points
   size_t nb_points = keypoints.size();
   std::vector<cv::Point2f> img_pts;
   std::vector<cv::Point3f> obj_pts;
   for (size_t i = 0; i < nb_points; i++) {
     // Check keypoint is valid
     const vec2_t z = keypoints[i];
-    const bool x_ok = (z.x() >= 0 && z.x() <= cam_res[0]);
-    const bool y_ok = (z.y() >= 0 && z.y() <= cam_res[1]);
+    const bool x_ok = (z.x() >= 0 && z.x() <= cam_res.x());
+    const bool y_ok = (z.y() >= 0 && z.y() <= cam_res.y());
     const bool valid = (x_ok && y_ok) ? true : false;
     if (valid == false) {
       printf("INVALID!\n");
@@ -347,6 +345,8 @@ int solvepnp(const CameraModel *cam,
     }
 
     // Keypoint
+    // Note: SolvPnP assumes radtan which may not be true, therefore we have to
+    // manually undistort the keypoints ourselves
     const vec2_t &kp = cam->undistort(cam_params, z);
     img_pts.emplace_back(kp.x(), kp.y());
 

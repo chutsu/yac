@@ -32,10 +32,11 @@ add_library(
   AprilGrid.cpp
   CalibData.cpp
   CalibTarget.cpp
+  CameraChain.cpp
   CameraGeometry.cpp
   CameraModel.cpp
   Core.cpp
-  Residual.cpp
+  ResidualBlock.cpp
 )
 set(DEPS yaml-cpp::yaml-cpp Eigen3::Eigen ${OpenCV_LIBS} apriltag::apriltag apriltags)
 target_link_libraries(yac ${DEPS})
@@ -52,3 +53,7 @@ target_link_libraries(TestAprilGrid ${TEST_DEPS})
 add_executable(TestCalibData TestCalibData.cpp)
 add_compile_definitions(TestCalibData PRIVATE TEST_DATA="${TEST_DATA}")
 target_link_libraries(TestCalibData ${TEST_DEPS})
+
+add_executable(TestCameraResidual TestCameraResidual.cpp)
+add_compile_definitions(TestCameraResidual PRIVATE TEST_DATA="${TEST_DATA}")
+target_link_libraries(TestCameraResidual ${TEST_DEPS})

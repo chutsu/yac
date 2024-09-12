@@ -32,6 +32,15 @@ vec2_t CalibTarget::getCenter() const {
   return vec2_t{x, y};
 }
 
+int CalibTarget::getNumDetected() const {
+  int num_detected = 0;
+  for (const auto &[tag_id, tag_det] : data_) {
+    num_detected += tag_det.keypoints.size();
+  }
+
+  return num_detected;
+}
+
 void CalibTarget::add(const int tag_id,
                       const int corner_index,
                       const vec2_t &kp) {
@@ -76,8 +85,8 @@ void CalibTarget::remove(const int tag_id) {
 }
 
 cv::Mat CalibTarget::draw(const cv::Mat &image,
-                        const int marker_size,
-                        const cv::Scalar &color) const {
+                          const int marker_size,
+                          const cv::Scalar &color) const {
   const cv::Scalar text_color(0, 255, 0);
   const int font = cv::FONT_HERSHEY_PLAIN;
   const double font_scale = 1.0;
@@ -112,7 +121,6 @@ void CalibTarget::imshow(const std::string &title, const cv::Mat &image) const {
   cv::imshow(title, draw(image));
   cv::waitKey(1);
 }
-
 
 // int CalibTarget::estimate(const CameraModel *cam,
 //                         const int cam_res[2],

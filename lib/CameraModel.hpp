@@ -257,7 +257,7 @@ struct PinholeEqui4 : CameraModel {
 /*********************************** MISC *************************************/
 
 int solvepnp(const CameraModel *cam,
-             const int cam_res[2],
+             const vec2i_t &cam_res,
              const vecx_t &cam_params,
              const vec2s_t &keypoints,
              const vec3s_t &object_points,

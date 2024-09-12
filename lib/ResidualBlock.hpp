@@ -5,36 +5,42 @@
 
 namespace yac {
 
-class Residual : public ceres::CostFunction {
-private:
+/** Residual Block */
+class ResidualBlock : public ceres::CostFunction {
+protected:
   // Data
   std::string type_;
-  std::vector<ParamBlock *> param_blocks;
+  std::vector<double *> param_ptrs_;
+  std::vector<int> param_sizes_;
+  std::vector<ParamBlock::Type> param_types_;
 
 public:
-  /* Constructor */
-  Residual() = default;
-  Residual(const std::string &type);
+  /** Constructor */
+  ResidualBlock() = delete;
+  ResidualBlock(const std::string &type,
+                const std::vector<double *> &param_ptrs,
+                const std::vector<ParamBlock::Type> &param_types,
+                const int num_residuals);
 
-  /* Destructor */
-  virtual ~Residual() = default;
+  /** Destructor */
+  virtual ~ResidualBlock() = default;
 
-  /* Get type */
+  /** Get type */
   std::string getType() const;
 
-  /* Get parameter block pointers */
+  /** Get parameter block pointers */
   std::vector<double *> getParamPtrs() const;
 
-  /* Evaluate with Minimal jacobians */
+  /** Evaluate with Minimal jacobians */
   virtual bool EvaluateWithMinimalJacobians(double const *const *params,
                                             double *res,
                                             double **jacs,
                                             double **min_jacs) const = 0;
 
-  /* Evaluate with Minimal jacobians */
+  /** Evaluate with Minimal jacobians */
   bool Evaluate(double const *const *params, double *res, double **jacs) const;
 
-  /* Check jacobians */
+  /** Check jacobians */
   bool checkJacobians(const int param_idx,
                       const std::string &jac_name,
                       const double step = 1e-8,

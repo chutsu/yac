@@ -3,6 +3,7 @@
 
 namespace yac {
 
+/** Camera Geometry */
 class CameraGeometry {
 private:
   int camera_index_;
@@ -34,6 +35,12 @@ public:
 
   /** Get extrinsic **/
   vecx_t getExtrinsic() const;
+
+  /** Get intrinsic pointer **/
+  double *getIntrinsicPtr();
+
+  /** Get extrinsic **/
+  double *getExtrinsicPtr();
 
   /** Get transform T_body_camera **/
   mat4_t getTransform() const;

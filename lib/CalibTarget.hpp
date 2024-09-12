@@ -4,6 +4,7 @@
 
 namespace yac {
 
+/** Calibration Target */
 class CalibTarget {
 protected:
   timestamp_t ts_ = 0;
@@ -44,6 +45,9 @@ public:
 
   /** Get the center of the AprilGrid */
   vec2_t getCenter() const;
+
+  /** Get number detected */
+  int getNumDetected() const;
 
   /** Get measurements **/
   virtual void getMeasurements(std::vector<int> &tag_ids,

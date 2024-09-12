@@ -3,77 +3,97 @@
 
 namespace yac {
 
-/* Parameter Block */
+/** Parameter Block **/
 class ParamBlock {
-private:
-  int param_size_;
-  int local_size_;
-  vecx_t data_;
-
 public:
-  ParamBlock() = delete;
+  enum Type {
+    POSE,
+    EXTRINSIC,
+    POINT,
+    VELOCITY,
+    BIAS,
+    TIME_DELAY,
+    INTRINSIC8,
+  };
 
-  ParamBlock(const int param_size)
-      : param_size_{param_size}, local_size_{param_size}, data_{zeros(
-                                                              param_size)} {}
+  static int getParamSize(const ParamBlock::Type type) {
+    switch (type) {
+      case POSE:
+      case EXTRINSIC:
+        return 7;
+      case POINT:
+      case VELOCITY:
+      case BIAS:
+        return 3;
+      case TIME_DELAY:
+        return 1;
+      case INTRINSIC8:
+        return 8;
+      default:
+        FATAL("Invalid Parameter BlockType!");
+    }
+  }
 
-  ParamBlock(const int param_size, const int local_size)
-      : param_size_{param_size}, local_size_{local_size}, data_{zeros(
-                                                              param_size)} {}
+  static int getLocalSize(const ParamBlock::Type type) {
+    switch (type) {
+      case POSE:
+      case EXTRINSIC:
+        return 6;
+      case POINT:
+      case VELOCITY:
+      case BIAS:
+        return 3;
+      case TIME_DELAY:
+        return 1;
+      case INTRINSIC8:
+        return 8;
+      default:
+        FATAL("Invalid Parameter BlockType!");
+    }
+  }
 
-  virtual ~ParamBlock() = default;
+  static void perturb(const ParamBlock::Type type,
+                      const int i,
+                      const double step,
+                      double *ptr) {
+    switch (type) {
+      case POSE:
+      case EXTRINSIC:
+        switch (i) {
+          case 0:
+          case 1:
+          case 2:
+            // Update translation
+            ptr[i] += step;
+            break;
+          case 3:
+          case 4:
+          case 5:
+            // Update rotation
+            vec3_t dalpha{0.0, 0.0, 0.0};
+            dalpha(i) = step;
 
-  /* Get local size */
-  int getLocalSize() const { return local_size_; }
+            quat_t dq = quat_delta(dalpha);
+            quat_t q{ptr[6], ptr[3], ptr[4], ptr[5]};
+            quat_t q_new = q * dq;
 
-  /* Get param size */
-  int getParamSize() const { return param_size_; }
-
-  /* Get Data */
-  vecx_t getData() const { return data_; }
-
-  /* Get Data */
-  double *getPtr() { return data_.data(); }
-
-  /* Perturb */
-  void perturb(const int i, const double step) { data_[i] += step; }
-};
-
-/* Pose */
-class Pose : ParamBlock {
-private:
-  timestamp_t ts_;
-
-public:
-  Pose() = delete;
-  Pose(const timestamp_t ts) : ParamBlock{7, 6}, ts_{ts} {}
-
-  /* Get timestamp */
-  timestamp_t getTimestamp() const { return ts_; }
-};
-
-/* Extrinsic */
-class Extrinsic : ParamBlock {
-public:
-  Extrinsic() : ParamBlock{7, 6} {}
-};
-
-/* Velocity */
-class Velocity : ParamBlock {
-private:
-  timestamp_t ts_;
-
-public:
-  Velocity(const timestamp_t ts) : ParamBlock{3}, ts_{ts} {}
-};
-
-/* Bias */
-class Bias : ParamBlock {
-private:
-  timestamp_t ts_;
-
-public:
-  Bias(const timestamp_t ts) : ParamBlock{3}, ts_{ts} {}
+            ptr[6] = q_new.w();
+            ptr[3] = q_new.x();
+            ptr[4] = q_new.y();
+            ptr[5] = q_new.z();
+        }
+        break;
+      case POINT:
+      case VELOCITY:
+      case BIAS:
+      case TIME_DELAY:
+      case INTRINSIC8:
+        ptr[i] += step;
+        break;
+      default:
+        FATAL("Invalid Parameter BlockType!");
+    }
+  }
 };
 
 } // namespace yac

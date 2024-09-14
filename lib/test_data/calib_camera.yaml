@@ -10,7 +10,3 @@ calibration_target:
 cam0:
   resolution: [768, 452]
   camera_model: "pinhole-radtan4"
-
-cam1:
-  resolution: [768, 452]
-  camera_model: "pinhole-radtan4"

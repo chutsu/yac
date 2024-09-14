@@ -71,7 +71,7 @@ public:
           case 5:
             // Update rotation
             vec3_t dalpha{0.0, 0.0, 0.0};
-            dalpha(i) = step;
+            dalpha(i - 3) = step;
 
             quat_t dq = quat_delta(dalpha);
             quat_t q{ptr[6], ptr[3], ptr[4], ptr[5]};

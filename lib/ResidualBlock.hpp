@@ -40,11 +40,11 @@ public:
   /** Evaluate with Minimal jacobians */
   bool Evaluate(double const *const *params, double *res, double **jacs) const;
 
-  /** Check jacobians */
-  bool checkJacobians(const int param_idx,
-                      const std::string &jac_name,
-                      const double step = 1e-8,
-                      const double tol = 1e-4) const;
+  /** Check jacobian */
+  bool checkJacobian(const int param_idx,
+                     const std::string &jac_name,
+                     const double step = 1e-8,
+                     const double tol = 1e-4) const;
 };
 
 } // namespace yac

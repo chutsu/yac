@@ -53,6 +53,7 @@ TEST(CameraResidual, evaluate) {
                                                           extrinsic);
   // clang-format on
 
+  // Estimate relative pose
   mat4_t T_CiF;
   int status = solvepnp(camera_geometry->getCameraModel().get(),
                         resolution,
@@ -63,27 +64,19 @@ TEST(CameraResidual, evaluate) {
   if (status != 0) {
     FATAL("Failed to estimate relative pose!");
   }
-  std::cout << T_CiF << std::endl;
 
-  // const calib_target_t calib_target;
-  // mat4_t T_C0Ci = I(4);
-  // mat4_t T_C0F = T_C0Ci * T_CiF;
-  // pose_t cam_exts{grid.timestamp, T_C0Ci};
-  // pose_t rel_pose{grid.timestamp, T_C0F}; // Fiducial corners
-  // fiducial_corners_t corners{calib_target};
-  // auto corner = corners.get_corner(tag_ids[0], corner_indicies[0]);
+  mat2_t covar = I(2);
+  vecx_t relpose = tf_vec(T_CiF);
+  auto residual_block = CameraResidual::create(camera_geometry,
+                                               relpose.data(),
+                                               object_points[0].data(),
+                                               keypoints[0],
+                                               covar);
 
-  // CameraResidual residual(&cam_geom,
-  //                         &cam_params,
-  //                         &cam_exts,
-  //                         &rel_pose,
-  //                         corner,
-  //                         keypoints[0],
-  //                         I(2));
-
-  // ASSERT_TRUE(r.check_jacs(0, "J_cam_exts"));
-  // ASSERT_TRUE(r.check_jacs(1, "J_rel_pose"));
-  // ASSERT_TRUE(r.check_jacs(2, "J_cam"));
+  ASSERT_TRUE(residual_block->checkJacobian(0, "J_point"));
+  ASSERT_TRUE(residual_block->checkJacobian(1, "J_relpose"));
+  ASSERT_TRUE(residual_block->checkJacobian(2, "J_extrinsic"));
+  ASSERT_TRUE(residual_block->checkJacobian(3, "J_camera"));
 }
 
 } // namespace yac

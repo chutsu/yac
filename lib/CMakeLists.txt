@@ -22,6 +22,7 @@ endif()
 # Dependencies
 find_package(GTest REQUIRED)
 find_package(Eigen3 REQUIRED)
+find_package(Ceres REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(apriltag REQUIRED)
 find_package(yaml-cpp REQUIRED)
@@ -38,7 +39,7 @@ add_library(
   Core.cpp
   ResidualBlock.cpp
 )
-set(DEPS yaml-cpp::yaml-cpp Eigen3::Eigen ${OpenCV_LIBS} apriltag::apriltag apriltags)
+set(DEPS yaml-cpp::yaml-cpp Eigen3::Eigen ${OpenCV_LIBS} apriltag::apriltag apriltags Ceres::ceres)
 target_link_libraries(yac ${DEPS})
 
 # Build unit-tests
@@ -57,3 +58,7 @@ target_link_libraries(TestCalibData ${TEST_DEPS})
 add_executable(TestCameraResidual TestCameraResidual.cpp)
 add_compile_definitions(TestCameraResidual PRIVATE TEST_DATA="${TEST_DATA}")
 target_link_libraries(TestCameraResidual ${TEST_DEPS})
+
+add_executable(TestCameraModel TestCameraModel.cpp)
+add_compile_definitions(TestCameraModel PRIVATE TEST_DATA="${TEST_DATA}")
+target_link_libraries(TestCameraModel ${TEST_DEPS})

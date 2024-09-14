@@ -5,7 +5,7 @@
 namespace yac {
 
 /** Camera Residual */
-class CameraResidual : ResidualBlock {
+class CameraResidual : public ResidualBlock {
 private:
   std::shared_ptr<CameraGeometry> camera_geometry_;
   vec2_t z_;
@@ -61,10 +61,12 @@ public:
     // Transform and project point to image plane
     // -- Transform point from fiducial frame to camera-n
     const mat4_t T_CiC0 = tf_inv(T_C0Ci);
-    const vec3_t p_Ci = tf_point(T_CiC0 * T_C0F, p_FFi);
+    const mat4_t T_CiF = T_CiC0 * T_C0F;
+    const vec3_t p_Ci = tf_point(T_CiF, p_FFi);
     // -- Project point from camera frame to image plane
     const auto camera_model = camera_geometry_->getCameraModel();
-    const auto resolution = camera_geometry_->getResolution().data();
+    const vec2i_t resolution = camera_geometry_->getResolution();
+
     vec2_t z_hat;
     bool valid = true;
     if (camera_model->project(resolution, intrinsic, p_Ci, z_hat) != 0) {
@@ -84,13 +86,8 @@ public:
 
     // Jacobians w.r.t p_FFi
     if (jacs[0]) {
-      // // clang-format off
-      // const mat3_t C_C0Ci = tf_rot(T_C0Ci);
-      // const mat3_t C_CF = tf_rot(T_C0F);
-      matx_t J_min = zeros(2, 3);
-      // J_min.block(0, 0, 2, 3) = Jh_weighted * C_C0Ci;
-      // J_min.block(0, 3, 2, 3) = Jh_weighted * C_C0Ci * -skew(C_CF * p_FFi);
-      // // clang-format on
+      const mat3_t C_CiF = tf_rot(T_CiF);
+      matx_t J_min = Jh_weighted * C_CiF;
 
       Eigen::Map<mat_t<2, 3, row_major_t>> J(jacs[0]);
       J = (valid) ? J_min : zeros(2, 3);
@@ -131,7 +128,7 @@ public:
       const vec3_t p_C0Ci = tf_trans(T_C0Ci);
       matx_t J_min = zeros(2, 6);
       J_min.block(0, 0, 2, 3) = Jh_weighted * -C_C0Ci;
-      J_min.block(0, 3, 2, 3) = Jh_weighted * -C_C0Ci * -skew(p_C0Fi - p_C0Ci) -C_C0Ci;
+      J_min.block(0, 3, 2, 3) = Jh_weighted * -C_C0Ci * skew(p_C0Fi - p_C0Ci) * -C_C0Ci;
       // clang-format on
 
       Eigen::Map<mat_t<2, 7, row_major_t>> J(jacs[2]);

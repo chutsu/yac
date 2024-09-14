@@ -260,7 +260,7 @@ pinhole_K(const double fx, const double fy, const double cx, const double cy) {
   return K;
 }
 
-int pinhole_project(const int res[2],
+int pinhole_project(const vec2i_t &res,
                     const vec4_t &proj_params,
                     const vec3_t &p_C,
                     vec2_t &z_hat) {
@@ -275,8 +275,8 @@ int pinhole_project(const int res[2],
   z_hat(1) = fy * x(1) + cy;
 
   // Check projection
-  const bool x_ok = (z_hat(0) >= 0 && z_hat(0) <= res[0]);
-  const bool y_ok = (z_hat(1) >= 0 && z_hat(1) <= res[1]);
+  const bool x_ok = (z_hat(0) >= 0 && z_hat(0) <= res.x());
+  const bool y_ok = (z_hat(1) >= 0 && z_hat(1) <= res.y());
   const bool z_ok = (p_C.z() > 0.0);
   const bool valid = (x_ok && y_ok && z_ok) ? true : false;
 
@@ -326,7 +326,6 @@ int solvepnp(const CameraModel *cam,
              const vec2s_t &keypoints,
              const vec3s_t &object_points,
              mat4_t &T_camera_object) {
-  UNUSED(cam_res);
   assert(keypoints.size() == object_points.size());
 
   // Form object and image points

@@ -28,7 +28,7 @@ mat_t<2, 3> project_jacobian(const vec3_t &p_C);
 double pinhole_focal(const int image_size, const double fov);
 mat3_t
 pinhole_K(const double fx, const double fy, const double cx, const double cy);
-int pinhole_project(const int res[2],
+int pinhole_project(const vec2i_t &res,
                     const vec4_t &proj_params,
                     const vec3_t &p,
                     vec2_t &z_hat);
@@ -36,7 +36,7 @@ mat2_t pinhole_point_jacobian(const vec4_t &proj_params);
 mat_t<2, 4> pinhole_params_jacobian(const vec4_t &proj_params, const vec2_t &p);
 
 #define PINHOLE_PROJECT(FUNC_NAME, DIST_FUNC)                                  \
-  int FUNC_NAME(const int res[2],                                              \
+  int FUNC_NAME(const vec2i_t &res,                                              \
                 const vecx_t &params,                                          \
                 const vec3_t &p_C,                                             \
                 vec2_t &z_hat) {                                               \
@@ -55,8 +55,8 @@ mat_t<2, 4> pinhole_params_jacobian(const vec4_t &proj_params, const vec2_t &p);
     z_hat.y() = fy * p_d.y() + cy;                                             \
                                                                                \
     /* Check projection is within image frame */                               \
-    const bool x_ok = (z_hat.x() >= 0 && z_hat.x() < res[0]);                  \
-    const bool y_ok = (z_hat.y() >= 0 && z_hat.y() < res[1]);                  \
+    const bool x_ok = (z_hat.x() >= 0 && z_hat.x() < res.x());                  \
+    const bool y_ok = (z_hat.y() >= 0 && z_hat.y() < res.y());                  \
     const bool z_ok = (p_C.z() > 0.0);                                         \
     const bool valid = (x_ok && y_ok && z_ok) ? true : false;                  \
                                                                                \
@@ -141,7 +141,7 @@ mat_t<2, 4> pinhole_params_jacobian(const vec4_t &proj_params, const vec2_t &p);
 
 /***************************** PINHOLE-RADTAN4 ********************************/
 
-int pinhole_radtan4_project(const int res[2],
+int pinhole_radtan4_project(const vec2i_t &res,
                             const vecx_t &params,
                             const vec3_t &p_C,
                             vec2_t &z_hat);
@@ -155,7 +155,7 @@ vec2_t pinhole_radtan4_undistort(const vecx_t &params, const vec2_t &z);
 
 /****************************** PINHOLE-EQUI4 *********************************/
 
-int pinhole_equi4_project(const int res[2],
+int pinhole_equi4_project(const vec2i_t &res,
                           const vecx_t &params,
                           const vec3_t &p_C,
                           vec2_t &z_hat);
@@ -174,7 +174,7 @@ struct CameraModel {
   CameraModel(const std::string &type_) : type{type_} {}
   virtual ~CameraModel() = default;
 
-  virtual int project(const int res[2],
+  virtual int project(const vec2i_t &res,
                       const vecx_t &params,
                       const vec3_t &p_C,
                       vec2_t &z_hat) const = 0;
@@ -195,7 +195,7 @@ struct CameraModel {
 struct PinholeRadtan4 : CameraModel {
   PinholeRadtan4() : CameraModel{"pinhole-radtan4"} {}
 
-  int project(const int res[2],
+  int project(const vec2i_t &res,
               const vecx_t &params,
               const vec3_t &p_C,
               vec2_t &z_hat) const override {
@@ -226,7 +226,7 @@ struct PinholeRadtan4 : CameraModel {
 struct PinholeEqui4 : CameraModel {
   PinholeEqui4() : CameraModel{"pinhole-equi4"} {}
 
-  int project(const int res[2],
+  int project(const vec2i_t &res,
               const vecx_t &params,
               const vec3_t &p_C,
               vec2_t &z_hat) const override {

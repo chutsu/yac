@@ -10,6 +10,7 @@ define cmake_build
 		&& cmake \
 			-DCMAKE_BUILD_TYPE=$2 \
 			-DCMAKE_PREFIX_PATH=$(PREFIX) \
+			-DCMAKE_LIBRARY_PATH=$(PREFIX)\lib \
 			.. \
 		&& make -j$(NUM_PROCS)
 endef

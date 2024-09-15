@@ -15,8 +15,8 @@ using CameraData = std::map<timestamp_t, CalibTargetPtr>;
 // Pose local parameterization
 class PoseLocalParameterization : public ceres::Manifold {
 public:
-  PoseLocalParameterization();
-  virtual ~PoseLocalParameterization();
+  PoseLocalParameterization() = default;
+  virtual ~PoseLocalParameterization() = default;
 
   virtual bool Plus(const double *x,
                     const double *delta,
@@ -80,7 +80,7 @@ public:
 
 /** Calibration Data */
 class CalibData {
-private:
+protected:
   // Settings
   std::string config_path_;
   std::string data_path_;
@@ -94,11 +94,14 @@ private:
 
   // Data
   std::map<int, CameraData> camera_data_;
-  std::map<int, CameraGeometryPtr> camera_geoms_;
-  Timeline timeline_ = Timeline();
+  std::map<int, CameraGeometryPtr> camera_geometries_;
+  std::map<int, vec3_t> target_points_;
 
   /** Load Camera Data */
   void loadCameraData(const int camera_index);
+
+  /** Check if we have a camera measurement already */
+  bool hasCameraMeasurement(const timestamp_t ts, const int camera_index) const;
 
 public:
   CalibData() = delete;
@@ -112,22 +115,28 @@ public:
                  const vecx_t &intrinsic,
                  const vec7_t &extrinsic);
 
-  /** Add Camera Measurement */
+  /** Add camera measurement */
   void addCameraMeasurement(const timestamp_t ts,
                             const int camera_index,
                             const std::shared_ptr<CalibTarget> &calib_target);
+
+  /** Add calibration target point */
+  void addTargetPoint(const int point_id, const vec3_t &point);
 
   /** Get number of cameras */
   int getNumCameras() const;
 
   /** Get camera data */
-  const CameraData &getCameraData(const int camera_index) const;
+  CameraData &getCameraData(const int camera_index);
 
   /** Get camera geometry */
-  const CameraGeometryPtr &getCameraGeometry(const int camera_index) const;
+  CameraGeometryPtr &getCameraGeometry(const int camera_index);
+
+  /** Get target point */
+  vec3_t &getTargetPoint(const int point_id);
 
   /** Get timeline */
-  const Timeline &getTimeline() const;
+  Timeline &getTimeline() const;
 };
 
 } // namespace yac

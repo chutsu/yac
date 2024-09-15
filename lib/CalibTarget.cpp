@@ -10,6 +10,8 @@ CalibTarget::CalibTarget(const timestamp_t &ts,
     : ts_{ts}, tag_rows_{tag_rows}, tag_cols_{tag_cols}, tag_size_{tag_size},
       tag_spacing_{tag_spacing} {}
 
+bool CalibTarget::detected() const { return (data_.size() > 0); }
+
 timestamp_t CalibTarget::getTimestamp() const { return ts_; }
 
 int CalibTarget::getTagRows() const { return tag_rows_; }
@@ -75,6 +77,9 @@ void CalibTarget::remove(const int tag_id, const int corner_index) {
 
   data_[tag_id].corner_indicies.erase(corner_index);
   data_[tag_id].keypoints.erase(corner_index);
+  if (data_[tag_id].keypoints.size() == 0) {
+    data_.erase(tag_id);
+  }
 }
 
 void CalibTarget::remove(const int tag_id) {

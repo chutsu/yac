@@ -2,6 +2,7 @@
 
 #include "CalibData.hpp"
 #include "CameraResidual.hpp"
+#include "SolvePnp.hpp"
 
 #define TEST_CONFIG TEST_DATA "/calib_camera.yaml"
 
@@ -55,16 +56,13 @@ TEST(CameraResidual, evaluate) {
 
   // Estimate relative pose
   mat4_t T_CiF;
-  int status = solvepnp(camera_geometry->getCameraModel().get(),
-                        resolution,
-                        camera_geometry->getIntrinsic(),
-                        keypoints,
-                        object_points,
-                        T_CiF);
+  SolvePnp pnp{camera_geometry};
+  int status = pnp.estimate(keypoints, object_points, T_CiF);
   if (status != 0) {
     FATAL("Failed to estimate relative pose!");
   }
 
+  // Create residual block
   mat2_t covar = I(2);
   vecx_t relpose = tf_vec(T_CiF);
   auto residual_block = CameraResidual::create(camera_geometry,
@@ -72,7 +70,22 @@ TEST(CameraResidual, evaluate) {
                                                object_points[0].data(),
                                                keypoints[0],
                                                covar);
+  // Check residual size and parameter block sizes
+  auto block_sizes = residual_block->parameter_block_sizes();
+  ASSERT_EQ(residual_block->num_residuals(), 2);
+  ASSERT_EQ(block_sizes[0], 3);
+  ASSERT_EQ(block_sizes[1], 7);
+  ASSERT_EQ(block_sizes[2], 7);
+  ASSERT_EQ(block_sizes[3], 8);
 
+  // Check param pointers
+  auto param_ptrs = residual_block->getParamPtrs();
+  ASSERT_EQ(param_ptrs[0], object_points[0].data());
+  ASSERT_EQ(param_ptrs[1], relpose.data());
+  ASSERT_EQ(param_ptrs[2], camera_geometry->getExtrinsicPtr());
+  ASSERT_EQ(param_ptrs[3], camera_geometry->getIntrinsicPtr());
+
+  // Check jacobians
   ASSERT_TRUE(residual_block->checkJacobian(0, "J_point"));
   ASSERT_TRUE(residual_block->checkJacobian(1, "J_relpose"));
   ASSERT_TRUE(residual_block->checkJacobian(2, "J_extrinsic"));

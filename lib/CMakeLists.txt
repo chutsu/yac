@@ -38,6 +38,7 @@ add_library(
   CameraModel.cpp
   Core.cpp
   ResidualBlock.cpp
+  SolvePnp.cpp
 )
 set(DEPS yaml-cpp::yaml-cpp Eigen3::Eigen ${OpenCV_LIBS} apriltag::apriltag apriltags Ceres::ceres)
 target_link_libraries(yac ${DEPS})
@@ -50,6 +51,10 @@ set(TEST_DATA ${CMAKE_CURRENT_LIST_DIR}/test_data)
 add_executable(TestAprilGrid TestAprilGrid.cpp)
 add_compile_definitions(TestAprilGrid PRIVATE TEST_DATA="${TEST_DATA}")
 target_link_libraries(TestAprilGrid ${TEST_DEPS})
+
+add_executable(TestCalibCamera TestCalibCamera.cpp)
+add_compile_definitions(TestCalibCamera PRIVATE TEST_DATA="${TEST_DATA}")
+target_link_libraries(TestCalibCamera ${TEST_DEPS})
 
 add_executable(TestCalibData TestCalibData.cpp)
 add_compile_definitions(TestCalibData PRIVATE TEST_DATA="${TEST_DATA}")

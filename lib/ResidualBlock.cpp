@@ -67,7 +67,8 @@ ResidualBlock::ResidualBlock(const std::string &type,
   set_num_residuals(num_residuals);
   auto block_sizes = mutable_parameter_block_sizes();
   for (auto param_type : param_types) {
-    block_sizes->push_back(ParamBlock::getParamSize(param_type));
+    auto param_size = ParamBlock::getParamSize(param_type);
+    block_sizes->push_back(param_size);
   }
 }
 

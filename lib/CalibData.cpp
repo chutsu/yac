@@ -108,36 +108,57 @@ void CalibData::loadCameraData(const int camera_index) {
   printf("\n");
 }
 
+bool CalibData::hasCameraMeasurement(const timestamp_t ts,
+                                     const int camera_index) const {
+  if (camera_data_.at(camera_index).count(ts) == 0) {
+    return false;
+  }
+  return true;
+}
+
 void CalibData::addCamera(const int camera_index,
                           const std::string &camera_model,
                           const vec2i_t &resolution,
                           const vecx_t &intrinsic,
                           const vec7_t &extrinsic) {
-  camera_geoms_[camera_index] = std::make_shared<CameraGeometry>(camera_index,
-                                                                 camera_model,
-                                                                 resolution,
-                                                                 intrinsic,
-                                                                 extrinsic);
+  camera_geometries_[camera_index] =
+      std::make_shared<CameraGeometry>(camera_index,
+                                       camera_model,
+                                       resolution,
+                                       intrinsic,
+                                       extrinsic);
 }
 
 void CalibData::addCameraMeasurement(const timestamp_t ts,
                                      const int camera_index,
                                      const CalibTargetPtr &calib_target) {
   camera_data_[camera_index][ts] = calib_target;
-  timeline_.add(ts, camera_index, calib_target);
+  // timeline_.add(ts, camera_index, calib_target);
 }
 
-int CalibData::getNumCameras() const { return camera_geoms_.size(); }
+void CalibData::addTargetPoint(const int point_id, const vec3_t &point) {
+  if (target_points_.count(point_id) == 0) {
+    target_points_[point_id] = point;
+  }
+}
 
-const CameraData &CalibData::getCameraData(const int camera_index) const {
+int CalibData::getNumCameras() const { return camera_geometries_.size(); }
+
+CameraData &CalibData::getCameraData(const int camera_index) {
   return camera_data_.at(camera_index);
 }
 
-const CameraGeometryPtr &
-CalibData::getCameraGeometry(const int camera_index) const {
-  return camera_geoms_.at(camera_index);
+CameraGeometryPtr &CalibData::getCameraGeometry(const int camera_index) {
+  return camera_geometries_.at(camera_index);
 }
 
-const Timeline &CalibData::getTimeline() const { return timeline_; }
+vec3_t &CalibData::getTargetPoint(const int point_id) {
+  return target_points_[point_id];
+}
+
+Timeline &CalibData::getTimeline() const {
+  Timeline timeline = Timeline();
+  return timeline;
+}
 
 } // namespace yac

@@ -28,6 +28,9 @@ public:
               const double tag_spacing);
   virtual ~CalibTarget() = default;
 
+  /** Check if detected */
+  bool detected() const;
+
   /** Get Timestamp **/
   timestamp_t getTimestamp() const;
 

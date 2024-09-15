@@ -10,7 +10,8 @@ define cmake_build
 		&& cd build || return \
 		&& cmake \
 			-DCMAKE_BUILD_TYPE=Release \
-			-DCMAKE_INSTALL_PREFIX="$(PREFIX)" \
+			-DCMAKE_INSTALL_PREFIX=$(PREFIX) \
+			-DCMAKE_LIBRARY_PATH=$(PREFIX)\lib \
 			.. \
 		&& make -j$(NUM_PROCS) \
 		&& make install
@@ -42,6 +43,15 @@ clean: ## Clean
 	@rm -rf lib
 	@rm -rf log
 	@rm -rf share
+	@rm -rf src/SuiteSparse/build
+	@rm -rf src/abseil-cpp/build
+	@rm -rf src/apriltag/build
+	@rm -rf src/apriltags/build
+	@rm -rf src/ceres-solver/build
+	@rm -rf src/eigen/build
+	@rm -rf src/googletest/build
+	@rm -rf src/opencv/build
+	@rm -rf src/yaml-cpp/build
 
 build_yaml:  ## Build yaml
 	$(call cmake_build,yaml-cpp)
@@ -55,19 +65,19 @@ build_gtest:  ## Build GTest
 build_eigen:  ## Build Eigen
 	$(call cmake_build,eigen)
 
-build_suitesparse: build_eigen  ## Build SuiteSparse
+build_suitesparse:  ## Build SuiteSparse
 	$(call cmake_build,SuiteSparse)
 
-build_ceres: build_abseil build_gtest build_eigen build_suitesparse  ## Build SuiteSparse
+build_ceres: build_abseil build_gtest ## Build SuiteSparse
 	$(call cmake_build,ceres-solver)
 
-build_opencv: build_eigen  ## Build OpenCV
+build_opencv:  ## Build OpenCV
 	$(call cmake_build,opencv)
 
-build_apriltag: build_eigen build_opencv  ## Build AprilTag
+build_apriltag: build_opencv  ## Build AprilTag
 	$(call cmake_build,apriltag)
 
-build_apriltags: build_eigen build_opencv  ## Build AprilTags
+build_apriltags: build_opencv  ## Build AprilTags
 	@cd src/apriltags && git apply ../../patches/apriltags.patch
 	$(call cmake_build,apriltags)
 
@@ -75,9 +85,8 @@ BUILD_TARGETS := \
 	build_yaml \
 	build_abseil \
 	build_gtest \
-	build_eigen \
-	build_suitesparse \
 	build_ceres \
 	build_opencv \
-	build_apriltag
+	build_apriltag \
+	build_apriltags
 all: $(BUILD_TARGETS)  ## Build all

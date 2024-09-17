@@ -12,6 +12,8 @@ private:
   mat2_t covar_;
   mat2_t info_;
   mat2_t sqrt_info_;
+  mutable bool valid_ = true;
+  mutable vec2_t residuals_;
 
 public:
   /** Constructor */
@@ -47,6 +49,16 @@ public:
                                             covar);
   }
 
+  bool getResiduals(vec2_t &r) const {
+    r = residuals_;
+    return valid_;
+  }
+
+  bool getReprojError(double *error) const {
+    *error = residuals_.norm();
+    return valid_;
+  }
+
   /** Evaluate with minimial Jacobians */
   bool EvaluateWithMinimalJacobians(double const *const *params,
                                     double *res,
@@ -68,14 +80,14 @@ public:
     const vec2i_t resolution = camera_geometry_->getResolution();
 
     vec2_t z_hat;
-    bool valid = true;
     if (camera_model->project(resolution, intrinsic, p_Ci, z_hat) != 0) {
-      valid = false;
+      valid_ = false;
     }
 
     // Residual
     Eigen::Map<vec2_t> r(res);
     r = sqrt_info_ * (z_ - z_hat);
+    residuals_ = z_ - z_hat;
 
     // Jacobians
     const matx_t Jh = camera_model->projectJacobian(intrinsic, p_Ci);
@@ -90,11 +102,11 @@ public:
       matx_t J_min = Jh_weighted * C_CiF;
 
       Eigen::Map<mat_t<2, 3, row_major_t>> J(jacs[0]);
-      J = (valid) ? J_min : zeros(2, 3);
+      J = (valid_) ? J_min : zeros(2, 3);
 
       if (min_jacs && min_jacs[0]) {
         Eigen::Map<mat_t<2, 3, row_major_t>> min_J(min_jacs[0]);
-        min_J = (valid) ? J_min : zeros(2, 3);
+        min_J = (valid_) ? J_min : zeros(2, 3);
       }
     }
 
@@ -110,13 +122,13 @@ public:
 
       Eigen::Map<mat_t<2, 7, row_major_t>> J(jacs[1]);
       J.setZero();
-      if (valid) {
+      if (valid_) {
         J.block<2, 6>(0, 0) = J_min;
       }
 
       if (min_jacs && min_jacs[1]) {
         Eigen::Map<mat_t<2, 6, row_major_t>> min_J(min_jacs[1]);
-        min_J = (valid) ? J_min : zeros(2, 6);
+        min_J = (valid_) ? J_min : zeros(2, 6);
       }
     }
 
@@ -133,13 +145,13 @@ public:
 
       Eigen::Map<mat_t<2, 7, row_major_t>> J(jacs[2]);
       J.setZero();
-      if (valid) {
+      if (valid_) {
         J.block<2, 6>(0, 0) = J_min;
       }
 
       if (min_jacs && min_jacs[2]) {
         Eigen::Map<mat_t<2, 6, row_major_t>> min_J(min_jacs[2]);
-        min_J = (valid) ? J_min : zeros(2, 6);
+        min_J = (valid_) ? J_min : zeros(2, 6);
       }
     }
 
@@ -148,11 +160,11 @@ public:
       Eigen::Map<mat_t<2, 8, row_major_t>> J(jacs[3]);
       const matx_t J_cam = camera_model->paramsJacobian(intrinsic, p_Ci);
       const matx_t J_min = -1 * sqrt_info_ * J_cam;
-      J = (valid) ? J_min : zeros(2, 8);
+      J = (valid_) ? J_min : zeros(2, 8);
 
       if (min_jacs && min_jacs[3]) {
         Eigen::Map<mat_t<2, 8, row_major_t>> min_J(min_jacs[3]);
-        min_J = (valid) ? J_min : zeros(2, 8);
+        min_J = (valid_) ? J_min : zeros(2, 8);
       }
     }
 

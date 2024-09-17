@@ -6,9 +6,15 @@
 
 namespace yac {
 
-TEST(CalibCamera, testCalibMono) {
+TEST(CalibCamera, initializeCamera) {
   CalibCamera calib{TEST_CONFIG};
   calib.initializeCamera(0);
+}
+
+TEST(CalibCamera, solve) {
+  CalibCamera calib{TEST_CONFIG};
+  calib.initializeCamera(0);
+  calib.solve();
 }
 
 } // namespace yac

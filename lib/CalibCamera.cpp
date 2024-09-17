@@ -1,4 +1,5 @@
 #include "CalibCamera.hpp"
+#include "Timeline.hpp"
 
 namespace yac {
 
@@ -30,7 +31,7 @@ CalibCamera::CalibCamera(const std::string &config_file)
 void CalibCamera::initializeCamera(const int camera_index) {
   // Setup Problem
   std::map<timestamp_t, vec7_t> relposes;
-  std::vector<std::shared_ptr<ResidualBlock>> resblocks;
+  std::vector<std::shared_ptr<CameraResidual>> resblocks;
   auto init_problem = std::make_unique<ceres::Problem>(prob_options_);
 
   // Add camera to problem
@@ -113,24 +114,66 @@ void CalibCamera::initializeCamera(const int camera_index) {
   ceres::Solver::Summary summary;
   ceres::Solve(options, init_problem.get(), &summary);
   std::cout << summary.FullReport() << std::endl << std::endl;
+
+  std::vector<double> reproj_errors;
+  for (const auto &resblock : resblocks) {
+    double error = 0.0;
+    if (resblock->getReprojError(&error)) {
+      reproj_errors.push_back(error);
+    }
+  }
+
+  printf("mean reproj error: %f\n", mean(reproj_errors));
+  printf("rmse reproj error: %f\n", rmse(reproj_errors));
+  printf("median reproj error: %f\n", median(reproj_errors));
 }
 
 void CalibCamera::addView(const std::map<int, CalibTargetPtr> &measurements) {
-  // Check if AprilGrid was detected
-  bool detected = false;
-  timestamp_t ts = 0;
+  // Check if AprilGrid was detected and get the best detected target
+  int best_camera_index = 0;
+  CalibTargetPtr best_target = nullptr;
   for (const auto &[camera_index, calib_target] : measurements) {
-    if (calib_target->detected()) {
-      detected = true;
-      ts = calib_target->getTimestamp();
-      break;
+    // Check if calibration target is detected
+    if (calib_target->detected() == false) {
+      continue;
+    }
+
+    // Keep track of the best detected calibration target
+    if (best_target == nullptr) {
+      best_camera_index = camera_index;
+      best_target = calib_target;
+    } else if (calib_target->getNumDetected() > best_target->getNumDetected()) {
+      best_camera_index = camera_index;
+      best_target = calib_target;
     }
   }
-  if (detected == false) {
+  if (best_target == nullptr) {
+    return;
+  }
+
+  // Get calibration target measurements
+  std::vector<int> tag_ids;
+  std::vector<int> corner_indicies;
+  vec2s_t keypoints;
+  vec3s_t object_points;
+  best_target->getMeasurements(tag_ids,
+                               corner_indicies,
+                               keypoints,
+                               object_points);
+  if (keypoints.size() < 10) {
+    return;
+  }
+
+  // Estimate relative pose T_CF
+  mat4_t T_CiF;
+  SolvePnp pnp{camera_geometries_[best_camera_index]};
+  int status = pnp.estimate(keypoints, object_points, T_CiF);
+  if (status != 0) {
     return;
   }
 
   // Add to calib data if it does not exist
+  const timestamp_t ts = best_target->getTimestamp();
   for (const auto &[camera_index, calib_target] : measurements) {
     if (hasCameraMeasurement(ts, camera_index) == false) {
       addCameraMeasurement(ts, camera_index, calib_target);
@@ -138,16 +181,67 @@ void CalibCamera::addView(const std::map<int, CalibTargetPtr> &measurements) {
   }
 
   // Add calibration view
+  const mat4_t T_C0Ci = camera_geometries_[best_camera_index]->getTransform();
+  const mat4_t T_C0F = T_C0Ci * T_CiF;
+  const vec7_t pose = tf_vec(T_C0F);
   timestamps_.insert(ts);
-  // calib_views_[ts] = new calib_view_t{ts,
-  //                                    cam_grids,
-  //                                    corners.get(),
-  //                                    solver,
-  //                                    &cam_geoms,
-  //                                    &cam_params,
-  //                                    &cam_exts,
-  //                                    poses[ts].get(),
-  //                                    loss_fn};
+  calib_views_[ts] = std::make_shared<CalibView>(problem_,
+                                                 ts,
+                                                 measurements,
+                                                 camera_geometries_,
+                                                 target_points_,
+                                                 pose);
+}
+
+void CalibCamera::solve() {
+  // Form timeline
+  Timeline timeline;
+  for (const auto &[camera_index, measurements] : camera_data_) {
+    for (const auto &[ts, calib_target] : measurements) {
+      timeline.add(ts, camera_index, calib_target);
+    }
+  }
+
+  // Loop through timeline
+  for (const auto ts : timeline.timestamps) {
+    std::map<int, CalibTargetPtr> viewset;
+    for (const auto &event : timeline.getEvents(ts)) {
+      if (auto target_event = dynamic_cast<CalibTargetEvent *>(event)) {
+        auto camera_index = target_event->camera_index;
+        auto calib_target = target_event->calib_target;
+        viewset[camera_index] = calib_target;
+      }
+    }
+    addView(viewset);
+  }
+
+  // Solver options
+  ceres::Solver::Options options;
+  options.minimizer_progress_to_stdout = true;
+  options.max_num_iterations = 30;
+  options.num_threads = 1;
+  options.initial_trust_region_radius = 10; // Default: 1e4
+  options.min_trust_region_radius = 1e-50;  // Default: 1e-32
+  options.function_tolerance = 1e-20;       // Default: 1e-6
+  options.gradient_tolerance = 1e-20;       // Default: 1e-10
+  options.parameter_tolerance = 1e-20;      // Default: 1e-8
+
+  // Solve
+  ceres::Solver::Summary summary;
+  ceres::Solve(options, problem_.get(), &summary);
+  std::cout << summary.FullReport() << std::endl << std::endl;
+
+  // std::vector<double> reproj_errors;
+  // for (const auto &resblock : resblocks) {
+  //   double error = 0.0;
+  //   if (resblock->getReprojError(&error)) {
+  //     reproj_errors.push_back(error);
+  //   }
+  // }
+
+  // printf("mean reproj error: %f\n", mean(reproj_errors));
+  // printf("rmse reproj error: %f\n", rmse(reproj_errors));
+  // printf("median reproj error: %f\n", median(reproj_errors));
 }
 
 } // namespace yac

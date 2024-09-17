@@ -1,18 +1,25 @@
 #pragma once
 #include "Core.hpp"
+#include "CalibTarget.hpp"
 
 namespace yac {
+
+/*****************************************************************************
+ * TimelineEvent
+ ****************************************************************************/
 
 /** Timeline Event **/
 struct TimelineEvent {
   const std::string type = "";
   const timestamp_t ts = 0.0;
 
-  TimelineEvent(const std::string &type_, const timestamp_t &ts_)
-      : type{type_}, ts{ts_} {}
-
+  TimelineEvent(const std::string &type_, const timestamp_t &ts_);
   virtual ~TimelineEvent() = default;
 };
+
+/*****************************************************************************
+ * CameraEvent
+ ****************************************************************************/
 
 /** Camera Event **/
 struct CameraEvent : TimelineEvent {
@@ -22,16 +29,16 @@ struct CameraEvent : TimelineEvent {
 
   CameraEvent(const timestamp_t ts_,
               const int camera_index_,
-              const std::string &image_path_)
-      : TimelineEvent{"CameraEvent", ts_}, camera_index{camera_index_},
-        image_path{image_path_} {}
+              const std::string &image_path_);
 
   CameraEvent(const timestamp_t ts_,
               const int camera_index_,
-              const cv::Mat &frame_)
-      : TimelineEvent{"CameraEvent", ts_},
-        camera_index{camera_index_}, frame{frame_} {}
+              const cv::Mat &frame_);
 };
+
+/*****************************************************************************
+ * ImuEvent
+ ****************************************************************************/
 
 /** Imu Event **/
 struct ImuEvent : TimelineEvent {
@@ -39,9 +46,12 @@ struct ImuEvent : TimelineEvent {
   const vec3_t acc = zeros(3, 1);
   const vec3_t gyr = zeros(3, 1);
 
-  ImuEvent(const timestamp_t ts_, const vec3_t &acc_, const vec3_t &gyr_)
-      : TimelineEvent{"ImuEvent", ts_}, acc{acc_}, gyr{gyr_} {}
+  ImuEvent(const timestamp_t ts_, const vec3_t &acc_, const vec3_t &gyr_);
 };
+
+/*****************************************************************************
+ * CalibTargetEvent
+ ****************************************************************************/
 
 /** Calibration Target Event **/
 struct CalibTargetEvent : TimelineEvent {
@@ -50,10 +60,12 @@ struct CalibTargetEvent : TimelineEvent {
 
   CalibTargetEvent(const timestamp_t ts_,
                    const int camera_index_,
-                   const std::shared_ptr<CalibTarget> &calib_target_)
-      : TimelineEvent{"CalibTargetEvent", ts_}, camera_index{camera_index_},
-        calib_target{calib_target_} {}
+                   const std::shared_ptr<CalibTarget> &calib_target_);
 };
+
+/*****************************************************************************
+ * Timeline
+ ****************************************************************************/
 
 /** Timeline **/
 struct Timeline {
@@ -62,59 +74,29 @@ struct Timeline {
 
   Timeline() = default;
 
-  virtual ~Timeline() {
-    for (auto &kv : data) {
-      delete kv.second;
-    }
-  }
+  virtual ~Timeline();
 
   /** Add camera event **/
   void add(const timestamp_t &ts,
            const int camera_index,
-           const std::string &image_path) {
-    timestamps.insert(ts);
-    data.insert({ts, new CameraEvent{ts, camera_index, image_path}});
-  }
+           const std::string &image_path);
 
   /** Add camera event **/
-  void add(const timestamp_t &ts,
-           const int camera_index,
-           const cv::Mat &image) {
-    timestamps.insert(ts);
-    data.insert({ts, new CameraEvent{ts, camera_index, image}});
-  }
+  void add(const timestamp_t &ts, const int camera_index, const cv::Mat &image);
 
   /** Add imu event **/
-  void add(const timestamp_t &ts, const vec3_t &acc, const vec3_t &gyr) {
-    timestamps.insert(ts);
-    data.insert({ts, new ImuEvent{ts, acc, gyr}});
-  }
+  void add(const timestamp_t &ts, const vec3_t &acc, const vec3_t &gyr);
 
   /** Add calibration target event **/
   void add(const timestamp_t &ts,
            const int camera_index,
-           const std::shared_ptr<CalibTarget> &calib_target) {
-    timestamps.insert(ts);
-    data.insert({ts, new CalibTargetEvent{ts, camera_index, calib_target}});
-  }
+           const std::shared_ptr<CalibTarget> &calib_target);
 
   /** Get number of events **/
-  int getNumEvents(const timestamp_t &ts) {
-    const auto range = data.equal_range(ts);
-    return std::distance(range.first, range.second);
-  }
+  int getNumEvents(const timestamp_t &ts);
 
   /** Get events **/
-  std::vector<TimelineEvent *> getEvents(const timestamp_t &ts) {
-    std::vector<TimelineEvent *> events;
-
-    const auto range = data.equal_range(ts);
-    for (auto it = range.first; it != range.second; it++) {
-      events.push_back(it->second);
-    }
-
-    return events;
-  }
+  std::vector<TimelineEvent *> getEvents(const timestamp_t &ts);
 };
 
 } // namespace yac

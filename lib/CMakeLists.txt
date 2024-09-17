@@ -26,19 +26,27 @@ find_package(Ceres REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(apriltag REQUIRED)
 find_package(yaml-cpp REQUIRED)
+message(STATUS "CMAKE_MODULE_PATH: ${CMAKE_MODULE_PATH}")
+message(STATUS "PREFIX_PATH: ${CMAKE_PREFIX_PATH}")
+message(STATUS "Eigen3 Dir: ${Eigen3_DIR}")
+message(STATUS "Eigen3 Include Dir: ${EIGEN3_INCLUDE_DIR}")
 
 # Build libyac
 add_library(
   yac
   AprilGrid.cpp
+  CalibCamera.cpp
   CalibData.cpp
   CalibTarget.cpp
   CameraChain.cpp
   CameraGeometry.cpp
   CameraModel.cpp
   Core.cpp
+  ParamBlock.cpp
+  PoseLocalParameterization.cpp
   ResidualBlock.cpp
   SolvePnp.cpp
+  Timeline.cpp
 )
 set(DEPS yaml-cpp::yaml-cpp Eigen3::Eigen ${OpenCV_LIBS} apriltag::apriltag apriltags Ceres::ceres)
 target_link_libraries(yac ${DEPS})
@@ -67,3 +75,7 @@ target_link_libraries(TestCameraResidual ${TEST_DEPS})
 add_executable(TestCameraModel TestCameraModel.cpp)
 add_compile_definitions(TestCameraModel PRIVATE TEST_DATA="${TEST_DATA}")
 target_link_libraries(TestCameraModel ${TEST_DEPS})
+
+add_executable(TestTimeline TestTimeline.cpp)
+add_compile_definitions(TestTimeline PRIVATE TEST_DATA="${TEST_DATA}")
+target_link_libraries(TestTimeline ${TEST_DEPS})

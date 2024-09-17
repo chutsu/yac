@@ -133,7 +133,6 @@ void CalibData::addCameraMeasurement(const timestamp_t ts,
                                      const int camera_index,
                                      const CalibTargetPtr &calib_target) {
   camera_data_[camera_index][ts] = calib_target;
-  // timeline_.add(ts, camera_index, calib_target);
 }
 
 void CalibData::addTargetPoint(const int point_id, const vec3_t &point) {
@@ -154,11 +153,6 @@ CameraGeometryPtr &CalibData::getCameraGeometry(const int camera_index) {
 
 vec3_t &CalibData::getTargetPoint(const int point_id) {
   return target_points_[point_id];
-}
-
-Timeline &CalibData::getTimeline() const {
-  Timeline timeline = Timeline();
-  return timeline;
 }
 
 } // namespace yac

@@ -4,11 +4,10 @@ PREFIX := $(MKFILE_DIR)/third_party
 NUM_PROCS := $(shell expr `nproc` / 2)
 
 define cmake_build
-	cd $1 \
-		&& mkdir -p build \
+	mkdir -p build \
 		&& cd build || return \
 		&& cmake \
-			-DCMAKE_BUILD_TYPE=$2 \
+			-DCMAKE_BUILD_TYPE=$1 \
 			-DCMAKE_PREFIX_PATH=$(PREFIX) \
 			-DCMAKE_LIBRARY_PATH=$(PREFIX)\lib \
 			.. \
@@ -28,7 +27,7 @@ third_party: ## Build third party
 	@make -s -C third_party all
 
 debug: ## Build in debug mode
-	$(call cmake_build,lib,Debug)
+	$(call cmake_build,Debug)
 
 release: ## Build in release mode
-	$(call cmake_build,lib,Release)
+	$(call cmake_build,Release)

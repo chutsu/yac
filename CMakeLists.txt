@@ -32,21 +32,22 @@ message(STATUS "Eigen3 Dir: ${Eigen3_DIR}")
 message(STATUS "Eigen3 Include Dir: ${EIGEN3_INCLUDE_DIR}")
 
 # Build libyac
+include_directories(lib)
 add_library(
   yac
-  AprilGrid.cpp
-  CalibCamera.cpp
-  CalibData.cpp
-  CalibTarget.cpp
-  CameraChain.cpp
-  CameraGeometry.cpp
-  CameraModel.cpp
-  Core.cpp
-  ParamBlock.cpp
-  PoseLocalParameterization.cpp
-  ResidualBlock.cpp
-  SolvePnp.cpp
-  Timeline.cpp
+  lib/AprilGrid.cpp
+  lib/CalibCamera.cpp
+  lib/CalibData.cpp
+  lib/CalibTarget.cpp
+  lib/CameraChain.cpp
+  lib/CameraGeometry.cpp
+  lib/CameraModel.cpp
+  lib/Core.cpp
+  lib/ParamBlock.cpp
+  lib/PoseLocalParameterization.cpp
+  lib/ResidualBlock.cpp
+  lib/SolvePnp.cpp
+  lib/Timeline.cpp
 )
 set(DEPS yaml-cpp::yaml-cpp Eigen3::Eigen ${OpenCV_LIBS} apriltag::apriltag apriltags Ceres::ceres)
 target_link_libraries(yac ${DEPS})
@@ -54,28 +55,28 @@ target_link_libraries(yac ${DEPS})
 # Build unit-tests
 link_directories(${CMAKE_PREFIX_PATH}/lib)
 set(TEST_DEPS GTest::gtest_main ${PROJECT_NAME} ${DEPS})
-set(TEST_DATA ${CMAKE_CURRENT_LIST_DIR}/test_data)
+set(TEST_DATA ${CMAKE_CURRENT_LIST_DIR}/tests/test_data)
 
-add_executable(TestAprilGrid TestAprilGrid.cpp)
+add_executable(TestAprilGrid tests/TestAprilGrid.cpp)
 add_compile_definitions(TestAprilGrid PRIVATE TEST_DATA="${TEST_DATA}")
 target_link_libraries(TestAprilGrid ${TEST_DEPS})
 
-add_executable(TestCalibCamera TestCalibCamera.cpp)
+add_executable(TestCalibCamera tests/TestCalibCamera.cpp)
 add_compile_definitions(TestCalibCamera PRIVATE TEST_DATA="${TEST_DATA}")
 target_link_libraries(TestCalibCamera ${TEST_DEPS})
 
-add_executable(TestCalibData TestCalibData.cpp)
+add_executable(TestCalibData tests/TestCalibData.cpp)
 add_compile_definitions(TestCalibData PRIVATE TEST_DATA="${TEST_DATA}")
 target_link_libraries(TestCalibData ${TEST_DEPS})
 
-add_executable(TestCameraResidual TestCameraResidual.cpp)
+add_executable(TestCameraResidual tests/TestCameraResidual.cpp)
 add_compile_definitions(TestCameraResidual PRIVATE TEST_DATA="${TEST_DATA}")
 target_link_libraries(TestCameraResidual ${TEST_DEPS})
 
-add_executable(TestCameraModel TestCameraModel.cpp)
+add_executable(TestCameraModel tests/TestCameraModel.cpp)
 add_compile_definitions(TestCameraModel PRIVATE TEST_DATA="${TEST_DATA}")
 target_link_libraries(TestCameraModel ${TEST_DEPS})
 
-add_executable(TestTimeline TestTimeline.cpp)
+add_executable(TestTimeline tests/TestTimeline.cpp)
 add_compile_definitions(TestTimeline PRIVATE TEST_DATA="${TEST_DATA}")
 target_link_libraries(TestTimeline ${TEST_DEPS})

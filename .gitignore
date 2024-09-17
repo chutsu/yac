@@ -1,12 +1,12 @@
-build
+build/
 tags
 
 deps/*.log
 *.mp4
 .catkin_tools/
 
-third_party/bin
-third_party/include
-third_party/lib
-third_party/share
-third_party/src
+third_party/bin/
+third_party/include/
+third_party/lib/
+third_party/share/
+third_party/src/

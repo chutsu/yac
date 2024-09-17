@@ -138,8 +138,7 @@ bool ResidualBlock::checkJacobian(const int param_idx,
   free(jac_ptrs);
   free(min_jac_ptrs);
 
-  // return (retval == 0) ? true : false;
-  return true;
+  return (retval == 0) ? true : false;
 }
 
 } // namespace yac

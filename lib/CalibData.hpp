@@ -60,6 +60,9 @@ public:
   /** Get number of cameras */
   int getNumCameras() const;
 
+  /** Get all camera data */
+  std::map<int, CameraData> &getAllCameraData();
+
   /** Get camera data */
   CameraData &getCameraData(const int camera_index);
 

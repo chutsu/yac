@@ -143,6 +143,10 @@ void CalibData::addTargetPoint(const int point_id, const vec3_t &point) {
 
 int CalibData::getNumCameras() const { return camera_geometries_.size(); }
 
+std::map<int, CameraData> &CalibData::getAllCameraData() {
+  return camera_data_;
+}
+
 CameraData &CalibData::getCameraData(const int camera_index) {
   return camera_data_.at(camera_index);
 }

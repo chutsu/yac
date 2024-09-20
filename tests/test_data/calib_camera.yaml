@@ -8,5 +8,9 @@ calibration_target:
   tag_spacing: 0.3
 
 cam0:
-  resolution: [768, 452]
+  resolution: [752, 480]
+  camera_model: "pinhole-radtan4"
+
+cam1:
+  resolution: [752, 480]
   camera_model: "pinhole-radtan4"

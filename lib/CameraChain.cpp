@@ -1,128 +1,117 @@
 #include "CameraChain.hpp"
+#include "SolvePnp.hpp"
 
 namespace yac {
 
 CameraChain::CameraChain(
-    const CameraData &cam_data,
-    const std::unordered_map<int, CameraGeometry> &cam_geoms) {
-  // for (const auto &kv : cam_data) {
-  //   const auto &ts = kv.first;
-  //
-  //   // Get all detected AprilGrid at ts
-  //   std::vector<int> cam_indicies;
-  //   std::vector<aprilgrid_t> grids;
-  //   _get_aprilgrids(ts, cam_data, cam_indicies, grids);
-  //
-  //   // Check we have more than 1
-  //   if (cam_indicies.size() < 2) {
-  //     continue;
-  //   }
-  //
-  //   // Add to camchain if we haven't already
-  //   const int cam_i = cam_indicies[0];
-  //   const auto params_i = cam_params.at(cam_i);
-  //   const auto res_i = params_i->resolution;
-  //   const auto geom_i = cam_geoms.at(cam_i).get();
-  //   const auto &grid_i = grids[0];
-  //
-  //   for (size_t i = 1; i < cam_indicies.size(); i++) {
-  //     const auto cam_j = cam_indicies[i];
-  //     const auto params_j = cam_params.at(cam_j);
-  //     const auto res_j = params_j->resolution;
-  //     const auto geom_j = cam_geoms.at(cam_j).get();
-  //     const auto &grid_j = grids[i];
-  //
-  //     if (contains(cam_i, cam_j) == false) {
-  //       mat4_t T_CiF;
-  //       if (grid_i.estimate(geom_i, res_i, params_i->param, T_CiF) != 0) {
-  //         FATAL("Failed to estimate relative pose!");
-  //       }
-  //
-  //       mat4_t T_CjF;
-  //       if (grid_j.estimate(geom_j, res_j, params_j->param, T_CjF) != 0) {
-  //         FATAL("Failed to estimate relative pose!");
-  //       }
-  //
-  //       const mat4_t T_CiCj = T_CiF * tf_inv(T_CjF);
-  //       insert(cam_i, cam_j, T_CiCj);
-  //     }
-  //   }
-  // }
-}
-
-// void CameraChain::getCalibTargets(const timestamp_t &ts,
-//                                   const camera_data_t &cam_data,
-//                                   std::vector<int> &cam_indicies,
-//                                   std::vector<aprilgrid_t> &grids) const {
-//   // Get all detected AprilGrid at ts
-//   for (const auto &[cam_idx, grid] : cam_data.at(ts)) {
-//     // Check aprilgrid is detected
-//     if (grid.detected == false && grid.nb_detections < 12) {
-//       continue;
-//     }
-//
-//     // Update
-//     cam_indicies.push_back(cam_idx);
-//     grids.push_back(grid);
-//   }
-// }
-
-void CameraChain::insert(const int cam_i,
-                         const int cam_j,
-                         const mat4_t &T_CiCj) {
-  if (contains(cam_i, cam_j)) {
-    return;
+    const std::map<int, CameraGeometryPtr> &camera_geometries,
+    const std::map<int, CameraData> &camera_data) {
+  // Get camera timestamps
+  std::map<timestamp_t, std::vector<int>> camera_timestamps;
+  for (const auto &[camera_index, camera_measurements] : camera_data) {
+    for (const auto &[ts, calib_target] : camera_measurements) {
+      camera_timestamps[ts].push_back(camera_index);
+    }
   }
 
-  adjlist_[cam_i].push_back(cam_j);
-  adjlist_[cam_j].push_back(cam_i);
-  exts_[cam_i][cam_j] = T_CiCj;
-  exts_[cam_j][cam_i] = tf_inv(T_CiCj);
+  // Loop through timestamps and get co-observations
+  for (auto &[ts, camera_indicies] : camera_timestamps) {
+    // Pre-check
+    if (camera_indicies.size() < 2) {
+      continue;
+    }
+
+    // Obtain co-observations
+    std::map<int, CalibTargetPtr> observations;
+    for (auto camera_index : camera_indicies) {
+      observations[camera_index] = camera_data.at(camera_index).at(ts);
+    }
+
+    // Estimate relative pose T_CiF
+    const int index_i = camera_indicies[0];
+    const auto &target_i = observations[index_i];
+    const auto camera_i = camera_geometries.at(index_i);
+    mat4_t T_CiF;
+    if (SolvePnp::estimate(camera_i, target_i, T_CiF) != 0) {
+      continue;
+    }
+
+    // Estimate relative pose T_CjF
+    for (size_t j = 1; j < camera_indicies.size(); j++) {
+      const int index_j = camera_indicies[j];
+      const auto &target_j = observations[index_j];
+      const auto camera_j = camera_geometries.at(index_j);
+
+      // Solvepnp T_CjF
+      mat4_t T_CjF;
+      if (SolvePnp::estimate(camera_j, target_j, T_CjF) != 0) {
+        continue;
+      }
+
+      // Insert into adjacency list
+      insert(index_i, index_j, T_CiF * T_CjF.inverse());
+    }
+  }
 }
 
-bool CameraChain::contains(const int cam_i, const int cam_j) const {
-  return (exts_.count(cam_i) && exts_.at(cam_i).count(cam_j));
+void CameraChain::insert(const int i, const int j, const mat4_t &T_ij) {
+  adjlist_[i][j].push_back(T_ij);
+  adjlist_[j][i].push_back(T_ij.inverse());
 }
 
-int CameraChain::find(const int cam_i, const int cam_j, mat4_t &T_CiCj) const {
+int CameraChain::find(const int i, const int j, mat4_t &T_CiCj) const {
+  // Average extrinsic
+  auto average_extrinsic = [&](const int i, const int j) {
+    vec3s_t positions;
+    std::vector<quat_t> rotations;
+    for (const auto &extrinsic : adjlist_.at(i).at(j)) {
+      positions.push_back(tf_trans(extrinsic));
+      rotations.push_back(tf_quat(extrinsic));
+    }
+
+    vec3_t pos = mean(positions);
+    quat_t rot = quat_average(rotations);
+    return tf(rot, pos);
+  };
+
   // Straight-forward case
-  if (cam_i == cam_j) {
+  if (i == j) {
     T_CiCj = I(4);
     return 0;
   }
 
   // Check if we have even inserted the cameras before
-  if (exts_.count(cam_i) == 0 || exts_.count(cam_j) == 0) {
+  if (adjlist_.count(i) == 0 || adjlist_.count(j) == 0) {
     return -1;
   }
 
   // Check if we already have the extrinsics pair
-  if (contains(cam_i, cam_j)) {
-    T_CiCj = exts_.at(cam_i).at(cam_j);
+  if (adjlist_.count(i) && adjlist_.at(i).count(j)) {
+    T_CiCj = average_extrinsic(i, j);
     return 0;
   }
 
-  // Iterative BFS - To get path from cam_i to cam_j
+  // Iterative BFS - To get path from camera i to j
   bool found_target = false;
   std::deque<int> queue;
   std::map<int, bool> visited;
   std::map<int, int> path_map;
 
-  queue.push_back(cam_i);
+  queue.push_back(i);
   while (!queue.empty()) {
     const auto parent = queue.front();
     queue.pop_front();
-    visited.at(parent) = true;
+    visited[parent] = true;
 
-    for (const int &child : adjlist_.at(parent)) {
-      if (visited.at(child)) {
+    for (const auto &[child, _] : adjlist_.at(parent)) {
+      if (visited[child]) {
         continue;
       }
 
       queue.push_back(child);
       path_map[child] = parent;
 
-      if (child == cam_j) {
+      if (child == j) {
         found_target = true;
         break;
       }
@@ -136,20 +125,15 @@ int CameraChain::find(const int cam_i, const int cam_j, mat4_t &T_CiCj) const {
 
   // Traverse the path backwards and chain the transforms
   mat4_t T_CjCi = I(4);
-  int child = cam_j;
+  int child = j;
   while (path_map.count(child)) {
     const int parent = path_map[child];
-    T_CjCi = T_CjCi * exts_.at(child).at(parent);
+    T_CiCj = T_CjCi * average_extrinsic(child, parent);
     child = parent;
   }
-  T_CiCj = tf_inv(T_CjCi);
+  T_CiCj = T_CjCi.inverse();
 
   return 0;
-}
-
-void CameraChain::clear() {
-  adjlist_.clear();
-  exts_.clear();
 }
 
 } // namespace yac

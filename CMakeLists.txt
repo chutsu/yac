@@ -39,6 +39,7 @@ add_library(
   lib/CalibCamera.cpp
   lib/CalibData.cpp
   lib/CalibTarget.cpp
+  lib/CalibView.cpp
   lib/CameraChain.cpp
   lib/CameraGeometry.cpp
   lib/CameraModel.cpp
@@ -69,13 +70,17 @@ add_executable(TestCalibData tests/TestCalibData.cpp)
 add_compile_definitions(TestCalibData PRIVATE TEST_DATA="${TEST_DATA}")
 target_link_libraries(TestCalibData ${TEST_DEPS})
 
-add_executable(TestCameraResidual tests/TestCameraResidual.cpp)
-add_compile_definitions(TestCameraResidual PRIVATE TEST_DATA="${TEST_DATA}")
-target_link_libraries(TestCameraResidual ${TEST_DEPS})
+add_executable(TestCameraChain tests/TestCameraChain.cpp)
+add_compile_definitions(TestCameraChain PRIVATE TEST_DATA="${TEST_DATA}")
+target_link_libraries(TestCameraChain ${TEST_DEPS})
 
 add_executable(TestCameraModel tests/TestCameraModel.cpp)
 add_compile_definitions(TestCameraModel PRIVATE TEST_DATA="${TEST_DATA}")
 target_link_libraries(TestCameraModel ${TEST_DEPS})
+
+add_executable(TestCameraResidual tests/TestCameraResidual.cpp)
+add_compile_definitions(TestCameraResidual PRIVATE TEST_DATA="${TEST_DATA}")
+target_link_libraries(TestCameraResidual ${TEST_DEPS})
 
 add_executable(TestTimeline tests/TestTimeline.cpp)
 add_compile_definitions(TestTimeline PRIVATE TEST_DATA="${TEST_DATA}")

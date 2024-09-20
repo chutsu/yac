@@ -1619,6 +1619,12 @@ mat3_t quat_rmul_xyz(const quat_t &q);
 mat3_t quat_mat_xyz(const mat4_t &Q);
 
 /**
+ * Average quaternion
+ */
+Eigen::Quaterniond
+quat_average(const std::vector<Eigen::Quaterniond> &quaternions);
+
+/**
  * Add noise to rotation matrix `rot`, where noise `n` is in degrees.
  */
 mat3_t add_noise(const mat3_t &rot, const double n);

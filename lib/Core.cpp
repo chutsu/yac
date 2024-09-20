@@ -2184,6 +2184,42 @@ mat3_t quat_rmul_xyz(const quat_t &q) {
 
 mat3_t quat_mat_xyz(const mat4_t &Q) { return Q.bottomRightCorner<3, 3>(); }
 
+Eigen::Quaterniond
+quat_average(const std::vector<Eigen::Quaterniond> &quaternions) {
+  if (quaternions.empty()) {
+    throw std::invalid_argument("Quaternion list is empty!");
+  }
+
+  // Accumulate the outer products of each quaternion
+  Eigen::Matrix4d A = Eigen::Matrix4d::Zero();
+  for (const auto &q : quaternions) {
+    Eigen::Vector4d q_vec(q.w(), q.x(), q.y(), q.z());
+    A += q_vec * q_vec.transpose();
+  }
+
+  // Normalize the matrix
+  A /= static_cast<double>(quaternions.size());
+
+  // Perform the Eigen decomposition of the covariance matrix
+  Eigen::SelfAdjointEigenSolver<Eigen::Matrix4d> eigenSolver(A);
+  if (eigenSolver.info() != Eigen::Success) {
+    throw std::runtime_error("Eigen decomposition failed");
+  }
+
+  // Extract the eigenvector corresponding to the largest eigenvalue
+  Eigen::Vector4d average_quat_vec = eigenSolver.eigenvectors().col(3);
+  // ^The last column corresponds to the largest eigenvalue
+
+  // Convert the eigenvector to a quaternion
+  Eigen::Quaterniond average_quaternion(average_quat_vec(0),
+                                        average_quat_vec(1),
+                                        average_quat_vec(2),
+                                        average_quat_vec(3));
+
+  // Normalize the resulting quaternion
+  return average_quaternion.normalized();
+}
+
 mat3_t add_noise(const mat3_t &rot, const double n) {
   const vec3_t rpy_n{randf(-n, n), randf(-n, n), randf(-n, n)};
   const vec3_t rpy = quat2euler(quat_t{rot}) + deg2rad(rpy_n);

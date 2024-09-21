@@ -27,6 +27,9 @@ public:
   /** Get camera model **/
   std::shared_ptr<CameraModel> getCameraModel() const;
 
+  /** Get camera model string **/
+  std::string getCameraModelString() const;
+
   /** Get resoultion **/
   vec2i_t getResolution() const;
 
@@ -44,6 +47,9 @@ public:
 
   /** Get transform T_body_camera **/
   mat4_t getTransform() const;
+
+  /** Set extrinsic */
+  void setExtrinsic(const mat4_t &extrinsic);
 };
 
 } // namespace yac

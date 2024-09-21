@@ -3,7 +3,7 @@
 #include "SolvePnp.hpp"
 #include "CalibData.hpp"
 #include "CalibView.hpp"
-#include "CameraResidual.hpp"
+#include "ReprojectionError.hpp"
 
 namespace yac {
 
@@ -20,8 +20,11 @@ private:
 public:
   CalibCamera(const std::string &config_file);
 
-  /** Initialize camera parameters */
-  void initializeCamera(const int camera_index);
+  /** Initialize camera intrinsic */
+  void initializeIntrinsics();
+
+  /** Initialize camera extrinsic */
+  void initializeExtrinsics();
 
   /** Add camera calibration view */
   void addView(const std::map<int, CalibTargetPtr> &measurements);

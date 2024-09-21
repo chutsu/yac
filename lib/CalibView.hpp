@@ -1,7 +1,7 @@
 #pragma once
 
 #include "CalibData.hpp"
-#include "CameraResidual.hpp"
+#include "ReprojectionError.hpp"
 
 namespace yac {
 
@@ -16,7 +16,7 @@ private:
   std::map<int, vec3_t> &target_points_;
   vec7_t pose_;
 
-  std::map<int, std::vector<std::shared_ptr<CameraResidual>>> resblocks_;
+  std::map<int, std::vector<std::shared_ptr<ReprojectionError>>> resblocks_;
   std::map<int, std::vector<ceres::ResidualBlockId>> resblock_ids_;
 
 public:

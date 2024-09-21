@@ -37,6 +37,18 @@ protected:
   /** Check if we have a camera measurement already */
   bool hasCameraMeasurement(const timestamp_t ts, const int camera_index) const;
 
+  /** Print settings */
+  void printSettings(FILE *fp) const;
+
+  /** Print calibration target */
+  void printCalibTarget(FILE *fp) const;
+
+  /** Print camera geometries */
+  void printCameraGeometries(FILE *fp, const bool max_digits=false) const;
+
+  /** Print target points */
+  void printTargetPoints(FILE *fp) const;
+
 public:
   CalibData() = delete;
   CalibData(const std::string &config_path);
@@ -66,11 +78,20 @@ public:
   /** Get camera data */
   CameraData &getCameraData(const int camera_index);
 
+  /** Get camera geometries */
+  std::map<int, CameraGeometryPtr> &getAllCameraGeometries();
+
   /** Get camera geometry */
   CameraGeometryPtr &getCameraGeometry(const int camera_index);
 
   /** Get target point */
   vec3_t &getTargetPoint(const int point_id);
+
+  /** Print summary */
+  void printSummary(FILE *fp, const bool max_digits=false) const;
+
+  /** Save results */
+  void saveResults(const std::string &save_path) const;
 };
 
 } // namespace yac

@@ -1,4 +1,5 @@
 #include "CalibCamera.hpp"
+#include "CameraChain.hpp"
 #include "Timeline.hpp"
 
 namespace yac {
@@ -10,92 +11,201 @@ CalibCamera::CalibCamera(const std::string &config_file)
   prob_options_.loss_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
   prob_options_.enable_fast_removal = true;
   problem_ = std::make_shared<ceres::Problem>(prob_options_);
+}
 
-  // Add camera intrinsic and extrinsics to problem
-  for (auto &[camera_index, camera_geometry] : camera_geometries_) {
+void CalibCamera::initializeIntrinsics() {
+  for (const auto &[camera_index, camera_measurements] : getAllCameraData()) {
+    // Setup Problem
+    std::map<timestamp_t, vec7_t> relposes;
+    std::vector<std::shared_ptr<ReprojectionError>> resblocks;
+    auto init_problem = std::make_unique<ceres::Problem>(prob_options_);
+
+    // Add camera to problem
+    auto camera_geometry = getCameraGeometry(camera_index);
     const int intrinsic_size = camera_geometry->getIntrinsic().size();
     double *intrinsic = camera_geometry->getIntrinsicPtr();
     double *extrinsic = camera_geometry->getExtrinsicPtr();
-    problem_->AddParameterBlock(intrinsic, intrinsic_size);
-    problem_->AddParameterBlock(extrinsic, 7);
-    problem_->SetManifold(extrinsic, &pose_plus_);
-  }
+    init_problem->AddParameterBlock(intrinsic, intrinsic_size);
+    init_problem->AddParameterBlock(extrinsic, 7);
+    init_problem->SetManifold(extrinsic, &pose_plus_);
+    init_problem->SetParameterBlockConstant(extrinsic);
 
-  // Monocular camera calibration - Fix camera0 extrinsic
-  if (getNumCameras() == 1) {
-    auto camera_geometry = getCameraGeometry(0);
-    problem_->SetParameterBlockConstant(camera_geometry->getExtrinsicPtr());
+    // Build problem
+    for (const auto &[ts, calib_target] : getCameraData(camera_index)) {
+      // Check if detected
+      if (calib_target->detected() == false) {
+        continue;
+      }
+
+      // Get calibration target measurements
+      std::vector<int> tag_ids;
+      std::vector<int> corner_indicies;
+      vec2s_t keypoints;
+      vec3s_t object_points;
+      calib_target->getMeasurements(tag_ids,
+                                    corner_indicies,
+                                    keypoints,
+                                    object_points);
+      if (keypoints.size() < 10) {
+        continue;
+      }
+
+      // Estimate relative pose T_CF
+      mat4_t T_CF;
+      SolvePnp pnp{camera_geometry};
+      int status = pnp.estimate(keypoints, object_points, T_CF);
+      if (status != 0) {
+        continue;
+      }
+
+      // Add pose
+      mat2_t covar = I(2);
+      relposes[ts] = tf_vec(T_CF);
+      init_problem->AddParameterBlock(relposes[ts].data(), 7);
+      init_problem->SetManifold(relposes[ts].data(), &pose_plus_);
+
+      // Add residual blocks
+      for (size_t i = 0; i < tag_ids.size(); i++) {
+        const int point_id = (tag_ids[i] * 4) + corner_indicies[i];
+        addTargetPoint(point_id, object_points[i]);
+
+        vec3_t &pt = getTargetPoint(point_id);
+        init_problem->AddParameterBlock(pt.data(), 3);
+        init_problem->SetParameterBlockConstant(pt.data());
+
+        auto resblock = ReprojectionError::create(camera_geometry,
+                                                  relposes[ts].data(),
+                                                  pt.data(),
+                                                  keypoints[i],
+                                                  covar);
+        resblocks.push_back(resblock);
+        init_problem->AddResidualBlock(resblock.get(),
+                                       nullptr,
+                                       resblock->getParamPtrs());
+      }
+    }
+
+    // Solver options
+    ceres::Solver::Options options;
+    options.minimizer_progress_to_stdout = true;
+    options.max_num_iterations = 30;
+    options.num_threads = 1;
+    options.initial_trust_region_radius = 10; // Default: 1e4
+    options.min_trust_region_radius = 1e-50;  // Default: 1e-32
+    options.function_tolerance = 1e-20;       // Default: 1e-6
+    options.gradient_tolerance = 1e-20;       // Default: 1e-10
+    options.parameter_tolerance = 1e-20;      // Default: 1e-8
+
+    // Solve
+    ceres::Solver::Summary summary;
+    ceres::Solve(options, init_problem.get(), &summary);
+    std::cout << summary.FullReport() << std::endl << std::endl;
+
+    std::vector<double> reproj_errors;
+    for (const auto &resblock : resblocks) {
+      double error = 0.0;
+      if (resblock->getReprojError(&error)) {
+        reproj_errors.push_back(error);
+      }
+    }
+    printf("mean reproj error: %f\n", mean(reproj_errors));
+    printf("rmse reproj error: %f\n", rmse(reproj_errors));
+    printf("median reproj error: %f\n", median(reproj_errors));
   }
 }
 
-void CalibCamera::initializeCamera(const int camera_index) {
+void CalibCamera::initializeExtrinsics() {
+  // Setup camera chain
+  CameraChain camchain(getAllCameraGeometries(), getAllCameraData());
+  for (auto &[camera_index, camera_geometry] : getAllCameraGeometries()) {
+    mat4_t T_CiCj;
+    if (camchain.find(0, camera_index, T_CiCj) != 0) {
+      FATAL("No observations between camera0 and camera%d\n", camera_index);
+    }
+    camera_geometry->setExtrinsic(T_CiCj);
+  }
+
   // Setup Problem
+  mat2_t covar = I(2);
   std::map<timestamp_t, vec7_t> relposes;
-  std::vector<std::shared_ptr<CameraResidual>> resblocks;
+  std::vector<std::shared_ptr<ReprojectionError>> resblocks;
   auto init_problem = std::make_unique<ceres::Problem>(prob_options_);
 
-  // Add camera to problem
-  auto camera_geometry = getCameraGeometry(camera_index);
-  const int intrinsic_size = camera_geometry->getIntrinsic().size();
-  double *intrinsic = camera_geometry->getIntrinsicPtr();
-  double *extrinsic = camera_geometry->getExtrinsicPtr();
-  init_problem->AddParameterBlock(intrinsic, intrinsic_size);
-  init_problem->AddParameterBlock(extrinsic, 7);
-  init_problem->SetManifold(extrinsic, &pose_plus_);
-  init_problem->SetParameterBlockConstant(extrinsic);
-
   // Build problem
-  for (const auto &[ts, calib_target] : getCameraData(camera_index)) {
-    // Check if detected
-    if (calib_target->detected() == false) {
-      continue;
+  for (const auto &[camera_index, camera_measurements] : getAllCameraData()) {
+    auto camera_geometry = getCameraGeometry(camera_index);
+    const int intrinsic_size = camera_geometry->getIntrinsic().size();
+    double *intrinsic = camera_geometry->getIntrinsicPtr();
+    double *extrinsic = camera_geometry->getExtrinsicPtr();
+    init_problem->AddParameterBlock(intrinsic, intrinsic_size);
+    init_problem->AddParameterBlock(extrinsic, 7);
+    init_problem->SetManifold(extrinsic, &pose_plus_);
+    if (camera_index == 0) {
+      init_problem->SetParameterBlockConstant(extrinsic);
     }
 
-    // Get calibration target measurements
-    std::vector<int> tag_ids;
-    std::vector<int> corner_indicies;
-    vec2s_t keypoints;
-    vec3s_t object_points;
-    calib_target->getMeasurements(tag_ids,
-                                  corner_indicies,
-                                  keypoints,
-                                  object_points);
-    if (keypoints.size() < 10) {
-      continue;
-    }
+    // Add camera measurements
+    for (const auto &[ts, calib_target] : camera_measurements) {
+      // Check if detected
+      if (calib_target->detected() == false) {
+        continue;
+      }
 
-    // Estimate relative pose T_CF
-    mat4_t T_CF;
-    SolvePnp pnp{camera_geometry};
-    int status = pnp.estimate(keypoints, object_points, T_CF);
-    if (status != 0) {
-      continue;
-    }
+      // Get calibration target measurements
+      std::vector<int> tag_ids;
+      std::vector<int> corner_indicies;
+      vec2s_t keypoints;
+      vec3s_t object_points;
+      calib_target->getMeasurements(tag_ids,
+                                    corner_indicies,
+                                    keypoints,
+                                    object_points);
+      if (keypoints.size() < 10) {
+        continue;
+      }
 
-    // Add pose
-    mat2_t covar = I(2);
-    relposes[ts] = tf_vec(T_CF);
-    init_problem->AddParameterBlock(relposes[ts].data(), 7);
-    init_problem->SetManifold(relposes[ts].data(), &pose_plus_);
+      // Estimate relative pose T_C0F
+      mat4_t T_C0F;
+      if (relposes.count(ts) == 0) {
+        // Solvepnp T_CiF
+        mat4_t T_CiF;
+        SolvePnp pnp{camera_geometry};
+        int status = pnp.estimate(keypoints, object_points, T_CiF);
+        if (status != 0) {
+          continue;
+        }
 
-    // Add residual blocks
-    for (size_t i = 0; i < tag_ids.size(); i++) {
-      const int point_id = (tag_ids[i] * 4) + corner_indicies[i];
-      addTargetPoint(point_id, object_points[i]);
+        // Form T_C0F
+        const mat4_t T_C0Ci = camera_geometry->getTransform();
+        T_C0F = T_C0Ci * T_CiF;
 
-      vec3_t &pt = getTargetPoint(point_id);
-      init_problem->AddParameterBlock(pt.data(), 3);
-      init_problem->SetParameterBlockConstant(pt.data());
+        // Add pose
+        relposes[ts] = tf_vec(T_C0F);
+        init_problem->AddParameterBlock(relposes[ts].data(), 7);
+        init_problem->SetManifold(relposes[ts].data(), &pose_plus_);
+      } else {
+        T_C0F = tf(relposes[ts]);
+      }
 
-      auto resblock = CameraResidual::create(camera_geometry,
-                                             relposes[ts].data(),
-                                             pt.data(),
-                                             keypoints[i],
-                                             covar);
-      resblocks.push_back(resblock);
-      init_problem->AddResidualBlock(resblock.get(),
-                                     nullptr,
-                                     resblock->getParamPtrs());
+      // Add residual blocks
+      for (size_t i = 0; i < tag_ids.size(); i++) {
+        const int point_id = (tag_ids[i] * 4) + corner_indicies[i];
+        addTargetPoint(point_id, object_points[i]);
+
+        vec3_t &pt = getTargetPoint(point_id);
+        init_problem->AddParameterBlock(pt.data(), 3);
+        init_problem->SetParameterBlockConstant(pt.data());
+
+        auto resblock = ReprojectionError::create(camera_geometry,
+                                                  relposes[ts].data(),
+                                                  pt.data(),
+                                                  keypoints[i],
+                                                  covar);
+        resblocks.push_back(resblock);
+        init_problem->AddResidualBlock(resblock.get(),
+                                       nullptr,
+                                       resblock->getParamPtrs());
+      }
     }
   }
 
@@ -194,6 +304,24 @@ void CalibCamera::addView(const std::map<int, CalibTargetPtr> &measurements) {
 }
 
 void CalibCamera::solve() {
+  // Initialize intrinsics and extrinsics
+  initializeIntrinsics();
+  initializeExtrinsics();
+
+  // Add camera intrinsic and extrinsics to problem
+  for (auto &[camera_index, camera_geometry] : camera_geometries_) {
+    const int intrinsic_size = camera_geometry->getIntrinsic().size();
+    double *intrinsic = camera_geometry->getIntrinsicPtr();
+    double *extrinsic = camera_geometry->getExtrinsicPtr();
+    problem_->AddParameterBlock(intrinsic, intrinsic_size);
+    problem_->AddParameterBlock(extrinsic, 7);
+    problem_->SetManifold(extrinsic, &pose_plus_);
+
+    if (camera_index == 0) {
+      problem_->SetParameterBlockConstant(extrinsic);
+    }
+  }
+
   // Form timeline
   Timeline timeline;
   for (const auto &[camera_index, measurements] : camera_data_) {
@@ -231,17 +359,7 @@ void CalibCamera::solve() {
   ceres::Solve(options, problem_.get(), &summary);
   std::cout << summary.FullReport() << std::endl << std::endl;
 
-  // std::vector<double> reproj_errors;
-  // for (const auto &resblock : resblocks) {
-  //   double error = 0.0;
-  //   if (resblock->getReprojError(&error)) {
-  //     reproj_errors.push_back(error);
-  //   }
-  // }
-
-  // printf("mean reproj error: %f\n", mean(reproj_errors));
-  // printf("rmse reproj error: %f\n", rmse(reproj_errors));
-  // printf("median reproj error: %f\n", median(reproj_errors));
+  printSummary(stdout);
 }
 
 } // namespace yac

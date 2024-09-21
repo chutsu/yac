@@ -116,6 +116,54 @@ bool CalibData::hasCameraMeasurement(const timestamp_t ts,
   return true;
 }
 
+void CalibData::printSettings(FILE *fp) const {
+  fprintf(fp, "settings:\n");
+  fprintf(fp, "  data_path:   \"%s\"\n", data_path_.c_str());
+  fprintf(fp, "  config_path: \"%s\"\n", config_path_.c_str());
+  fprintf(fp, "\n");
+}
+
+void CalibData::printCalibTarget(FILE *fp) const {
+  fprintf(fp, "calibration_target:\n");
+  fprintf(fp, "  target_type: \"%s\"\n", target_type_.c_str());
+  fprintf(fp, "  tag_rows:     %d\n", tag_rows_);
+  fprintf(fp, "  tag_cols:     %d\n", tag_cols_);
+  fprintf(fp, "  tag_size:     %f\n", tag_size_);
+  fprintf(fp, "  tag_spacing:  %f\n", tag_spacing_);
+  fprintf(fp, "\n");
+}
+
+void CalibData::printCameraGeometries(FILE *fp, const bool max_digits) const {
+  for (const auto &[camera_index, camera] : camera_geometries_) {
+    const auto model = camera->getCameraModelString();
+    const auto resolution = camera->getResolution();
+    const auto intrinsic = vec2str(camera->getIntrinsic(), false, max_digits);
+    const auto extrinsic = vec2str(camera->getExtrinsic(), false, max_digits);
+
+    fprintf(fp, "camera%d:\n", camera_index);
+    fprintf(fp, "  model:     \"%s\"\n", model.c_str());
+    fprintf(fp, "  resolution: [%d, %d]\n", resolution.x(), resolution.y());
+    fprintf(fp, "  intrinsic:  [%s]\n", intrinsic.c_str());
+    fprintf(fp, "  extrinsic:  [%s]\n", extrinsic.c_str());
+    fprintf(fp, "\n");
+  }
+}
+
+void CalibData::printTargetPoints(FILE *fp) const {
+  fprintf(fp, "# point_id, x, y, z\n");
+  fprintf(fp, "target_points: [\n");
+  for (const auto &[point_id, point] : target_points_) {
+    fprintf(fp,
+            "  %d, %f, %f, %f\n",
+            point_id,
+            point.x(),
+            point.y(),
+            point.z());
+  }
+  fprintf(fp, "]\n");
+  fprintf(fp, "\n");
+}
+
 void CalibData::addCamera(const int camera_index,
                           const std::string &camera_model,
                           const vec2i_t &resolution,
@@ -151,12 +199,35 @@ CameraData &CalibData::getCameraData(const int camera_index) {
   return camera_data_.at(camera_index);
 }
 
+std::map<int, CameraGeometryPtr> &CalibData::getAllCameraGeometries() {
+  return camera_geometries_;
+}
+
 CameraGeometryPtr &CalibData::getCameraGeometry(const int camera_index) {
   return camera_geometries_.at(camera_index);
 }
 
 vec3_t &CalibData::getTargetPoint(const int point_id) {
   return target_points_[point_id];
+}
+
+void CalibData::printSummary(FILE *fp, const bool max_digits) const {
+  printSettings(fp);
+  printCalibTarget(fp);
+  printCameraGeometries(fp, max_digits);
+}
+
+void CalibData::saveResults(const std::string &save_path) const {
+  FILE *fp = fopen(save_path.c_str(), "w");
+  if (fp == NULL) {
+    FATAL("Failed to open file [%s]", save_path.c_str());
+  }
+
+  printSettings(fp);
+  printCalibTarget(fp);
+  printCameraGeometries(fp, true);
+
+  fclose(fp);
 }
 
 } // namespace yac

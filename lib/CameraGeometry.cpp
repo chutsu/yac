@@ -48,6 +48,10 @@ std::shared_ptr<CameraModel> CameraGeometry::getCameraModel() const {
   return camera_model_;
 }
 
+std::string CameraGeometry::getCameraModelString() const {
+  return camera_model_->type;
+}
+
 vec2i_t CameraGeometry::getResolution() const { return resolution_; }
 
 vecx_t CameraGeometry::getIntrinsic() const { return intrinsic_; }
@@ -59,5 +63,9 @@ double *CameraGeometry::getIntrinsicPtr() { return intrinsic_.data(); }
 double *CameraGeometry::getExtrinsicPtr() { return extrinsic_.data(); }
 
 mat4_t CameraGeometry::getTransform() const { return tf(extrinsic_); }
+
+void CameraGeometry::setExtrinsic(const mat4_t &extrinsic) {
+  extrinsic_ = tf_vec(extrinsic);
+}
 
 } // namespace yac

@@ -14,6 +14,7 @@ public:
     BIAS,
     TIME_DELAY,
     INTRINSIC8,
+    SPEED_BIASES,
   };
 
   /** Get Parameter Size */

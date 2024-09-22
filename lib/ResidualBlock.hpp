@@ -32,13 +32,16 @@ public:
   std::vector<double *> getParamPtrs() const;
 
   /** Evaluate with Minimal jacobians */
-  virtual bool EvaluateWithMinimalJacobians(double const *const *params,
-                                            double *res,
-                                            double **jacs,
-                                            double **min_jacs) const = 0;
+  virtual bool
+  EvaluateWithMinimalJacobians(double const *const *params,
+                               double *res,
+                               double **jacs = nullptr,
+                               double **min_jacs = nullptr) const = 0;
 
   /** Evaluate with Minimal jacobians */
-  bool Evaluate(double const *const *params, double *res, double **jacs) const;
+  bool Evaluate(double const *const *params,
+                double *res,
+                double **jacs = nullptr) const;
 
   /** Check jacobian */
   bool checkJacobian(const int param_idx,

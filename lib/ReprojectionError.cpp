@@ -48,7 +48,7 @@ bool ReprojectionError::EvaluateWithMinimalJacobians(
     double const *const *params,
     double *res,
     double **jacs,
-    double **min_jacs) const override {
+    double **min_jacs) const {
   // Map parameters out
   Eigen::Map<const vec3_t> p_FFi(params[0], 3);
   const mat4_t T_C0F = tf(params[1]);

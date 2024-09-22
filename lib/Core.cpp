@@ -2142,6 +2142,32 @@ quat_t quat_delta(const vec3_t &dalpha) {
   return quat_t{scalar, vector(0), vector(1), vector(2)};
 }
 
+mat4_t quat_left(const quat_t &q) {
+  // clang-format off
+  mat4_t Q_left;
+  Q_left <<
+    q.w(), -q.x(), -q.y(), -q.z(),
+    q.x(), q.w(), -q.z(), q.y(),
+    q.y(), q.z(), q.w(), -q.x(),
+    q.z(), -q.y(), q.x(), q.w();
+  // clang-format on
+
+  return Q_left;
+}
+
+mat4_t quat_right(const quat_t &q) {
+  // clang-format off
+  mat4_t Q_right;
+  Q_right <<
+    q.w(), -q.x(), -q.y(), -q.z(),
+    q.x(), q.w(), q.z(), -q.y(),
+    q.y(), -q.z(), q.w(), q.x(),
+    q.z(), q.y(), -q.x(), q.w();
+  // clang-format on
+
+  return Q_right;
+}
+
 mat4_t quat_lmul(const quat_t &q) {
   const double qw = q.w();
   const double qx = q.x();

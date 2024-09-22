@@ -4,11 +4,11 @@
 namespace yac {
 
 struct ImuParams {
-  vec3_t noise_acc;
-  vec3_t noise_gyr;
-  vec3_t noise_ba;
-  vec3_t noise_bg;
-  vec3_t g;
+  double noise_acc;
+  double noise_gyr;
+  double noise_ba;
+  double noise_bg;
+  vec3_t g{0.0, 0.0, 9.81};
 };
 
 } // namespace yac

@@ -15,6 +15,8 @@ int ParamBlock::getParamSize(const ParamBlock::Type type) {
       return 1;
     case INTRINSIC8:
       return 8;
+    case SPEED_BIASES:
+      return 9;
     default:
       FATAL("Invalid Parameter BlockType!");
   }
@@ -33,6 +35,8 @@ int ParamBlock::getLocalSize(const ParamBlock::Type type) {
       return 1;
     case INTRINSIC8:
       return 8;
+    case SPEED_BIASES:
+      return 9;
     default:
       FATAL("Invalid Parameter BlockType!");
   }
@@ -74,6 +78,7 @@ void ParamBlock::perturb(const ParamBlock::Type type,
     case BIAS:
     case TIME_DELAY:
     case INTRINSIC8:
+    case SPEED_BIASES:
       ptr[i] += step;
       break;
     default:

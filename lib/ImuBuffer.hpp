@@ -3,15 +3,15 @@
 
 namespace yac {
 
-class ImuData {
+class ImuBuffer {
 private:
   std::vector<timestamp_t> timestamps_;
   std::vector<vec3_t> acc_data_;
   std::vector<vec3_t> gyr_data_;
 
 public:
-  ImuData() = default;
-  virtual ~ImuData() = default;
+  ImuBuffer() = default;
+  virtual ~ImuBuffer() = default;
 
   int getNumMeasurements() const { return timestamps_.size(); }
 

@@ -1594,6 +1594,16 @@ mat3_t quat2rot(const quat_t &q);
 quat_t quat_delta(const vec3_t &dalpha);
 
 /**
+ * Left quaternion product matrix
+ */
+mat4_t quat_left(const quat_t &q);
+
+/**
+ * Right quaternion product matrix
+ */
+mat4_t quat_right(const quat_t &q);
+
+/**
  * Return left quaternion product matrix.
  */
 mat4_t quat_lmul(const quat_t &q);

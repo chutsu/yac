@@ -1,14 +1,14 @@
 #include <gtest/gtest.h>
 
 #include "CalibData.hpp"
-#include "CameraResidual.hpp"
+#include "ReprojectionError.hpp"
 #include "SolvePnp.hpp"
 
 #define TEST_CONFIG TEST_DATA "/calib_camera.yaml"
 
 namespace yac {
 
-TEST(CameraResidual, evaluate) {
+TEST(ReprojectionError, evaluate) {
   // Load test data
   CalibData calib_data{TEST_CONFIG};
 
@@ -65,11 +65,11 @@ TEST(CameraResidual, evaluate) {
   // Create residual block
   mat2_t covar = I(2);
   vecx_t relpose = tf_vec(T_CiF);
-  auto residual_block = CameraResidual::create(camera_geometry,
-                                               relpose.data(),
-                                               object_points[0].data(),
-                                               keypoints[0],
-                                               covar);
+  auto residual_block = ReprojectionError::create(camera_geometry,
+                                                  relpose.data(),
+                                                  object_points[0].data(),
+                                                  keypoints[0],
+                                                  covar);
   // Check residual size and parameter block sizes
   auto block_sizes = residual_block->parameter_block_sizes();
   ASSERT_EQ(residual_block->num_residuals(), 2);
@@ -85,7 +85,8 @@ TEST(CameraResidual, evaluate) {
   ASSERT_EQ(param_ptrs[2], camera_geometry->getExtrinsicPtr());
   ASSERT_EQ(param_ptrs[3], camera_geometry->getIntrinsicPtr());
 
-  // Check jacobians
+
+  // Check Jacobians
   ASSERT_TRUE(residual_block->checkJacobian(0, "J_point"));
   ASSERT_TRUE(residual_block->checkJacobian(1, "J_relpose"));
   ASSERT_TRUE(residual_block->checkJacobian(2, "J_extrinsic"));

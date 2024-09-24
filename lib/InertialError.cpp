@@ -304,7 +304,7 @@ bool InertialError::EvaluateWithMinimalJacobians(double const *const *params,
     const quat_t error_rot = dq_.inverse() * (q_i.inverse() * q_j);
     const mat3_t dtheta_dCj = quat_left(error_rot).block<3, 3>(1, 1);
 
-    Eigen::Map<mat_t<15, 6, row_major_t>> J(jacs[2]);
+    Eigen::Map<mat_t<15, 7, row_major_t>> J(jacs[2]);
     J.setZero();
     J.block<3, 3>(0, 0) = C_i.transpose(); // dr w.r.t r_j
     J.block<3, 3>(6, 3) = dtheta_dCj;      // dtheta w.r.t C_j
@@ -312,7 +312,7 @@ bool InertialError::EvaluateWithMinimalJacobians(double const *const *params,
 
     if (min_jacs && min_jacs[2]) {
       Eigen::Map<mat_t<15, 6, row_major_t>> min_J(min_jacs[2]);
-      min_J = J;
+      min_J = J.block<15, 6>(0, 0);
     }
   }
 
@@ -332,7 +332,6 @@ bool InertialError::EvaluateWithMinimalJacobians(double const *const *params,
   }
 
   return true;
-}
 }
 
 } // namespace yac

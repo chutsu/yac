@@ -52,6 +52,15 @@ public:
                 const ImuParams &imu_params,
                 const ImuBuffer &imu_buffer);
 
+  /** Return relative rotation dq */
+  quat_t getRelativeRotation() const { return dq_; }
+
+  /** Return relative position dr */
+  vec3_t getRelativePosition() const { return dr_; }
+
+  /** Return relative velocity dv */
+  vec3_t getRelativeVelocity() const { return dv_; }
+
   /** Create residual block */
   static std::shared_ptr<InertialError> create(const ImuParams &imu_params,
                                                const ImuBuffer &imu_buffer,

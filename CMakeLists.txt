@@ -20,7 +20,6 @@ if (USE_ADDRESS_SANITIZER)
 endif()
 
 # Dependencies
-find_package(GTest REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(Ceres REQUIRED)
 find_package(OpenCV REQUIRED)
@@ -30,6 +29,13 @@ message(STATUS "CMAKE_MODULE_PATH: ${CMAKE_MODULE_PATH}")
 message(STATUS "PREFIX_PATH: ${CMAKE_PREFIX_PATH}")
 message(STATUS "Eigen3 Dir: ${Eigen3_DIR}")
 message(STATUS "Eigen3 Include Dir: ${EIGEN3_INCLUDE_DIR}")
+
+include(FetchContent)
+FetchContent_Declare(
+  googletest
+  URL https://github.com/google/googletest/archive/03597a01ee50ed33e9dfd640b249b4be3799d395.zip
+)
+FetchContent_MakeAvailable(googletest)
 
 # Build libyac
 include_directories(lib)
@@ -44,10 +50,13 @@ add_library(
   lib/CameraGeometry.cpp
   lib/CameraModel.cpp
   lib/Core.cpp
+  lib/InertialError.cpp
   lib/ParamBlock.cpp
   lib/PoseLocalParameterization.cpp
+  lib/ReprojectionError.cpp
   lib/ResidualBlock.cpp
   lib/SolvePnp.cpp
+  lib/Sim.cpp
   lib/Timeline.cpp
 )
 set(DEPS yaml-cpp::yaml-cpp Eigen3::Eigen ${OpenCV_LIBS} apriltag::apriltag apriltags Ceres::ceres)
@@ -78,9 +87,17 @@ add_executable(TestCameraModel tests/TestCameraModel.cpp)
 add_compile_definitions(TestCameraModel PRIVATE TEST_DATA="${TEST_DATA}")
 target_link_libraries(TestCameraModel ${TEST_DEPS})
 
-add_executable(TestCameraResidual tests/TestCameraResidual.cpp)
-add_compile_definitions(TestCameraResidual PRIVATE TEST_DATA="${TEST_DATA}")
-target_link_libraries(TestCameraResidual ${TEST_DEPS})
+add_executable(TestInertialError tests/TestInertialError.cpp)
+add_compile_definitions(TestInertialError PRIVATE TEST_DATA="${TEST_DATA}")
+target_link_libraries(TestInertialError ${TEST_DEPS})
+
+add_executable(TestReprojectionError tests/TestReprojectionError.cpp)
+add_compile_definitions(TestReprojectionError PRIVATE TEST_DATA="${TEST_DATA}")
+target_link_libraries(TestReprojectionError ${TEST_DEPS})
+
+add_executable(TestSim tests/TestSim.cpp)
+add_compile_definitions(TestSim PRIVATE TEST_DATA="${TEST_DATA}")
+target_link_libraries(TestSim ${TEST_DEPS})
 
 add_executable(TestTimeline tests/TestTimeline.cpp)
 add_compile_definitions(TestTimeline PRIVATE TEST_DATA="${TEST_DATA}")

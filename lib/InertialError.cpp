@@ -120,7 +120,7 @@ void InertialError::propagate() {
     // Accelerometer measurement
     const vec3_t a_k = imu_buffer_.getAcc(k);
     const vec3_t a_kp1 = imu_buffer_.getAcc(k + 1);
-    const vec3_t acc_i = dq_i * a_k - ba_i;
+    const vec3_t acc_i = dq_i * (a_k - ba_i);
     const vec3_t acc_j = (dq_i * dq_perturb) * (a_kp1 - ba_i);
     const vec3_t a = 0.5 * (acc_i + acc_j);
 
@@ -150,7 +150,7 @@ void InertialError::propagate() {
 
   // Enforce semi-positive-definite on the state covariance matrix
   state_P_ = (state_P_ + state_P_.transpose()) / 2.0;
-  sqrt_info_ = state_P_.llt().matrixU();
+  sqrt_info_ = state_P_.inverse().llt().matrixU();
 }
 
 InertialError::InertialError(const std::vector<double *> &param_ptrs,
@@ -171,6 +171,16 @@ InertialError::InertialError(const std::vector<double *> &param_ptrs,
 
   propagate();
 }
+
+matx_t InertialError::getMatrixF() const { return state_F_; }
+
+matx_t InertialError::getMatrixP() const { return state_P_; }
+
+quat_t InertialError::getRelativeRotation() const { return dq_; }
+
+vec3_t InertialError::getRelativePosition() const { return dr_; }
+
+vec3_t InertialError::getRelativeVelocity() const { return dv_; }
 
 std::shared_ptr<InertialError>
 InertialError::create(const ImuParams &imu_params,
@@ -201,14 +211,14 @@ bool InertialError::EvaluateWithMinimalJacobians(double const *const *params,
   Eigen::Map<const vecx_t> sb_j(params[3], 9);
 
   const quat_t q_i = tf_quat(T_i);
-  const mat3_t C_i = q_i.toRotationMatrix();
+  const mat3_t C_i = tf_rot(T_i);
   const vec3_t r_i = tf_trans(T_i);
   const vec3_t v_i = sb_i.segment<3>(0);
   const vec3_t ba_i = sb_i.segment<3>(3);
   const vec3_t bg_i = sb_i.segment<3>(6);
 
   const quat_t q_j = tf_quat(T_j);
-  const mat3_t C_j = q_j.toRotationMatrix();
+  const mat3_t C_j = tf_rot(T_j);
   const vec3_t r_j = tf_trans(T_j);
   const vec3_t v_j = sb_j.segment<3>(0);
   const vec3_t ba_j = sb_j.segment<3>(3);
@@ -233,8 +243,8 @@ bool InertialError::EvaluateWithMinimalJacobians(double const *const *params,
   const vec3_t g = imu_params_.g;
   const double Dt_sq = Dt_ * Dt_;
   const mat3_t C_iT = C_i.transpose();
-  vec3_t dr_meas = (C_iT * ((r_j - r_i) - (v_i * Dt_) + (0.5 * g * Dt_sq)));
-  vec3_t dv_meas = (C_iT * ((v_j - v_i) + (g * Dt_)));
+  vec3_t dr_meas = C_iT * ((r_j - r_i) - (v_i * Dt_) + (0.5 * g * Dt_sq));
+  vec3_t dv_meas = C_iT * ((v_j - v_i) + (g * Dt_));
 
   const vec3_t err_pos = dr_meas - dr_;
   const vec3_t err_vel = dv_meas - dv_;
@@ -243,11 +253,11 @@ bool InertialError::EvaluateWithMinimalJacobians(double const *const *params,
   const vec3_t err_bg = bg_j - bg_i;
 
   Eigen::Map<vecx_t> r(res, 15);
-  r.segment<3>(0) = err_pos;
-  r.segment<3>(3) = err_vel;
-  r.segment<3>(6) = err_rot;
-  r.segment<3>(9) = err_ba;
-  r.segment<3>(12) = err_bg;
+  r.segment(0, 3) = err_pos;
+  r.segment(3, 3) = err_vel;
+  r.segment(6, 3) = err_rot;
+  r.segment(9, 3) = err_ba;
+  r.segment(12, 3) = err_bg;
   r = sqrt_info_ * r;
 
   // Form Jacobians

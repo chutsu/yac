@@ -52,14 +52,20 @@ public:
                 const ImuParams &imu_params,
                 const ImuBuffer &imu_buffer);
 
+  /** Return state transition matrix F */
+  matx_t getMatrixF() const;
+
+  /** Return state transition matrix P */
+  matx_t getMatrixP() const;
+
   /** Return relative rotation dq */
-  quat_t getRelativeRotation() const { return dq_; }
+  quat_t getRelativeRotation() const;
 
   /** Return relative position dr */
-  vec3_t getRelativePosition() const { return dr_; }
+  vec3_t getRelativePosition() const;
 
   /** Return relative velocity dv */
-  vec3_t getRelativeVelocity() const { return dv_; }
+  vec3_t getRelativeVelocity() const;
 
   /** Create residual block */
   static std::shared_ptr<InertialError> create(const ImuParams &imu_params,

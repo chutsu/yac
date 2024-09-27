@@ -5,8 +5,8 @@ namespace yac {
 Sim::Sim() {
   const vec3_t g{0.0, 0.0, 9.81};
   const double imu_rate = 200.0;
-  const double circle_r = 1.0;
-  const double circle_v = 0.1;
+  const double circle_r = 10.0;
+  const double circle_v = 1.0;
   const double circle_dist = 2.0 * M_PI * circle_r;
   const double time_taken = circle_dist / circle_v;
 

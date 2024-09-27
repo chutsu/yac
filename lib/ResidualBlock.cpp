@@ -87,7 +87,8 @@ bool ResidualBlock::Evaluate(double const *const *params,
 bool ResidualBlock::checkJacobian(const int param_idx,
                                   const std::string &jac_name,
                                   const double step,
-                                  const double tol) const {
+                                  const double tol,
+                                  const bool verbose) const {
   // Setup
   const int r_size = num_residuals();
   const size_t num_params = param_ptrs_.size();
@@ -128,7 +129,7 @@ bool ResidualBlock::checkJacobian(const int param_idx,
   // Check jacobian
   const auto min_jac_ptr = min_jac_ptrs[param_idx];
   Eigen::Map<matx_row_major_t> min_jac(min_jac_ptr, r_size, param_local_size);
-  const int retval = check_jacobian(jac_name, fdiff, min_jac, tol, true);
+  const int retval = check_jacobian(jac_name, fdiff, min_jac, tol, verbose);
 
   // Clean up
   for (size_t i = 0; i < num_params; i++) {

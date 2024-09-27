@@ -47,7 +47,8 @@ public:
   bool checkJacobian(const int param_idx,
                      const std::string &jac_name,
                      const double step = 1e-8,
-                     const double tol = 1e-4) const;
+                     const double tol = 1e-4,
+                     const bool verbose = false) const;
 };
 
 } // namespace yac

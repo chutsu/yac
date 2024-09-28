@@ -14,3 +14,9 @@ cam0:
 cam1:
   resolution: [752, 480]
   camera_model: "pinhole-radtan4"
+
+imu0:
+  noise_acc:       0.08
+  noise_gyr:       0.004
+  random_walk_acc: 0.00004
+  random_walk_gyr: 2.0e-6

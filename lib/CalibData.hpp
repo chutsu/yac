@@ -4,11 +4,13 @@
 #include "Core.hpp"
 #include "AprilGrid.hpp"
 #include "CameraGeometry.hpp"
+#include "ImuGeometry.hpp"
 #include "PoseLocalParameterization.hpp"
 
 namespace yac {
 
 using CameraGeometryPtr = std::shared_ptr<CameraGeometry>;
+using ImuGeometryPtr = std::shared_ptr<ImuGeometry>;
 using CalibTargetPtr = std::shared_ptr<CalibTarget>;
 using CameraData = std::map<timestamp_t, CalibTargetPtr>;
 
@@ -29,6 +31,7 @@ protected:
   // Data
   std::map<int, CameraData> camera_data_;
   std::map<int, CameraGeometryPtr> camera_geometries_;
+  std::map<int, ImuGeometryPtr> imu_geometries_;
   std::map<int, vec3_t> target_points_;
 
   /** Load Camera Data */
@@ -44,7 +47,10 @@ protected:
   void printCalibTarget(FILE *fp) const;
 
   /** Print camera geometries */
-  void printCameraGeometries(FILE *fp, const bool max_digits=false) const;
+  void printCameraGeometries(FILE *fp, const bool max_digits = false) const;
+
+  /** Print IMU geometries */
+  void printImuGeometries(FILE *fp, const bool max_digits = false) const;
 
   /** Print target points */
   void printTargetPoints(FILE *fp) const;
@@ -60,6 +66,11 @@ public:
                  const vec2i_t &resolution,
                  const vecx_t &intrinsic,
                  const vec7_t &extrinsic);
+
+  /** Add Imu */
+  void addImu(const int imu_index,
+              const ImuParams &imu_params,
+              const vec7_t &extrinsic);
 
   /** Add camera measurement */
   void addCameraMeasurement(const timestamp_t ts,
@@ -88,7 +99,7 @@ public:
   vec3_t &getTargetPoint(const int point_id);
 
   /** Print summary */
-  void printSummary(FILE *fp, const bool max_digits=false) const;
+  void printSummary(FILE *fp, const bool max_digits = false) const;
 
   /** Save results */
   void saveResults(const std::string &save_path) const;

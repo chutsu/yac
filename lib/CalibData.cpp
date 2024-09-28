@@ -11,11 +11,11 @@ CalibData::CalibData(const std::string &config_path)
   parse(config, "data_path", data_path_);
 
   // -- Parse target settings
-  parse(config, "calibration_target.target_type", target_type_);
-  parse(config, "calibration_target.tag_rows", tag_rows_);
-  parse(config, "calibration_target.tag_cols", tag_cols_);
-  parse(config, "calibration_target.tag_size", tag_size_);
-  parse(config, "calibration_target.tag_spacing", tag_spacing_);
+  parse(config, "calib_target.target_type", target_type_);
+  parse(config, "calib_target.tag_rows", tag_rows_);
+  parse(config, "calib_target.tag_cols", tag_cols_);
+  parse(config, "calib_target.tag_size", tag_size_);
+  parse(config, "calib_target.tag_spacing", tag_spacing_);
 
   // -- Parse camera settings
   for (int camera_index = 0; camera_index < 100; camera_index++) {
@@ -48,6 +48,25 @@ CalibData::CalibData(const std::string &config_path)
 
     // Add camera
     addCamera(camera_index, camera_model, resolution, intrinsic, extrinsic);
+  }
+
+  // -- Parse IMU settings
+  {
+    const int imu_index = 0;
+    const std::string prefix = "imu" + std::to_string(imu_index);
+    if (yaml_has_key(config, prefix) == 0) {
+      return;
+    }
+
+    ImuParams imu_params;
+    parse(config, prefix + ".noise_acc", imu_params.noise_acc);
+    parse(config, prefix + ".noise_gyr", imu_params.noise_gyr);
+    parse(config, prefix + ".random_walk_acc", imu_params.noise_ba);
+    parse(config, prefix + ".random_walk_gyr", imu_params.noise_bg);
+
+    vec7_t extrinsic;
+    extrinsic << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0;
+    addImu(imu_index, imu_params, extrinsic);
   }
 }
 
@@ -83,6 +102,7 @@ void CalibData::loadCameraData(const int camera_index) {
     print_progress((double)k / (double)image_paths.size(), desc);
     const std::string image_fname = image_paths[k];
     const std::string image_path = camera_path + "/" + image_fname;
+
     const std::string ts_str = image_fname.substr(0, 19);
     if (std::all_of(ts_str.begin(), ts_str.end(), ::isdigit) == false) {
       LOG_WARN("Unexpected image file: [%s]!", image_path.c_str());
@@ -124,7 +144,7 @@ void CalibData::printSettings(FILE *fp) const {
 }
 
 void CalibData::printCalibTarget(FILE *fp) const {
-  fprintf(fp, "calibration_target:\n");
+  fprintf(fp, "calib_target:\n");
   fprintf(fp, "  target_type: \"%s\"\n", target_type_.c_str());
   fprintf(fp, "  tag_rows:     %d\n", tag_rows_);
   fprintf(fp, "  tag_cols:     %d\n", tag_cols_);
@@ -144,6 +164,21 @@ void CalibData::printCameraGeometries(FILE *fp, const bool max_digits) const {
     fprintf(fp, "  model:     \"%s\"\n", model.c_str());
     fprintf(fp, "  resolution: [%d, %d]\n", resolution.x(), resolution.y());
     fprintf(fp, "  intrinsic:  [%s]\n", intrinsic.c_str());
+    fprintf(fp, "  extrinsic:  [%s]\n", extrinsic.c_str());
+    fprintf(fp, "\n");
+  }
+}
+
+void CalibData::printImuGeometries(FILE *fp, const bool max_digits) const {
+  for (const auto &[imu_index, imu] : imu_geometries_) {
+    const auto extrinsic = vec2str(imu->getExtrinsic(), false, max_digits);
+    const auto imu_params = imu->getImuParams();
+
+    fprintf(fp, "imu%d:\n", imu_index);
+    fprintf(fp, "  noise_acc:   %f\n", imu_params.noise_acc);
+    fprintf(fp, "  noise_gyr:   %f\n", imu_params.noise_gyr);
+    fprintf(fp, "  random_walk_acc:   %f\n", imu_params.noise_ba);
+    fprintf(fp, "  random_walk_gyr:   %f\n", imu_params.noise_bg);
     fprintf(fp, "  extrinsic:  [%s]\n", extrinsic.c_str());
     fprintf(fp, "\n");
   }
@@ -175,6 +210,13 @@ void CalibData::addCamera(const int camera_index,
                                        resolution,
                                        intrinsic,
                                        extrinsic);
+}
+
+void CalibData::addImu(const int imu_index,
+                       const ImuParams &imu_params,
+                       const vec7_t &extrinsic) {
+  imu_geometries_[imu_index] =
+      std::make_shared<ImuGeometry>(imu_index, imu_params, extrinsic);
 }
 
 void CalibData::addCameraMeasurement(const timestamp_t ts,

@@ -13,25 +13,19 @@ public:
   ImuBuffer() = default;
   virtual ~ImuBuffer() = default;
 
-  int getNumMeasurements() const { return timestamps_.size(); }
+  int getNumMeasurements() const;
 
   /** Get timestamp */
-  timestamp_t getTimestamp(const int index) const {
-    return timestamps_.at(index);
-  }
+  timestamp_t getTimestamp(const int index) const;
 
   /** Get accelerometer measurement */
-  vec3_t getAcc(const int index) const { return acc_data_.at(index); }
+  vec3_t getAcc(const int index) const;
 
   /** Get gyroscope measurement */
-  vec3_t getGyr(const int index) const { return gyr_data_.at(index); }
+  vec3_t getGyr(const int index) const;
 
   /** Add measurement */
-  void add(const timestamp_t ts, const vec3_t &acc, const vec3_t gyr) {
-    timestamps_.push_back(ts);
-    acc_data_.push_back(acc);
-    gyr_data_.push_back(gyr);
-  }
+  void add(const timestamp_t ts, const vec3_t &acc, const vec3_t gyr);
 };
 
 } // namespace yac

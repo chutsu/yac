@@ -77,8 +77,8 @@ build_opencv:  ## Build OpenCV
 build_apriltag: build_opencv  ## Build AprilTag
 	$(call cmake_build,apriltag)
 
-build_apriltags: build_opencv  ## Build AprilTags
-	@cd src/apriltags && git apply ../../patches/apriltags.patch
+build_apriltags: ## Build AprilTags
+	@cd src/apriltags && git checkout . && git apply ../../patches/apriltags.patch
 	$(call cmake_build,apriltags)
 
 BUILD_TARGETS := \
